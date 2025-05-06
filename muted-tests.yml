@@ -300,9 +300,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.xpack.esql.inference.RerankOperatorTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/124337
+#- class: org.elasticsearch.xpack.esql.inference.RerankOperatorTests
+#  method: testSimpleCircuitBreaking
+#  issue: https://github.com/elastic/elasticsearch/issues/124337
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236

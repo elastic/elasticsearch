@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Stream;
 
 public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     public record Factory(
@@ -93,95 +92,105 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
 
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new BulkInferenceRequestIterator() {
-            private final BytesRefBlock inputBlock = (BytesRefBlock) rowEncoder.eval(inputPage);
-            private int remainingPositions = inputPage.getPositionCount();
+        final BytesRefBlock inputBlock = (BytesRefBlock) rowEncoder.eval(inputPage);
+        try {
+            return new BulkInferenceRequestIterator() {
+                private int remainingPositions = inputPage.getPositionCount();
 
-            @Override
-            public boolean hasNext() {
-                return remainingPositions > 0;
-            }
-
-            @Override
-            public InferenceAction.Request next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
+                @Override
+                public boolean hasNext() {
+                    return remainingPositions > 0;
                 }
 
-                final int inputSize = Math.min(remainingPositions, batchSize);
-                final List<String> inputs = new ArrayList<>(inputSize);
-                BytesRef scratch = new BytesRef();
-
-                int startIndex = inputBlock.getPositionCount() - remainingPositions;
-                for (int i = 0; i < inputSize; i++) {
-                    int pos = startIndex + i;
-                    if (inputBlock.isNull(pos)) {
-                        inputs.add("");
-                    } else {
-                        scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(pos), scratch);
-                        inputs.add(BytesRefs.toString(scratch));
+                @Override
+                public InferenceAction.Request next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
                     }
+
+                    final int inputSize = Math.min(remainingPositions, batchSize);
+                    final List<String> inputs = new ArrayList<>(inputSize);
+                    BytesRef scratch = new BytesRef();
+
+                    int startIndex = inputBlock.getPositionCount() - remainingPositions;
+                    for (int i = 0; i < inputSize; i++) {
+                        int pos = startIndex + i;
+                        if (inputBlock.isNull(pos)) {
+                            inputs.add("");
+                        } else {
+                            scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(pos), scratch);
+                            inputs.add(BytesRefs.toString(scratch));
+                        }
+                    }
+
+                    remainingPositions -= inputSize;
+                    return inferenceRequest(inputs);
                 }
 
-                remainingPositions -= inputSize;
-                return inferenceRequest(inputs);
-            }
-
-            @Override
-            public void close() {
-                inputBlock.allowPassingToDifferentDriver();
-                Releasables.closeExpectNoException(inputBlock);
-            }
-        };
+                @Override
+                public void close() {
+                    inputBlock.allowPassingToDifferentDriver();
+                    Releasables.closeExpectNoException(inputBlock);
+                }
+            };
+        } catch (Exception e) {
+            inputBlock.allowPassingToDifferentDriver();
+            Releasables.closeExpectNoException(inputBlock);
+            throw(e);
+        }
     }
 
     @Override
     protected BulkInferenceOutputBuilder<RankedDocsResults, Page> outputBuilder(Page inputPage) {
-        return new BulkInferenceOutputBuilder<>() {
-            private final DoubleBlock.Builder scoreBlockBuilder = blockFactory().newDoubleBlockBuilder(inputPage.getPositionCount());
-
-            @Override
-            protected Class<RankedDocsResults> inferenceResultsClass() {
-                return RankedDocsResults.class;
-            }
-
-            @Override
-            public Page buildOutput() {
-                int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
-                Block[] blocks = new Block[blockCount];
-
-                try {
-                    for (int b = 0; b < blockCount; b++) {
-                        if (b == scoreChannel) {
-                            blocks[b] = scoreBlockBuilder.build();
-                        } else {
-                            blocks[b] = inputPage.getBlock(b);
-                            blocks[b].incRef();
-                        }
-                    }
-                    return new Page(blocks);
-                } catch (Exception e) {
-                    Stream.of(blocks).forEach(Block::allowPassingToDifferentDriver);
-                    Releasables.closeExpectNoException(blocks);
-                    throw (e);
+        final DoubleBlock.Builder scoreBlockBuilder = blockFactory().newDoubleBlockBuilder(inputPage.getPositionCount());
+        try {
+            return new BulkInferenceOutputBuilder<>() {
+                @Override
+                protected Class<RankedDocsResults> inferenceResultsClass() {
+                    return RankedDocsResults.class;
                 }
-            }
 
-            @Override
-            public void close() {
-                releasePageOnAnyThread(inputPage);
-                Releasables.closeExpectNoException(scoreBlockBuilder);
-            }
+                @Override
+                public Page buildOutput() {
+                    int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
+                    Block[] blocks = new Block[blockCount];
 
-            @Override
-            public void onInferenceResults(RankedDocsResults results) {
-                results.getRankedDocs()
-                    .stream()
-                    .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
-                    .mapToDouble(RankedDocsResults.RankedDoc::relevanceScore)
-                    .forEach(scoreBlockBuilder::appendDouble);
-            }
-        };
+                    try {
+                        for (int b = 0; b < blockCount; b++) {
+                            if (b == scoreChannel) {
+                                blocks[b] = scoreBlockBuilder.build();
+                            } else {
+                                blocks[b] = inputPage.getBlock(b);
+                                blocks[b].incRef();
+                            }
+                        }
+                        return new Page(blocks);
+                    } catch (Exception e) {
+                        Releasables.closeExpectNoException(blocks);
+                        throw (e);
+                    }
+                }
+
+                @Override
+                public void close() {
+                    releasePageOnAnyThread(inputPage);
+                    Releasables.closeExpectNoException(scoreBlockBuilder);
+                }
+
+                @Override
+                public void onInferenceResults(RankedDocsResults results) {
+                    results.getRankedDocs()
+                        .stream()
+                        .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
+                        .mapToDouble(RankedDocsResults.RankedDoc::relevanceScore)
+                        .forEach(scoreBlockBuilder::appendDouble);
+                }
+            };
+        } catch (Exception e) {
+            releasePageOnAnyThread(inputPage);
+            Releasables.closeExpectNoException(scoreBlockBuilder);
+            throw(e);
+        }
     }
 
     private InferenceAction.Request inferenceRequest(List<String> inputs) {

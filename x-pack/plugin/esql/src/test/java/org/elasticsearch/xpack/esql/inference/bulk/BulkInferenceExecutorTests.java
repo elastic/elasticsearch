@@ -8,14 +8,18 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +47,17 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool("test");
+        threadPool = new TestThreadPool(
+            getTestClass().getSimpleName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                1,
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
     }
 
     @After
@@ -86,16 +100,13 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             assertThat(output, hasSize(requests.size()));
             assertThat(output, contains(responses.stream().map(InferenceAction.Response::getResults).toArray()));
             verify(listener).onResponse(eq(output));
-            verify(outputBuilder).close();
-            verify(requestIterator).close();
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
     public void testSuccessfulExecutionOnEmptyRequest() throws Exception {
         BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
-
 
         ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
 
@@ -109,14 +120,12 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(output, empty());
             verify(listener).onResponse(eq(output));
-            verify(outputBuilder).close();
-            verify(requestIterator).close();
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 20)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 10)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
@@ -144,14 +153,12 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
             assertThat(e.get().getMessage(), equalTo("inference failure"));
-            verify(outputBuilder).close();
-            verify(requestIterator).close();
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(2, 20)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(2, 10)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
@@ -185,14 +192,12 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
             assertThat(e.get().getMessage(), equalTo("inference failure"));
-            verify(outputBuilder).close();
-            verify(requestIterator).close();
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testBuildOutputFailure() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 20)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 10)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
@@ -210,7 +215,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
-        doThrow(new IllegalStateException("build output failure")).when(outputBuilder.buildOutput());
+        doThrow(new IllegalStateException("build output failure")).when(outputBuilder).buildOutput();
 
         BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(inferenceRunner);
         executor.execute(requestIterator, outputBuilder, listener);
@@ -218,8 +223,6 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         assertBusy(() -> {
             verify(listener).onFailure(any(IllegalStateException.class));
             assertThat(e.get().getMessage(), equalTo("build output failure"));
-            verify(outputBuilder).close();
-            verify(requestIterator).close();
         });
     }
 

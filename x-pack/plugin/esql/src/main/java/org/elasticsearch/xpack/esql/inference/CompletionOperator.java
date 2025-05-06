@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CompletionOperator extends InferenceOperator<ChatCompletionResults> {
 
@@ -33,7 +34,7 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
             OperatorFactory {
         @Override
         public String describe() {
-            return "Completion[inference_id=[" + inferenceId + "]]";
+            return "CompletionOperator[inference_id=[" + inferenceId + "]]";
         }
 
         @Override
@@ -73,82 +74,102 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
 
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new BulkInferenceRequestIterator() {
-            private final BytesRefBlock promptBlock = (BytesRefBlock) promptEvaluator.eval(inputPage);
-            private BytesRef readBuffer = new BytesRef();
-            private int currentPos = 0;
-
-            @Override
-            public boolean hasNext() {
-                return currentPos < promptBlock.getPositionCount();
-            }
-
-            @Override
-            public InferenceAction.Request next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                int pos = currentPos++;
-
-                if (promptBlock.isNull(pos)) {
-                    return null;
+        final BytesRefBlock promptBlock = (BytesRefBlock) promptEvaluator.eval(inputPage);
+        try {
+            return new BulkInferenceRequestIterator() {
+                private int currentPos = 0;
+                BytesRef readBuffer = new BytesRef();
+                @Override
+                public boolean hasNext() {
+                    return currentPos < promptBlock.getPositionCount();
                 }
 
-                StringBuilder promptBuilder = new StringBuilder();
-                for (int valueIndex = 0; valueIndex < promptBlock.getValueCount(pos); valueIndex++) {
-                    readBuffer = promptBlock.getBytesRef(promptBlock.getFirstValueIndex(pos) + valueIndex, readBuffer);
-                    promptBuilder.append(readBuffer.utf8ToString()).append("\n");
+                @Override
+                public InferenceAction.Request next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    int pos = currentPos++;
+
+                    if (promptBlock.isNull(pos)) {
+                        return null;
+                    }
+
+                    StringBuilder promptBuilder = new StringBuilder();
+                    for (int valueIndex = 0; valueIndex < promptBlock.getValueCount(pos); valueIndex++) {
+                        readBuffer = promptBlock.getBytesRef(promptBlock.getFirstValueIndex(pos) + valueIndex, readBuffer);
+                        promptBuilder.append(readBuffer.utf8ToString()).append("\n");
+                    }
+
+                    return inferenceRequest(promptBuilder.toString());
                 }
 
-                return inferenceRequest(promptBuilder.toString());
-            }
-
-            @Override
-            public void close() {
-                promptBlock.allowPassingToDifferentDriver();
-                Releasables.closeExpectNoException(promptBlock);
-            }
-        };
+                @Override
+                public void close() {
+                    promptBlock.allowPassingToDifferentDriver();
+                    Releasables.closeExpectNoException(promptBlock);
+                }
+            };
+        } catch (Exception e) {
+            promptBlock.allowPassingToDifferentDriver();
+            Releasables.closeExpectNoException(promptBlock);
+            throw(e);
+        }
     }
 
     @Override
     protected BulkInferenceOutputBuilder<ChatCompletionResults, Page> outputBuilder(Page inputPage) {
-        return new BulkInferenceOutputBuilder<>() {
-            private final BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(inputPage.getPositionCount());
-            private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
+        final BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(inputPage.getPositionCount());
+        final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
+        final AtomicBoolean isOutputBuilt = new AtomicBoolean(false);
 
-            @Override
-            public void close() {
-                Releasables.closeExpectNoException(outputBlockBuilder);
-            }
-
-            @Override
-            public void onInferenceResults(ChatCompletionResults completionResults) {
-                if (completionResults == null || completionResults.getResults().isEmpty()) {
-                    outputBlockBuilder.appendNull();
-                } else {
-                    outputBlockBuilder.beginPositionEntry();
-                    for (ChatCompletionResults.Result rankedDocsResult : completionResults.getResults()) {
-                        bytesRefBuilder.copyChars(rankedDocsResult.content());
-                        outputBlockBuilder.appendBytesRef(bytesRefBuilder.get());
-                        bytesRefBuilder.clear();
+        try {
+            return new BulkInferenceOutputBuilder<>() {
+                @Override
+                public void close() {
+                    if (isOutputBuilt.get() == false) {
+                        releasePageOnAnyThread(inputPage);
                     }
-                    outputBlockBuilder.endPositionEntry();
+
+                    Releasables.closeExpectNoException(outputBlockBuilder);
                 }
-            }
 
-            @Override
-            protected Class<ChatCompletionResults> inferenceResultsClass() {
-                return ChatCompletionResults.class;
-            }
+                @Override
+                public void onInferenceResults(ChatCompletionResults completionResults) {
+                    if (completionResults == null || completionResults.getResults().isEmpty()) {
+                        outputBlockBuilder.appendNull();
+                    } else {
+                        outputBlockBuilder.beginPositionEntry();
+                        for (ChatCompletionResults.Result rankedDocsResult : completionResults.getResults()) {
+                            bytesRefBuilder.copyChars(rankedDocsResult.content());
+                            outputBlockBuilder.appendBytesRef(bytesRefBuilder.get());
+                            bytesRefBuilder.clear();
+                        }
+                        outputBlockBuilder.endPositionEntry();
+                    }
+                }
 
-            @Override
-            public Page buildOutput() {
-                Block outputBlock = outputBlockBuilder.build();
-                assert outputBlock.getPositionCount() == inputPage.getPositionCount();
-                return inputPage.appendBlock(outputBlock);
-            }
-        };
+                @Override
+                protected Class<ChatCompletionResults> inferenceResultsClass() {
+                    return ChatCompletionResults.class;
+                }
+
+                @Override
+                public Page buildOutput() {
+                    if (isOutputBuilt.compareAndSet(false, true)) {
+                        Block outputBlock = outputBlockBuilder.build();
+                        assert outputBlock.getPositionCount() == inputPage.getPositionCount();
+                        return inputPage.appendBlock(outputBlock);
+                    }
+
+                    throw new IllegalStateException("buildOutput has already been called");
+                }
+            };
+        } catch (Exception e) {
+            releasePageOnAnyThread(inputPage);
+            Releasables.closeExpectNoException(outputBlockBuilder);
+            throw(e);
+        }
     }
 
     private InferenceAction.Request inferenceRequest(String prompt) {

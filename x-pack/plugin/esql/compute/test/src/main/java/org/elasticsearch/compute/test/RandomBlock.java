@@ -80,10 +80,23 @@ public record RandomBlock(List<List<Object>> values, Block block) {
         int minDupsPerPosition,
         int maxDupsPerPosition
     ) {
+        return randomBlock(blockFactory, elementType, positionCount, ESTestCase.randomBoolean(), nullAllowed, minValuesPerPosition, maxValuesPerPosition, minDupsPerPosition, maxDupsPerPosition);
+    }
+
+    public static RandomBlock randomBlock(
+        BlockFactory blockFactory,
+        ElementType elementType,
+        int positionCount,
+        boolean bytesRefFromPoints,
+        boolean nullAllowed,
+        int minValuesPerPosition,
+        int maxValuesPerPosition,
+        int minDupsPerPosition,
+        int maxDupsPerPosition
+    ) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
-            boolean bytesRefFromPoints = ESTestCase.randomBoolean();
             Supplier<Point> pointSupplier = ESTestCase.randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
             for (int p = 0; p < positionCount; p++) {
                 if (elementType == ElementType.NULL) {

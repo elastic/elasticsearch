@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.test.mockito.SecureMockMaker;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -69,9 +68,6 @@ public class BootstrapForTesting {
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
-
-        // init mockito
-        SecureMockMaker.init();
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();

@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -150,7 +151,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
-    private static final Logger LOGGER = LogManager.getLogger(ThreadPoolMergeExecutorService.class);
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -356,6 +356,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     class DiskSpaceMonitor implements Runnable {
+        private static final Logger LOGGER = LogManager.getLogger(ThreadPoolMergeExecutorService.DiskSpaceMonitor.class);
         private final RelativeByteSizeValue highStageWatermark;
         private final ByteSizeValue highStageMaxHeadroom;
         private final NodeEnvironment.DataPath[] dataPaths;
@@ -372,17 +373,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
         @Override
         public void run() {
-            FsInfo.Path leastAvailablePath = null;
+            FsInfo.Path mostAvailablePath = null;
             IOException fsInfoException = null;
-            if (dataPaths == null) {
-                LOGGER.warn("Cannot read filesystem info because data path is not set in the env");
-                return;
-            }
             for (NodeEnvironment.DataPath dataPath : dataPaths) {
                 try {
                     FsInfo.Path fsInfo = getFSInfo(dataPath); // uncached
-                    if (leastAvailablePath == null || leastAvailablePath.getAvailable().getBytes() > fsInfo.getAvailable().getBytes()) {
-                        leastAvailablePath = fsInfo;
+                    if (mostAvailablePath == null || mostAvailablePath.getAvailable().getBytes() < fsInfo.getAvailable().getBytes()) {
+                        mostAvailablePath = fsInfo;
                     }
                 } catch (IOException e) {
                     if (fsInfoException == null) {
@@ -395,20 +392,15 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             if (fsInfoException != null) {
                 LOGGER.warn("unexpected exception reading filesystem info", fsInfoException);
             }
-            if (leastAvailablePath == null) {
-                LOGGER.error("Cannot read filesystem info");
+            if (mostAvailablePath == null) {
+                LOGGER.error("Cannot read filesystem info for node data paths " + Arrays.toString(dataPaths));
                 return;
             }
-            // subtract disk space that already running merges are expected to fill
-            long leastAvailableDiskSpaceBytes = leastAvailablePath.getAvailable().getBytes();
-            for (MergeTask mergeTask : runningMergeTasks) {
-                leastAvailableDiskSpaceBytes -= mergeTask.estimatedRemainingMergeSize();
-            }
-            // also subtract the configured free disk space threshold
-            leastAvailableDiskSpaceBytes -= getFreeBytesThreshold(leastAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
+            long mostAvailableDiskSpaceBytes = mostAvailablePath.getAvailable().getBytes();
+            // subtract the configured free disk space threshold
+            mostAvailableDiskSpaceBytes -= getFreeBytesThreshold(mostAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
                 .getBytes();
-            // the rest is the maximum disk space available for a new merge task
-            long maxMergeSizeLimit = Math.max(0L, leastAvailableDiskSpaceBytes);
+            long maxMergeSizeLimit = Math.max(0L, mostAvailableDiskSpaceBytes);
             queuedMergeTasks.updateAvailableBudget(maxMergeSizeLimit);
         }
 
@@ -474,9 +466,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             lock.lock();
             try {
                 this.availableBudget = availableBudget;
-                // also update budget per element
+                // update the per-element budget
                 unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
-                // update available budget given the per element budget
+                // update available budget given the per-element budget
                 this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
                 elementAvailable.signalAll();
             } finally {
@@ -509,6 +501,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
                 lock.lock();
                 try {
+                    assert unreleasedBudgetPerElement.containsKey(element);
                     availableBudget += unreleasedBudgetPerElement.remove(element);
                     elementAvailable.signalAll();
                 } finally {

@@ -19,7 +19,11 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
@@ -27,10 +31,14 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
@@ -221,6 +229,66 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(0, MetricQuality.EXACT)));
             assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
         });
+    }
+
+    public void testShardSizesForHollowShards() throws Exception {
+        var masterNode = startMasterNode();
+        String searchNode = startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
+        var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(indexName, randomIntBetween(1, 100), boostWindow + ONE_DAY, now);
+        refresh(indexName);
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
+        });
+        var shardSizeBeforeHollowing = getShardSize(new ShardId(resolveIndex(indexName), 0));
+
+        flush(indexName);
+        assertBusy(() -> {
+            var indexShard = findIndexShard(resolveIndex(indexName), 0);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            assertTrue(internalCluster().getInstance(HollowShardsService.class, indexNodeA).isHollowableIndexShard(indexShard));
+        });
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        hollowShards(indexName, 1, indexNodeA, indexNodeB);
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+
+        if (randomBoolean()) {
+            internalCluster().restartNode(masterNode);
+            ensureGreen(indexName);
+        }
+        if (randomBoolean()) {
+            internalCluster().restartNode(searchNode);
+            ensureGreen(indexName);
+        }
+
+        var shardSize = getShardSize(indexShard.shardId());
+        assertThat(shardSize.totalSizeInBytes(), equalTo(shardSizeBeforeHollowing.totalSizeInBytes()));
+        assertThat(shardSize.generation(), equalTo(shardSizeBeforeHollowing.generation() + 1));
+    }
+
+    private static ShardSizeStatsReader.ShardSize getShardSize(ShardId shardId) {
+        var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+        var shardMetrics = searchMetricsService.getShardMetrics().get(shardId);
+        return shardMetrics.shardSize;
     }
 
     private String startMasterNode() {

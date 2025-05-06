@@ -73,13 +73,6 @@ testing {
       dependencies {
         implementation project()
         implementation project(':test:framework')
-        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
-        implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
-
-        runtimeOnly("org.slf4j:slf4j-simple:${versions.slf4j}") {
-          // TODO: (Rene) this should be handled by ElasticsearchBase Plugin but there's an open issue with that.
-          transitive = false
-        }
       }
     }
     test {
@@ -115,6 +108,8 @@ testing {
         implementation project(':test:fixtures:ec2-imds-fixture')
         implementation project(':test:fixtures:minio-fixture')
         implementation project(':test:fixtures:testcontainer-utils')
+        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
       }
     }
     // test suite for the Yaml rest tests provided by the InternalYamlRestTestPlugin
@@ -169,6 +164,7 @@ testing {
       dependencies {
         implementation project(':test:fixtures:minio-fixture')
         implementation project(':server')
+        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
         implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
         implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
         implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"

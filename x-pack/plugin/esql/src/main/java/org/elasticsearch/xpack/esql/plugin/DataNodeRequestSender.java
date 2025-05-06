@@ -195,15 +195,23 @@ abstract class DataNodeRequestSender {
                             var failure = shardFailures.get(shardId);
                             if (failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException) {
                                 pendingRetries.add(shardId);
-                            } else {
-                                shardFailures.compute(
-                                    shardId,
-                                    (k, v) -> new ShardFailure(
-                                        true,
-                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                    )
-                                );
                             }
+                        }
+                    }
+                    if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                        for (var entry : resolveShards(pendingRetries).entrySet()) {
+                            targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        }
+                    }
+                    for (ShardId shardId : pendingShardIds) {
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                            shardFailures.compute(
+                                shardId,
+                                (k, v) -> new ShardFailure(
+                                    true,
+                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                )
+                            );
                         }
                     }
                     if (reportedFailure
@@ -211,11 +219,6 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
-                            for (var entry : resolveShards(pendingRetries).entrySet()) {
-                                targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
-                            }
-                        }
                         for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }

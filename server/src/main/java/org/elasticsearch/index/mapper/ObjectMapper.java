@@ -227,7 +227,7 @@ public class ObjectMapper extends Mapper {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 Mapper existing = mappers.get(mapper.leafName());
-                if (existing != null) {
+                if (existing != null && isPassThroughTimeSeriesDimension(mapper) == false) {
                     // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
                     // the same field is provided using the object notation as well as the dot notation at the same time.
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
@@ -243,6 +243,16 @@ public class ObjectMapper extends Mapper {
                 }
             }
             return mappers;
+        }
+
+        /**
+         * Pass through dimensions might be used in the index.routing_path so they should not be merged with existing field mappings
+         */
+        private boolean isPassThroughTimeSeriesDimension(Mapper mapper) {
+            if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                return passThroughObjectMapper.containsDimensions();
+            }
+            return false;
         }
 
         @Override

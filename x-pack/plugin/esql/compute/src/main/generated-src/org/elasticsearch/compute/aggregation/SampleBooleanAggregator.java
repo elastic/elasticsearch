@@ -35,6 +35,11 @@ import java.util.random.RandomGenerator;
  * <p>
  *     This class is generated. Edit `X-SampleAggregator.java.st` to edit this file.
  * </p>
+ * <p>
+ *     This works by prepending a random long to the value, and then collecting the
+ *     top values. This gives a uniform random sample of the values. See also:
+ *     <a href="https://en.wikipedia.org/wiki/Reservoir_sampling#With_random_sort">Wikipedia Reservoir Sampling</a>
+ * </p>
  */
 @Aggregator({ @IntermediateState(name = "sample", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator

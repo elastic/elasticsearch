@@ -205,6 +205,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final boolean useDocValuesSkipper;
         private final SourceKeepMode indexSourceKeepMode;
+        private boolean excludeFromFieldCaps = false;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -297,6 +298,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public Builder ignoreAbove(int ignoreAbove) {
             this.ignoreAbove.setValue(ignoreAbove);
+            return this;
+        }
+
+        public Builder excludeFromFieldCaps(boolean excludeFromFieldCaps) {
+            this.excludeFromFieldCaps = excludeFromFieldCaps;
             return this;
         }
 
@@ -448,10 +454,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
+
+            KeywordFieldType keywordFieldType = buildFieldType(context, fieldtype);
+            keywordFieldType.setExcludeFromFieldCaps(excludeFromFieldCaps);
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
-                buildFieldType(context, fieldtype),
+                keywordFieldType,
                 builderParams(this, context),
                 context.isSourceSynthetic(),
                 useDocValuesSkipper,

@@ -186,6 +186,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
+        private boolean excludeFromFieldCaps = false;
+
+        public Builder(String name, IndexVersion indexVersionCreated, boolean excludeFromFieldCaps) {
+            this(name, indexVersionCreated);
+            this.excludeFromFieldCaps = excludeFromFieldCaps;
+        }
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
@@ -302,21 +308,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldType(
+                context.buildFullName(leafName()),
+                indexVersionCreated,
+                elementType.getValue(),
+                dims.getValue(),
+                indexed.getValue(),
+                similarity.getValue(),
+                indexOptions.getValue(),
+                meta.getValue()
+            );
+            denseVectorFieldType.setExcludeFromFieldCaps(this.excludeFromFieldCaps);
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
             return new DenseVectorFieldMapper(
                 leafName(),
-                new DenseVectorFieldType(
-                    context.buildFullName(leafName()),
-                    indexVersionCreated,
-                    elementType.getValue(),
-                    dims.getValue(),
-                    indexed.getValue(),
-                    similarity.getValue(),
-                    indexOptions.getValue(),
-                    meta.getValue()
-                ),
+                denseVectorFieldType,
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated

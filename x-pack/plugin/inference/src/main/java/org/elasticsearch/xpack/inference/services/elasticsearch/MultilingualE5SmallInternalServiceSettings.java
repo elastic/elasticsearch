@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MAX_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MIN_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 
@@ -37,12 +40,12 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         );
     }
 
-    public static MultilingualE5SmallInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
+    public static MultilingualE5SmallInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel, Settings settings) {
         return new MultilingualE5SmallInternalServiceSettings(
             null,
             1,
             useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-            new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
+            new AdaptiveAllocationsSettings(Boolean.TRUE, DEFAULT_MIN_ALLOCATIONS.get(settings), DEFAULT_MAX_ALLOCATIONS.get(settings))
         );
     }
 

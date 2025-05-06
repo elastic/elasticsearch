@@ -923,7 +923,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_ELSER_ID,
             TaskType.SPARSE_EMBEDDING,
             NAME,
-            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
+            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel, settings),
             ElserMlNodeTaskSettings.DEFAULT,
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -931,14 +931,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_E5_ID,
             TaskType.TEXT_EMBEDDING,
             NAME,
-            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
+            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel, settings),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultRerank = new ElasticRerankerModel(
             DEFAULT_RERANK_ID,
             TaskType.RERANK,
             NAME,
-            ElasticRerankerServiceSettings.defaultEndpointSettings(),
+            ElasticRerankerServiceSettings.defaultEndpointSettings(settings),
             RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);

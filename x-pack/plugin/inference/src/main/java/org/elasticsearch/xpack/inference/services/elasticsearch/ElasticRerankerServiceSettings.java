@@ -9,19 +9,27 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MAX_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MIN_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elastic_reranker_service_settings";
 
-    public static ElasticRerankerServiceSettings defaultEndpointSettings() {
-        return new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32));
+    public static ElasticRerankerServiceSettings defaultEndpointSettings(Settings settings) {
+        return new ElasticRerankerServiceSettings(
+            null,
+            1,
+            RERANKER_ID,
+            new AdaptiveAllocationsSettings(Boolean.TRUE, DEFAULT_MIN_ALLOCATIONS.get(settings), DEFAULT_MAX_ALLOCATIONS.get(settings))
+        );
     }
 
     public ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings other) {

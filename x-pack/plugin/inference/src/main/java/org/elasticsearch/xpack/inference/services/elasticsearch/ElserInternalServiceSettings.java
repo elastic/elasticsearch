@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MAX_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.DEFAULT_MIN_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -26,12 +29,12 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
         return MinimalServiceSettings.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 
-    public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
+    public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel, Settings settings) {
         return new ElserInternalServiceSettings(
             null,
             1,
             useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-            new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
+            new AdaptiveAllocationsSettings(Boolean.TRUE, DEFAULT_MIN_ALLOCATIONS.get(settings), DEFAULT_MAX_ALLOCATIONS.get(settings))
         );
     }
 

@@ -84,7 +84,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -573,10 +572,12 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private Map<Index, ProjectId> projectsByIndex() {
-        return indices.values()
-            .stream()
-            .map(AbstractIndexComponent::index)
-            .collect(Collectors.toMap(index -> index, index -> clusterService.state().metadata().projectFor(index).id()));
+        Map<Index, ProjectId> map = new HashMap<>();
+        for (IndexService indexShards : indices.values()) {
+            Index index = indexShards.index();
+            clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));
+        }
+        return map;
     }
 
     /**

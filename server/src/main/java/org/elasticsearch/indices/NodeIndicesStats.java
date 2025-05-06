@@ -101,8 +101,8 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     }
 
     /**
-     * Constructs an instance. If {@code projectsByIndex} argument is non-null, then the index-to-project map will be stored, and the
-     * project IDs will be prepended to the index names when converting this instance to XContent (except when it is the default project).
+     * Constructs an instance. The {@code projectsByIndex} map will be stored, and the project IDs will be prepended to the index names when
+     * converting this instance to XContent (except when it is the default project).
      */
     public NodeIndicesStats(
         CommonStats oldStats,
@@ -319,10 +319,16 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             return index.getName();
         }
         ProjectId projectId = projectsByIndex.get(index);
-        if (Objects.equals(projectId, Metadata.DEFAULT_PROJECT_ID)) {
+        if (projectId == null) {
+            // This can happen if the stats were captured after the IndexService was created but before the state was updated.
+            // It can also happen if this instance was constructed on a node older than VERSION_SUPPORTING_STATS_BY_INDEX.
+            // The best we can do is handle it gracefully.
+            return "<unknown>/" + index.getName();
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID)) {
             return index.getName();
+        } else {
+            return projectId + "/" + index.getName();
         }
-        return projectId + "/" + index.getName();
     }
 
     private Map<Index, CommonStats> createCommonStatsByIndex() {

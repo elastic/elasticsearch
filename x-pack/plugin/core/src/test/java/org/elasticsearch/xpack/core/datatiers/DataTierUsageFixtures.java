@@ -79,7 +79,13 @@ class DataTierUsageFixtures extends ESTestCase {
             IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
             indexStats.computeIfAbsent(shardId.getIndex(), k -> new ArrayList<>()).add(shardStats);
         }
-        return new NodeIndicesStats(COMMON_STATS, Map.of(), indexStats, Map.of(), true);
+        return new NodeIndicesStats(
+            COMMON_STATS,
+            Map.of(),
+            indexStats,
+            /* projectsByIndex is only used for rendering as XContent, which not needed here */ Map.of(),
+            true
+        );
     }
 
     private static ShardStats shardStat(long byteCount, long docCount, ShardRouting routing) {

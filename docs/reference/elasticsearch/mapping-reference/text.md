@@ -112,8 +112,61 @@ These modifications can impact usage of `text` fields:
 * Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more details. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
 * Handling of `null` values is different. `text` fields ignore `null` values, but `keyword` fields support replacing `null` values with a value specified in the `null_value` parameter. This replacement is represented in synthetic source.
 
+For example:
 
-If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied.
+$$$synthetic-source-text-example-multi-field$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "text": {
+        "type": "text",
+        "fields": {
+          "kwd": {
+            "type": "keyword",
+            "null_value": "NA"
+          }
+        }
+      }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    null,
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog",
+  ]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "text": [
+    "jumped over the lazy dog"
+    "NA",
+    "the quick brown fox"
+  ]
+}
+```
+
+
+If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied. For example:
 
 $$$synthetic-source-text-example-stored$$$
 

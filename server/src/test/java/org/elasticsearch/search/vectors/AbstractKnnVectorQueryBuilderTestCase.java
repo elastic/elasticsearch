@@ -218,10 +218,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             numCands = Math.max(numCands, k);
         }
 
-        final KnnSearchStrategy expectedStrategy = context.getIndexSettings().getIndexVersionCreated()
+        final KnnSearchStrategy expectedStrategy = context.getIndexSettings()
+            .getIndexVersionCreated()
             .onOrAfter(IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC)
-            ? DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
-            : DenseVectorFieldMapper.FilterHeuristic.FANOUT.getKnnSearchStrategy();
+                ? DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                : DenseVectorFieldMapper.FilterHeuristic.FANOUT.getKnnSearchStrategy();
 
         Query knnVectorQueryBuilt = switch (elementType()) {
             case BYTE, BIT -> new ESKnnByteVectorQuery(

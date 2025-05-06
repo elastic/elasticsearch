@@ -138,7 +138,7 @@ public class InboundHandler {
             }
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-            handlingTimeTracker.addHandlingTime(took);
+            handlingTimeTracker.addObservation(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logSlowMessage(message, took, logThreshold, responseHandler);

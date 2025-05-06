@@ -106,7 +106,7 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), null, b -> minimalMapping(b));
+                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), b -> minimalMapping(b));
             }
 
             @Override

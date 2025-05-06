@@ -64,6 +64,7 @@ processingCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
+    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -86,6 +87,14 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
+    ;
+
 fromCommand
     : FROM indexPatternAndMetadataFields
     ;
@@ -100,7 +109,7 @@ indexPatternAndMetadataFields:
 
 indexPattern
     : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
+    | indexString (CAST_OP selectorString)?
     ;
 
 clusterString
@@ -295,9 +304,13 @@ rrfCommand
    ;
 
 rerankCommand
-    : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
+    : DEV_RERANK queryText=constant ON rerankFields WITH inferenceId=identifierOrParameter
     ;
 
 completionCommand
     : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    ;
+
+sampleCommand
+    : DEV_SAMPLE probability=decimalValue seed=integerValue?
     ;

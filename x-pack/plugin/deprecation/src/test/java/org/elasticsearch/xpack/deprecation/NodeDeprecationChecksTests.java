@@ -111,7 +111,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";
@@ -136,7 +136,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";

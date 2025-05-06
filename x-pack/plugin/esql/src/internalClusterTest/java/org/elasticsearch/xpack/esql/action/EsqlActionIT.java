@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
@@ -1133,13 +1132,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                                           }
                                         }"""))
                                     .dataStreamOptions(
-                                        ResettableValue.create(
-                                            new DataStreamOptions.Template(
-                                                ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
-                                            )
-                                        )
+                                        new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
                                     )
-                                    .build()
                             )
                             .build()
                     )

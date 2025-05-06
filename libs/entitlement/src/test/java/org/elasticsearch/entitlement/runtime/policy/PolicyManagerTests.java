@@ -161,13 +161,13 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(message, expectedEntitlements, policyManager.getEntitlements(requestingClass));
         assertEquals(
             "Map has precisely the one expected entry",
-            Map.of(requestingClass.getModule(), expectedEntitlements),
+            Map.of(requestingClass, expectedEntitlements),
             policyManager.moduleEntitlementsCache
         );
 
         // Fetch a second time and verify the map is unchanged
         policyManager.getEntitlements(requestingClass);
-        assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsCache);
+        assertEquals("Map is unchanged", Map.of(requestingClass, expectedEntitlements), policyManager.moduleEntitlementsCache);
     }
 
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {

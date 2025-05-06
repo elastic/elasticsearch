@@ -97,10 +97,9 @@ public final class ProviderLocator<T> implements Supplier<T> {
     @Override
     public T get() {
         try {
-            PrivilegedExceptionAction<T> pa = this::load;
-            return AccessController.doPrivileged(pa);
-        } catch (PrivilegedActionException e) {
-            throw new UncheckedIOException((IOException) e.getCause());
+            return load();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -136,7 +136,7 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
         } catch (Exception e) {
             inputBlock.allowPassingToDifferentDriver();
             Releasables.closeExpectNoException(inputBlock);
-            throw(e);
+            throw (e);
         }
     }
 
@@ -189,7 +189,7 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
         } catch (Exception e) {
             releasePageOnAnyThread(inputPage);
             Releasables.closeExpectNoException(scoreBlockBuilder);
-            throw(e);
+            throw (e);
         }
     }
 

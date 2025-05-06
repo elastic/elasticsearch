@@ -20,7 +20,7 @@ public abstract class BulkInferenceOutputBuilder<InferenceResults extends Infere
 
     public abstract void onInferenceResults(InferenceResults results) throws Exception;
 
-    public final void onInferenceResponse(InferenceAction.Response response) throws Exception {
+    public void onInferenceResponse(InferenceAction.Response response) throws Exception {
         InferenceServiceResults results = response.getResults();
         if (inferenceResultsClass().isInstance(response.getResults()) == false) {
             throw new IllegalStateException(

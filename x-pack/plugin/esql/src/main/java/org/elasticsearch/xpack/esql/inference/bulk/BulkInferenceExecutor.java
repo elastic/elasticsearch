@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -28,20 +28,6 @@ public class BulkInferenceExecutor<InferenceResult extends InferenceServiceResul
     }
 
     public void execute(
-        BulkInferenceRequestIterator requests,
-        BulkInferenceOutputBuilder<InferenceResult, OutputType> outputBuilder,
-        ActionListener<OutputType> listener
-    ) {
-
-        final ActionListener<OutputType> completionListener = ActionListener.releaseBefore(
-            Releasables.wrap(requests, outputBuilder),
-            listener
-        );
-
-        doExecute(requests, outputBuilder, completionListener);
-    }
-
-    private void doExecute(
         BulkInferenceRequestIterator requests,
         BulkInferenceOutputBuilder<InferenceResult, OutputType> outputBuilder,
         ActionListener<OutputType> listener
@@ -114,6 +100,6 @@ public class BulkInferenceExecutor<InferenceResult extends InferenceServiceResul
     }
 
     private static ExecutorService executorService(ThreadPool threadPool) {
-        return threadPool.executor(ThreadPool.Names.SEARCH);
+        return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
     }
 }

@@ -465,7 +465,7 @@ public class MultivalueDedupeTests extends ESTestCase {
             for (int i = start; i < end; i++) {
                 actualValues.add(valueLookup.apply(lookup.getInt(i) - 1));
             }
-            // logger.error(actualValues + " " +
+            // System.err.println(actualValues + " " +
             // v.stream().filter(contained::contains).collect(Collectors.toCollection(TreeSet::new)));
             assertThat(actualValues, equalTo(v.stream().filter(contained::contains).collect(Collectors.toCollection(TreeSet::new))));
         }

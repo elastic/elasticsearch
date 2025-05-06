@@ -321,7 +321,7 @@ teardown:
       features: headers
 
   - do:
-      catch: /\[index_options\] field \[pruning_config\] should not be set if \[prune\] is false/
+      catch: /\[index_options\] field \[pruning_config\] should only be set if \[prune\] is set to true/
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json

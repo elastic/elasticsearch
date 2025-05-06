@@ -130,23 +130,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return this.indexOptions;
     }
 
-    private static SparseVectorFieldMapper.IndexOptions getDefaultIndexOptions(MappingParserContext context) {
-        if (context.indexVersionCreated().before(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
-            // don't set defaults if this index was created before
-            // we added this functionality in, so it will
-            // not change current index behaviour
-            return new IndexOptions(false, null);
-        }
-
-        // index options are not set - for new indices,
-        // if this is null, in the query will use the
-        // proper defaults
-        return null;
-    }
-
     private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {
         if (propNode == null) {
-            return getDefaultIndexOptions(context);
+            return null;
         }
 
         Map<String, Object> indexOptionsMap = XContentMapValues.nodeMapValue(propNode, SPARSE_VECTOR_INDEX_OPTIONS);
@@ -155,7 +141,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         TokenPruningConfig pruningConfig = IndexOptions.parseIndexOptionsPruningConfig(prune, indexOptionsMap);
 
         if (prune == null && pruningConfig == null) {
-            return getDefaultIndexOptions(context);
+            return null;
         }
 
         return new SparseVectorFieldMapper.IndexOptions(prune, pruningConfig);
@@ -175,8 +161,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final IndexOptions indexOptions;
 
         public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.indexOptions = null;
+            this(name, isStored, meta, null);
         }
 
         public SparseVectorFieldType(
@@ -482,17 +467,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (prune == null && pruningConfig == null) {
-                return builder;
-            }
-
             builder.startObject();
+
             if (prune != null) {
                 builder.field(PRUNE_FIELD_NAME, prune);
             }
             if (pruningConfig != null) {
                 builder.field(PRUNING_CONFIG_FIELD_NAME, pruningConfig);
             }
+
             builder.endObject();
             return builder;
         }
@@ -516,16 +499,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 return null;
             }
 
-            if (prune == null) {
+            if (prune == null || prune == false) {
                 throw new MapperParsingException("[index_options] field [pruning_config] should only be set if [prune] is set to true");
-            }
-
-            if ((pruningConfiguration instanceof Map) == false) {
-                throw new MapperParsingException("[index_options] field [pruning_config] should be a map");
-            }
-
-            if (prune == false) {
-                throw new MapperParsingException("[index_options] field [pruning_config] should not be set if [prune] is false");
             }
 
             Map<String, Object> pruningConfigurationMap = XContentMapValues.nodeMapValue(pruningConfiguration, PRUNING_CONFIG_FIELD_NAME);

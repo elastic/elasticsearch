@@ -301,7 +301,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("pruning_config", "this_is_not_a_map");
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("index_options] field [pruning_config] should be a map"));
+        assertThat(e.getMessage(), containsString("pruning_config should be a map but was of type:"));
     }
 
     public void testWithIndexOptionsPruningConfigPruneRequired() throws Exception {
@@ -318,7 +318,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestPruneIsFalse.getMessage(),
-            containsString("Failed to parse mapping: [index_options] field [pruning_config] should not be set if [prune] is false")
+            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
         );
 
         Exception eTestPruneIsMissing = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

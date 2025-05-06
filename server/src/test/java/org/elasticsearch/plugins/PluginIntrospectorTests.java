@@ -24,7 +24,6 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -233,11 +232,8 @@ public class PluginIntrospectorTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
         URL[] urls = new URL[] { jar.toUri().toURL() };
 
-        URLClassLoader loader = URLClassLoader.newInstance(urls, PluginIntrospectorTests.class.getClassLoader());
-        try {
+        try (URLClassLoader loader = URLClassLoader.newInstance(urls, PluginIntrospectorTests.class.getClassLoader())) {
             assertThat(pluginIntrospector.interfaces(loader.loadClass("r.FooPlugin")), contains("ActionPlugin"));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(loader);
         }
     }
 

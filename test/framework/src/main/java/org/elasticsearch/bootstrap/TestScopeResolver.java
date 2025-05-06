@@ -9,8 +9,11 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,34 +22,70 @@ import java.util.function.Function;
 record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
     PolicyManager.PolicyScope getScope(Class<?> callerClass) {
         var callerCodeSource = callerClass.getProtectionDomain().getCodeSource().getLocation().toString();
-        return scopeMap.getOrDefault(callerCodeSource, PolicyManager.PolicyScope.unknown(null));
+        return scopeMap.getOrDefault(callerCodeSource, PolicyManager.PolicyScope.unknown(callerCodeSource));
     }
 
-    Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(TestBuildInfo serverBuildInfo, List<TestBuildInfo> pluginsBuildInfo) {
+    static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(
+        TestBuildInfo serverBuildInfo,
+        List<TestBuildInfo> pluginsBuildInfo
+    ) {
 
         Map<String, PolicyManager.PolicyScope> scopeMap = new HashMap<>();
-        for (var pluginBuildInfo: pluginsBuildInfo) {
+        for (var pluginBuildInfo : pluginsBuildInfo) {
             for (var location : pluginBuildInfo.locations()) {
-                var codeSource = this.getClass().getClassLoader().getResource(location.className());
+                var codeSource = TestScopeResolver.class.getClassLoader().getResource(location.className());
                 if (codeSource == null) {
                     throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]");
                 }
-                scopeMap.put(
-                    codeSource.toString(),
-                    PolicyManager.PolicyScope.plugin(pluginBuildInfo.componentName(), location.moduleName())
-                );
+                try {
+                    scopeMap.put(
+                        getCodeSource(codeSource, location.className()),
+                        PolicyManager.PolicyScope.plugin(pluginBuildInfo.componentName(), location.moduleName())
+                    );
+                } catch (MalformedURLException e) {
+                    throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]", e);
+                }
             }
         }
 
         for (var location : serverBuildInfo.locations()) {
-            var codeSource = this.getClass().getClassLoader().getResource(location.className());
-            if (codeSource == null) {
+            var classUrl = TestScopeResolver.class.getClassLoader().getResource(location.className());
+            if (classUrl == null) {
                 throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]");
             }
-            scopeMap.put(codeSource.toString(), PolicyManager.PolicyScope.server(location.moduleName()));
+            try {
+                scopeMap.put(getCodeSource(classUrl, location.className()), PolicyManager.PolicyScope.server(location.moduleName()));
+            } catch (MalformedURLException e) {
+                throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]", e);
+            }
         }
 
         var testScopeResolver = new TestScopeResolver(scopeMap);
         return testScopeResolver::getScope;
+    }
+
+    private static String getCodeSource(URL classUrl, String className) throws MalformedURLException {
+        if (isJarUrl(classUrl)) {
+            return extractJarFileUrl(classUrl).toString();
+        }
+        var s = classUrl.toString();
+        return s.substring(0, s.indexOf(className));
+    }
+
+    private static boolean isJarUrl(URL url) {
+        return "jar".equals(url.getProtocol());
+    }
+
+    @SuppressWarnings("deprecation")
+    @SuppressForbidden(reason = "need file spec in string form to extract the inner URL form the JAR URL")
+    private static URL extractJarFileUrl(URL jarUrl) throws MalformedURLException {
+        String spec = jarUrl.getFile();
+        int separator = spec.indexOf("!/");
+
+        if (separator == -1) {
+            throw new MalformedURLException();
+        }
+
+        return new URL(spec.substring(0, separator));
     }
 }

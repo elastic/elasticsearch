@@ -9,6 +9,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +45,7 @@ class TestBuildInfoParser {
         public void moduleName(final String moduleName) {
             this.moduleName = moduleName;
         }
+
         public void className(final String className) {
             this.className = className;
         }
@@ -61,7 +64,7 @@ class TestBuildInfoParser {
         }
 
         TestBuildInfo build() {
-            return new TestBuildInfo(name, locations.stream().map(l -> new TestBuildInfoLocations(l.className, l.moduleName)).toList());
+            return new TestBuildInfo(name, locations.stream().map(l -> new TestBuildInfoLocation(l.className, l.moduleName)).toList());
         }
     }
 
@@ -70,18 +73,22 @@ class TestBuildInfoParser {
     }
 
     // TODO: possibly move it to whoever is calling/using this
-    static List<TestBuildInfo> parseAllPluginTestBuildInfo(final XContentParser parser) throws IOException {
+    // TODO: server test build info
+    static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
         var resources = TestBuildInfoParser.class.getClassLoader().getResources("/META-INF/es-plugins/");
         URL resource;
         while ((resource = resources.nextElement()) != null) {
-            try (var stream = resource.openStream()) {
-                pluginsTestBuildInfos.add(fromXContent(xContent.createParser(XContentParserConfiguration.EMPTY, stream)));
+            try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
+                pluginsTestBuildInfos.add(fromXContent(parser));
             }
         }
         return pluginsTestBuildInfos;
     }
 
-    // TODO: server test build info
+    @SuppressForbidden(reason = "URLs from class loader")
+    private static InputStream getStream(URL resource) throws IOException {
+        return resource.openStream();
+    }
 }

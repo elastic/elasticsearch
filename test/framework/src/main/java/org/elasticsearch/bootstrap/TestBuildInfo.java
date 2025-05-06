@@ -11,4 +11,4 @@ package org.elasticsearch.bootstrap;
 
 import java.util.List;
 
-record TestBuildInfo(String componentName, List<TestBuildInfoLocations> locations) {}
+record TestBuildInfo(String componentName, List<TestBuildInfoLocation> locations) {}

@@ -95,6 +95,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -130,7 +131,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * This heuristic will only compare vectors that match the filtering criteria.
          */
         ACORN {
-            static final KnnSearchStrategy ACORN_STRATEGY = new KnnSearchStrategy.Hnsw(50);
+            static final KnnSearchStrategy ACORN_STRATEGY = new KnnSearchStrategy.Hnsw(60);
 
             @Override
             public KnnSearchStrategy getKnnSearchStrategy() {
@@ -141,12 +142,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract KnnSearchStrategy getKnnSearchStrategy();
     }
 
-    public static final Setting<FilterHeuristic> HNSW_FILTER_HEURISTIC = Setting.enumSetting(
-        FilterHeuristic.class,
+    public static final Setting<FilterHeuristic> HNSW_FILTER_HEURISTIC = Setting.enumSetting(FilterHeuristic.class, s -> {
+        IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (version.onOrAfter(IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC)) {
+            return FilterHeuristic.ACORN.toString();
+        }
+        return FilterHeuristic.FANOUT.toString();
+    },
         "index.dense_vector.hnsw_filter_heuristic",
-        FilterHeuristic.ACORN,
         fh -> {},
         Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic,
         Setting.Property.Dynamic
     );
 

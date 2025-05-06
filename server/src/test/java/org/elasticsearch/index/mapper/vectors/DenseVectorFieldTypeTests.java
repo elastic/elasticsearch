@@ -663,7 +663,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 1, 4, 10 }),
                 10,
                 100,
-                null,
+                0f,
                 null,
                 null,
                 null,
@@ -677,7 +677,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 1, 4, 10 }),
                 10,
                 100,
-                null,
+                0f,
                 null,
                 null,
                 null,
@@ -685,7 +685,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             );
             strategy = tuple.v2().apply(query);
             assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
-            assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(50));
+            assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(60));
         }
     }
 

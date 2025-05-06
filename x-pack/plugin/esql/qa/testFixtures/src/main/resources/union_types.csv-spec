@@ -393,6 +393,73 @@ count:long | @timestamp:date
          0 | 2023-10-23T13:50:00.000Z
 ;
 
+multiIndexIpStatsNonPushableCount
+// Could be pushed to Lucene if we knew whether ip fields are single valued or not.
+// May still be pushed down on multi-node environments if a node has only the index where client_ip is keyword.
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_str
+| STATS count=count(client_ip::ip)
+;
+
+count:long
+14
+;
+
+multiIndexIpStatsNonPushableCountEval
+// Could be pushed to Lucene if we knew whether ip fields are single valued or not.
+// May still be pushed down on multi-node environments if a node has only the index where client_ip is keyword.
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_str
+| EVAL client_ip = client_ip::ip
+| STATS count=count(client_ip)
+;
+
+count:long
+14
+;
+
+multiIndexIpStatsNonPushableCountWithFilter
+// Currently not pushable: has 2 aggs and we don't consider multi-typed fields aggregatable.
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_ts_long
+| STATS count_matching=count(@timestamp::long) WHERE @timestamp::long >= 1698069301543,
+        total_count=count(@timestamp::long)
+;
+
+count_matching:long | total_count:long
+2                   | 14
+;
+
+multiIndexIpStatsPushableCount
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_ts_long
+| STATS count=count(@timestamp::long)
+;
+
+count:long
+14
+;
+
+multiIndexIpStatsPushableCountEval
+required_capability: union_types
+required_capability: fix_count_pushdown_for_union_types
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = @timestamp::long
+| STATS count=count(@timestamp)
+;
+
+count:long
+14
+;
 
 multiIndexIpStringStatsInline2
 required_capability: union_types

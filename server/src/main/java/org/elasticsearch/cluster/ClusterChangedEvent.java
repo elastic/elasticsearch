@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -353,19 +352,25 @@ public class ClusterChangedEvent {
             && previousMetadata.hasProject(ProjectId.DEFAULT)
             && currentMetadata.projects().size() == 1
             && currentMetadata.hasProject(ProjectId.DEFAULT)) {
-            return EMPTY_PROJECT_DELTA;
+            return ProjectsDelta.EMPTY;
         }
 
-        return new ProjectsDelta(
-            Collections.unmodifiableSet(Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())),
-            Collections.unmodifiableSet(Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet()))
-        );
+        final Set<ProjectId> added = new HashSet<>();
+        final Set<ProjectId> removed = new HashSet<>(previousMetadata.projects().keySet());
+        for (var currentProject : currentMetadata.projects().keySet()) {
+            if (removed.remove(currentProject) == false) {
+                added.add(currentProject);
+            }
+        }
+        assert added.contains(ProjectId.DEFAULT) == false;
+        assert removed.contains(ProjectId.DEFAULT) == false;
 
+        return new ProjectsDelta(Collections.unmodifiableSet(added), Collections.unmodifiableSet(removed));
     }
 
-    private static final ProjectsDelta EMPTY_PROJECT_DELTA = new ProjectsDelta(Set.of(), Set.of());
-
     public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
+        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of());
+
         public boolean isEmpty() {
             return added.isEmpty() && removed.isEmpty();
         }

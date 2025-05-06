@@ -80,7 +80,8 @@ public class SageMakerSchemasTests extends ESTestCase {
         var unknownTaskType = TaskType.RERANK;
         var knownModel = mockModel(unknownTaskType, knownPayload.api());
         assertThrows(
-            "Task [rerank] is not compatible for service [sagemaker] and api [openai]. Supported tasks: [text_embedding, completion, chat_completion]",
+            "Task [rerank] is not compatible for service [sagemaker] and api [openai]. "
+                + "Supported tasks: [text_embedding, completion, chat_completion]",
             ElasticsearchStatusException.class,
             () -> schemas.schemaFor(knownModel)
         );

@@ -59,7 +59,7 @@ The following parameters are accepted by `sparse_vector` fields:
     * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
 index_options
-:    (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If the pruning options are not set for your `sparse_query` vector on the field, Elasticsearch will use the defaults if set here for the field. The available options for the index options are:
+:   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your `sparse_query` vector, Elasticsearch will use the default options configured for the field, if any. The available options for the index options are:
 
 Parameters for `index_options` are:
 

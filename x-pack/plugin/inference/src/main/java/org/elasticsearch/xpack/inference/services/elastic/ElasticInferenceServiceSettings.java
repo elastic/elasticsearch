@@ -73,11 +73,11 @@ public class ElasticInferenceServiceSettings {
     /**
      * Total time to live (TTL)  defines maximum life span of persistent connections regardless of their
      * expiration setting. No persistent connection will be re-used past its TTL value.
+     * Using a TTL of -1 will disable the expiration of persistent connections (the idle connection evictor will still apply).
      */
     public static final Setting<TimeValue> CONNECTION_TTL_SETTING = Setting.timeSetting(
         "xpack.inference.elastic.http.connection_ttl",
-        // -1 indicates that the TTL never expires
-        TimeValue.MINUS_ONE,
+        TimeValue.timeValueSeconds(60),
         Setting.Property.NodeScope
     );
 

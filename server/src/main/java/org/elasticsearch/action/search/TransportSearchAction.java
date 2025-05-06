@@ -1423,10 +1423,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         List<SearchShardIterator> localShardIterators,
         List<SearchShardIterator> remoteShardIterators
     ) {
+        final List<SearchShardIterator> shards;
         if (remoteShardIterators.isEmpty()) {
-            return localShardIterators;
+            shards = localShardIterators;
+        } else {
+            shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        final List<SearchShardIterator> shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         shards.sort(SearchShardIterator::compareTo);
         return shards;
     }

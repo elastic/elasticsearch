@@ -1087,6 +1087,13 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (isSyntheticSource && syntheticSourceDelegate != null) {
+                // Since we are using synthetic source and a delegate, we can't use this field
+                // to determine if the delegate has values in the document (f.e. handling of `null` is different
+                // between text and keyword).
+                return BlockSourceReader.lookupMatchingAll();
+            }
+
             if (isIndexed()) {
                 if (getTextSearchInfo().hasNorms()) {
                     return BlockSourceReader.lookupFromNorms(name());

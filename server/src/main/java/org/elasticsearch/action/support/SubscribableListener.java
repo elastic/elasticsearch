@@ -201,7 +201,8 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      <p>
      *                      If you really want to fork the completion task to a specific executor in all circumstances, wrap the supplied
      *                      {@code listener} in a {@link ThreadedActionListener} yourself. But do note that this can be surprisingly
-     *                      expensive.
+     *                      expensive, and it's almost always not the right approach, so it is deliberate that there is no convenient method
+     *                      on {@link SubscribableListener} which does this for you.
      *                      <p>
      *                      If {@code executor} rejects the execution of the completion of the subscribing listener then the result is
      *                      discarded and the subscribing listener is completed with a rejection exception on the thread which completes
@@ -502,7 +503,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * </ul>
      * <p>
      * If you really want to fork the execution of the next step in the sequence to a specific executor in all circumstances, explicitly
-     * call {@link Executor#execute} within {@code nextStep} yourself. But do note that this can be surprisingly expensive.
+     * call {@link Executor#execute} within {@code nextStep} yourself. But do note that this can be surprisingly expensive, and it's almost
+     * always not the right approach, so it is deliberate that there is no convenient method on {@link SubscribableListener} which does this
+     * for you.
      * <p>
      * If {@code executor} rejects the execution of {@code nextStep} then the result is discarded and the returned listener is completed
      * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but

@@ -1,7 +1,6 @@
 ---
 navigation_title: "Elasticsearch"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-release-notes.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
 ---
 
@@ -21,9 +20,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-```{applies_to}
-stack: coming 9.0.1
-```
 ## 9.0.1 [elasticsearch-9.0.1-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.1-features-enhancements]

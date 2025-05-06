@@ -1,0 +1,318 @@
+###############################################
+# Tests for MatchPhrase function
+#
+
+matchPhraseWithField
+required_capability: match_phrase_function
+
+// tag::match-phrase-with-field[]
+FROM books
+| WHERE MATCH_PHRASE(author, "William Faulkner")
+// end::match-phrase-with-field[]
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::match-phrase-with-field-result[]
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+// end::match-phrase-with-field-result[]
+;
+
+matchPhraseWithMultipleFunctions
+required_capability: match_phrase_function
+
+from books 
+| where match_phrase(title, "Return of the King") AND match_phrase(author, "J.R.R. Tolkien")  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+matchPhraseWithQueryExpressions
+required_capability: match_phrase_function
+
+from books 
+| where match_phrase(title, CONCAT("Return of the", " King"))  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+;
+
+matchPhraseAfterKeep
+required_capability: match_phrase_function
+
+from books 
+| keep book_no, author 
+| where match_phrase(author, "William Faulkner")
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+;
+
+matchPhraseAfterDrop
+required_capability: match_phrase_function
+
+from books 
+| drop ratings, description, year, publisher, title, author.keyword
+| where match_phrase(author, "William Faulkner")
+| keep book_no, author
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+;
+
+matchPhraseAfterEval
+required_capability: match_phrase_function
+
+from books 
+| eval stars = to_long(ratings / 2.0) 
+| where match_phrase(author, "William Faulkner")
+| sort book_no 
+| keep book_no, author, stars
+| limit 5;
+
+book_no:keyword | author:text                                           | stars:long
+2713            | William Faulkner                                      | 2
+2883            | William Faulkner                                      | 2
+;
+
+matchPhraseWithConjunction
+required_capability: match_phrase_function
+
+from books 
+| where match_phrase(title, "Lord of the Rings") and ratings > 4.6
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
+;
+
+matchPhraseWithDisjunction
+required_capability: match_phrase_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where match_phrase(author, "Kurt Vonnegut") or match_phrase(author, "Carole Guinane") 
+| keep book_no, author;
+ignoreOrder:true
+
+book_no:keyword | author:text
+2464            | Kurt Vonnegut  
+8956            | Kurt Vonnegut  
+3950            | Kurt Vonnegut  
+4382            | Carole Guinane 
+;
+
+matchPhraseWithDisjunctionAndFiltersConjunction
+required_capability: match_phrase_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match_phrase(author, "Edith Vonnegut") or match_phrase(author, "Carole Guinane")) and year > 1997
+| keep book_no, author, year;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer
+6970            | Edith Vonnegut    | 1998
+4382            | Carole Guinane    | 2001
+;
+
+matchPhraseWithDisjunctionAndConjunction
+required_capability: match_phrase_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match_phrase(author, "Kurt Vonnegut") or match_phrase(author, "Gabriel Garcia Marquez")) and match_phrase(description, "realism")
+| keep book_no;
+
+book_no:keyword
+4814
+;
+
+matchPhraseWithMoreComplexDisjunctionAndConjunction
+required_capability: match_phrase_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match_phrase(author, "Kurt Vonnegut") and match_phrase(description, "charming")) or (match_phrase(author, "Gabriel Garcia Marquez") and match_phrase(description, "realism"))
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+6970
+4814
+;
+
+matchPhraseWithDisjunctionIncludingConjunction
+required_capability: match_phrase_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where match_phrase(author, "Kurt Vonnegut") or (match_phrase(author, "Gabriel Garcia Marquez") and match_phrase(description, "realism"))
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2464
+6970
+4814
+8956
+3950
+;
+
+matcPhraseWithFunctionPushedToLucene
+required_capability: match_phrase_function
+
+from hosts 
+| where match_phrase(host, "beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+;
+
+matchPhraseWithNonPushableConjunction
+required_capability: match_phrase_function
+
+from books 
+| where match_phrase(title, "Lord of the Rings") and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
+matchPhraseWithMultipleWhereClauses
+required_capability: match_phrase_function
+
+from books 
+| where match_phrase(title, "Lord of") 
+| where match_phrase(title, "the Rings") 
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2675            | The Lord of the Rings - Boxed Set           
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+matchPhraseMultivaluedField
+required_capability: match_phrase_function
+
+from employees 
+| where match_phrase(job_positions, "Tech Lead") and match_phrase(job_positions, "Reporting Analyst") 
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: match_phrase_function
+
+from employees 
+| where match_phrase(job_positions, "Data Scientist") and match_phrase(job_positions, "Support Engineer")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10043          | Yishay             | Tzvieli      
+;
+
+testMatchPhraseAndQueryStringFunctions
+required_capability: match_phrase_function
+required_capability: qstr_function
+
+from employees 
+| where match_phrase(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10041          | Uri                 | Lenart         
+10043          | Yishay              | Tzvieli        
+;
+
+testMatchPhraseVersionField
+required_capability: match_phrase_function
+
+from apps 
+| where match_phrase(version, "2.1"::VERSION) 
+| keep name, version;
+
+name:keyword | version:version
+bbbbb        | 2.1
+;
+
+testMatchPhraseIpField
+required_capability: match_phrase_function
+
+from sample_data
+| where match(client_ip, "172.21.0.5")
+| keep client_ip, message;
+
+client_ip:ip   | message:keyword
+172.21.0.5     | Disconnected
+;
+
+testMatchPhraseDateFieldAsString
+required_capability: match_phrase_function
+
+from date_nanos
+| where match_phrase(millis, "2023-10-23T13:55:01.543Z")
+| keep millis;
+
+millis:date
+2023-10-23T13:55:01.543Z
+;
+
+testMatchPhraseDateNanosFieldAsString
+required_capability: match_phrase_function
+
+from date_nanos
+| where match(nanos, "2023-10-23T13:55:01.543123456Z")
+| keep nanos;
+
+nanos:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+testMatchPhraseWithOptionsSlop
+required_capability: match_function
+from books 
+| where match_phrase(title, "Lord of Rings", {"slop": 5})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140
+;

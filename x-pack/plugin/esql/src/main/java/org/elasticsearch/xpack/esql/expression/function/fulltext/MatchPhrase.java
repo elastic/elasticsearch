@@ -82,7 +82,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         MatchPhrase::readFrom
     );
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, BOOLEAN, DATETIME, DATE_NANOS, IP, VERSION);
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, BOOLEAN, DATETIME, DATE_NANOS, IP, VERSION);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD);
 
     protected final Expression field;
 
@@ -99,6 +99,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
+        // TODO link to match-phrase-field-params
         description = """
             Use `MATCH_PHRASE` to perform a <<query-dsl-match-query-phrase,match_phrase query>> on the specified field.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
@@ -108,10 +109,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
-            All <<match-phrase-field-params,match_phrase query parameters>> are supported.
-
-            For a simplified syntax, you can use the <<esql-match-phrase-operator,match_phrase operator>> `:` operator instead
-            of `MATCH_PHRASE`.
+            All match_phrase query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = {
@@ -130,11 +128,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
             type = { "keyword", "text", "boolean", "date", "date_nanos", "ip", "version" },
             description = "Field that the query will target."
         ) Expression field,
-        @Param(
-            name = "query",
-            type = { "keyword", "boolean", "date", "date_nanos", "ip", "version" },
-            description = "Value to find in the provided field."
-        ) Expression matchPhraseQuery,
+        @Param(name = "query", type = { "keyword" }, description = "Value to find in the provided field.") Expression matchPhraseQuery,
         @MapParam(
             name = "options",
             params = {
@@ -212,7 +206,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword, boolean, date, date_nanos, ip, version").and(
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
             isNotNullAndFoldable(query(), sourceText(), SECOND)
         );
     }

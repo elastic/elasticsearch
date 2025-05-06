@@ -68,8 +68,11 @@ public class EntitlementInitialization {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
-        DynamicInstrumentation.initialize(inst, getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            verifyBytecode);
+        DynamicInstrumentation.initialize(
+            inst,
+            getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            verifyBytecode
+        );
     }
 
     private static PolicyManager createPolicyManager() {

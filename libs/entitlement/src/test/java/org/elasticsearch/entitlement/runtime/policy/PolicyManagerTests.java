@@ -12,7 +12,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.bootstrap.ScopeResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
+import org.elasticsearch.entitlement.runtime.policy.EntitlementsCache.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
@@ -93,6 +93,7 @@ public class PolicyManagerTests extends ESTestCase {
         // A common policy with a variety of entitlements to test
         Path thisSourcePath = PolicyManager.getComponentPathFromClass(getClass());
         var plugin1SourcePath = Path.of("modules", "plugin1");
+        var cache = new EntitlementsCacheForTesting();
         var policyManager = new PolicyManager(
             new Policy("server", List.of(new Scope("org.example.httpclient", List.of(new OutboundNetworkEntitlement())))),
             List.of(),
@@ -101,7 +102,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of("plugin1", plugin1SourcePath),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
-            Set.of()
+            Set.of(),
+            cache
         );
 
         // "Unspecified" below means that the module is not named in the policy
@@ -109,6 +111,7 @@ public class PolicyManagerTests extends ESTestCase {
         policyScope.set(PolicyScope.server("org.example.httpclient"));
         resetAndCheckEntitlements(
             "Specified entitlements for server",
+            cache,
             getClass(),
             policyManager.policyEntitlements(
                 SERVER.componentName,
@@ -122,6 +125,7 @@ public class PolicyManagerTests extends ESTestCase {
         policyScope.set(PolicyScope.server("plugin.unspecifiedModule"));
         resetAndCheckEntitlements(
             "Default entitlements for unspecified module",
+            cache,
             getClass(),
             policyManager.defaultEntitlements(SERVER.componentName, thisSourcePath, "plugin.unspecifiedModule"),
             policyManager
@@ -130,6 +134,7 @@ public class PolicyManagerTests extends ESTestCase {
         policyScope.set(PolicyScope.plugin("plugin1", "plugin.module1"));
         resetAndCheckEntitlements(
             "Specified entitlements for plugin",
+            cache,
             getClass(),
             policyManager.policyEntitlements("plugin1", plugin1SourcePath, "plugin.module1", List.of(new ExitVMEntitlement())),
             policyManager
@@ -138,6 +143,7 @@ public class PolicyManagerTests extends ESTestCase {
         policyScope.set(PolicyScope.plugin("plugin1", "plugin.unspecifiedModule"));
         resetAndCheckEntitlements(
             "Default entitlements for plugin",
+            cache,
             getClass(),
             policyManager.defaultEntitlements("plugin1", plugin1SourcePath, "plugin.unspecifiedModule"),
             policyManager
@@ -146,21 +152,22 @@ public class PolicyManagerTests extends ESTestCase {
 
     private void resetAndCheckEntitlements(
         String message,
+        EntitlementsCacheForTesting cache,
         Class<?> requestingClass,
         ModuleEntitlements expectedEntitlements,
         PolicyManager policyManager
     ) {
-        policyManager.moduleEntitlementsMap.clear();
+        cache.clear();
         assertEquals(message, expectedEntitlements, policyManager.getEntitlements(requestingClass));
         assertEquals(
             "Map has precisely the one expected entry",
             Map.of(requestingClass.getModule(), expectedEntitlements),
-            policyManager.moduleEntitlementsMap
+            policyManager.moduleEntitlementsCache
         );
 
         // Fetch a second time and verify the map is unchanged
         policyManager.getEntitlements(requestingClass);
-        assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsMap);
+        assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsCache);
     }
 
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
@@ -211,7 +218,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             NO_ENTITLEMENTS_MODULE,
             TEST_PATH_LOOKUP,
-            Set.of()
+            Set.of(),
+            new EntitlementsCacheForTesting()
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -240,7 +248,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
-                Set.of()
+                Set.of(),
+                new EntitlementsCacheForTesting()
             )
         );
         assertEquals(
@@ -258,7 +267,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
-                Set.of()
+                Set.of(),
+                new EntitlementsCacheForTesting()
             )
         );
         assertEquals(
@@ -296,7 +306,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of("plugin1", Path.of("modules", "plugin1")),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
-                Set.of()
+                Set.of(),
+                new EntitlementsCacheForTesting()
             )
         );
         assertEquals(
@@ -348,7 +359,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
-                Set.of()
+                Set.of(),
+                new EntitlementsCacheForTesting()
             )
         );
         assertThat(
@@ -401,7 +413,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 NO_ENTITLEMENTS_MODULE,
                 TEST_PATH_LOOKUP,
-                Set.of()
+                Set.of(),
+                new EntitlementsCacheForTesting()
             )
         );
         assertEquals(
@@ -431,7 +444,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             entitlementsModule,
             TEST_PATH_LOOKUP,
-            Set.of()
+            Set.of(),
+            new EntitlementsCacheForTesting()
         );
     }
 

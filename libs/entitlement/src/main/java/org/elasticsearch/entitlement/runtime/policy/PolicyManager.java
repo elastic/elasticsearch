@@ -14,6 +14,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.EntitlementsCache.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusiveFileEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -121,7 +122,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.Compone
  * All these methods start in the same way: the components identified in the previous section are used to establish if and how to check:
  * If the caller class belongs to {@link PolicyManager#SYSTEM_LAYER_MODULES}, no check is performed (the call is trivially allowed, see
  * {@link PolicyManager#isTriviallyAllowed}).
- * Otherwise, we lazily compute and create a {@link PolicyManager.ModuleEntitlements} record (see
+ * Otherwise, we lazily compute and create a {@link ModuleEntitlements} record (see
  * {@link PolicyManager#computeEntitlements}). The record is cached so it can be used in following checks, stored in a
  * {@code Module -> ModuleEntitlement} map.
  * </p>
@@ -181,49 +182,6 @@ public class PolicyManager {
         }
     }
 
-    /**
-     * This class contains all the entitlements by type, plus the {@link FileAccessTree} for the special case of filesystem entitlements.
-     * <p>
-     * We use layers when computing {@link ModuleEntitlements}; first, we check whether the module we are building it for is in the
-     * server layer ({@link PolicyManager#SERVER_LAYER_MODULES}) (*).
-     * If it is, we use the server policy, using the same caller class module name as the scope, and read the entitlements for that scope.
-     * Otherwise, we use the {@code PluginResolver} to identify the correct plugin layer and find the policy for it (if any).
-     * If the plugin is modular, we again use the same caller class module name as the scope, and read the entitlements for that scope.
-     * If it's not, we use the single {@code ALL-UNNAMED} scope – in this case there is one scope and all entitlements apply
-     * to all the plugin code.
-     * </p>
-     * <p>
-     * (*) implementation detail: this is currently done in an indirect way: we know the module is not in the system layer
-     * (otherwise the check would have been already trivially allowed), so we just check that the module is named, and it belongs to the
-     * boot {@link ModuleLayer}. We might want to change this in the future to make it more consistent/easier to maintain.
-     * </p>
-     *
-     * @param componentName the plugin name or else one of the special component names like "(server)".
-     */
-    record ModuleEntitlements(
-        String componentName,
-        Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
-        FileAccessTree fileAccess,
-        Logger logger
-    ) {
-
-        ModuleEntitlements {
-            entitlementsByType = Map.copyOf(entitlementsByType);
-        }
-
-        public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
-            return entitlementsByType.containsKey(entitlementClass);
-        }
-
-        public <E extends Entitlement> Stream<E> getEntitlements(Class<E> entitlementClass) {
-            var entitlements = entitlementsByType.get(entitlementClass);
-            if (entitlements == null) {
-                return Stream.empty();
-            }
-            return entitlements.stream().map(entitlementClass::cast);
-        }
-    }
-
     private FileAccessTree getDefaultFileAccess(Path componentPath) {
         return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPath);
     }
@@ -248,8 +206,6 @@ public class PolicyManager {
             getLogger(componentName, moduleName)
         );
     }
-
-    final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     private final Map<String, List<Entitlement>> serverEntitlements;
     private final List<Entitlement> apmAgentEntitlements;
@@ -303,6 +259,8 @@ public class PolicyManager {
      */
     private final List<ExclusivePath> exclusivePaths;
 
+    final EntitlementsCache moduleEntitlementsCache;
+
     public PolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
@@ -311,7 +269,8 @@ public class PolicyManager {
         Map<String, Path> sourcePaths,
         Module entitlementsModule,
         PathLookup pathLookup,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Class<?>> suppressFailureLogClasses,
+        EntitlementsCache moduleEntitlementsCache
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -323,6 +282,7 @@ public class PolicyManager {
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
         this.mutedClasses = suppressFailureLogClasses;
+        this.moduleEntitlementsCache = moduleEntitlementsCache;
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
@@ -723,7 +683,7 @@ public class PolicyManager {
     }
 
     ModuleEntitlements getEntitlements(Class<?> requestingClass) {
-        return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
+        return moduleEntitlementsCache.computeIfAbsent(requestingClass, this::computeEntitlements);
     }
 
     private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
@@ -827,7 +787,7 @@ public class PolicyManager {
     /**
      * @return true if permission is granted regardless of the entitlement
      */
-    private static boolean isTriviallyAllowed(Class<?> requestingClass) {
+    private boolean isTriviallyAllowed(Class<?> requestingClass) {
         if (generalLogger.isTraceEnabled()) {
             generalLogger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
         }
@@ -841,6 +801,10 @@ public class PolicyManager {
         }
         if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            return true;
+        }
+        if (moduleEntitlementsCache.isAlwaysAllowed(requestingClass)) {
+            generalLogger.debug("Entitlement trivially allowed by the EntitlementsCache");
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");

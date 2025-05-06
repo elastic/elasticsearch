@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plugin.EsqlDocIdStatus;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -610,10 +610,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""".replace("QUERY", query);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
-        Task task = request.createTask(id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        String localNode = randomAlphaOfLength(2);
+        Task task = request.createTask(localNode, id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
-        String localNode = randomAlphaOfLength(2);
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
         String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
@@ -622,7 +622,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
             .replaceAll("5326", Integer.toString(id))
             .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
-            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlDocIdStatus) taskInfo.status()).id())
+            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
             .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))

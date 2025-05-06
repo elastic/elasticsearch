@@ -7,29 +7,20 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 
 import java.io.IOException;
 
-/**
- * Keeps track of the doc ID, which is itself used for {@link AsyncExecutionId}.
- *
- * The reason this contains just the doc ID and not the entire {@link AsyncExecutionId} is that during the creation of
- * {@link EsqlQueryAction}, we don't have access to the node ID yet, thus we can't create a {@link TaskId} yet.
- */
-public record EsqlDocIdStatus(String id) implements Task.Status {
+public record EsqlQueryStatus(AsyncExecutionId id) implements Task.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Task.Status.class,
         "EsqlDocIdStatus",
-        EsqlDocIdStatus::new
+        EsqlQueryStatus::new
     );
 
     @Override
@@ -37,17 +28,17 @@ public record EsqlDocIdStatus(String id) implements Task.Status {
         return ENTRY.name;
     }
 
-    private EsqlDocIdStatus(StreamInput stream) throws IOException {
-        this(stream.readString());
+    private EsqlQueryStatus(StreamInput stream) throws IOException {
+        this(AsyncExecutionId.readFrom(stream));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
+        out.writeWriteable(id);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.rawValue(Strings.format("\"%s\"", id));
+        return builder.startObject().field("request_id", id.getEncoded()).endObject();
     }
 }

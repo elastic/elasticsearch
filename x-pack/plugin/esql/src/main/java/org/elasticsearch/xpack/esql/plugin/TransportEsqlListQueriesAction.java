@@ -20,7 +20,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -73,7 +72,7 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
 
     private static EsqlListQueriesResponse.Query toQuery(TaskInfo taskInfo) {
         return new EsqlListQueriesResponse.Query(
-            new AsyncExecutionId(((EsqlDocIdStatus) taskInfo.status()).id(), taskInfo.taskId()),
+            ((EsqlQueryStatus) taskInfo.status()).id(),
             taskInfo.startTime(),
             taskInfo.runningTimeNanos(),
             taskInfo.description()

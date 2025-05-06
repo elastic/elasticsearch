@@ -407,7 +407,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlDocIdStatus(asyncExecutionId.getDocId());
+                return new EsqlQueryStatus(asyncExecutionId);
             }
         };
     }

@@ -87,6 +87,7 @@ public class TaskManager implements ClusterStateApplier {
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+    private final SetOnce<String> localNodeId = new SetOnce<>();
 
     private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
@@ -109,6 +110,10 @@ public class TaskManager implements ClusterStateApplier {
 
     public void setTaskCancellationService(TaskCancellationService taskCancellationService) {
         this.cancellationService.set(taskCancellationService);
+    }
+
+    public void setLocalNodeId(String localNodeId) {
+        this.localNodeId.set(localNodeId);
     }
 
     /**
@@ -141,7 +146,10 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        var localNodeId = this.localNodeId.get();
+        Task task = localNodeId != null
+            ? request.createTask(localNodeId, taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers)
+            : request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {

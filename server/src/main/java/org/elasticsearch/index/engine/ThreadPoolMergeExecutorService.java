@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
@@ -26,7 +27,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -158,8 +161,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
      */
-    private final PriorityBlockingQueueWithMaxLimit<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithMaxLimit<>(
-        MergeTask::estimatedMergeSize,
+    private final PriorityBlockingQueueWithBudget<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithBudget<>(
+        MergeTask::estimatedRemainingMergeSize,
         Long.MAX_VALUE
     );
     /**
@@ -280,10 +283,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
                 while (true) {
-                    MergeTask smallestMergeTask;
+                    PriorityBlockingQueueWithBudget<MergeTask>.ElementWithBudgetRelease smallestMergeTaskWithReleasableBudget;
                     try {
                         // will block if there are backlogged merges until they're enqueued again
-                        smallestMergeTask = queuedMergeTasks.take();
+                        smallestMergeTaskWithReleasableBudget = queuedMergeTasks.take();
                     } catch (InterruptedException e) {
                         // An active worker thread has been interrupted while waiting for backlogged merges to be re-enqueued.
                         // In this case, we terminate the worker thread promptly and forget about the backlogged merges.
@@ -293,18 +296,23 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         // is also drained, so any queued merge tasks are also forgotten.
                         break;
                     }
-                    // let the task's scheduler decide if it can actually run the merge task now
-                    ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
-                    if (schedule == RUN) {
-                        runMergeTask(smallestMergeTask);
-                        break;
-                    } else if (schedule == ABORT) {
-                        abortMergeTask(smallestMergeTask);
-                        break;
-                    } else {
-                        assert schedule == BACKLOG;
-                        // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                        // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
+                    try {
+                        // let the task's scheduler decide if it can actually run the merge task now
+                        MergeTask smallestMergeTask = smallestMergeTaskWithReleasableBudget.element();
+                        ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
+                        if (schedule == RUN) {
+                            runMergeTask(smallestMergeTask);
+                            break;
+                        } else if (schedule == ABORT) {
+                            abortMergeTask(smallestMergeTask);
+                            break;
+                        } else {
+                            assert schedule == BACKLOG;
+                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
+                        }
+                    } finally {
+                        smallestMergeTaskWithReleasableBudget.close();
                     }
                 }
             });
@@ -402,7 +410,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 .getBytes();
             // the rest is the maximum disk space available for a new merge task
             long maxMergeSizeLimit = Math.max(0L, leastAvailableDiskSpaceBytes);
-            queuedMergeTasks.updateMaxPriorityLimit(maxMergeSizeLimit);
+            queuedMergeTasks.updateAvailableBudget(maxMergeSizeLimit);
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
@@ -419,26 +427,28 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    static class PriorityBlockingQueueWithMaxLimit<E> {
-        private final ToLongFunction<? super E> priorityFunction;
-        private final PriorityQueue<E> priorityQueue;
+    static class PriorityBlockingQueueWithBudget<E> {
+        private final ToLongFunction<? super E> budgetFunction;
+        private final PriorityQueue<E> enqueuedByBudget;
+        private final Set<E> tookNotReleased;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
-        private long maxPriorityLimit;
+        private long availableBudget;
 
-        PriorityBlockingQueueWithMaxLimit(ToLongFunction<? super E> priorityFunction, long maxPriorityLimit) {
-            this.priorityFunction = priorityFunction;
-            this.priorityQueue = new PriorityQueue<E>(64, Comparator.comparingLong(priorityFunction));
+        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long availableBudget) {
+            this.budgetFunction = budgetFunction;
+            this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(budgetFunction));
+            this.tookNotReleased = Collections.newSetFromMap(new IdentityHashMap<>());
             this.lock = new ReentrantLock();
             this.elementAvailable = lock.newCondition();
-            this.maxPriorityLimit = maxPriorityLimit;
+            this.availableBudget = availableBudget;
         }
 
         boolean add(E e) {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
-                priorityQueue.offer(e);
+                enqueuedByBudget.offer(e);
                 elementAvailable.signal();
             } finally {
                 lock.unlock();
@@ -446,24 +456,31 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             return true;
         }
 
-        E take() throws InterruptedException {
+        ElementWithBudgetRelease take() throws InterruptedException {
             final ReentrantLock lock = this.lock;
             lock.lockInterruptibly();
-            E peek;
             try {
-                while ((peek = priorityQueue.peek()) == null || priorityFunction.applyAsLong(peek) > maxPriorityLimit)
+                E peek;
+                long peekBudget;
+                while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget)
                     elementAvailable.await();
-                return priorityQueue.poll();
+                availableBudget -= peekBudget;
+                assert availableBudget > 0L;
+                return new ElementWithBudgetRelease(enqueuedByBudget.poll());
             } finally {
                 lock.unlock();
             }
         }
 
-        void updateMaxPriorityLimit(long maxPriorityLimit) {
+        void updateAvailableBudget(long availableBudget) {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
-                this.maxPriorityLimit = maxPriorityLimit;
+                this.availableBudget = availableBudget;
+                for (E tookElement : tookNotReleased) {
+                    this.availableBudget -= budgetFunction.applyAsLong(tookElement);
+                }
+                this.availableBudget = Math.max(0L, this.availableBudget);
                 elementAvailable.signalAll();
             } finally {
                 lock.unlock();
@@ -471,11 +488,29 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
 
         boolean isEmpty() {
-            return priorityQueue.isEmpty();
+            return enqueuedByBudget.isEmpty();
         }
 
         int size() {
-            return priorityQueue.size();
+            return enqueuedByBudget.size();
+        }
+
+        class ElementWithBudgetRelease implements Releasable {
+            private final E element;
+
+            private ElementWithBudgetRelease(E element) {
+                this.element = element;
+                tookNotReleased.add(element);
+            }
+
+            @Override
+            public void close() {
+                tookNotReleased.remove(element);
+            }
+
+            public E element() {
+                return element;
+            }
         }
     }
 

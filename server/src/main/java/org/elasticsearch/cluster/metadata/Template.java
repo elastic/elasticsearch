@@ -61,7 +61,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
-    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.builder().enabled(false).buildTemplate();
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+        .enabled(false)
+        .buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
@@ -91,7 +93,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> DataStreamLifecycle.Template.fromXContent(p),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(p),
             LIFECYCLE
         );
         PARSER.declareObjectOrNull(
@@ -123,6 +125,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
+        assert lifecycle == null || lifecycle.toDataStreamLifecycle().targetsFailureStore() == false
+            : "Invalid lifecycle type for data lifecycle";
         this.lifecycle = lifecycle;
         assert dataStreamOptions != null : "Template does not accept null values, please use Resettable.undefined()";
         this.dataStreamOptions = dataStreamOptions;
@@ -314,9 +318,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
-        }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }

@@ -525,7 +525,7 @@ public class MachineLearning extends Plugin
         License.OperationMode.PLATINUM
     );
 
-    private static final LicensedFeature.Momentary CATEGORIZE_TEXT_AGG_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary CATEGORIZE_TEXT_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "categorize-text-agg",
         License.OperationMode.PLATINUM
@@ -937,7 +937,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             machineLearningExtension.get().useIlm(),
-            xContentRegistry
+            xContentRegistry,
+            services.projectResolver()
         );
         registry.initialize();
 

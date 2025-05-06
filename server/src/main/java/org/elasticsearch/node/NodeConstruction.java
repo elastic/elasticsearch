@@ -23,6 +23,8 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -191,6 +193,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
@@ -689,6 +692,8 @@ class NodeConstruction {
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -700,7 +705,8 @@ class NodeConstruction {
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
-            projectResolver
+            projectResolver,
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -783,8 +789,6 @@ class NodeConstruction {
         );
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client, projectResolver));
@@ -928,6 +932,8 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -950,7 +956,8 @@ class NodeConstruction {
             documentParsingProvider,
             taskManager,
             projectResolver,
-            slowLogFieldProvider
+            slowLogFieldProvider,
+            indexingLimits
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -983,7 +990,6 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1106,11 +1112,12 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService(settings);
+        var fileSettingsHealthIndicatorPublisher = new FileSettingsService.FileSettingsHealthIndicatorPublisherImpl(clusterService, client);
+        var fileSettingsHealthTracker = new FileSettingsHealthTracker(settings, fileSettingsHealthIndicatorPublisher);
         FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
             FileSettingsServiceProvider.class,
             () -> FileSettingsService::new
-        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthIndicatorService);
+        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthTracker);
 
         RestoreService restoreService = new RestoreService(
             clusterService,
@@ -1163,6 +1170,10 @@ class NodeConstruction {
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
 
+        OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
+            OnlinePrewarmingServiceProvider.class,
+            () -> OnlinePrewarmingServiceProvider.DEFAULT
+        ).create(clusterService.getSettings(), threadPool, clusterService);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1173,7 +1184,8 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.getTracer(),
+            onlinePrewarmingService
         );
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
@@ -1189,8 +1201,7 @@ class NodeConstruction {
                 transportService,
                 threadPool,
                 telemetryProvider,
-                repositoriesService,
-                fileSettingsHealthIndicatorService
+                repositoriesService
             )
         );
 
@@ -1267,6 +1278,7 @@ class NodeConstruction {
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
+            b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1303,6 +1315,7 @@ class NodeConstruction {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
+            settingsModule.getProjectScopedSettings(),
             threadPool,
             taskManager
         );
@@ -1360,8 +1373,7 @@ class NodeConstruction {
         TransportService transportService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        RepositoriesService repositoriesService,
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1377,7 +1389,7 @@ class NodeConstruction {
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
-            fileSettingsHealthIndicatorService
+            new FileSettingsHealthIndicatorService()
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());

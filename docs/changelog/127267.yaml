@@ -1,0 +1,5 @@
+pr: 127267
+summary: Bypass competitive iteration in single filter bucket case
+area: "Aggregations"
+type: bug
+issues: [127262]

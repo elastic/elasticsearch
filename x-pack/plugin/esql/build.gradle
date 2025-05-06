@@ -195,7 +195,7 @@ tasks.named("test").configure {
         // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
         line.replaceAll(
           /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
-          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
+          '](https://www.elastic.co/docs/reference/$1$2)'
         )
       }
       if (countKibana == 0) {
@@ -250,6 +250,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }

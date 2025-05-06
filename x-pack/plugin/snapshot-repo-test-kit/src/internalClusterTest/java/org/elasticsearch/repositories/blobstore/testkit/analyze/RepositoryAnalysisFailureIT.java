@@ -134,7 +134,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
         blobStore.setDisruption(new Disruption() {
             @Override
             public byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
@@ -158,7 +158,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.abortWritePermitted(false);
         request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -212,7 +212,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
         request.rareActionProbability(0.0);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -234,7 +234,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
 
@@ -522,6 +522,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     private static void assertPurpose(OperationPurpose purpose) {
         assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
+    }
+
+    private static CountDown createDisruptionCountdown(RepositoryAnalyzeAction.Request request) {
+        // requests that create copies count as two blobs. Halving the count ensures that we trigger the disruption
+        // even if every request is a copy
+        return new CountDown(between(1, request.getBlobCount() / 2));
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {

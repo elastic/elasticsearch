@@ -40,6 +40,7 @@ public class RrfIT extends AbstractEsqlIntegTestCase {
                ( WHERE content:"fox" | SORT _score, _id DESC )
                ( WHERE content:"dog" | SORT _score, _id DESC )
             | RRF
+            | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)
             | KEEP id, content, _score, _fork
             """;

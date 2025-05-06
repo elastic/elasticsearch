@@ -562,9 +562,6 @@ class Elasticsearch {
                 }
             }
         }
-
-        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
-        Security.setProperty("policy.expandProperties", "true");
     }
 
     private static Environment createEnvironment(Path configDir, Settings initialSettings, SecureSettings secureSettings) {

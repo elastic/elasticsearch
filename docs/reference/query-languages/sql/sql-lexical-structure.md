@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-lexical-structure.html
 ---
 
-# Lexical Structure [sql-lexical-structure]
+# Lexical structure [sql-lexical-structure]
 
 This section covers the major lexical structure of SQL, which for the most part, is going to resemble that of ANSI SQL itself hence why low-levels details are not discussed in depth.
 
@@ -123,9 +123,8 @@ To escape single or double quotes, one needs to use that specific quote one more
 
 A few characters that are not alphanumeric have a dedicated meaning different from that of an operator. For completeness these are specified below:
 
-|     |     |
-| --- | --- |
 | **Char** | **Description** |
+| --- | --- |
 | `*` | The asterisk (or wildcard) is used in some contexts to denote all fields for a table. Can be also used as an argument to some aggregate functions. |
 | `,` | Commas are used to enumerate the elements of a list. |
 | `.` | Used in numeric constants or to separate identifiers qualifiers (catalog, table, column names, etc…​). |
@@ -138,9 +137,8 @@ Most operators in Elasticsearch SQL have the same precedence and are left-associ
 
 The following table indicates the supported operators and their precedence (highest to lowest);
 
-|     |     |     |
-| --- | --- | --- |
 | **Operator/Element** | **Associativity** | **Description** |
+| --- | --- | --- |
 | `.` | left | qualifier separator |
 | `::` | left | PostgreSQL-style type cast |
 | `+ -` | right | unary plus and minus (numeric literal sign) |

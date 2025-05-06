@@ -25,7 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -72,6 +71,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
             .build();
     }
@@ -260,10 +260,6 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/125947",
-        value = "logger.org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE"
-    )
     public void testCancelUnnecessaryRequests() {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
         internalCluster().ensureAtLeastNumDataNodes(3);

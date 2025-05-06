@@ -1,6 +1,5 @@
 pr: 126805
-summary: Fixing bug with `TransportPutModelAction` listener and adding timeout to
-  request
+summary: Adding timeout to request for creating inference endpoint
 area: Machine Learning
 type: bug
 issues: []

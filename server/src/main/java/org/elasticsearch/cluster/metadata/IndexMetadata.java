@@ -2000,13 +2000,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
          * The new shard count must be a multiple of the original shardcount.
          * We do not support shrinking the shard count.
-         * @param shardCount   updated shardCount
+         * @param targetShardCount   target shard count after resharding
          */
-        public Builder reshardAddShards(int shardCount, final IndexMetadata sourceMetadata) {
-            if (shardCount % numberOfShards() != 0) {
+        public Builder reshardAddShards(int targetShardCount, final int sourceNumShards) {
+            if (targetShardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
-                        + shardCount
+                        + targetShardCount
                         + "] should be a multiple"
                         + " of current shard count ["
                         + numberOfShards()
@@ -2015,12 +2015,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + "]"
                 );
             }
-            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
-            var newPrimaryTerms = new long[shardCount];
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
+            var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceMetadata);
+            routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
             return this;
         }
 

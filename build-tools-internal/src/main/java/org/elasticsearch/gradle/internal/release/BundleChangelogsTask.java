@@ -119,7 +119,7 @@ public class BundleChangelogsTask extends DefaultTask {
         Set<String> entriesFromBc = Set.of();
 
         try {
-            var usingBcRef = bcRef != null && !bcRef.isEmpty();
+            var usingBcRef = bcRef != null && bcRef.isEmpty() == false;
             if (usingBcRef) {
                 // Check out all the changelogs that existed at the time of the BC
                 checkoutChangelogs(gitWrapper, upstreamRemote, bcRef);
@@ -140,7 +140,7 @@ public class BundleChangelogsTask extends DefaultTask {
             Set<String> finalEntriesFromBc = entriesFromBc;
             List<ChangelogEntry> entries = this.changelogDirectory.getAsFileTree().getFiles().stream().filter(f -> {
                 // When not using a bc ref, we just take everything from the branch/sha passed in
-                if (!usingBcRef) {
+                if (usingBcRef == false) {
                     return true;
                 }
 
@@ -153,7 +153,8 @@ public class BundleChangelogsTask extends DefaultTask {
                 // This specifically covers the case of a PR being merged into the BC with a missing changelog file, and the file added
                 // later.
                 var prNumber = f.getName().replace(".yaml", "");
-                return !gitWrapper.runCommand("git", "log", bcRef, "--grep", "(#" + prNumber + ")").trim().isEmpty();
+                var output = gitWrapper.runCommand("git", "log", bcRef, "--grep", "(#" + prNumber + ")");
+                return output.trim().isEmpty() == false;
             }).map(ChangelogEntry::parse).sorted(Comparator.comparing(ChangelogEntry::getPr)).collect(toList());
 
             ChangelogBundle existingBundle = null;

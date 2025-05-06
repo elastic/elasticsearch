@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 
 import java.util.List;
 
-public interface ReadOnlyServiceAccountTokenStore extends ServiceAccountTokenStore {
+public interface NodeLocalServiceAccountTokenStore extends ServiceAccountTokenStore {
     default List<TokenInfo> findNodeLocalTokensFor(ServiceAccount.ServiceAccountId accountId) {
         throw new IllegalStateException("Find node local tokens not supported by [" + this.getClass() + "]");
     }

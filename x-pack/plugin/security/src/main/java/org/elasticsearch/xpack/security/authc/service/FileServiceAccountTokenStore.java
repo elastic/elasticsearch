@@ -22,7 +22,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore implements ReadOnlyServiceAccountTokenStore {
+public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore implements NodeLocalServiceAccountTokenStore {
 
     private static final Logger logger = LogManager.getLogger(FileServiceAccountTokenStore.class);
 

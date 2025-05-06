@@ -208,7 +208,9 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -1254,31 +1256,38 @@ public class Security extends Plugin
         Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
         Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
     ) {
-        Map<String, ReadOnlyServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
+        Map<String, ServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
 
         for (var extension : securityExtensions) {
             var serviceAccountTokenStore = extension.getServiceAccountTokenStore(extensionComponents);
             if (serviceAccountTokenStore != null) {
+                if (isInternalExtension(extension) == false) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom ServiceAccountTokenStore. This functionality is not available to external extensions."
+                    );
+                }
                 accountTokenStoreByExtension.put(extension.extensionName(), serviceAccountTokenStore);
             }
         }
 
-        ServiceAccountService serviceAccountService;
         if (accountTokenStoreByExtension.size() > 1) {
             throw new IllegalStateException(
-                "More than one ServiceAccountTokenStore provided in extensions: " + accountTokenStoreByExtension.keySet()
+                "More than one extension provided a ServiceAccountTokenStore override: " + accountTokenStoreByExtension.keySet()
             );
         }
-        var extensionStore = accountTokenStoreByExtension.values().stream().findFirst();
-        if (extensionStore.isEmpty()) {
+
+        if (accountTokenStoreByExtension.isEmpty()) {
             var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
             var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
 
-            components.add(new PluginComponentBinding<>(ReadOnlyServiceAccountTokenStore.class, fileServiceAccountTokenStore));
+            components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
+            components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
             cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
 
-            serviceAccountService = new ServiceAccountService(
+            return new ServiceAccountService(
                 client.get(),
                 new CompositeServiceAccountTokenStore(
                     List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
@@ -1286,15 +1295,25 @@ public class Security extends Plugin
                 ),
                 indexServiceAccountTokenStore
             );
-        } else {
-            // Completely handover service account token management to the extension if provided,
-            // this will disable the index managed
-            // service account tokens managed through the service account token API
-            components.add(new PluginComponentBinding<>(ReadOnlyServiceAccountTokenStore.class, extensionStore.get()));
-            logger.debug("Service account authentication handled by extension, disabling file and index token stores");
-            serviceAccountService = new ServiceAccountService(client.get(), extensionStore.get());
         }
-        return serviceAccountService;
+        // Completely handover service account token management to the extension if provided,
+        // this will disable the index managed
+        // service account tokens managed through the service account token API
+        var extensionStore = accountTokenStoreByExtension.values().stream().findFirst();
+        components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, (token, listener) -> {
+            throw new IllegalStateException("Node local config not supported by [" + extensionStore.get().getClass() + "]");
+        }));
+        components.add(extensionStore);
+        logger.debug("Service account authentication handled by extension, disabling file and index token stores");
+        return new ServiceAccountService(client.get(), extensionStore.get());
+    }
+
+    private static boolean isInternalExtension(SecurityExtension extension) {
+        final String canonicalName = extension.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     @FixForMultiProject

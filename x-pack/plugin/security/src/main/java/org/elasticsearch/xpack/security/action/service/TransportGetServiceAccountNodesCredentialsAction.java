@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
-import org.elasticsearch.xpack.core.security.authc.service.ReadOnlyServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     GetServiceAccountCredentialsNodesResponse.Node,
     Void> {
 
-    private final ReadOnlyServiceAccountTokenStore readOnlyServiceAccountTokenStore;
+    private final NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore;
 
     @Inject
     public TransportGetServiceAccountNodesCredentialsAction(
@@ -46,7 +47,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        ReadOnlyServiceAccountTokenStore readOnlyServiceAccountTokenStore
+        @Nullable NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore
     ) {
         super(
             GetServiceAccountNodesCredentialsAction.NAME,

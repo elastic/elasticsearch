@@ -96,15 +96,6 @@ COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.p
 
 WORKDIR /usr/share/elasticsearch/config
 
-## Add fips specific JVM options
-RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
--Djavax.net.ssl.keyStoreType=BCFKS
--Dorg.bouncycastle.fips.approved_only=true
--Djava.security.properties=config/fips_java.security
--Djava.security.policy=config/fips_java.policy
-EOF
-
-
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
@@ -136,6 +127,10 @@ ENV ELASTIC_CONTAINER=true
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
+COPY --from=builder --chown=0:0 /opt /opt
+
+ENV ES_PLUGIN_ARCHIVE_DIR=/opt/plugins/archive
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 ENV SHELL=/bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -158,6 +153,28 @@ RUN chmod g=u /etc/passwd && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+
+# Convert cacerts (PKCS12) to BCFKS format using POSIX-compatible shell syntax
+RUN printf "\\n" | jdk/bin/keytool -importkeystore \
+  -srckeystore /usr/share/elasticsearch/jdk/lib/security/cacerts \
+  -srcstoretype PKCS12 \
+  -destkeystore config/cacerts.bcfks \
+  -deststorepass passwordcacert \
+  -deststoretype BCFKS \
+  -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+  -providerpath lib/bc-fips-1.0.2.5.jar \
+  -destprovidername BCFIPS
+
+
+## Add fips specific JVM options
+RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
+-Djavax.net.ssl.keyStoreType=BCFKS
+-Dorg.bouncycastle.fips.approved_only=true
+-Djava.security.properties=config/fips_java.security
+-Djava.security.policy=config/fips_java.policy
+-Djavax.net.ssl.trustStore=config/cacerts.bcfks
+-Djavax.net.ssl.trustStorePassword=passwordcacert
+EOF
 
 EXPOSE 9200 9300
 
@@ -195,11 +212,6 @@ ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 
 USER 1000:0
-
-COPY --from=builder --chown=0:0 /opt /opt
-ENV ES_PLUGIN_ARCHIVE_DIR=/opt/plugins/archive
-WORKDIR /usr/share/elasticsearch
-COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
 
 ################################################################################
 # End of multi-stage Dockerfile

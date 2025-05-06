@@ -123,7 +123,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     }
 
     private float score(int rank) {
-        return 1f/ (rank % 20);
+        return 1f / (rank % 20);
     }
 
     private ColumnInfoImpl columnInfo(int channel) {

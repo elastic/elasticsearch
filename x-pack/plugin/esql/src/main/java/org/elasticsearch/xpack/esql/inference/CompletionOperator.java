@@ -79,6 +79,7 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
             return new BulkInferenceRequestIterator() {
                 private int currentPos = 0;
                 BytesRef readBuffer = new BytesRef();
+
                 @Override
                 public boolean hasNext() {
                     return currentPos < promptBlock.getPositionCount();
@@ -113,7 +114,7 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
         } catch (Exception e) {
             promptBlock.allowPassingToDifferentDriver();
             Releasables.closeExpectNoException(promptBlock);
-            throw(e);
+            throw (e);
         }
     }
 
@@ -168,7 +169,7 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
         } catch (Exception e) {
             releasePageOnAnyThread(inputPage);
             Releasables.closeExpectNoException(outputBlockBuilder);
-            throw(e);
+            throw (e);
         }
     }
 

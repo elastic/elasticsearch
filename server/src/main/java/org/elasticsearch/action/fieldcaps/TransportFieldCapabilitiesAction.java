@@ -63,6 +63,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -237,12 +239,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 LOGGER.trace("clear index responses on cancellation submitted");
             }
         });
+        final Map<String, FieldCapabilitiesResponse> perRemoteResponse = new ConcurrentHashMap<>();
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
             finishedOrCancelled.set(true);
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, perRemoteResponse, listener);
             }
         })) {
             // local cluster
@@ -292,6 +295,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         for (String index : failure.getIndices()) {
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
+                    }
+                    if (finishedOrCancelled.get() == false) {
+                        perRemoteResponse.put(clusterAlias, response);
                     }
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
@@ -362,22 +368,45 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
+        Map<String, FieldCapabilitiesResponse> remoteResponses,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
-            if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
-            }
-        } else {
+        if (indexResponses.isEmpty() != false) {
             // we have no responses at all, maybe because of errors
             if (indexFailures.isEmpty() == false) {
                 // throw back the first exception
                 listener.onFailure(failures.get(0).getException());
             } else {
                 listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+            }
+        } else {
+            if (request.isMergeResults()) {
+                ActionListener.completeWith(listener, () -> {
+                    FieldCapabilitiesResponse response = merge(indexResponses, task, request, failures);
+                    if (remoteResponses.isEmpty()) {
+                        return response;
+                    }
+                    final TreeSet<String> allIndices = new TreeSet<>();
+                    Collections.addAll(allIndices, response.getIndices());
+                    final Map<String, Map<String, FieldCapabilities>> mergedResponses = new HashMap<>(response.get());
+                    for (Map.Entry<String, FieldCapabilitiesResponse> remoteAndResponse : remoteResponses.entrySet()) {
+                        var perCluster = remoteAndResponse.getValue();
+                        String clusterAlias = remoteAndResponse.getKey();
+                        for (String index : perCluster.getIndices()) {
+                            allIndices.add(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
+                        }
+                        perCluster.get().forEach((name, typeToCap) -> mergedResponses.merge(name, typeToCap, (existing, added) -> {
+                            if (existing.equals(added)) {
+                                return existing;
+                            }
+                            throw new AssertionError("we lack test coverage");
+                        }));
+                    }
+                    return new FieldCapabilitiesResponse(allIndices.toArray(Strings.EMPTY_ARRAY), mergedResponses, failures);
+                });
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
         }
     }
@@ -388,7 +417,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         long nowInMillis
     ) {
         FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-        remoteRequest.setMergeResults(false); // we need to merge on this node
         remoteRequest.indicesOptions(originalIndices.indicesOptions());
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());

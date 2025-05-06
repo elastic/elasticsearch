@@ -48,8 +48,8 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
                 assertEquals(i, row.getFirst());
                 @SuppressWarnings("unchecked")
                 // Vectors should be the same
-                List<Double> floats = (List<Double>)row.get(1);
-                for(int j = 0; j < floats.size(); j++) {
+                List<Double> floats = (List<Double>) row.get(1);
+                for (int j = 0; j < floats.size(); j++) {
                     assertEquals(floats.get(j).floatValue(), indexedVectors.get(i).get(j), 0f);
                 }
                 var score = (Double) row.get(2);

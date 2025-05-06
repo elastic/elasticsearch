@@ -301,8 +301,8 @@ public class PlannerUtils {
             case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
             // Can't throw IAE as this is used to estimate row size
             case DENSE_VECTOR -> ElementType.NULL;
-            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
-                throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
+                .illegalDataType(dataType);
         };
     }
 

@@ -56,7 +56,8 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO)
-            ).flatMap(List::stream)
+            )
+                .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))
                 .collect(Collectors.toCollection(() -> suppliers));
         }
@@ -68,8 +69,10 @@ public class SampleTests extends AbstractAggregationTestCase {
         return new Sample(source, args.get(0), args.get(1));
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier, TestCaseSupplier.TypedDataSupplier limitCaseSupplier
-        ) {
+    private static TestCaseSupplier makeSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        TestCaseSupplier.TypedDataSupplier limitCaseSupplier
+    ) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type(), limitCaseSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();

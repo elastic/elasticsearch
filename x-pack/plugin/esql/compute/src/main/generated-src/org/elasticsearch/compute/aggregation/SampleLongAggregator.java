@@ -26,6 +26,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.SplittableRandom;
+import java.util.random.RandomGenerator;
 
 /**
  * Sample N field values for long.
@@ -119,18 +120,21 @@ class SampleLongAggregator {
     public static class GroupingState implements GroupingAggregatorState {
         private final CircuitBreaker breaker;
         private final BytesRefBucketedSort sort;
+        private final BreakingBytesRefBuilder bytesRefBuilder;
+        private final RandomGenerator random;
 
         private GroupingState(BigArrays bigArrays, int limit) {
             this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
+            this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
+            this.random = new SplittableRandom();
         }
 
         public void add(int groupId, long value) {
-            try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "sample")) {
-                ENCODER.encodeLong(new SplittableRandom().nextLong(), builder);
-                ENCODER.encodeLong(value, builder);
-                sort.collect(builder.bytesRefView(), groupId);
-            }
+            ENCODER.encodeLong(random.nextLong(), bytesRefBuilder);
+            ENCODER.encodeLong(value, bytesRefBuilder);
+            sort.collect(bytesRefBuilder.bytesRefView(), groupId);
+            bytesRefBuilder.clear();
         }
 
         public void merge(int groupId, GroupingState other, int otherGroupId) {
@@ -153,7 +157,7 @@ class SampleLongAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(sort);
+            Releasables.closeExpectNoException(sort, bytesRefBuilder);
         }
     }
 

@@ -24,10 +24,10 @@ import org.elasticsearch.core.ReleasableIterator;
  *     Its methods can be overridden to implement custom behaviours or checks.
  * </p>
  */
-public class WrappedBlockHash extends BlockHash {
+public abstract class BlockHashWrapper extends BlockHash {
     protected BlockHash blockHash;
 
-    public WrappedBlockHash(BlockFactory blockFactory, BlockHash blockHash) {
+    public BlockHashWrapper(BlockFactory blockFactory, BlockHash blockHash) {
         super(blockFactory);
         this.blockHash = blockHash;
     }

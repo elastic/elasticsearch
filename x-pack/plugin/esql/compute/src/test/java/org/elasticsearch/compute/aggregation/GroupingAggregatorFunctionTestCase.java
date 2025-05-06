@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.WrappedBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHashWrapper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTypeRandomizer;
@@ -810,7 +810,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     )
                     : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
 
-                return new WrappedBlockHash(driverContext.blockFactory(), blockHash) {
+                return new BlockHashWrapper(driverContext.blockFactory(), blockHash) {
                     @Override
                     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
                         blockHash.add(page, new GroupingAggregatorFunction.AddInput() {

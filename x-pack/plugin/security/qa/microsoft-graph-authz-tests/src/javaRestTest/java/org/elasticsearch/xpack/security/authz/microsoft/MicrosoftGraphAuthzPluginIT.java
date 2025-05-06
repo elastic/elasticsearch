@@ -15,13 +15,17 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.security.authc.saml.SamlIdpMetadataBuilder;
 import org.elasticsearch.xpack.security.authc.saml.SamlResponseBuilder;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -36,19 +40,35 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
+
+    private static final String TENANT_ID = "tenant_id";
+    private static final String CLIENT_ID = "client_id";
+    private static final String CLIENT_SECRET = "client_secret";
+    private static final String USERNAME = "Thor";
+
+    private static final AzureGraphHttpFixture graphFixture = new AzureGraphHttpFixture(
+        TENANT_ID,
+        CLIENT_ID,
+        CLIENT_SECRET,
+        USERNAME,
+        "Thor Odinson",
+        "thor@oldap.test.elasticsearch.com"
+    );
+
     public static ElasticsearchCluster cluster = initTestCluster();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(graphFixture).around(cluster);
 
     private static final String IDP_ENTITY_ID = "http://idp.example.org/";
 
     private static ElasticsearchCluster initTestCluster() {
         return ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -67,6 +87,12 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.saml.saml1.sp.logout", "http://logout/default")
             .setting("xpack.security.authc.realms.saml.saml1.authorization_realms", "microsoft_graph1")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.order", "2")
+            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_id", CLIENT_ID)
+            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
+            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.tenant_id", TENANT_ID)
+            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host", graphFixture::getBaseUrl)
+            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
+            .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
             .build();
     }
 
@@ -78,6 +104,40 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             fail(exception);
         }
         return null;
+    }
+
+    @Before
+    public void setupRoleMapping() throws IOException {
+        Request request = new Request("PUT", "/_security/role_mapping/thor-kibana");
+        request.setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .array("roles", new String[] { "microsoft_graph_user" })
+                    .field("enabled", true)
+                    .startObject("rules")
+                    .startArray("all")
+                    .startObject()
+                    .startObject("field")
+                    .field("username", USERNAME)
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .startObject("field")
+                    .field("realm.name", "microsoft_graph1")
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .startObject("field")
+                    .field("groups", "group-id-3")
+                    .endObject()
+                    .endObject()
+                    .endArray() // "all"
+                    .endObject() // "rules"
+                    .endObject()
+            )
+        );
+        adminClient().performRequest(request);
     }
 
     @Override
@@ -102,8 +162,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     public void testAuthenticationSuccessful() throws Exception {
-        final String username = randomAlphaOfLengthBetween(4, 12);
-        samlAuthWithMicrosoftGraphAuthz(username, getSamlAssertionJsonBodyString(username));
+        samlAuthWithMicrosoftGraphAuthz(USERNAME, getSamlAssertionJsonBodyString(USERNAME));
     }
 
     private String getSamlAssertionJsonBodyString(String username) throws Exception {
@@ -124,10 +183,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         var req = new Request("POST", "_security/saml/authenticate");
         req.setJsonEntity(samlAssertion);
         var resp = entityAsMap(client().performRequest(req));
-        List<String> roles = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(req))).get("authentication.roles");
+        List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
         assertThat(resp.get("username"), equalTo(username));
-        // TODO add check for mapped groups and roles when available
-        assertThat(roles, empty());
+        assertThat(roles, contains("microsoft_graph_user"));
         assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml1"));
     }
 

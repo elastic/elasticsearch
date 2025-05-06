@@ -250,6 +250,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 clusterService,
                 transportService,
                 projectResolver,
+                indicesService.getCoordinatorRewriteContextProvider(() -> nowInMillis),
                 task,
                 request,
                 localIndices,
@@ -273,7 +274,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         singleThreadedExecutor,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
+                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(clusterAlias, request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
@@ -383,11 +384,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static FieldCapabilitiesRequest prepareRemoteRequest(
+        String clusterAlias,
         FieldCapabilitiesRequest request,
         OriginalIndices originalIndices,
         long nowInMillis
     ) {
         FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
+        remoteRequest.clusterAlias(clusterAlias);
         remoteRequest.setMergeResults(false); // we need to merge on this node
         remoteRequest.indicesOptions(originalIndices.indicesOptions());
         remoteRequest.indices(originalIndices.indices());

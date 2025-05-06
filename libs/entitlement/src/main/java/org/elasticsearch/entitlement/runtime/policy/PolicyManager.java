@@ -803,12 +803,10 @@ public class PolicyManager {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
-        if (moduleEntitlementsCache.isAlwaysAllowed(requestingClass)) {
-            generalLogger.debug("Entitlement trivially allowed by the EntitlementsCache");
-            return true;
-        }
-        generalLogger.trace("Entitlement not trivially allowed");
-        return false;
+
+        boolean result = moduleEntitlementsCache.isAlwaysAllowed(requestingClass);
+        generalLogger.trace("Returning isTriviallyAllowed=[{}]", result);
+        return result;
     }
 
     /**

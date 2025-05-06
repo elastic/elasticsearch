@@ -119,11 +119,11 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public OffsetSourceFieldMapper build(MapperBuilderContext context) {
-            return new OffsetSourceFieldMapper(
-                leafName(),
-                new OffsetSourceFieldType(context.buildFullName(leafName()), charset.get(), meta.getValue()),
-                builderParams(this, context)
-            );
+            OffsetSourceFieldType fieldType = new OffsetSourceFieldType(context.buildFullName(leafName()), charset.get(), meta.getValue());
+            // explicitly setting the field type to be not available for field caps
+            fieldType.setExcludeFromFieldCaps(true);
+
+            return new OffsetSourceFieldMapper(leafName(), fieldType, builderParams(this, context));
         }
     }
 

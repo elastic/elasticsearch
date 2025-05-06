@@ -68,6 +68,7 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
+    private boolean excludeFromFieldCaps;
 
     public MappedFieldType(
         String name,
@@ -122,7 +123,11 @@ public abstract class MappedFieldType {
 
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
-        return typeName();
+        return excludeFromFieldCaps ? null : typeName();
+    }
+
+    public void setExcludeFromFieldCaps(boolean exclude) {
+        this.excludeFromFieldCaps = exclude;
     }
 
     public String name() {

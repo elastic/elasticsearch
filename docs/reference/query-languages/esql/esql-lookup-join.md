@@ -156,9 +156,23 @@ To obtain a join key with a compatible type, use a [conversion function](/refere
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 
+## Implementation details
+
+This section covers key implementation aspects of `LOOKUP JOIN` that affect query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
+
+### Handling name collisions
+
+In case of name collisions, the newly created columns will override existing columns.
+
+### Sorting behavior
+
+The output rows produced by `LOOKUP JOIN` can be in any order and may not
+respect preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after
+any `LOOKUP JOIN`s.
+
 ## Limitations
 
-The following are the current limitations with `LOOKUP JOIN`
+The following are the current limitations with `LOOKUP JOIN`:
 
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.

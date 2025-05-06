@@ -42,13 +42,7 @@ If multiple documents in the lookup index match a single row in your
 results, the output will contain one row for each matching combination.
 
 ::::{tip}
-In case of name collisions, the newly created columns will override existing columns.
-::::
-
-::::{warning}
-The output rows produced by `LOOKUP JOIN` can be in any order and may not
-respect preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after
-any `LOOKUP JOIN`s.
+For important information about using the `LOOKUP JOIN`, refer to [Implementation details](../../../../esql/esql-lookup-join.md#implementation-details).
 ::::
 
 **Examples**

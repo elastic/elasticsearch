@@ -36,7 +36,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
 
     @Override

@@ -10,15 +10,8 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.CheckMethod;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -41,36 +34,21 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemProp
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.nio.channels.spi.SelectorProvider;
-import java.nio.file.AccessMode;
-import java.nio.file.CopyOption;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileStore;
-import java.nio.file.FileSystems;
-import java.nio.file.LinkOption;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchService;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
@@ -83,106 +61,62 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  */
 public class EntitlementInitialization {
 
-    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
-
-    interface InstrumentationInfoFactory {
-        InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
-            NoSuchMethodException;
-    }
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return manager;
     }
 
-    // Note: referenced by agent reflectively
+    /**
+     * Initializes the Entitlement system:
+     * <ol>
+     * <li>
+     * Initialize dynamic instrumentation via {@link DynamicInstrumentation#initialize}
+     * </li>
+     * <li>
+     * Creates the {@link PolicyManager}
+     * </li>
+     * <li>
+     * Creates the {@link ElasticsearchEntitlementChecker} instance referenced by the instrumented methods
+     * </li>
+     * </ol>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
+     *
+     * @param inst the JVM instrumentation class instance
+     */
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
-
         if (verifyBytecode) {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
-        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
-        Stream.of(
-            fileSystemProviderChecks(),
-            fileStoreChecks(),
-            pathChecks(),
-            Stream.of(
-                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                    SelectorProvider.class,
-                    "inheritedChannel",
-                    SelectorProvider.provider().getClass(),
-                    EntitlementChecker.class,
-                    "checkSelectorProviderInheritedChannel"
-                )
-            )
-        )
-            .flatMap(Function.identity())
-            .forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
-
-        var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
-
-        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
-        inst.addTransformer(transformer, true);
-
-        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
-        try {
-            inst.retransformClasses(classesToRetransform);
-        } catch (VerifyError e) {
-            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
-            transformer.enableClassVerification();
-
-            for (var classToRetransform : classesToRetransform) {
-                inst.retransformClasses(classToRetransform);
-            }
-
-            // We should have failed already in the loop above, but just in case we did not, rethrow.
-            throw e;
-        }
-    }
-
-    private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
-        List<Class<?>> retransform = new ArrayList<>();
-        for (Class<?> loadedClass : loadedClasses) {
-            if (classesToTransform.contains(loadedClass.getName().replace(".", "/"))) {
-                retransform.add(loadedClass);
-            }
-        }
-        return retransform.toArray(new Class<?>[0]);
+        DynamicInstrumentation.initialize(inst, getVersionSpecificCheckerClass(EntitlementChecker.class), verifyBytecode);
     }
 
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(
-            getUserHome(),
-            bootstrapArgs.configDir(),
-            bootstrapArgs.dataDirs(),
-            bootstrapArgs.sharedRepoDirs(),
-            bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver()
-        );
+        PathLookup pathLookup = bootstrapArgs.pathLookup();
 
         List<Scope> serverScopes = new ArrayList<>();
         List<FileData> serverModuleFileDatas = new ArrayList<>();
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
-            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
-            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
-            FileData.ofPath(bootstrapArgs.configDir(), READ),
-            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-            FileData.ofPath(bootstrapArgs.libDir(), READ),
-            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
-            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+            FileData.ofBaseDirPath(PLUGINS, READ),
+            FileData.ofBaseDirPath(MODULES, READ),
+            FileData.ofBaseDirPath(CONFIG, READ),
+            FileData.ofBaseDirPath(LOGS, READ_WRITE),
+            FileData.ofBaseDirPath(LIB, READ),
+            FileData.ofBaseDirPath(DATA, READ_WRITE),
+            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
             // exclusive settings file
             FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),
             // OS release on Linux
@@ -203,8 +137,8 @@ public class EntitlementInitialization {
             FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
-        if (bootstrapArgs.pidFile() != null) {
-            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        if (pathLookup.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(pathLookup.pidFile(), READ_WRITE));
         }
 
         Collections.addAll(
@@ -216,8 +150,8 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             // TODO: what in es.base is accessing shared repo?
-                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
+                            FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
                 )
@@ -242,25 +176,20 @@ public class EntitlementInitialization {
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
-                    new FilesEntitlement(
-                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
-                    )
+                    new FilesEntitlement(List.of(FileData.ofBaseDirPath(CONFIG, READ), FileData.ofBaseDirPath(DATA, READ_WRITE)))
                 )
             ),
             new Scope(
                 "org.apache.lucene.misc",
-                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
+                List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))), new ReadStoreAttributesEntitlement())
             ),
             new Scope(
                 "org.apache.logging.log4j.core",
-                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(LOGS, READ_WRITE))))
             ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
-                List.of(
-                    new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
-                )
+                List.of(new LoadNativeLibrariesEntitlement(), new FilesEntitlement(List.of(FileData.ofBaseDirPath(DATA, READ_WRITE))))
             )
         );
 
@@ -285,7 +214,7 @@ public class EntitlementInitialization {
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
-                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                    List.of(new FilesEntitlement(List.of(FileData.ofBaseDirPath(LIB, READ))), new ManageThreadsEntitlement())
                 )
             );
         }
@@ -309,146 +238,25 @@ public class EntitlementInitialization {
             new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                    FileData.ofBaseDirPath(LOGS, READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )
             )
         );
+
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
+
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
             bootstrapArgs.suppressFailureLogClasses()
         );
-    }
-
-    private static Path getUserHome() {
-        String userHome = System.getProperty("user.home");
-        if (userHome == null) {
-            throw new IllegalStateException("user.home system property is required");
-        }
-        return PathUtils.get(userHome);
-    }
-
-    private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,
-        NoSuchMethodException {
-        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
-
-        var instrumentation = new InstrumentationInfoFactory() {
-            @Override
-            public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
-                throws ClassNotFoundException, NoSuchMethodException {
-                return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                    FileSystemProvider.class,
-                    methodName,
-                    fileSystemProviderClass,
-                    EntitlementChecker.class,
-                    "check" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
-                    parameterTypes
-                );
-            }
-        };
-
-        return Stream.of(
-            instrumentation.of("newFileSystem", URI.class, Map.class),
-            instrumentation.of("newFileSystem", Path.class, Map.class),
-            instrumentation.of("newInputStream", Path.class, OpenOption[].class),
-            instrumentation.of("newOutputStream", Path.class, OpenOption[].class),
-            instrumentation.of("newFileChannel", Path.class, Set.class, FileAttribute[].class),
-            instrumentation.of("newAsynchronousFileChannel", Path.class, Set.class, ExecutorService.class, FileAttribute[].class),
-            instrumentation.of("newByteChannel", Path.class, Set.class, FileAttribute[].class),
-            instrumentation.of("newDirectoryStream", Path.class, DirectoryStream.Filter.class),
-            instrumentation.of("createDirectory", Path.class, FileAttribute[].class),
-            instrumentation.of("createSymbolicLink", Path.class, Path.class, FileAttribute[].class),
-            instrumentation.of("createLink", Path.class, Path.class),
-            instrumentation.of("delete", Path.class),
-            instrumentation.of("deleteIfExists", Path.class),
-            instrumentation.of("readSymbolicLink", Path.class),
-            instrumentation.of("copy", Path.class, Path.class, CopyOption[].class),
-            instrumentation.of("move", Path.class, Path.class, CopyOption[].class),
-            instrumentation.of("isSameFile", Path.class, Path.class),
-            instrumentation.of("isHidden", Path.class),
-            instrumentation.of("getFileStore", Path.class),
-            instrumentation.of("checkAccess", Path.class, AccessMode[].class),
-            instrumentation.of("getFileAttributeView", Path.class, Class.class, LinkOption[].class),
-            instrumentation.of("readAttributes", Path.class, Class.class, LinkOption[].class),
-            instrumentation.of("readAttributes", Path.class, String.class, LinkOption[].class),
-            instrumentation.of("readAttributesIfExists", Path.class, Class.class, LinkOption[].class),
-            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class),
-            instrumentation.of("exists", Path.class, LinkOption[].class)
-        );
-    }
-
-    private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {
-        var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
-            .map(FileStore::getClass)
-            .distinct();
-        return fileStoreClasses.flatMap(fileStoreClass -> {
-            var instrumentation = new InstrumentationInfoFactory() {
-                @Override
-                public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
-                    throws ClassNotFoundException, NoSuchMethodException {
-                    return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                        FileStore.class,
-                        methodName,
-                        fileStoreClass,
-                        EntitlementChecker.class,
-                        "check" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
-                        parameterTypes
-                    );
-                }
-            };
-
-            try {
-                return Stream.of(
-                    instrumentation.of("getFileStoreAttributeView", Class.class),
-                    instrumentation.of("getAttribute", String.class),
-                    instrumentation.of("getBlockSize"),
-                    instrumentation.of("getTotalSpace"),
-                    instrumentation.of("getUnallocatedSpace"),
-                    instrumentation.of("getUsableSpace"),
-                    instrumentation.of("isReadOnly"),
-                    instrumentation.of("name"),
-                    instrumentation.of("type")
-
-                );
-            } catch (NoSuchMethodException | ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    private static Stream<InstrumentationService.InstrumentationInfo> pathChecks() {
-        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
-            .map(Path::getClass)
-            .distinct();
-        return pathClasses.flatMap(pathClass -> {
-            InstrumentationInfoFactory instrumentation = (String methodName, Class<?>... parameterTypes) -> INSTRUMENTATION_SERVICE
-                .lookupImplementationMethod(
-                    Path.class,
-                    methodName,
-                    pathClass,
-                    EntitlementChecker.class,
-                    "checkPath" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
-                    parameterTypes
-                );
-
-            try {
-                return Stream.of(
-                    instrumentation.of("toRealPath", LinkOption[].class),
-                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class),
-                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class, WatchEvent.Modifier[].class)
-                );
-            } catch (NoSuchMethodException | ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     /**
@@ -515,11 +323,4 @@ public class EntitlementInitialization {
             throw new AssertionError(e);
         }
     }
-
-    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
-        "entitlement",
-        InstrumentationService.class,
-        "org.elasticsearch.entitlement.instrumentation",
-        Set.of()
-    ).get();
 }

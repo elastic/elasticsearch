@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
-// TODO: apply new plugin
+apply plugin: 'elasticsearch.test-build-info'
 
 publishing {
   publications {
@@ -286,4 +286,9 @@ tasks.named("licenseHeaders").configure {
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
 
-// TODO: add tasks.named for new task and set server as component
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFileName().set("server-test-build-info.json")
+  }
+}

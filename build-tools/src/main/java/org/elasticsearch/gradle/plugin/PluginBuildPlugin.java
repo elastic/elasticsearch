@@ -10,16 +10,12 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.test.TestBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.Directory;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
@@ -61,6 +57,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getTasks().withType(GenerateTestBuildInfoTask.class).named("generateTestBuildInfo").configure(task -> {
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
+            task.getOutputFileName().set("plugin-test-build-info.json");
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {

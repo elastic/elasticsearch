@@ -29,7 +29,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -52,6 +56,9 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     @InputFiles
     public abstract Property<FileCollection> getCodeLocations();
 
+    @Input
+    public abstract Property<String> getOutputFileName();
+
     @OutputDirectory
     public abstract DirectoryProperty getOutputDirectory();
 
@@ -70,7 +77,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                                 cr.accept(new ClassVisitor(Opcodes.ASM9) {
                                     @Override
                                     public ModuleVisitor visitModule(String name, int access, String version) {
-                                        //getLogger().lifecycle("FOUND 0: " + name + " | " + file.getAbsolutePath());
+                                        // getLogger().lifecycle("FOUND 0: " + name + " | " + file.getAbsolutePath());
                                         moduleName[0] = name;
                                         return super.visitModule(name, access, version);
                                     }
@@ -110,7 +117,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                                                     cr.accept(new ClassVisitor(Opcodes.ASM9) {
                                                         @Override
                                                         public ModuleVisitor visitModule(String name, int access, String version) {
-                                                            //getLogger().lifecycle("FOUND 1: " + name + " | " + file.getAbsolutePath());
+                                                            // getLogger().lifecycle("FOUND 1: " + name + " | " + file.getAbsolutePath());
                                                             moduleName[0] = name;
                                                             return super.visitModule(name, access, version);
                                                         }
@@ -122,7 +129,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                                     if (moduleName[0] == null) {
                                         String amn = manifest.getMainAttributes().getValue("Automatic-Module-Name");
                                         if (amn != null) {
-                                            //getLogger().lifecycle("FOUND 2: " + amn + " | " + file.getAbsolutePath());
+                                            // getLogger().lifecycle("FOUND 2: " + amn + " | " + file.getAbsolutePath());
                                             moduleName[0] = amn;
                                         }
                                     }
@@ -135,7 +142,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                                     jn = jn.substring(0, matcher.start());
                                 }
                                 jn = jn.replaceAll("[^A-Za-z0-9]", ".");
-                                //getLogger().lifecycle("FOUND 3: " + jn + " | " + file.getAbsolutePath());
+                                // getLogger().lifecycle("FOUND 3: " + jn + " | " + file.getAbsolutePath());
                                 moduleName[0] = jn;
                             }
                         }
@@ -174,7 +181,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
         Path outputDirectory = getOutputDirectory().get().getAsFile().toPath();
         Files.createDirectories(outputDirectory);
-        Path outputFile = outputDirectory.resolve(PROPERTIES_FILENAME);
+        Path outputFile = outputDirectory.resolve(getOutputFileName().get());
 
         try (var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
             writer.write("{\n");

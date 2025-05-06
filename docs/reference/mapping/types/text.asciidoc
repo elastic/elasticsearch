@@ -228,7 +228,7 @@ Will become:
 ----
 {
   "text": [
-    "jumped over the lazy dog"
+    "jumped over the lazy dog",
     "NA",
     "the quick brown fox"
   ]

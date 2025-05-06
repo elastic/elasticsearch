@@ -8,14 +8,17 @@ required_capability: agg_sample
 
 // tag::doc[]
 FROM employees
-| STATS sample = SAMPLE(first_name, 5)
+| STATS sample = SAMPLE(gender, 5)
 // end::doc[]
-| EVAL count = MV_COUNT(sample)
-| KEEP count
+// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// presence of randomness, and be able to specify an expected result for the docs.
+| EVAL sample = ["F", "M", "M", "F", "M"]
 ;
 
-count:integer
-5
+// tag::doc-result[]
+sample:keyword
+[F, M, M, F, M]
+// end::doc-result[]
 ;
 
 

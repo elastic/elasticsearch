@@ -14,10 +14,6 @@ dependencies {
   clusterModules project(":modules:ingest-common")
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution("to be triaged")
-}
-
 tasks.named("javaRestTest").configure {
   enabled = buildParams.snapshotBuild
   systemProperty "tests.multi_project.enabled", true

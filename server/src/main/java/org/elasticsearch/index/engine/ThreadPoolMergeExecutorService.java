@@ -55,10 +55,9 @@ import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 
 public class ThreadPoolMergeExecutorService implements Closeable {
     /** How frequently we check disk usage (default: 5 seconds). */
-    public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "indices.merge.disk.check_interval",
         TimeValue.timeValueSeconds(5),
-        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope
     );
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
@@ -453,8 +452,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             try {
                 E peek;
                 long peekBudget;
-                while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget)
+                while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget) {
                     elementAvailable.await();
+                }
                 return new ElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
             } finally {
                 lock.unlock();

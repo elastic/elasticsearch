@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +46,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        @Nullable NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore
+        NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore
     ) {
         super(
             GetServiceAccountNodesCredentialsAction.NAME,

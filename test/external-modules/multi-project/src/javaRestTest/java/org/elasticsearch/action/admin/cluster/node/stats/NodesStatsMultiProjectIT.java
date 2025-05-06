@@ -61,7 +61,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
 
     @After
     public void deletePipelines() throws IOException {
-        for (String projectId : listProjects()) {
+        for (String projectId : getProjectIds(adminClient())) {
             for (String pipelineId : getPipelineIds(projectId)) {
                 client().performRequest(setRequestProjectId(new Request("DELETE", "/_ingest/pipeline/" + pipelineId), projectId));
             }

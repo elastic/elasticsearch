@@ -2826,7 +2826,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    private Collection<String> getProjectIds(RestClient client) throws IOException {
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
         try {

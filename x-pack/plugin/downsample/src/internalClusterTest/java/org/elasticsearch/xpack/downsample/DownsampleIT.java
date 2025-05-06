@@ -43,18 +43,17 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
         putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
             {
-                "properties": {
-                     "metrics": {
-                       "type": "passthrough",
-                       "priority": 10,
-                       "time_series_dimension": true
-                     },
-                     "metrics.cpu_usage": {
-                       "type": "double",
-                       "time_series_metric": "counter"
-                     }
-                   }
-                 }
+              "properties": {
+                "metrics": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "time_series_dimension": true
+                },
+                "metrics.cpu_usage": {
+                  "type": "double",
+                  "time_series_metric": "counter"
+                }
+              }
             }
             """, null, null);
 

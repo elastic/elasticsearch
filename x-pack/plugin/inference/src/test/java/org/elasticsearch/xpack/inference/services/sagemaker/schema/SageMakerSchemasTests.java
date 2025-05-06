@@ -41,7 +41,10 @@ public class SageMakerSchemasTests extends ESTestCase {
     private static final SageMakerSchemas schemas = new SageMakerSchemas();
 
     public void testSupportedTaskTypes() {
-        assertThat(schemas.supportedTaskTypes(), containsInAnyOrder(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
+        assertThat(
+            schemas.supportedTaskTypes(),
+            containsInAnyOrder(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+        );
     }
 
     public void testSupportedStreamingTasks() {

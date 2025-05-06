@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,13 +56,7 @@ public class SageMakerSchemas {
             .collect(Collectors.groupingBy(TaskAndApi::api, Collectors.mapping(TaskAndApi::taskType, Collectors.toSet())));
 
         supportedStreamingTasks = streamSchemas.keySet().stream().map(TaskAndApi::taskType).collect(Collectors.toSet());
-        supportedTaskTypes = EnumSet.copyOf(
-            schemas.keySet()
-                .stream()
-                .map(TaskAndApi::taskType)
-                .filter(Predicate.not(TaskType.CHAT_COMPLETION::equals)) // chat_completion is currently never supported for non-streaming
-                .collect(Collectors.toSet())
-        );
+        supportedTaskTypes = EnumSet.copyOf(schemas.keySet().stream().map(TaskAndApi::taskType).collect(Collectors.toSet()));
     }
 
     private static Map<TaskAndApi, SageMakerSchema> register(SageMakerSchemaPayload... payloads) {

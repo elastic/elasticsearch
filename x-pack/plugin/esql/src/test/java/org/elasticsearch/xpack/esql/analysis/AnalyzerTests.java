@@ -2914,8 +2914,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute.Builder(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"))
-            .build();
+        var expectedAttribute = new FieldAttribute.Builder(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo")).build();
         assertThat(insist.insistedAttributes(), is(List.of(expectedAttribute)));
         assertThat(insist.output().getLast(), is(expectedAttribute));
     }

@@ -188,9 +188,7 @@ public class FieldAttribute extends TypedAttribute {
         } else {
             // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
             // fake FieldAttribute here as long as the name is correct.
-            FieldAttribute fakeParent = parentName() == null
-                ? null
-                : new Builder(Source.EMPTY, parentName(), field()).build();
+            FieldAttribute fakeParent = parentName() == null ? null : new Builder(Source.EMPTY, parentName(), field()).build();
             out.writeOptionalWriteable(fakeParent);
         }
     }

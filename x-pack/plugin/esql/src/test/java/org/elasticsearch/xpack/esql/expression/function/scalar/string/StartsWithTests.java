@@ -89,8 +89,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldablePrefix_Translatable() {
         var function = new StartsWith(
             Source.EMPTY,
-            new FieldAttribute.Builder(Source.EMPTY, "field", new EsField("prefix", DataType.KEYWORD, Map.of(), true))
-                .build(),
+            new FieldAttribute.Builder(Source.EMPTY, "field", new EsField("prefix", DataType.KEYWORD, Map.of(), true)).build(),
             new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
         );
 

@@ -90,8 +90,7 @@ public class InTests extends AbstractFunctionTestCase {
     public void testConvertedNull() {
         In in = new In(
             EMPTY,
-            new FieldAttribute.Builder(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
-                .build(),
+            new FieldAttribute.Builder(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)).build(),
             Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
         );
         var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);

@@ -129,11 +129,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperator() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute.Builder(
-            Source.EMPTY,
-            "field",
-            new EsField("field", DataType.INTEGER, Map.of(), true)
-        ).build();
+        FieldAttribute sortField = new FieldAttribute.Builder(Source.EMPTY, "field", new EsField("field", DataType.INTEGER, Map.of(), true))
+            .build();
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(

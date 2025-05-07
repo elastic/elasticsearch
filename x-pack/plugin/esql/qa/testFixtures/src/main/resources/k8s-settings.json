@@ -1,7 +1,7 @@
 {
   "index": {
     "mode": "time_series",
-    "routing_path": ["cluster", "name"],
+    "routing_path": ["cluster", "pod"],
     "time_series": {
       "start_time": "2024-05-10T00:00:00Z",
       "end_time": "2024-05-20T00:00:00Z"

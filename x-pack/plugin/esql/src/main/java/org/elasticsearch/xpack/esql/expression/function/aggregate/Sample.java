@@ -109,14 +109,9 @@ public class Sample extends AggregateFunction implements ToAggregator {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        var typeResolution = isType(
-            field(),
-            dt -> dt != DataType.UNSIGNED_LONG,
-            sourceText(),
-            FIRST,
-            "any type except unsigned_long"
-        ).and(isNotNullAndFoldable(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+        var typeResolution = isType(field(), dt -> dt != DataType.UNSIGNED_LONG, sourceText(), FIRST, "any type except unsigned_long").and(
+            isNotNullAndFoldable(limitField(), sourceText(), SECOND)
+        ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {
             return typeResolution;
         }

@@ -80,7 +80,17 @@ public record RandomBlock(List<List<Object>> values, Block block) {
         int minDupsPerPosition,
         int maxDupsPerPosition
     ) {
-        return randomBlock(blockFactory, elementType, positionCount, ESTestCase.randomBoolean(), nullAllowed, minValuesPerPosition, maxValuesPerPosition, minDupsPerPosition, maxDupsPerPosition);
+        return randomBlock(
+            blockFactory,
+            elementType,
+            positionCount,
+            ESTestCase.randomBoolean(),
+            nullAllowed,
+            minValuesPerPosition,
+            maxValuesPerPosition,
+            minDupsPerPosition,
+            maxDupsPerPosition
+        );
     }
 
     public static RandomBlock randomBlock(

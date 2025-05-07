@@ -280,7 +280,10 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             tinyNodeShardIds.size() + tinyNodeShardIdsCopy.size(),
             is(1)
         );
-        assertThat(tinyNodeShardIds.iterator().next(), in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace)));
+        final var useableSpaceShardSizes = shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace);
+        final var tinyNodeShardId = tinyNodeShardIds.isEmpty() == false ? tinyNodeShardIds.iterator().next() :
+            new ShardId(useableSpaceShardSizes.iterator().next().getIndex(), tinyNodeShardIdsCopy.iterator().next().id());
+        assertThat(tinyNodeShardId, in(useableSpaceShardSizes));
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {

@@ -185,9 +185,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121165
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/121285
-- class: org.elasticsearch.env.NodeEnvironmentTests
-  method: testGetBestDowngradeVersion
-  issue: https://github.com/elastic/elasticsearch/issues/121316
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
@@ -234,9 +231,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
-- class: org.elasticsearch.env.NodeEnvironmentTests
-  method: testIndexCompatibilityChecks
-  issue: https://github.com/elastic/elasticsearch/issues/124388
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518
@@ -318,9 +312,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyUtilsTests
-  method: testFormatFilesEntitlement
-  issue: https://github.com/elastic/elasticsearch/issues/126176
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/126223
@@ -408,9 +399,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPluginsViaConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/127158
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
-  method: testRetryOnlyMovedShards
-  issue: https://github.com/elastic/elasticsearch/issues/127168
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
@@ -426,24 +414,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/127536
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/127592
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/127593
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/127594
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/127595
-- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
-  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
-  issue: https://github.com/elastic/elasticsearch/issues/127286
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {rerank.Reranker using another sort order ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/127638
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
+  issue: https://github.com/elastic/elasticsearch/issues/127096
+- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
+  method: testChangeFollowerHistoryUUID
+  issue: https://github.com/elastic/elasticsearch/issues/127680
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/127689
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/127690
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/350_point_in_time/point-in-time with index filter}
+  issue: https://github.com/elastic/elasticsearch/issues/127741
+- class: org.elasticsearch.xpack.esql.optimizer.OptimizerRulesTests
+  method: testOptimizerExpressionRuleShouldNotVisitExcludedNodes
+  issue: https://github.com/elastic/elasticsearch/issues/127754
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityFcActionAuthorizationIT
+  method: testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions
+  issue: https://github.com/elastic/elasticsearch/issues/127782
 
 # Examples:
 #

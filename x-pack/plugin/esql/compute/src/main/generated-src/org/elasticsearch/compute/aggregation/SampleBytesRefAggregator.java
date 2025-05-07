@@ -26,7 +26,7 @@ import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.SplittableRandom;
+import org.elasticsearch.common.Randomness;
 import java.util.random.RandomGenerator;
 // end generated imports
 
@@ -125,20 +125,17 @@ class SampleBytesRefAggregator {
     }
 
     public static class GroupingState implements GroupingAggregatorState {
-        private final CircuitBreaker breaker;
         private final BytesRefBucketedSort sort;
         private final BreakingBytesRefBuilder bytesRefBuilder;
-        private final RandomGenerator random;
 
         private GroupingState(BigArrays bigArrays, int limit) {
-            this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
             this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
-            this.random = new SplittableRandom();
         }
 
         public void add(int groupId, BytesRef value) {
-            ENCODER.encodeLong(random.nextLong(), bytesRefBuilder);
+            ENCODER.encodeLong(Randomness.get().nextLong(), bytesRefBuilder);
             ENCODER.encodeBytesRef(value, bytesRefBuilder);
             sort.collect(bytesRefBuilder.bytesRefView(), groupId);
             bytesRefBuilder.clear();

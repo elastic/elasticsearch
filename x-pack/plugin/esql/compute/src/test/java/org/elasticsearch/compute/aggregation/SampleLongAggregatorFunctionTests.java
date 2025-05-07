@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import com.carrotsearch.randomizedtesting.annotations.SeedDecorators;
+
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -15,6 +17,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.test.MixWithIncrement;
 
 import java.util.List;
 import java.util.Set;
@@ -27,7 +30,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThan;
 
+@SeedDecorators(MixWithIncrement.class)
 public class SampleLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
+
     private static final int LIMIT = 50;
 
     @Override
@@ -75,6 +80,7 @@ public class SampleLongAggregatorFunctionTests extends AggregatorFunctionTestCas
                     sampledCounts[(int) block.getLong(i)]++;
                 }
             }
+            MixWithIncrement.next();
         }
 
         // On average, each number should be sampled 500x.

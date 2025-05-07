@@ -77,7 +77,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         doAnswer((invocation) -> {
             ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
             if (randomBoolean()) {
-                Thread.sleep(between(0, 500));
+                Thread.sleep(between(0, 50));
             }
             l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
             return null;
@@ -88,12 +88,13 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         List<RankedDocsResults> output = new ArrayList<>();
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
         doAnswer(invocation -> {
-            output.add((RankedDocsResults) invocation.getArgument(0, InferenceAction.Response.class).getResults());
+            output.add(invocation.getArgument(0, RankedDocsResults.class));
             return null;
-        }).when(outputBuilder).onInferenceResponse(any());
+        }).when(outputBuilder).onInferenceResults(any());
         when(outputBuilder.buildOutput()).thenReturn(output);
+        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
 
-        BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(inferenceRunner);
+        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
         executor.execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
@@ -114,7 +115,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
         when(outputBuilder.buildOutput()).thenReturn(output);
 
-        BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(mock(InferenceRunner.class));
+        BulkInferenceExecutor executor = bulkExecutor(mock(InferenceRunner.class));
         executor.execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
@@ -147,7 +148,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
 
-        BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(inferenceRunner);
+        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
         executor.execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
@@ -185,8 +186,9 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
 
-        BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(inferenceRunner);
+        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
         executor.execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
@@ -215,9 +217,11 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
         doThrow(new IllegalStateException("build output failure")).when(outputBuilder).buildOutput();
 
-        BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> executor = bulkExecutor(inferenceRunner);
+        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
+
         executor.execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
@@ -226,8 +230,8 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    private BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> bulkExecutor(InferenceRunner inferenceRunner) {
-        return new BulkInferenceExecutor<>(inferenceRunner, threadPool, randomBulkExecutionConfig());
+    private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
+        return new BulkInferenceExecutor(inferenceRunner, threadPool, randomBulkExecutionConfig());
     }
 
     private InferenceAction.Request mockInferenceRequest() {

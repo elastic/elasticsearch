@@ -19,7 +19,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
-public class BulkInferenceExecutor<InferenceResult extends InferenceServiceResults, OutputType> {
+public class BulkInferenceExecutor {
     private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
     private final ThrottledInferenceRunner throttledInferenceRunner;
 
@@ -27,12 +27,12 @@ public class BulkInferenceExecutor<InferenceResult extends InferenceServiceResul
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, threadPool, bulkExecutionConfig);
     }
 
-    public void execute(
+    public <InferenceResult extends InferenceServiceResults, OutputType> void execute(
         BulkInferenceRequestIterator requests,
         BulkInferenceOutputBuilder<InferenceResult, OutputType> outputBuilder,
         ActionListener<OutputType> listener
     ) {
-        final BulkInferenceExecutionState<OutputType> bulkExecutionState = new BulkInferenceExecutionState<>();
+        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
 
         if (requests.hasNext() == false) {
             bulkExecutionState.markAllRequestsSent();

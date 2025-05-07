@@ -12,4 +12,6 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.Iterator;
 
-public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request>, Releasable {}
+public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request>, Releasable {
+
+}

@@ -83,8 +83,8 @@ class DataTierUsageFixtures extends ESTestCase {
             COMMON_STATS,
             Map.of(),
             indexStats,
-            // projectsByIndex is only used for rendering as XContent, which not needed here
-            Map.of(),
+            // projectsByIndex is not needed as it is only used for rendering as XContent - it would normally be non-null in multi-project
+            null,
             true
         );
     }

@@ -15,7 +15,6 @@ import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,7 +69,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
     private final Map<Index, CommonStats> statsByIndex;
-    private final Map<Index, ProjectId> projectsByIndex;
+    private final @Nullable Map<Index, ProjectId> projectsByIndex;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -94,21 +93,23 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
+            boolean hasProjectsByIndex = in.readBoolean();
+            projectsByIndex = hasProjectsByIndex ? in.readMap(Index::new, ProjectId::readFrom) : null;
         } else {
-            projectsByIndex = Map.of();
+            projectsByIndex = null;
         }
     }
 
     /**
-     * Constructs an instance. The {@code projectsByIndex} map will be stored, and the project IDs will be prepended to the index names when
-     * converting this instance to XContent (except when it is the default project).
+     * Constructs an instance. If the {@code projectsByIndex} argument is non-null, the project-to-index map will be stored, and the
+     * project IDs will be prepended to the index names when converting this instance to XContent. This is appropriate for multi-project
+     * clusters. If the argument is null, no project IDs will be prepended. This is appropriate for single-project clusters.
      */
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, CommonStats> statsByIndex,
         Map<Index, List<IndexShardStats>> statsByShard,
-        Map<Index, ProjectId> projectsByIndex,
+        @Nullable Map<Index, ProjectId> projectsByIndex,
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
@@ -130,7 +131,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         for (CommonStats indexStats : statsByIndex.values()) {
             stats.add(indexStats);
         }
-        this.projectsByIndex = requireNonNull(projectsByIndex);
+        this.projectsByIndex = projectsByIndex;
     }
 
     @Nullable
@@ -246,7 +247,10 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             out.writeMap(statsByIndex);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            out.writeMap(projectsByIndex);
+            out.writeBoolean(projectsByIndex != null);
+            if (projectsByIndex != null) {
+                out.writeMap(projectsByIndex);
+            }
         }
     }
 
@@ -258,7 +262,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.equals(that.stats)
             && statsByShard.equals(that.statsByShard)
             && statsByIndex.equals(that.statsByIndex)
-            && projectsByIndex.equals(that.projectsByIndex);
+            && Objects.equals(projectsByIndex, that.projectsByIndex);
     }
 
     @Override
@@ -315,17 +319,14 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     }
 
     private String xContentKey(Index index) {
-        if (projectsByIndex.isEmpty()) { // mapping is not available if this instance came from an older node
+        if (projectsByIndex == null) {
             return index.getName();
         }
         ProjectId projectId = projectsByIndex.get(index);
         if (projectId == null) {
             // This can happen if the stats were captured after the IndexService was created but before the state was updated.
-            // It can also happen if this instance was constructed on a node older than VERSION_SUPPORTING_STATS_BY_INDEX.
             // The best we can do is handle it gracefully.
             return "<unknown>/" + index.getName();
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID)) {
-            return index.getName();
         } else {
             return projectId + "/" + index.getName();
         }

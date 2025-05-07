@@ -487,7 +487,7 @@ public class IndicesService extends AbstractLifecycleComponent
             commonStats,
             statsByIndex(this, flags),
             statsByShard(this, flags),
-            projectsByIndex(),
+            projectResolver.supportsMultipleProjects() ? projectsByIndex() : null,
             includeShardsStats
         );
     }
@@ -572,7 +572,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private Map<Index, ProjectId> projectsByIndex() {
-        Map<Index, ProjectId> map = new HashMap<>();
+        Map<Index, ProjectId> map = new HashMap<>(indices.size());
         for (IndexService indexShards : indices.values()) {
             Index index = indexShards.index();
             clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));

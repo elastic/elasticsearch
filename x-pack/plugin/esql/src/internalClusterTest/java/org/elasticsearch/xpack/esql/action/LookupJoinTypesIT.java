@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
@@ -184,6 +185,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     || type == DOC_DATA_TYPE
                     || type == TSID_DATA_TYPE
                     || type == AGGREGATE_METRIC_DOUBLE
+                    || type == SEMANTIC_TEXT
                     || type.esType() == null
                     || type.isCounter()
                     || DataType.isRepresentable(type) == false) {

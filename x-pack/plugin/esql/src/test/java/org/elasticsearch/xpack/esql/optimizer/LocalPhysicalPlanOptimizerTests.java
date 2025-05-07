@@ -1849,13 +1849,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(plan, ProjectExec.class);
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(2, projections.size());
-        UnsupportedAttribute ua = as(projections.get(0), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
+        FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
+        assertEquals(DATE_NANOS, fa.dataType());
+        assertEquals("date_and_date_nanos", fa.fieldName());
+        assertTrue(isMultiTypeEsField(fa)); // mixed date and date_nanos are auto-casted
+        UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
         assertEquals("date_and_date_nanos_and_long", ua.fieldName());
-        Alias alias = as(projections.get(1), Alias.class);
-        assertEquals(DATE_NANOS, alias.dataType());
-        FieldAttribute ra = as(alias.child(), FieldAttribute.class);
-        assertEquals("date_and_date_nanos", ra.fieldName());
-        assertTrue(isMultiTypeEsField(ra)); // mixed date and date_nanos are auto-casted
         var limit = as(project.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -1864,7 +1863,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // date_and_date_nanos_and_long::date_nanos >= "2024-01-01" is not pushed down
         var filter = as(limit.child(), FilterExec.class);
         GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
-        FieldAttribute fa = as(gt.left(), FieldAttribute.class);
+        fa = as(gt.left(), FieldAttribute.class);
         assertTrue(isMultiTypeEsField(fa));
         assertEquals("date_and_date_nanos_and_long", fa.fieldName());
         fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long

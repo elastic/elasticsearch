@@ -177,20 +177,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveInference(),
             new ResolveLookupTables(),
-            new ResolveFunctions()
+            new ResolveFunctions(),
+            new ResolveUnionTypesInEsRelation()
         ),
-        new Batch<>(
-            "Resolution",
-            /*
-             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
-             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
-             * attempts to resolve this reference.
-             */
-            new ImplicitCasting(),
-            new ResolveRefs(),
-            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            // Must be after ResolveUnionTypes, if there is explicit casting on the union typed fields, implicit casting won't be added
-            new ImplicitCastingForUnionTypedFields()
+        new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting(), new ResolveUnionTypes()  // Must be after ResolveRefs, so union
+                                                                                                     // types can be found
+        // Must be after ResolveUnionTypes, if there is explicit casting on the union typed fields, implicit casting won't be added
+        // new ImplicitCastingForUnionTypedFields()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -584,7 +577,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+            if (Resolvables.resolved(groupings) == false || Resolvables.resolved(aggregates) == false) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -595,17 +588,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
                 List<NamedExpression> newAggregates = new ArrayList<>();
-                for (NamedExpression ag : aggregate.aggregates()) {
-                    var agg = (NamedExpression) ag.transformUp(UnresolvedAttribute.class, ua -> {
-                        Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                        if (maybeResolved != null) {
-                            changed.set(true);
-                            ne = maybeResolved;
-                        }
-                        return ne;
-                    });
-                    newAggregates.add(agg);
+                // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
+                // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
+                // resolved, and verifier doesn't report field/reference/column not found errors for them.
+                boolean groupingResolved = Resolvables.resolved(groupings);
+                int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
+                for (int i = 0; i < aggregates.size(); i++) {
+                    NamedExpression maybeResolvedAgg = aggregates.get(i);
+                    if (i < size) { // Skip resolving references to groupings in the aggregations if the groupings are not resolved yet.
+                        maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
+                            Expression ne = ua;
+                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
+                            // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
+                            // to get resolved in the next iteration.
+                            // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                            if (groupingResolved || maybeResolved.resolved()) {
+                                changed.set(true);
+                                ne = maybeResolved;
+                            }
+                            return ne;
+                        });
+                    }
+                    newAggregates.add(maybeResolvedAgg);
                 }
 
                 // TODO: remove this when Stats interface is removed
@@ -1598,7 +1603,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Collect field attributes from previous runs
             plan.forEachUp(EsRelation.class, rel -> {
                 for (Attribute attr : rel.output()) {
-                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa);
                     }
                 }
@@ -1674,11 +1679,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
-            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convertExpression.replaceChildren(
-                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
-                );
-            }
+            } else if (convert.field() instanceof FieldAttribute fa
+                && fa.synthetic() == false
+                && fa.field() instanceof MultiTypeEsField mtf) {
+                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                    // ResolveUnionTypesInEsRelation, do not do double casting.
+                    if (((Expression) convert).dataType() == mtf.getDataType()) {
+                        // The same data type between implicit and explicit casting, explicit conversion is not needed
+                        return convert.field();
+                    } else {
+                        // TODO Is there an easy way to convert from one MultiTypeEsField to another MultiTypeEsField?
+                        HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        Set<DataType> supportedTypes = convert.supportedTypes();
+                        Holder<Boolean> conversionSupported = new Holder<>(true);
+                        // Get the type of each field in the multi typed field and check if the explicit conversion is supported
+                        mtf.getIndexToConversionExpressions().forEach((indexName, conversionExpression) -> {
+                            AbstractConvertFunction c = (AbstractConvertFunction) conversionExpression;
+                            FieldAttribute fieldAttribute = (FieldAttribute) c.field();
+                            DataType type = fieldAttribute.dataType();
+                            if (supportedTypes.contains(type.widenSmallNumeric())) {
+                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
+                                var concreteConvert = typeSpecificConvert(convert, fa.source(), fieldAttribute.field());
+                                typeResolutions.putIfAbsent(key, concreteConvert);
+                            } else {
+                                conversionSupported.set(false);
+                            }
+                        });
+                        // If the conversions are supported, create a new FieldAttribute with a new MultiTypeEsField, and add it to
+                        // unionFieldAttributes.
+                        if (conversionSupported.get()) {
+                            // build the map between index name and conversion expressions
+                            Map<String, Expression> indexToConversionExpressions = new HashMap<>();
+                            for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
+                                String indexName = entry.getKey();
+                                AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
+                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), originalConversionFunction.field().dataType());
+                                Expression newConversionFunction = typeResolutions.get(key);
+                                indexToConversionExpressions.put(indexName, newConversionFunction);
+                            }
+                            MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
+                                fa.name(),
+                                ((Expression) convert).dataType(),
+                                false,
+                                indexToConversionExpressions
+                            );
+                            return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                        }
+                    }
+                } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                    return convertExpression.replaceChildren(
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                    );
+                }
             return convertExpression;
         }
 
@@ -1702,7 +1754,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private MultiTypeEsField resolvedMultiTypeEsField(FieldAttribute fa, HashMap<TypeResolutionKey, Expression> typeResolutions) {
+        private static MultiTypeEsField resolvedMultiTypeEsField(
+            FieldAttribute fa,
+            HashMap<TypeResolutionKey, Expression> typeResolutions
+        ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
             imf.getTypesToIndices().forEach((typeName, indexNames) -> {
@@ -1715,8 +1770,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
+            return typeSpecificConvert(convert, source, field);
+        }
+
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, EsField field) {
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -1969,6 +2028,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 aggregatesWithNewRefs.add(Expressions.attribute(e));
             }
             return aggregate.with(groupings, aggregatesWithNewRefs);
+        }
+    }
+
+    /**
+     * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
+     */
+    private static class ResolveUnionTypesInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        var convert = new ToDateNanos(f.source(), f);
+                        imf.types().forEach(type -> {
+                            ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(f.name(), type);
+                            var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, f.source(), type, imf);
+                            typeResolutions.put(key, concreteConvert);
+                        });
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
+                    }
+                    return f;
+                });
+            });
         }
     }
 }

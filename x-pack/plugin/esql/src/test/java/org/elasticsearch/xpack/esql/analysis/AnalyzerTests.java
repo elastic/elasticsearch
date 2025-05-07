@@ -3793,16 +3793,16 @@ public class AnalyzerTests extends ESTestCase {
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(5, projections.size());
-        // long is not casted to date_nanos
-        UnsupportedAttribute ua = as(projections.get(0), UnsupportedAttribute.class);
+        // implicit casting
+        FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
+        assertEquals("date_and_date_nanos", fa.name());
+        assertEquals(DataType.DATE_NANOS, fa.dataType());
+        // long is not cast to date_nanos
+        UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class);
         assertEquals("date_and_date_nanos_and_long", ua.name());
         assertEquals(DataType.UNSUPPORTED, ua.dataType());
-        // implicit casting
-        ReferenceAttribute ra = as(projections.get(1), ReferenceAttribute.class);
-        assertEquals("date_and_date_nanos", ra.name());
-        assertEquals(DataType.DATE_NANOS, ra.dataType());
         // explicit casting
-        ra = as(projections.get(2), ReferenceAttribute.class);
+        ReferenceAttribute ra = as(projections.get(2), ReferenceAttribute.class);
         assertEquals("x", ra.name());
         assertEquals(DataType.DATETIME, ra.dataType());
         // implicit casting
@@ -3827,21 +3827,12 @@ public class AnalyzerTests extends ESTestCase {
         a = aliases.get(1);
         assertEquals("y", a.name());
         assertEquals(DataType.DATE_NANOS, a.dataType());
-        assertTrue(a.child() instanceof ReferenceAttribute);
+        assertTrue(a.child() instanceof FieldAttribute);
         // explicit casting
         a = aliases.get(2);
         assertEquals("z", a.name());
         assertEquals(DataType.DATE_NANOS, a.dataType());
         assertTrue(isMultiTypeEsField(a.child()));
-        // a new eval added for implicit casting
-        eval = as(eval.child(), Eval.class);
-        aliases = eval.fields();
-        assertEquals(1, aliases.size());
-        a = aliases.get(0);
-        assertEquals("date_and_date_nanos", a.name());
-        assertEquals(DataType.DATE_NANOS, a.dataType());
-        assertTrue(isMultiTypeEsField(a.child()));
-
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("test*", esRelation.indexPattern());
     }

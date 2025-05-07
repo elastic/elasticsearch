@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
@@ -155,7 +157,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
+        var storedContext = threadPool.getThreadContext().newRestorableContext(false, true);
+        var updateSettingsTask = new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, storedContext, listener) {
             @Override
             protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
                 return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
@@ -228,35 +231,41 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 logger.debug(() -> "failed to perform [" + UPDATE_TASK_SOURCE + "]", e);
                 super.onFailure(e);
             }
-        });
+        };
+        submitUnbatchedTask(UPDATE_TASK_SOURCE, updateSettingsTask);
     }
 
     private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
         protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
+        private final Supplier<ThreadContext.StoredContext> storedContext;
 
         ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
+            Supplier<ThreadContext.StoredContext> storedContext,
             ActionListener<? extends AcknowledgedResponse> listener
         ) {
             super(priority, request, listener);
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
+            this.storedContext = storedContext;
         }
 
         @Override
         public ClusterState execute(final ClusterState currentState) {
-            final ClusterState clusterState = updater.updateSettings(
-                currentState,
-                request.transientSettings(),
-                request.persistentSettings(),
-                logger
-            );
-            reroute = clusterState != currentState;
-            return clusterState;
+            try (var ignored = storedContext.get()) {
+                final ClusterState clusterState = updater.updateSettings(
+                    currentState,
+                    request.transientSettings(),
+                    request.persistentSettings(),
+                    logger
+                );
+                reroute = clusterState != currentState;
+                return clusterState;
+            }
         }
     }
 

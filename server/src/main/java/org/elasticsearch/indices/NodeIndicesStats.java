@@ -15,6 +15,7 @@ import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,6 +56,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Global information on indices stats running on a specific node.
  */
@@ -66,6 +69,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
     private final Map<Index, CommonStats> statsByIndex;
+    private final @Nullable Map<Index, ProjectId> projectsByIndex;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -87,20 +91,33 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         } else {
             statsByIndex = new HashMap<>();
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            boolean hasProjectsByIndex = in.readBoolean();
+            projectsByIndex = hasProjectsByIndex ? in.readMap(Index::new, ProjectId::readFrom) : null;
+        } else {
+            projectsByIndex = null;
+        }
     }
 
+    /**
+     * Constructs an instance. If the {@code projectsByIndex} argument is non-null, the project-to-index map will be stored, and the
+     * project IDs will be prepended to the index names when converting this instance to XContent. This is appropriate for multi-project
+     * clusters. If the argument is null, no project IDs will be prepended. This is appropriate for single-project clusters.
+     */
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, CommonStats> statsByIndex,
         Map<Index, List<IndexShardStats>> statsByShard,
+        @Nullable Map<Index, ProjectId> projectsByIndex,
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
-            this.statsByShard = Objects.requireNonNull(statsByShard);
+            this.statsByShard = requireNonNull(statsByShard);
         } else {
             this.statsByShard = EMPTY_STATS_BY_SHARD;
         }
-        this.statsByIndex = Objects.requireNonNull(statsByIndex);
+        this.statsByIndex = requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -114,6 +131,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         for (CommonStats indexStats : statsByIndex.values()) {
             stats.add(indexStats);
         }
+        this.projectsByIndex = projectsByIndex;
     }
 
     @Nullable
@@ -228,6 +246,12 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             out.writeMap(statsByIndex);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            out.writeBoolean(projectsByIndex != null);
+            if (projectsByIndex != null) {
+                out.writeMap(projectsByIndex);
+            }
+        }
     }
 
     @Override
@@ -235,12 +259,15 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeIndicesStats that = (NodeIndicesStats) o;
-        return stats.equals(that.stats) && statsByShard.equals(that.statsByShard) && statsByIndex.equals(that.statsByIndex);
+        return stats.equals(that.stats)
+            && statsByShard.equals(that.statsByShard)
+            && statsByIndex.equals(that.statsByIndex)
+            && Objects.equals(projectsByIndex, that.projectsByIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stats, statsByShard, statsByIndex);
+        return Objects.hash(stats, statsByShard, statsByIndex, projectsByIndex);
     }
 
     @Override
@@ -260,7 +287,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                 case INDICES -> ChunkedToXContentHelper.object(
                     Fields.INDICES,
                     Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
-                        builder.startObject(entry.getKey().getName());
+                        builder.startObject(xContentKey(entry.getKey()));
                         entry.getValue().toXContent(builder, outerParams);
                         return builder.endObject();
                     })
@@ -271,7 +298,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                     Iterators.flatMap(
                         statsByShard.entrySet().iterator(),
                         entry -> ChunkedToXContentHelper.array(
-                            entry.getKey().getName(),
+                            xContentKey(entry.getKey()),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
                                 indexShardStats -> Iterators.concat(
@@ -289,6 +316,20 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private String xContentKey(Index index) {
+        if (projectsByIndex == null) {
+            return index.getName();
+        }
+        ProjectId projectId = projectsByIndex.get(index);
+        if (projectId == null) {
+            // This can happen if the stats were captured after the IndexService was created but before the state was updated.
+            // The best we can do is handle it gracefully.
+            return "<unknown>/" + index.getName();
+        } else {
+            return projectId + "/" + index.getName();
+        }
     }
 
     private Map<Index, CommonStats> createCommonStatsByIndex() {

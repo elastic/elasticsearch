@@ -285,8 +285,9 @@ public class ValuesAggregatorBenchmark {
         int blockLength = blockLength(groups);
         return switch (dataType) {
             case BYTES_REF -> {
-                try (BytesRefVector.Builder dict = blockFactory.newBytesRefVectorBuilder(blockLength);
-                     IntVector.Builder ords = blockFactory.newIntVectorBuilder(blockLength)
+                try (
+                    BytesRefVector.Builder dict = blockFactory.newBytesRefVectorBuilder(blockLength);
+                    IntVector.Builder ords = blockFactory.newIntVectorBuilder(blockLength)
                 ) {
                     final int dictLength = Math.min(blockLength, KEYWORDS.length);
                     for (int i = 0; i < dictLength; i++) {

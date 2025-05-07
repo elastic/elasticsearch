@@ -94,7 +94,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      */
     public static final Setting<Boolean> PAUSE_INDEXING_ON_THROTTLE = Setting.boolSetting(
         "indices.pause.on.throttle",
-        false,
+        true,
         Property.NodeScope
     );
 

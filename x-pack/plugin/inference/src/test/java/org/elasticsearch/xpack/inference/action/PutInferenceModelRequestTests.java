@@ -42,12 +42,24 @@ public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationT
     protected PutInferenceModelAction.Request mutateInstanceForVersion(PutInferenceModelAction.Request instance, TransportVersion version) {
         if (version.onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
             return instance;
-        } else {
+        } else if (version.onOrAfter(TransportVersions.V_8_0_0)) {
             return new PutInferenceModelAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 instance.getContent(),
                 instance.getContentType(),
+                InferenceAction.Request.DEFAULT_TIMEOUT
+            );
+        } else {
+            return new PutInferenceModelAction.Request(
+                instance.getTaskType(),
+                instance.getInferenceEntityId(),
+                instance.getContent(),
+                /*
+                 * See https://github.com/elastic/elasticsearch/blob/8.19/server/src/main/java/org/elasticsearch/common/xcontent/XContentHelper.java#L733
+                 * for versions prior to 8.0.0, the content type does not have the VND_ instances
+                 */
+                XContentType.ofOrdinal(instance.getContentType().canonical().ordinal()),
                 InferenceAction.Request.DEFAULT_TIMEOUT
             );
         }

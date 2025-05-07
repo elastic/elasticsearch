@@ -24,10 +24,13 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsT
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 import org.junit.After;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -424,5 +428,108 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             assertThat(initialInputs, is(List.of("123")));
 
         }
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForChatCompletionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                     "object": "chat.completion",
+                     "id": "",
+                     "created": 1745855316,
+                     "model": "/repository",
+                     "system_fingerprint": "3.2.3-sha-a1f3ebe",
+                     "choices": [
+                         {
+                             "index": 0,
+                             "message": {
+                                 "role": "assistant",
+                                 "content": "Hello there, how may I assist you today?"
+                             },
+                             "logprobs": null,
+                             "finish_reason": "stop"
+                         }
+                     ],
+                     "usage": {
+                         "prompt_tokens": 8,
+                         "completion_tokens": 50,
+                         "total_tokens": 58
+                     }
+                 }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(sender, createWithEmptySettings(threadPool));
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
+
+            assertChatCompletionRequest();
+        }
+    }
+
+    public void testSend_FailsFromInvalidResponseFormat_ForChatCompletionAction() throws IOException {
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "invalid_field": "unexpected"
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+            );
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to send Hugging Face completion request from inference entity id " + "[id]. Cause: Required [choices]")
+            );
+
+            assertChatCompletionRequest();
+        }
+    }
+
+    private PlainActionFuture<InferenceServiceResults> createChatCompletionFuture(Sender sender, ServiceComponents threadPool) {
+        var model = HuggingFaceChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
+        var actionCreator = new HuggingFaceActionCreator(sender, threadPool);
+        var action = actionCreator.create(model);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        return listener;
+    }
+
+    private void assertChatCompletionRequest() throws IOException {
+        assertThat(webServer.requests(), hasSize(1));
+        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertThat(
+            webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+            equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+        );
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+        var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+        assertThat(requestMap.size(), is(4));
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
+        assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("n"), is(1));
+        assertThat(requestMap.get("stream"), is(false));
     }
 }

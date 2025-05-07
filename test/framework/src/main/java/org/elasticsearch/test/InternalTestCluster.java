@@ -2314,6 +2314,11 @@ public final class InternalTestCluster extends TestCluster {
         return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
+    public Set<String> masterEligibleNodeNames() {
+        var masterEligibleNodes = filterNodes(nodes, NodeAndClient::isMasterEligible);
+        return masterEligibleNodes.stream().map(nodeAndClient -> nodeAndClient.name).collect(Collectors.toSet());
+    }
+
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         assert activeDisruptionScheme == null
             : "there is already and active disruption [" + activeDisruptionScheme + "]. call clearDisruptionScheme first";

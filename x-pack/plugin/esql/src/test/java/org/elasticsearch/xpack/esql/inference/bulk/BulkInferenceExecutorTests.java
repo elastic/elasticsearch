@@ -67,7 +67,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 100)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 50)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
         List<InferenceAction.Response> responses = Stream.generate(() -> mockInferenceResponse(RankedDocsResults.class))
             .limit(requests.size())
@@ -77,7 +77,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         doAnswer((invocation) -> {
             ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
             if (randomBoolean()) {
-                Thread.sleep(between(0, 50));
+                Thread.sleep(between(0, 5));
             }
             l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
             return null;
@@ -101,7 +101,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             assertThat(output, hasSize(requests.size()));
             assertThat(output, contains(responses.stream().map(InferenceAction.Response::getResults).toArray()));
             verify(listener).onResponse(eq(output));
-        }, 60, TimeUnit.SECONDS);
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -126,14 +126,14 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 10)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 30)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
         doAnswer(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
             if (randomBoolean()) {
-                Thread.sleep(between(0, 500));
+                Thread.sleep(between(0, 5));
             }
             listener.onFailure(new RuntimeException("inference failure"));
             return null;
@@ -159,17 +159,17 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(2, 10)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(2, 30)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
         doAnswer(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
             if (randomBoolean()) {
-                Thread.sleep(between(0, 500));
+                Thread.sleep(between(0, 5));
             }
 
-            if (requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class)) % requests.size() == 0) {
+            if ((requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class)) % requests.size()) == 0) {
                 listener.onFailure(new RuntimeException("inference failure"));
             } else {
                 listener.onResponse(mockInferenceResponse(RankedDocsResults.class));
@@ -199,7 +199,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testBuildOutputFailure() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 10)).toList();
+        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 30)).toList();
         BulkInferenceRequestIterator requestIterator = requestIterator(requests);
 
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);

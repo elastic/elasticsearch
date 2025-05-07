@@ -47,13 +47,14 @@ public class BulkInferenceExecutionState {
         checkpoint.markSeqNoAsPersisted(seqNo);
     }
 
-    public void persistsResponse(CheckedConsumer<InferenceAction.Response, Exception> persister) {
+    public void persistsResponses(CheckedConsumer<InferenceAction.Response, Exception> persister) {
         synchronized (checkpoint) {
             long persistedSeqNo = checkpoint.getPersistedCheckpoint();
             while (persistedSeqNo < checkpoint.getProcessedCheckpoint()) {
                 persistedSeqNo++;
                 InferenceAction.Response response = bufferedResponses.remove(persistedSeqNo);
-                if (hasFailure() == false) {
+                assert response != null || hasFailure();
+                if (hasFailure() == false && responseSent() == false) {
                     try {
                         persister.accept(response);
                     } catch (Exception e) {
@@ -90,14 +91,14 @@ public class BulkInferenceExecutionState {
             if (failureCollector.hasFailure() == false) {
                 try {
                     l.onResponse(responseBuilder.get());
+                    return;
                 } catch (Exception e) {
-                    failureCollector.unwrapAndCollect(e);
+                    l.onFailure(e);
+                    return;
                 }
             }
 
-            if (failureCollector.hasFailure()) {
-                l.onFailure(failureCollector.getFailure());
-            }
+            l.onFailure(failureCollector.getFailure());
         }
     }
 

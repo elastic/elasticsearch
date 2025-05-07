@@ -1,5 +1,5 @@
 pr: 127856
-summary: Fixing Google Vertex AI Rerank task type location field
+summary: Fix services API Google Vertex AI Rerank location field requirement
 area: Machine Learning
 type: bug
 issues: []

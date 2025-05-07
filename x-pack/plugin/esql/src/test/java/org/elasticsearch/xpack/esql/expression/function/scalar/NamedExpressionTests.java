@@ -53,7 +53,7 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     public void testNameForArithmeticFunctionAppliedOnTableColumn() {
-        FieldAttribute fa = new FieldAttribute.FieldAttirbuteBuilder(
+        FieldAttribute fa = new FieldAttribute.Builder(
             EMPTY,
             "myField",
             new EsField("myESField", DataType.INTEGER, emptyMap(), true)

@@ -1587,7 +1587,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     "y",
                     new Mul(
                         EMPTY,
-                        new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                        new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                         new Literal(EMPTY, 2, INTEGER)
                     )
                 )
@@ -2894,19 +2894,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "salary", mapping.get("salary")).build(),
+                    new FieldAttribute.Builder(EMPTY, "salary", mapping.get("salary")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 )
@@ -2937,19 +2937,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "salary", mapping.get("salary")).build(),
+                    new FieldAttribute.Builder(EMPTY, "salary", mapping.get("salary")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 ),
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.LAST
                 )
@@ -2973,7 +2973,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
                 )
@@ -2996,7 +2996,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             contains(
                 new Order(
                     EMPTY,
-                    new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
+                    new FieldAttribute.Builder(EMPTY, "emp_no", mapping.get("emp_no")).build(),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
                 )

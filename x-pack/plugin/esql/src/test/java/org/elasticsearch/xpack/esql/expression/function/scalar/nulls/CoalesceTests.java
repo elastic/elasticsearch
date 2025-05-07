@@ -205,7 +205,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
     public void testCoalesceIsLazy() {
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
-        FieldAttribute evil = new FieldAttribute.FieldAttirbuteBuilder(
+        FieldAttribute evil = new FieldAttribute.Builder(
             Source.EMPTY,
             "evil",
             new EsField("evil", sub.get(0).dataType(), Map.of(), true)

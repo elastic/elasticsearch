@@ -202,7 +202,7 @@ public class EvalBenchmark {
                 yield evaluator;
             }
             case "date_trunc" -> {
-                FieldAttribute timestamp = new FieldAttribute.FieldAttirbuteBuilder(
+                FieldAttribute timestamp = new FieldAttribute.Builder(
                     Source.EMPTY,
                     "timestamp",
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true)
@@ -255,19 +255,19 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true)).build();
+        return new FieldAttribute.Builder(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true)).build();
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true)).build();
+        return new FieldAttribute.Builder(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true)).build();
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true)).build();
+        return new FieldAttribute.Builder(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true)).build();
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true)).build();
+        return new FieldAttribute.Builder(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true)).build();
     }
 
     private static Configuration configuration() {

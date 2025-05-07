@@ -129,7 +129,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperator() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute.FieldAttirbuteBuilder(
+        FieldAttribute sortField = new FieldAttribute.Builder(
             Source.EMPTY,
             "field",
             new EsField("field", DataType.INTEGER, Map.of(), true)
@@ -160,7 +160,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperatorDistanceSort() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute.FieldAttirbuteBuilder(
+        FieldAttribute sortField = new FieldAttribute.Builder(
             Source.EMPTY,
             "point",
             new EsField("point", DataType.GEO_POINT, Map.of(), true)

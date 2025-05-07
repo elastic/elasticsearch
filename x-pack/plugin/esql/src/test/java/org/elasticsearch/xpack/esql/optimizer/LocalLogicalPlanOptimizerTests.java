@@ -328,7 +328,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             new MockFieldAttributeCommand(
                 EMPTY,
                 new Row(EMPTY, List.of()),
-                new FieldAttribute.FieldAttirbuteBuilder(EMPTY, "last_name", new EsField("last_name", DataType.KEYWORD, Map.of(), true))
+                new FieldAttribute.Builder(EMPTY, "last_name", new EsField("last_name", DataType.KEYWORD, Map.of(), true))
                     .build()
             ),
             testStats

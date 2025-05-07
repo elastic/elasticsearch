@@ -135,7 +135,7 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute.FieldAttirbuteBuilder(
+                FieldAttribute f = new FieldAttribute.Builder(
                     source,
                     parent != null ? parent.name() + "." + name : name,
                     t

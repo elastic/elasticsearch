@@ -44,7 +44,7 @@ public class FieldAttribute extends TypedAttribute {
     /**
      * Builder pattern to manage many optional fields.  Only source, name, and the EsField are actually required.
      */
-    public static class FieldAttirbuteBuilder {
+    public static class Builder {
         private final Source source;
         private String parentName;
         private final String name;
@@ -53,7 +53,7 @@ public class FieldAttribute extends TypedAttribute {
         private NameId id;
         private boolean synthetic;
 
-        public FieldAttirbuteBuilder(Source source, String name, EsField field) {
+        public Builder(Source source, String name, EsField field) {
             this.source = source;
             this.parentName = null;
             this.name = name;
@@ -63,22 +63,22 @@ public class FieldAttribute extends TypedAttribute {
             this.synthetic = false;
         }
 
-        public FieldAttirbuteBuilder parentName(String parentName) {
+        public Builder parentName(String parentName) {
             this.parentName = parentName;
             return this;
         }
 
-        public FieldAttirbuteBuilder nullability(Nullability nullability) {
+        public Builder nullability(Nullability nullability) {
             this.nullability = nullability;
             return this;
         }
 
-        public FieldAttirbuteBuilder id(NameId id) {
+        public Builder id(NameId id) {
             this.id = id;
             return this;
         }
 
-        public FieldAttirbuteBuilder synthetic(boolean synthetic) {
+        public Builder synthetic(boolean synthetic) {
             this.synthetic = synthetic;
             return this;
         }
@@ -190,7 +190,7 @@ public class FieldAttribute extends TypedAttribute {
             // fake FieldAttribute here as long as the name is correct.
             FieldAttribute fakeParent = parentName() == null
                 ? null
-                : new FieldAttirbuteBuilder(Source.EMPTY, parentName(), field()).build();
+                : new Builder(Source.EMPTY, parentName(), field()).build();
             out.writeOptionalWriteable(fakeParent);
         }
     }

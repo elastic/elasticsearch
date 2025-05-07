@@ -292,7 +292,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
                     ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute.FieldAttirbuteBuilder(source, name, t).parentName(parentName).build();
+                    : new FieldAttribute.Builder(source, name, t).parentName(parentName).build();
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -458,7 +458,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Column column = entry.getValue();
                 // create a fake ES field - alternative is to use a ReferenceAttribute
                 EsField field = new EsField(name, column.type(), Map.of(), false, false);
-                attributes.add(new FieldAttribute.FieldAttirbuteBuilder(source, name, field).build());
+                attributes.add(new FieldAttribute.Builder(source, name, field).build());
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
             }
@@ -881,11 +881,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute.FieldAttirbuteBuilder(fa.source(), name, field).build();
+            return new FieldAttribute.Builder(fa.source(), name, field).build();
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute.FieldAttirbuteBuilder(
+            return new FieldAttribute.Builder(
                 attribute.source(),
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
@@ -1691,7 +1691,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute.FieldAttirbuteBuilder(fa.source(), unionTypedFieldName, resolvedField)
+            FieldAttribute unionFieldAttribute = new FieldAttribute.Builder(fa.source(), unionTypedFieldName, resolvedField)
                 .parentName(fa.parentName())
                 .synthetic(true)
                 .build();
@@ -1721,7 +1721,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
-            FieldAttribute resolvedAttr = new FieldAttribute.FieldAttirbuteBuilder(source, originalFieldAttr.name(), field).parentName(
+            FieldAttribute resolvedAttr = new FieldAttribute.Builder(source, originalFieldAttr.name(), field).parentName(
                 originalFieldAttr.parentName()
             ).nullability(originalFieldAttr.nullable()).id(originalFieldAttr.id()).synthetic(true).build();
             Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));

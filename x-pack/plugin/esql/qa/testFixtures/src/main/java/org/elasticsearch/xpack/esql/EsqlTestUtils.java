@@ -202,7 +202,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute.FieldAttirbuteBuilder(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true)).build();
+        return new FieldAttribute.Builder(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true)).build();
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -210,7 +210,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute.FieldAttirbuteBuilder(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean())).build();
+        return new FieldAttribute.Builder(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean())).build();
     }
 
     public static Literal of(Object value) {

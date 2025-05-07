@@ -86,6 +86,40 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testDateRangeQueryDoesNotRoundupTemporals() {
+        type = RangeType.DATE;
+        SearchExecutionContext context = createContext();
+        RangeFieldType ft = createDefaultFieldType();
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+
+        // explicitly not using nextFrom here to provide a concrete, visual example.
+        // see the behavioral difference compared to testRangeQueryIntersectsAdjacentDates
+        ZonedDateTime from = ZonedDateTime.parse("2025-05-01T14:10:00.000Z");
+        ZonedDateTime to = ZonedDateTime.parse("2025-05-01T14:11:00.000Z");
+
+        // usage of roundUp parsers is wrong if terms are Temporal objects, otherwise it would arbitrarily change the bounds
+        // depending on the string representation
+        assertEquals(
+            getExpectedRangeQuery(relation, from, to, false, true),
+            ft.rangeQuery(from, to, false, true, relation, null, null, context)
+        );
+    }
+
+    public void testRangeQueryIntersectsAdjacentDates() {
+        type = RangeType.DATE;
+        SearchExecutionContext context = createContext();
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        RangeFieldType ft = createDefaultFieldType();
+
+        // explicitly not using nextFrom here to provide a concrete, visual example of the roundUp behavior
+        String from = "2025-05-01T14:10Z"; // transformed to 2025-05-01T14:10:59.999999999Z by roundUp parser
+        String to = "2025-05-01T14:11Z";
+
+        Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
+        assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
+        assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
+    }
+
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */

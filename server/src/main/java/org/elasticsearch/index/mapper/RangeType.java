@@ -303,12 +303,17 @@ public enum RangeType {
         }
 
         private static long parseRangeTerm(DateMathParser parser, Object term, ZoneId zone, boolean roundUp, LongSupplier nowInMillis) {
-            String termString = term instanceof BytesRef ? ((BytesRef) term).utf8ToString() : term.toString();
-            // `roundUp` may only be used if the term is not a Temporal object. LocalTime#toString() and similar will output
-            // the shortest possible representation and might omit seconds, milliseconds, etc.
-            // That interferes badly with the behavior of the roundup parser leading to unexpected results.
-            boolean mayRoundUp = (term instanceof Temporal) == false;
-            return parser.parse(termString, nowInMillis, roundUp && mayRoundUp, zone).toEpochMilli();
+            String termString;
+            if (term instanceof BytesRef bytesRefTerm) {
+                termString = bytesRefTerm.utf8ToString();
+            } else {
+                termString = term.toString();
+                // `roundUp` may only be used if the term is not a Temporal object. LocalTime#toString() and similar will output
+                // the shortest possible representation and might omit seconds, milliseconds, etc.
+                // That interferes badly with the behavior of the roundup parser leading to unexpected results.
+                roundUp = roundUp && (term instanceof Temporal) == false;
+            }
+            return parser.parse(termString, nowInMillis, roundUp, zone).toEpochMilli();
         }
 
         @Override

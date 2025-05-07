@@ -50,7 +50,7 @@ results, the output will contain one row for each matching combination.
 
 [TIP]
 ====
-In case of name collisions, the newly created columns will override existing columns.
+For important information about using `LOOKUP JOIN`, refer to <<esql-lookup-join-usage-notes,Usage notes>>.
 ====
 
 *Examples*

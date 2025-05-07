@@ -182,7 +182,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
-    private final AtomicLong leastAvailableDiskSpaceBytes;
     private final Scheduler.Cancellable diskSpaceMonitor;
 
     private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
@@ -206,7 +205,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
-        this.leastAvailableDiskSpaceBytes = new AtomicLong();
         this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
             new DiskSpaceMonitor(
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),

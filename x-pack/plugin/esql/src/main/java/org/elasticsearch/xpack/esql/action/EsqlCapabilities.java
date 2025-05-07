@@ -843,7 +843,12 @@ public class EsqlCapabilities {
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
-        TO_LOWER_MV;
+        TO_LOWER_MV,
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;
 
         private final boolean enabled;
 

@@ -25,26 +25,28 @@ import org.objectweb.asm.Opcodes;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
 
+/**
+ * This task generates a file with a class to module mapping
+ * used to imitate modular behavior during unit tests so
+ * entitlements can lookup correct policies.
+ */
 public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     public static final String DESCRIPTION = "generates plugin test dependencies file";
-    public static final String PROPERTIES_FILENAME = "test-build-info.json";
 
     public GenerateTestBuildInfoTask() {
         setDescription(DESCRIPTION);
@@ -64,120 +66,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
-        Map<String, String> classesToModules = new HashMap<>();
-        for (File file : getCodeLocations().get().getFiles()) {
-            if (file.exists()) {
-                if (file.getName().endsWith(".jar")) {
-                    try (JarFile jarFile = new JarFile(file)) {
-                        String[] moduleName = new String[1];
-                        JarEntry moduleEntry = jarFile.getJarEntry("module-info.class");
-                        if (moduleEntry != null) {
-                            try (InputStream miis = jarFile.getInputStream(moduleEntry)) {
-                                ClassReader cr = new ClassReader(miis);
-                                cr.accept(new ClassVisitor(Opcodes.ASM9) {
-                                    @Override
-                                    public ModuleVisitor visitModule(String name, int access, String version) {
-                                        // getLogger().lifecycle("FOUND 0: " + name + " | " + file.getAbsolutePath());
-                                        moduleName[0] = name;
-                                        return super.visitModule(name, access, version);
-                                    }
-                                }, Opcodes.ASM9);
-                            }
-                        } else {
-                            moduleEntry = jarFile.getJarEntry("META-INF/MANIFEST.MF");
-                            if (moduleEntry != null) {
-                                try (InputStream meis = jarFile.getInputStream(moduleEntry)) {
-                                    Manifest manifest = new Manifest(meis);
-                                    String mr = manifest.getMainAttributes().getValue(Attributes.Name.MULTI_RELEASE);
-                                    if (Boolean.parseBoolean(mr)) {
-                                        List<Integer> versions = jarFile.stream()
-                                            .filter(
-                                                je -> je.getName().startsWith("META-INF/versions/")
-                                                    && je.getName().endsWith("/module-info.class")
-                                            )
-                                            .map(je -> Integer.parseInt(je.getName().substring(18, je.getName().length() - 18)))
-                                            .toList();
-                                        versions = new ArrayList<>(versions);
-                                        versions.sort(Integer::compareTo);
-                                        versions = versions.reversed();
-                                        int major = Runtime.version().version().get(0);
-                                        StringBuilder path = new StringBuilder("META-INF/versions/");
-                                        for (int version : versions) {
-                                            if (version <= major) {
-                                                path.append(version);
-                                                break;
-                                            }
-                                        }
-                                        if (path.length() > 18) {
-                                            path.append("/module-info.class");
-                                            moduleEntry = jarFile.getJarEntry(path.toString());
-                                            if (moduleEntry != null) {
-                                                try (InputStream miis = jarFile.getInputStream(moduleEntry)) {
-                                                    ClassReader cr = new ClassReader(miis);
-                                                    cr.accept(new ClassVisitor(Opcodes.ASM9) {
-                                                        @Override
-                                                        public ModuleVisitor visitModule(String name, int access, String version) {
-                                                            // getLogger().lifecycle("FOUND 1: " + name + " | " + file.getAbsolutePath());
-                                                            moduleName[0] = name;
-                                                            return super.visitModule(name, access, version);
-                                                        }
-                                                    }, Opcodes.ASM9);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (moduleName[0] == null) {
-                                        String amn = manifest.getMainAttributes().getValue("Automatic-Module-Name");
-                                        if (amn != null) {
-                                            // getLogger().lifecycle("FOUND 2: " + amn + " | " + file.getAbsolutePath());
-                                            moduleName[0] = amn;
-                                        }
-                                    }
-                                }
-                            }
-                            if (moduleName[0] == null) {
-                                String jn = file.getName().substring(0, file.getName().length() - 4);
-                                Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
-                                if (matcher.find()) {
-                                    jn = jn.substring(0, matcher.start());
-                                }
-                                jn = jn.replaceAll("[^A-Za-z0-9]", ".");
-                                // getLogger().lifecycle("FOUND 3: " + jn + " | " + file.getAbsolutePath());
-                                moduleName[0] = jn;
-                            }
-                        }
-                        jarFile.stream()
-                            .filter(
-                                je -> je.getName().startsWith("META-INF") == false
-                                    && je.getName().equals("module-info.class") == false
-                                    && je.getName().endsWith(".class")
-                            )
-                            .findFirst()
-                            .ifPresent(je -> classesToModules.put(je.getName(), moduleName[0]));
-                    } catch (IOException ioe) {
-                        throw new UncheckedIOException(ioe);
-                    }
-                } else if (file.isDirectory()) {
-                    List<File> files = new ArrayList<>(List.of(file));
-                    while (files.isEmpty() == false) {
-                        File find = files.removeFirst();
-                        if (find.exists()) {
-                            if (find.isDirectory() && find.getName().equals("META_INF") == false) {
-                                files.addAll(Arrays.asList(find.listFiles()));
-                            } else if (find.getName().equals("module-info.class") == false && find.getName().contains("$") == false) {
-                                classesToModules.put(
-                                    find.getAbsolutePath().substring(file.getAbsolutePath().length() + 1),
-                                    "module-goes-here"
-                                );
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unrecognized classpath file: " + file);
-                }
-            }
-        }
+        Map<String, String> classesToModules = buildClassesToModules();
 
         Path outputDirectory = getOutputDirectory().get().getAsFile().toPath();
         Files.createDirectories(outputDirectory);
@@ -205,5 +94,145 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             }
             writer.write("\n    ]\n}\n");
         }
+    }
+
+    private Map<String, String> buildClassesToModules() throws IOException {
+        Map<String, String> classesToModules = new HashMap<>();
+        for (File file : getCodeLocations().get().getFiles()) {
+            if (file.exists()) {
+                if (file.getName().endsWith(".jar")) {
+                    extractFromJar(file, classesToModules);
+                } else if (file.isDirectory()) {
+                    extractFromDirectory(file, classesToModules);
+                } else {
+                    throw new IllegalArgumentException("unrecognized classpath entry: " + file);
+                }
+            }
+        }
+        return classesToModules;
+    }
+
+    private void extractFromJar(File file, Map<String, String> classesToModules) throws IOException {
+        try (JarFile jarFile = new JarFile(file)) {
+            String className = extractClassNameFromJar(jarFile);
+            String moduleName = extractModuleNameFromJar(file, jarFile);
+
+            if (className != null) {
+                classesToModules.put(className, moduleName);
+            }
+        }
+    }
+
+    private String extractClassNameFromJar(JarFile jarFile) {
+        return jarFile.stream()
+            .filter(
+                    je -> je.getName().startsWith("META-INF") == false
+                            && je.getName().equals("module-info.class") == false
+                            && je.getName().endsWith(".class")
+            )
+            .findFirst().map(ZipEntry::getName).orElse(null);
+    }
+
+    private String extractModuleNameFromJar(File file, JarFile jarFile) throws IOException {
+        String moduleName = null;
+
+        if (jarFile.isMultiRelease()) {
+            List<Integer> versions = jarFile.stream()
+                    .filter(
+                            je -> je.getName().startsWith("META-INF/versions/")
+                                    && je.getName().endsWith("/module-info.class")
+                    )
+                    .map(je -> Integer.parseInt(je.getName().substring(18, je.getName().length() - 18)))
+                    .toList();
+            versions = new ArrayList<>(versions);
+            versions.sort(Integer::compareTo);
+            versions = versions.reversed();
+            int major = Runtime.version().version().get(0);
+            StringBuilder path = new StringBuilder("META-INF/versions/");
+            for (int version : versions) {
+                if (version <= major) {
+                    path.append(version);
+                    break;
+                }
+            }
+            if (path.length() > 18) {
+                path.append("/module-info.class");
+                JarEntry moduleEntry = jarFile.getJarEntry(path.toString());
+                if (moduleEntry != null) {
+                    try (InputStream inputStream = jarFile.getInputStream(moduleEntry)) {
+                        moduleName = extractModuleNameFromModuleInfo(inputStream);
+                    }
+                }
+            }
+        }
+
+        if (moduleName == null) {
+            JarEntry moduleEntry = jarFile.getJarEntry("module-info.class");
+            if (moduleEntry != null) {
+                try (InputStream inputStream = jarFile.getInputStream(moduleEntry)) {
+                    moduleName = extractModuleNameFromModuleInfo(inputStream);
+                }
+            }
+        }
+
+        if (moduleName == null) {
+            JarEntry manifestEntry = jarFile.getJarEntry("META-INF/MANIFEST.MF");
+            if (manifestEntry != null) {
+                try (InputStream inputStream = jarFile.getInputStream(manifestEntry)) {
+                    Manifest manifest = new Manifest(inputStream);
+                    String amn = manifest.getMainAttributes().getValue("Automatic-Module-Name");
+                    if (amn != null) {
+                        moduleName = amn;
+                    }
+                }
+            }
+        }
+
+        if (moduleName == null) {
+            String jn = file.getName().substring(0, file.getName().length() - 4);
+            Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
+            if (matcher.find()) {
+                jn = jn.substring(0, matcher.start());
+            }
+            jn = jn.replaceAll("[^A-Za-z0-9]", ".");
+            moduleName = jn;
+        }
+
+        return moduleName;
+    }
+
+    private void extractFromDirectory(File file, Map<String, String> classesToModules) {
+        String className = extractClassNameFromDirectory(file);
+        String moduleName = null;
+
+        if (className != null && moduleName != null) {
+            classesToModules.put(className, moduleName);
+        }
+    }
+
+    private String extractClassNameFromDirectory(File file) {
+        List<File> files = new ArrayList<>(List.of(file));
+        while (files.isEmpty() == false) {
+            File find = files.removeFirst();
+            if (find.exists()) {
+                if (find.getName().endsWith(".class") && find.getName().equals("module-info.class") == false && find.getName().contains("$") == false) {
+                    return find.getAbsolutePath().substring(file.getAbsolutePath().length() + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractModuleNameFromModuleInfo(InputStream inputStream) throws IOException {
+        String[] moduleName = new String[1];
+        ClassReader cr = new ClassReader(inputStream);
+        cr.accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public ModuleVisitor visitModule(String name, int access, String version) {
+                moduleName[0] = name;
+                return super.visitModule(name, access, version);
+            }
+        }, Opcodes.ASM9);
+        return moduleName[0];
     }
 }

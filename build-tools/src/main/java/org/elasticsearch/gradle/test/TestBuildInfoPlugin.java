@@ -22,6 +22,11 @@ import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
 
+/**
+ * This plugin configures the {@link GenerateTestBuildInfoTask} task
+ * with customizations for component name and output file name coming
+ * from the source using the plugin (server or ES plugin).
+ */
 public class TestBuildInfoPlugin implements Plugin<Project> {
 
     protected final ProviderFactory providerFactory;

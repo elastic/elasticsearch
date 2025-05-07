@@ -206,6 +206,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         String indexNodeA = startIndexNode(indexNodeSettings);
         String indexNodeB = startIndexNode(indexNodeSettings);
         startSearchNode(settings);
+        // Need to start a second search node for index2 before a relocation because needs 2 replicas
+        startSearchNode(settings);
 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);

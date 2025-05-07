@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -108,13 +110,42 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
-        return new RandomizingHashAggregationOperatorFactory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-            mode,
-            List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-            randomPageSize(),
-            null
-        );
+
+        if (shouldRandomizeBlocks()) {
+            return new RandomizingHashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                mode,
+                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
+                randomPageSize(),
+                null
+            );
+        } else {
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                mode,
+                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
+                randomPageSize(),
+                null
+            );
+        }
+    }
+
+    /**
+     * Checks whether the clas is being run by {@link org.elasticsearch.compute.test.OperatorTestCase#testSimpleCircuitBreaking} or not.
+     * <p>
+     *     If it is, then we can't randomize blocks, as it expects a deterministic memory usage.
+     * </p>
+     * <p>
+     *     Explicitly linking {@link org.elasticsearch.compute.test.OperatorTestCase#testSimpleCircuitBreaking} as
+     *     this method looks for it based on its name, so any modification there should be updated here!
+     * </p>
+     */
+    private boolean shouldRandomizeBlocks() {
+        return Arrays.stream(Thread.currentThread().getStackTrace())
+            .noneMatch(e ->
+                e.getClassName().equals(OperatorTestCase.class.getName())
+                && e.getMethodName().equals("testSimpleCircuitBreaking")
+            );
     }
 
     @Override

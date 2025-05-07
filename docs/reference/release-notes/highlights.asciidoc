@@ -33,8 +33,6 @@ Other versions:
 
 endif::[]
 
-// tag::notable-highlights[]
-
 // The notable-highlights tag marks entries that
 // should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
@@ -42,7 +40,4 @@ endif::[]
 // === Heading
 //
 // Description.
-
 // end::notable-highlights[]
-
-

@@ -1,5 +1,5 @@
 pr: 127849
 summary: Optimize ordinal inputs in Values aggregation
-area: "ES|QL, TSDB"
+area: "ES|QL"
 type: enhancement
 issues: []

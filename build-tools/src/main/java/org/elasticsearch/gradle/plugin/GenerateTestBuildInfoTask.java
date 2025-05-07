@@ -23,12 +23,14 @@ import org.objectweb.asm.ModuleVisitor;
 import org.objectweb.asm.Opcodes;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,11 +128,13 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     private String extractClassNameFromJar(JarFile jarFile) {
         return jarFile.stream()
             .filter(
-                    je -> je.getName().startsWith("META-INF") == false
-                            && je.getName().equals("module-info.class") == false
-                            && je.getName().endsWith(".class")
+                je -> je.getName().startsWith("META-INF") == false
+                    && je.getName().equals("module-info.class") == false
+                    && je.getName().endsWith(".class")
             )
-            .findFirst().map(ZipEntry::getName).orElse(null);
+            .findFirst()
+            .map(ZipEntry::getName)
+            .orElse(null);
     }
 
     private String extractModuleNameFromJar(File file, JarFile jarFile) throws IOException {
@@ -138,12 +142,9 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
         if (jarFile.isMultiRelease()) {
             List<Integer> versions = jarFile.stream()
-                    .filter(
-                            je -> je.getName().startsWith("META-INF/versions/")
-                                    && je.getName().endsWith("/module-info.class")
-                    )
-                    .map(je -> Integer.parseInt(je.getName().substring(18, je.getName().length() - 18)))
-                    .toList();
+                .filter(je -> je.getName().startsWith("META-INF/versions/") && je.getName().endsWith("/module-info.class"))
+                .map(je -> Integer.parseInt(je.getName().substring(18, je.getName().length() - 18)))
+                .toList();
             versions = new ArrayList<>(versions);
             versions.sort(Integer::compareTo);
             versions = versions.reversed();
@@ -201,10 +202,10 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         return moduleName;
     }
 
-    private void extractFromDirectory(File file, Map<String, String> classesToModules) {
+    private void extractFromDirectory(File file, Map<String, String> classesToModules) throws IOException {
         String className = extractClassNameFromDirectory(file);
-        String moduleName = null;
-
+        String moduleName = extractModuleNameFromDirectory(file);
+        getLogger().lifecycle("DIRECTORY: " + className + " -> " + moduleName);
         if (className != null && moduleName != null) {
             classesToModules.put(className, moduleName);
         }
@@ -214,9 +215,33 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         List<File> files = new ArrayList<>(List.of(file));
         while (files.isEmpty() == false) {
             File find = files.removeFirst();
+            getLogger().lifecycle("FIND: " + find.getAbsolutePath());
             if (find.exists()) {
-                if (find.getName().endsWith(".class") && find.getName().equals("module-info.class") == false && find.getName().contains("$") == false) {
+                if (find.getName().endsWith(".class")
+                    && find.getName().equals("module-info.class") == false
+                    && find.getName().contains("$") == false) {
                     return find.getAbsolutePath().substring(file.getAbsolutePath().length() + 1);
+                } else if (find.isDirectory()) {
+                    files.addAll(Arrays.asList(find.listFiles()));
+                }
+            }
+
+        }
+        return null;
+    }
+
+    private String extractModuleNameFromDirectory(File file) throws IOException {
+        List<File> files = new ArrayList<>(List.of(file));
+        while (files.isEmpty() == false) {
+            File find = files.removeFirst();
+            getLogger().lifecycle("FIND: " + find.getAbsolutePath());
+            if (find.exists()) {
+                if (find.getName().equals("module-info.class")) {
+                    try (InputStream inputStream = new FileInputStream(find)) {
+                        return extractModuleNameFromModuleInfo(inputStream);
+                    }
+                } else if (find.isDirectory()) {
+                    files.addAll(Arrays.asList(find.listFiles()));
                 }
             }
         }

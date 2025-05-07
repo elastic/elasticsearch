@@ -16,6 +16,7 @@ import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.jvm.tasks.Jar;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
@@ -55,6 +56,14 @@ public class PluginBuildPlugin implements Plugin<Project> {
         });
 
         project.getTasks().withType(GenerateTestBuildInfoTask.class).named("generateTestBuildInfo").configure(task -> {
+            var jarTask = project.getTasks().withType(Jar.class).named("jar").get();
+            String moduleName = (String)jarTask.getManifest().getAttributes().get("Automatic-Module-Name");
+            if (moduleName == null) {
+                moduleName = jarTask.getArchiveBaseName().getOrNull();
+            }
+            if (moduleName != null) {
+                task.getModuleName().set(moduleName);
+            }
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
             task.getOutputFileName().set("plugin-test-build-info.json");

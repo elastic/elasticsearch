@@ -15,6 +15,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -53,6 +54,10 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     public GenerateTestBuildInfoTask() {
         setDescription(DESCRIPTION);
     }
+
+    @Input
+    @Optional
+    public abstract Property<String> getModuleName();
 
     @Input
     public abstract Property<String> getComponentName();
@@ -205,7 +210,6 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     private void extractFromDirectory(File file, Map<String, String> classesToModules) throws IOException {
         String className = extractClassNameFromDirectory(file);
         String moduleName = extractModuleNameFromDirectory(file);
-        getLogger().lifecycle("DIRECTORY: " + className + " -> " + moduleName);
         if (className != null && moduleName != null) {
             classesToModules.put(className, moduleName);
         }
@@ -215,7 +219,6 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         List<File> files = new ArrayList<>(List.of(file));
         while (files.isEmpty() == false) {
             File find = files.removeFirst();
-            getLogger().lifecycle("FIND: " + find.getAbsolutePath());
             if (find.exists()) {
                 if (find.getName().endsWith(".class")
                     && find.getName().equals("module-info.class") == false
@@ -234,7 +237,6 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         List<File> files = new ArrayList<>(List.of(file));
         while (files.isEmpty() == false) {
             File find = files.removeFirst();
-            getLogger().lifecycle("FIND: " + find.getAbsolutePath());
             if (find.exists()) {
                 if (find.getName().equals("module-info.class")) {
                     try (InputStream inputStream = new FileInputStream(find)) {
@@ -245,7 +247,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                 }
             }
         }
-        return null;
+        return getModuleName().isPresent() ? getModuleName().get() : null;
     }
 
     private String extractModuleNameFromModuleInfo(InputStream inputStream) throws IOException {

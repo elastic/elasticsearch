@@ -90,8 +90,6 @@ public final class InnerHitsContext {
             this.context = innerHitSubContext.context;
         }
 
-        public abstract InnerHitSubContext copy();
-
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {

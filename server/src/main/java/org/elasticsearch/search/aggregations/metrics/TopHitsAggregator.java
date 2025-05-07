@@ -225,29 +225,11 @@ class TopHitsAggregator extends MetricsAggregator {
     private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+        InnerHitsContext innerHitsContext = new InnerHitsContext(
+            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
+        );
 
-        Map<String, InnerHitSubContext> innerHits = new HashMap<>();
-        for (Map.Entry<String, InnerHitSubContext> entry : subSearchContext.innerHits().getInnerHits().entrySet()) {
-            InnerHitSubContext original = entry.getValue().copy();
-            InnerHitSubContext thing = new InnerHitSubContext(original) {
-                @Override
-                public InnerHitSubContext copy() {
-                    return original.copy();
-                }
-
-                @Override
-                public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
-                    return original.topDocs(hit);
-                }
-
-                @Override
-                public SearchExecutionContext getSearchExecutionContext() {
-                    return searchExecutionContext;
-                }
-            };
-            innerHits.put(entry.getKey(), thing);
-        }
-        InnerHitsContext innerHitsContext = new InnerHitsContext(innerHits);
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
@@ -262,6 +244,31 @@ class TopHitsAggregator extends MetricsAggregator {
 
         fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
         return fetchSubSearchContext.fetchResult();
+    }
+
+    private static Map<String, InnerHitSubContext> getForkedInnerHits(
+        Map<String, InnerHitSubContext> originalInnerHits,
+        SearchExecutionContext searchExecutionContext
+    ) {
+        Map<String, InnerHitSubContext> forkedInnerHits = new HashMap<>();
+        for (Map.Entry<String, InnerHitSubContext> entry : originalInnerHits.entrySet()) {
+            var originalContext = entry.getValue();
+            var forkedContext = new InnerHitSubContext(originalContext) {
+                @Override
+                public SearchExecutionContext getSearchExecutionContext() {
+                    return searchExecutionContext;
+                }
+
+                // Delegate top docs to the original InnerHitSubContext, it does not need to be changed
+                @Override
+                public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
+                    return originalContext.topDocs(hit);
+                }
+            };
+            forkedInnerHits.put(entry.getKey(), forkedContext);
+        }
+
+        return forkedInnerHits;
     }
 
     @Override

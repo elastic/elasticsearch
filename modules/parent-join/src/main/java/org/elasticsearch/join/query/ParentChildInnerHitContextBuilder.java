@@ -28,7 +28,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.cluster.coordination.Join;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -95,18 +94,6 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
             this.joiner = joiner;
-        }
-
-        JoinFieldInnerHitSubContext(JoinFieldInnerHitSubContext joinFieldInnerHitSubContext) {
-            super(joinFieldInnerHitSubContext);
-            this.typeName = joinFieldInnerHitSubContext.typeName;
-            this.fetchChildInnerHits = joinFieldInnerHitSubContext.fetchChildInnerHits;
-            this.joiner = joinFieldInnerHitSubContext.joiner;
-        }
-
-        @Override
-        public JoinFieldInnerHitSubContext copy() {
-            return new JoinFieldInnerHitSubContext(this);
         }
 
         @Override

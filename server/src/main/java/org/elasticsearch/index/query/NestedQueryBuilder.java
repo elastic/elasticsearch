@@ -408,17 +408,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             this.childObjectMapper = childObjectMapper;
         }
 
-        NestedInnerHitSubContext(NestedInnerHitSubContext nestedInnerHitSubContext) {
-            super(nestedInnerHitSubContext);
-            this.parentObjectMapper = nestedInnerHitSubContext.parentObjectMapper;
-            this.childObjectMapper = nestedInnerHitSubContext.childObjectMapper;
-        }
-
-        @Override
-        public NestedInnerHitSubContext copy() {
-            return new NestedInnerHitSubContext(this);
-        }
-
         @Override
         public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
             assert seqNoAndPrimaryTerm() == false;

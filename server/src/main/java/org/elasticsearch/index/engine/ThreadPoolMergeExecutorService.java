@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
@@ -58,7 +59,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "indices.merge.disk.check_interval",
         TimeValue.timeValueSeconds(5),
-        Setting.Property.NodeScope
+        Property.Dynamic,
+        Property.NodeScope
     );
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high",
@@ -85,8 +87,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return res.iterator();
             }
         },
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Property.Dynamic,
+        Property.NodeScope
     );
     public static final Setting<ByteSizeValue> INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high.max_headroom",
@@ -135,8 +137,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return res.iterator();
             }
         },
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Property.Dynamic,
+        Property.NodeScope
     );
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)

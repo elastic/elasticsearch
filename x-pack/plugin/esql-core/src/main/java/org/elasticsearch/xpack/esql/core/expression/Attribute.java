@@ -134,4 +134,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    /**
+     * @return true if the attribute represents a TSDB dimension type
+     */
+    public abstract boolean isDimension();
 }

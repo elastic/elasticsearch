@@ -55,7 +55,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             new FixedExecutorBuilder(
                 Settings.EMPTY,
                 EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                1,
+                between(1, 20),
                 1024,
                 "esql",
                 EsExecutors.TaskTrackingConfig.DEFAULT

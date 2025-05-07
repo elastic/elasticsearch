@@ -30,7 +30,7 @@ public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBui
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(outputBlockBuilder);
+        Releasables.close(outputBlockBuilder);
         releasePageOnAnyThread(inputPage);
     }
 

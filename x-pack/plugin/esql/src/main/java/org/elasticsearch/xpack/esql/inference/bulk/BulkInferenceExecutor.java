@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -32,37 +33,75 @@ public class BulkInferenceExecutor {
         BulkInferenceOutputBuilder<InferenceResult, OutputType> outputBuilder,
         ActionListener<OutputType> listener
     ) {
-        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
-
         if (requests.hasNext() == false) {
-            bulkExecutionState.markAllRequestsSent();
-            bulkExecutionState.maybeSendResponse(outputBuilder::buildOutput, listener);
+            listener.onResponse(outputBuilder.buildOutput());
+            return;
         }
 
-        while (requests.hasNext() && bulkExecutionState.responseSent() == false) {
-            long seqNo = bulkExecutionState.generateSeqNo();
-            InferenceAction.Request request = requests.next();
+        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
+
+        try {
+            enqueueRequests(requests, bulkExecutionState);
+            persistsInferenceResponses(bulkExecutionState, outputBuilder::onInferenceResponse);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
+        if (bulkExecutionState.hasFailure() == false) {
             try {
-                throttledInferenceRunner.doInference(
-                    request,
-                    ActionListener.runAfter(
-                        ActionListener.wrap(
-                            r -> bulkExecutionState.onInferenceResponse(seqNo, r),
-                            e -> bulkExecutionState.onInferenceException(seqNo, e)
-                        ),
-                        () -> {
-                            bulkExecutionState.persistsResponses(outputBuilder::onInferenceResponse);
-                            bulkExecutionState.maybeSendResponse(outputBuilder::buildOutput, listener);
-                        }
-                    )
-                );
-            } catch (InterruptedException | TimeoutException e) {
-                bulkExecutionState.addFailure(e);
-                bulkExecutionState.maybeSendResponse(outputBuilder::buildOutput, listener);
+                listener.onResponse(outputBuilder.buildOutput());
+                return;
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
         }
 
-        bulkExecutionState.markAllRequestsSent();
+        listener.onFailure(bulkExecutionState.getFailure());
+    }
+
+    private void enqueueRequests(BulkInferenceRequestIterator requests, BulkInferenceExecutionState bulkExecutionState) {
+        while (requests.hasNext()) {
+            InferenceAction.Request request = requests.next();
+            long seqNo = bulkExecutionState.generateSeqNo();
+            ActionListener<InferenceAction.Response> listener = ActionListener.wrap(
+                r -> bulkExecutionState.onInferenceResponse(seqNo, r),
+                e -> bulkExecutionState.onInferenceException(seqNo, e)
+            );
+            throttledInferenceRunner.doInference(request, listener);
+        }
+    }
+
+    private void persistsInferenceResponses(
+        BulkInferenceExecutionState bulkExecutionState,
+        CheckedConsumer<InferenceAction.Response, Exception> persister
+    ) throws TimeoutException {
+        // TODO: retry should be from config
+        int retry = 30;
+        while (bulkExecutionState.getPersistedCheckpoint() < bulkExecutionState.getMaxSeqNo()) {
+            Long seqNo = bulkExecutionState.fetchProcessedSeqNo();
+            retry--;
+
+            if (seqNo == null && retry < 0) {
+                throw new TimeoutException("timeout waiting for inference response");
+            }
+
+            long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
+
+            while (persistedSeqNo < bulkExecutionState.getProcessedCheckpoint()) {
+                persistedSeqNo++;
+                InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
+                assert response != null || bulkExecutionState.hasFailure();
+                if (bulkExecutionState.hasFailure() == false) {
+                    try {
+                        persister.accept(response);
+                    } catch (Exception e) {
+                        bulkExecutionState.addFailure(e);
+                    }
+                }
+                bulkExecutionState.markSeqNoAsPersisted(persistedSeqNo);
+            }
+        }
     }
 
     private static class ThrottledInferenceRunner extends ThrottledTaskRunner {
@@ -85,17 +124,16 @@ public class BulkInferenceExecutor {
             return new ThrottledInferenceRunner(inferenceRunner, threadPool, bulkExecutionConfig.workers());
         }
 
-        public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener)
-            throws InterruptedException, TimeoutException {
+        public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
             this.enqueueTask(listener.delegateFailureAndWrap((l, releasable) -> {
                 try (releasable) {
                     inferenceRunner.doInference(request, l);
                 }
             }));
         }
-    }
 
-    private static ExecutorService executorService(ThreadPool threadPool) {
-        return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        private static ExecutorService executorService(ThreadPool threadPool) {
+            return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        }
     }
 }

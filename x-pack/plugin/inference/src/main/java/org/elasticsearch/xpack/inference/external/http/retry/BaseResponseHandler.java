@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -37,17 +37,21 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected final String requestType;
     private final ResponseParser parseFunction;
-    private final Function<HttpResult, ErrorResponse> errorParseFunction;
+    private final BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 
-    public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
+    public BaseResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction
+    ) {
         this(requestType, parseFunction, errorParseFunction, false);
     }
 
     public BaseResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        Function<HttpResult, ErrorResponse> errorParseFunction,
+        BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         this.requestType = Objects.requireNonNull(requestType);
@@ -96,7 +100,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     protected abstract void checkForFailureStatusCode(Request request, HttpResult result);
 
     private void checkForErrorObject(Request request, HttpResult result) {
-        var errorEntity = errorParseFunction.apply(result);
+        var errorEntity = errorParseFunction.apply(request, result);
 
         if (errorEntity.errorStructureFound()) {
             // We don't really know what happened because the status code was 200 so we'll return a failure and let the
@@ -109,7 +113,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     }
 
     protected Exception buildError(String message, Request request, HttpResult result) {
-        var errorEntityMsg = errorParseFunction.apply(result);
+        var errorEntityMsg = errorParseFunction.apply(request, result);
         return buildError(message, request, result, errorEntityMsg);
     }
 

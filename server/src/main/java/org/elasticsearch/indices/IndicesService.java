@@ -1064,19 +1064,24 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
      * but does not deal with in-memory structures. For those call {@link #removeIndex}
+     *
+     * @param reason the reason why this index should be deleted
+     * @param oldIndexMetadata the index metadata of the index that should be deleted
+     * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
+     *                       anymore - can be null in case the whole project got deleted while there were still indices in it
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata project) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject) {
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (project != null && project.hasIndex(index)) {
-                    final IndexMetadata currentMetadata = project.index(index);
+                if (currentProject != null && currentProject.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = currentProject.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
                             + "] - it's still part of project ["
-                            + project.id()
+                            + currentProject.id()
                             + "] with UUIDs ["
                             + currentMetadata.getIndexUUID()
                             + "] ["

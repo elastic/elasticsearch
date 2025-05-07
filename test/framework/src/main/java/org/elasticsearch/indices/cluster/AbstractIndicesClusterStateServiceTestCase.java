@@ -214,7 +214,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void deleteUnassignedIndex(String reason, IndexMetadata metadata, ProjectMetadata project) {
+        public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ProjectMetadata currentProject) {
 
         }
 

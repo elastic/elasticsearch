@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -48,7 +50,38 @@ public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
-    public void testPushEqualityOnDefaults() throws IOException {
+    @ParametersFactory(argumentFormatting = "%1s")
+    public static List<Object[]> args() throws Exception {
+        List<Object[]> args = new ArrayList<>();
+        args.add(new Object[] { "auto", true, null });
+        args.add(new Object[] { "text", true, """
+            "type": "text",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }""" });
+        args.add(new Object[] { "match_only_text", false, """
+            "type": "text",
+                "fields": {
+                  "match_only_text": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }""" });
+        return args;
+    }
+
+    private final String type;
+    private final boolean pushed;
+
+    public PushQueriesIT(String type, boolean pushed) {
+        this.type = type;
+        this.pushed = pushed;
+    }
+
+    public void testEquality() throws IOException {
         String value = "v".repeat(between(0, 256));
         testPushQuery(value, """
             FROM test
@@ -56,7 +89,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "#test.keyword:%value -_ignored:test.keyword", false, true);
     }
 
-    public void testPushEqualityOnDefaultsTooBigToPush() throws IOException {
+    public void testEqualityTooBigToPush() throws IOException {
         String value = "a".repeat(between(257, 1000));
         testPushQuery(value, """
             FROM test
@@ -67,7 +100,7 @@ public class PushQueriesIT extends ESRestTestCase {
     /**
      * Turns into an {@code IN} which isn't currently pushed.
      */
-    public void testPushEqualityOnDefaultsOrTooBig() throws IOException {
+    public void testEqualityOrTooBig() throws IOException {
         String value = "v".repeat(between(0, 256));
         String tooBig = "a".repeat(between(257, 1000));
         testPushQuery(value, """
@@ -76,7 +109,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """.replace("%tooBig", tooBig), "*:*", true, true);
     }
 
-    public void testPushEqualityOnDefaultsOrOther() throws IOException {
+    public void testEqualityOrOther() throws IOException {
         String value = "v".repeat(between(0, 256));
         testPushQuery(value, """
             FROM test
@@ -84,7 +117,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]", false, true);
     }
 
-    public void testPushEqualityOnDefaultsAndOther() throws IOException {
+    public void testEqualityAndOther() throws IOException {
         String value = "v".repeat(between(0, 256));
         testPushQuery(value, """
             FROM test
@@ -92,7 +125,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]", false, true);
     }
 
-    public void testPushInequalityOnDefaults() throws IOException {
+    public void testInequality() throws IOException {
         String value = "v".repeat(between(0, 256));
         testPushQuery(value, """
             FROM test
@@ -100,7 +133,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "(-test.keyword:%different_value #*:*) _ignored:test.keyword", true, true);
     }
 
-    public void testPushInequalityOnDefaultsTooBigToPush() throws IOException {
+    public void testInequalityTooBigToPush() throws IOException {
         String value = "a".repeat(between(257, 1000));
         testPushQuery(value, """
             FROM test
@@ -108,7 +141,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """, "*:*", true, false);
     }
 
-    public void testPushCaseInsensitiveEqualityOnDefaults() throws IOException {
+    public void testCaseInsensitiveEquality() throws IOException {
         String value = "a".repeat(between(0, 256));
         testPushQuery(value, """
             FROM test
@@ -177,14 +210,33 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private void indexValue(String value) throws IOException {
         Request createIndex = new Request("PUT", "test");
-        createIndex.setJsonEntity("""
+        String json = """
             {
               "settings": {
                 "index": {
                   "number_of_shards": 1
                 }
-              }
-            }""");
+              }""";
+        if (type != null) {
+            json += """
+                ,
+                "mappings": {
+                  "properties": {
+                    "test": {
+                      "type": "%type",
+                        "fields": {
+                          "keyword": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""".replace("%type", type);
+        }
+        json += "}";
+        createIndex.setJsonEntity(json);
         Response createResponse = client().performRequest(createIndex);
         assertThat(
             entityToMap(createResponse.getEntity(), XContentType.JSON),

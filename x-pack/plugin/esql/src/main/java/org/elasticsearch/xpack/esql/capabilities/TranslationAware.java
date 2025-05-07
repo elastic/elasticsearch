@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 /**
  * Expressions implementing this interface are asked provide an
- * Elasticsearch/Lucene query on the as part of the data node optimizations.
+ * Elasticsearch/Lucene query as part of the data node optimizations.
  */
 public interface TranslationAware {
     /**

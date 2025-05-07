@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -30,15 +31,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,41 +69,53 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 50)).toList();
-        BulkInferenceRequestIterator requestIterator = requestIterator(requests);
-        List<InferenceAction.Response> responses = Stream.generate(() -> mockInferenceResponse(RankedDocsResults.class))
-            .limit(requests.size())
-            .toList();
-
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer((invocation) -> {
-            ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
-            if (randomBoolean()) {
-                Thread.sleep(between(0, 5));
-            }
-            l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
-            return null;
-        }).when(inferenceRunner).doInference(any(), any());
-
-        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
-
-        List<RankedDocsResults> output = new ArrayList<>();
-        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+    private <T extends InferenceServiceResults> BulkInferenceOutputBuilder<T, List<T>> mockOutputBuilder(Class<T> resultClass)
+        throws Exception {
+        BulkInferenceOutputBuilder<T, List<T>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+        List<T> output = new ArrayList<>();
         doAnswer(invocation -> {
-            output.add(invocation.getArgument(0, RankedDocsResults.class));
+            output.add(invocation.getArgument(0, resultClass));
             return null;
         }).when(outputBuilder).onInferenceResults(any());
         when(outputBuilder.buildOutput()).thenReturn(output);
-        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
+        when(outputBuilder.inferenceResultsClass()).thenReturn(resultClass);
 
-        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
-        executor.execute(requestIterator, outputBuilder, listener);
+        return outputBuilder;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSuccessfulExecution() throws Exception {
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 50));
+        List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size(), RankedDocsResults.class);
+
+        InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
+            ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
+            l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
+            return null;
+        });
+
+        AtomicReference<List<RankedDocsResults>> output = new AtomicReference<>();
+        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
+        doAnswer(invocation -> {
+            output.set(invocation.getArgument(0, List.class));
+            return null;
+        }).when(listener).onResponse(any());
+
+        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mockOutputBuilder(RankedDocsResults.class);
+
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), outputBuilder, listener);
 
         assertBusy(() -> {
-            assertThat(output, hasSize(requests.size()));
-            assertThat(output, contains(responses.stream().map(InferenceAction.Response::getResults).toArray()));
-            verify(listener).onResponse(eq(output));
+            verify(listener).onResponse(any());
+            verify(listener, never()).onFailure(any());
+            assertThat(
+                output.get(),
+                allOf(
+                    notNullValue(),
+                    hasSize(requests.size()),
+                    contains(responses.stream().map(InferenceAction.Response::getResults).toArray())
+                )
+            );
         });
     }
 
@@ -109,35 +124,33 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
+        AtomicReference<List<RankedDocsResults>> output = new AtomicReference<>();
         ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
+        doAnswer(invocation -> {
+            output.set(invocation.getArgument(0, List.class));
+            return null;
+        }).when(listener).onResponse(any());
 
-        List<RankedDocsResults> output = new ArrayList<>();
-        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
-        when(outputBuilder.buildOutput()).thenReturn(output);
+        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mockOutputBuilder(RankedDocsResults.class);
 
-        BulkInferenceExecutor executor = bulkExecutor(mock(InferenceRunner.class));
-        executor.execute(requestIterator, outputBuilder, listener);
+        bulkExecutor(mock(InferenceRunner.class)).execute(requestIterator, outputBuilder, listener);
 
         assertBusy(() -> {
-            assertThat(output, empty());
-            verify(listener).onResponse(eq(output));
+            verify(listener).onResponse(any());
+            verify(listener, never()).onFailure(any());
+            assertThat(output.get(), allOf(notNullValue(), empty()));
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 30)).toList();
-        BulkInferenceRequestIterator requestIterator = requestIterator(requests);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 30));
 
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(invocation -> {
+        InferenceRunner inferenceRunner = mock(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
-            if (randomBoolean()) {
-                Thread.sleep(between(0, 5));
-            }
             listener.onFailure(new RuntimeException("inference failure"));
             return null;
-        }).when(inferenceRunner).doInference(any(), any());
+        });
 
         ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         AtomicReference<Exception> e = new AtomicReference<>();
@@ -146,29 +159,23 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             return null;
         }).when(listener).onFailure(any());
 
-        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mockOutputBuilder(RankedDocsResults.class);
 
-        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
-        executor.execute(requestIterator, outputBuilder, listener);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), outputBuilder, listener);
 
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
+            verify(listener, never()).onResponse(any());
             assertThat(e.get().getMessage(), equalTo("inference failure"));
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(2, 30)).toList();
-        BulkInferenceRequestIterator requestIterator = requestIterator(requests);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(2, 30));
 
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(invocation -> {
+        InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
-            if (randomBoolean()) {
-                Thread.sleep(between(0, 5));
-            }
-
             if ((requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class)) % requests.size()) == 0) {
                 listener.onFailure(new RuntimeException("inference failure"));
             } else {
@@ -176,7 +183,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             }
 
             return null;
-        }).when(inferenceRunner).doInference(any(), any());
+        });
 
         ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         AtomicReference<Exception> e = new AtomicReference<>();
@@ -185,29 +192,25 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             return null;
         }).when(listener).onFailure(any());
 
-        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
-        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
-
-        BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
-        executor.execute(requestIterator, outputBuilder, listener);
+        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mockOutputBuilder(RankedDocsResults.class);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), outputBuilder, listener);
 
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
+            verify(listener, never()).onResponse(any());
             assertThat(e.get().getMessage(), equalTo("inference failure"));
         });
     }
 
     @SuppressWarnings("unchecked")
     public void testBuildOutputFailure() throws Exception {
-        List<InferenceAction.Request> requests = Stream.generate(this::mockInferenceRequest).limit(between(1, 30)).toList();
-        BulkInferenceRequestIterator requestIterator = requestIterator(requests);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 30));
 
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(invocation -> {
+        InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
             listener.onResponse(mockInferenceResponse(RankedDocsResults.class));
             return null;
-        }).when(inferenceRunner).doInference(any(), any());
+        });
 
         ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         AtomicReference<Exception> e = new AtomicReference<>();
@@ -222,10 +225,11 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
         BulkInferenceExecutor executor = bulkExecutor(inferenceRunner);
 
-        executor.execute(requestIterator, outputBuilder, listener);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), outputBuilder, listener);
 
         assertBusy(() -> {
             verify(listener).onFailure(any(IllegalStateException.class));
+            verify(listener, never()).onResponse(any());
             assertThat(e.get().getMessage(), equalTo("build output failure"));
         });
     }
@@ -254,5 +258,19 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         doAnswer(i -> delegate.hasNext()).when(iterator).hasNext();
         doAnswer(i -> delegate.next()).when(iterator).next();
         return iterator;
+    }
+
+    private List<InferenceAction.Request> randomInferenceRequestList(int size) {
+        return Stream.generate(this::mockInferenceRequest).limit(size).toList();
+    }
+
+    private List<InferenceAction.Response> randomInferenceResponseList(int size, Class<? extends InferenceServiceResults> resultClass) {
+        return Stream.generate(() -> this.mockInferenceResponse(resultClass)).limit(size).toList();
+    }
+
+    private InferenceRunner mockInferenceRunner(Answer<Void> doInferenceAnswer) {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        doAnswer(doInferenceAnswer).when(inferenceRunner).doInference(any(), any());
+        return inferenceRunner;
     }
 }

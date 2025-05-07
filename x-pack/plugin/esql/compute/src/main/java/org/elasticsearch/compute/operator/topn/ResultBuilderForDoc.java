@@ -12,7 +12,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+
+import java.util.HashMap;
+import java.util.Map;
 
 class ResultBuilderForDoc implements ResultBuilder {
     private final BlockFactory blockFactory;
@@ -20,6 +26,8 @@ class ResultBuilderForDoc implements ResultBuilder {
     private final int[] segments;
     private final int[] docs;
     private int position;
+    private @Nullable RefCounted nextRefCounted;
+    private final Map<Integer, RefCounted> refCounted = new HashMap<>();
 
     ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
         // TODO use fixed length builders
@@ -34,12 +42,23 @@ class ResultBuilderForDoc implements ResultBuilder {
         throw new AssertionError("_doc can't be a key");
     }
 
+    void setNextRefCounted(RefCounted nextRefCounted) {
+        this.nextRefCounted = nextRefCounted;
+        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
+        this.nextRefCounted.mustIncRef();
+    }
+
     @Override
     public void decodeValue(BytesRef values) {
+        if (nextRefCounted == null) {
+            throw new IllegalStateException("setNextRefCounted must be set before each decodeValue call");
+        }
         shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
         docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        refCounted.putIfAbsent(shards[position], nextRefCounted);
         position++;
+        nextRefCounted = null;
     }
 
     @Override
@@ -51,13 +70,23 @@ class ResultBuilderForDoc implements ResultBuilder {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
             var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(shardsVector, segmentsVector, docsVector, null).asBlock();
+            var docsBlock = new DocVector(new ShardRefCountedMap(refCounted), shardsVector, segmentsVector, docsVector, null).asBlock();
             success = true;
             return docsBlock;
         } finally {
+            // The DocVector constructor already incremented the relevant RefCounted, so we can now decrement them since we incremented them
+            // in setNextRefCounted.
+            refCounted.values().forEach(RefCounted::decRef);
             if (success == false) {
                 Releasables.closeExpectNoException(shardsVector, segmentsVector);
             }
+        }
+    }
+
+    private record ShardRefCountedMap(Map<Integer, RefCounted> refCounters) implements ShardRefCounted {
+        @Override
+        public RefCounted get(int shardId) {
+            return refCounters.get(shardId);
         }
     }
 

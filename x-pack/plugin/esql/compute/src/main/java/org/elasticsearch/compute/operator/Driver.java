@@ -75,7 +75,7 @@ public class Driver implements Releasable, Describable {
     private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
-    private final List<Operator> activeOperators;
+    private List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
@@ -184,7 +184,8 @@ public class Driver implements Releasable, Describable {
                 assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException unused) {
-                closeEarlyFinishedOperators();
+                int lastFinished = closeEarlyFinishedOperators(0, activeOperators.size() - 1);
+                activeOperators = new ArrayList<>(activeOperators.subList(lastFinished + 1, activeOperators.size()));
                 assert isFinished() : "not finished after early termination";
             } finally {
                 assert driverContext.assertEndRunLoop();
@@ -251,6 +252,7 @@ public class Driver implements Releasable, Describable {
         driverContext.checkForEarlyTermination();
         boolean movedPage = false;
 
+        int lastClosed = -1;
         for (int i = 0; i < activeOperators.size() - 1; i++) {
             Operator op = activeOperators.get(i);
             Operator nextOp = activeOperators.get(i + 1);
@@ -283,11 +285,15 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished()) {
                 driverContext.checkForEarlyTermination();
-                nextOp.finish();
+                closeEarlyFinishedOperators(lastClosed + 1, i);
+                lastClosed = i;
             }
         }
 
-        closeEarlyFinishedOperators();
+        lastClosed = closeEarlyFinishedOperators(lastClosed + 1, activeOperators.size() - 1);
+        if (lastClosed >= 0) {
+            activeOperators = new ArrayList<>(activeOperators.subList(lastClosed + 1, activeOperators.size()));
+        }
 
         if (movedPage == false) {
             return oneOf(
@@ -300,32 +306,32 @@ public class Driver implements Releasable, Describable {
         return Operator.NOT_BLOCKED;
     }
 
-    private void closeEarlyFinishedOperators() {
-        for (int index = activeOperators.size() - 1; index >= 0; index--) {
+    private int closeEarlyFinishedOperators(int minIndex, int maxIndex) {
+        for (int index = maxIndex; index >= minIndex; index--) {
             if (activeOperators.get(index).isFinished()) {
                 /*
-                 * Close and remove this operator and all source operators in the
+                 * Remove this operator and all unclosed source operators in the
                  * most paranoid possible way. Closing operators shouldn't throw,
                  * but if it does, this will make sure we don't try to close any
                  * that succeed twice.
                  */
-                List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
-                Iterator<Operator> itr = finishedOperators.iterator();
+                List<Operator> operatorsToClose = this.activeOperators.subList(minIndex, index + 1);
+                Iterator<Operator> itr = operatorsToClose.iterator();
                 while (itr.hasNext()) {
                     Operator op = itr.next();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     op.close();
-                    itr.remove();
                 }
 
-                // Finish the next operator, which is now the first operator.
-                if (activeOperators.isEmpty() == false) {
-                    Operator newRootOperator = activeOperators.get(0);
+                // Finish the next operator.
+                if (index + 1 < activeOperators.size()) {
+                    Operator newRootOperator = activeOperators.get(index + 1);
                     newRootOperator.finish();
                 }
-                break;
+                return index;
             }
         }
+        return minIndex - 1;
     }
 
     public void cancel(String reason) {

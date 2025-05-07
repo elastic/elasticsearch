@@ -53,6 +53,7 @@ import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     public static class Factory extends LuceneOperator.Factory {
+        private final List<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
 
@@ -76,13 +77,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 needsScore,
                 needsScore ? TOP_DOCS_WITH_SCORES : TOP_DOCS
             );
+            this.contexts = contexts;
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTopNSourceOperator(driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue, needsScore);
+            return new LuceneTopNSourceOperator(contexts, driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue, needsScore);
         }
 
         public int maxPageSize() {
@@ -116,11 +118,13 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
+    private final List<? extends ShardContext> contexts;
     private final List<SortBuilder<?>> sorts;
     private final int limit;
     private final boolean needsScore;
 
     public LuceneTopNSourceOperator(
+        List<? extends ShardContext> contexts,
         BlockFactory blockFactory,
         int maxPageSize,
         List<SortBuilder<?>> sorts,
@@ -129,6 +133,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         boolean needsScore
     ) {
         super(blockFactory, maxPageSize, sliceQueue);
+        this.contexts = contexts;
+        contexts.forEach(ShardContext::mustIncRef);
         this.sorts = sorts;
         this.limit = limit;
         this.needsScore = needsScore;
@@ -239,7 +245,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardContext.index(), size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
+            docBlock = new DocVector(ShardRefCounted.fromList(contexts), shard.asVector(), segments, docs, null).asBlock();
             shard = null;
             segments = null;
             docs = null;
@@ -363,5 +369,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         l.add(SortField.FIELD_SCORE);
         sort = new Sort(l.toArray(SortField[]::new));
         return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        contexts.forEach(ShardContext::decRef);
     }
 }

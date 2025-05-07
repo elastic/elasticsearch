@@ -18,9 +18,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -94,6 +96,7 @@ public class ExtractorTests extends ESTestCase {
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
+                                ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
@@ -172,6 +175,9 @@ public class ExtractorTests extends ESTestCase {
             1
         );
         BytesRef values = valuesBuilder.bytesRefView();
+        if (result instanceof ResultBuilderForDoc fd) {
+            fd.setNextRefCounted(RefCounted.ALWAYS_REFERENCED);
+        }
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 

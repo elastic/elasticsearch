@@ -20,19 +20,87 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.0.1 [elasticsearch-9.0.1-release-notes]
+
+### Features and enhancements [elasticsearch-9.0.1-features-enhancements]
+
+Infra/Core:
+* Validation checks on paths allowed for 'files' entitlements. Restrict the paths we allow access to, forbidding plugins to specify/request entitlements for reading or writing to specific protected directories. [#126852](https://github.com/elastic/elasticsearch/pull/126852)
+
+Ingest Node:
+* Updating tika to 2.9.3 [#127353](https://github.com/elastic/elasticsearch/pull/127353)
+
+Search:
+* Enable sort optimization on float and `half_float` [#126342](https://github.com/elastic/elasticsearch/pull/126342)
+
+Security:
+* Add Issuer to failed SAML Signature validation logs when available [#126310](https://github.com/elastic/elasticsearch/pull/126310) (issue: [#111022](https://github.com/elastic/elasticsearch/issues/111022))
+
+### Fixes [elasticsearch-9.0.1-fixes]
+
+Aggregations:
+* Rare terms aggregation false **positive** fix [#126884](https://github.com/elastic/elasticsearch/pull/126884)
+
+Allocation:
+* Fix shard size of initializing restored shard [#126783](https://github.com/elastic/elasticsearch/pull/126783) (issue: [#105331](https://github.com/elastic/elasticsearch/issues/105331))
+
+CCS:
+* Cancel expired async search task when a remote returns its results [#126583](https://github.com/elastic/elasticsearch/pull/126583)
+
+Data streams:
+* [otel-data] Bump plugin version to release _metric_names_hash changes [#126850](https://github.com/elastic/elasticsearch/pull/126850)
+
+ES|QL:
+* Fix count optimization with pushable union types [#127225](https://github.com/elastic/elasticsearch/pull/127225) (issue: [#127200](https://github.com/elastic/elasticsearch/issues/127200))
+* Fix join masking eval [#126614](https://github.com/elastic/elasticsearch/pull/126614)
+* Fix sneaky bug in single value query [#127146](https://github.com/elastic/elasticsearch/pull/127146)
+* No, line noise isn't a valid ip [#127527](https://github.com/elastic/elasticsearch/pull/127527)
+
+ILM+SLM:
+* Fix equality bug in `WaitForIndexColorStep` [#126605](https://github.com/elastic/elasticsearch/pull/126605)
+
+Infra/CLI:
+* Use terminal reader in keystore add command [#126729](https://github.com/elastic/elasticsearch/pull/126729) (issue: [#98115](https://github.com/elastic/elasticsearch/issues/98115))
+
+Infra/Core:
+* Fix: consider case sensitiveness differences in Windows/Unix-like filesystems for files entitlements [#126990](https://github.com/elastic/elasticsearch/pull/126990) (issue: [#127047](https://github.com/elastic/elasticsearch/issues/127047))
+* Rework uniquify to not use iterators [#126889](https://github.com/elastic/elasticsearch/pull/126889) (issue: [#126883](https://github.com/elastic/elasticsearch/issues/126883))
+* Workaround max name limit imposed by Jackson 2.17 [#126806](https://github.com/elastic/elasticsearch/pull/126806)
+
+Machine Learning:
+* Adding missing `onFailure` call for Inference API start model request [#126930](https://github.com/elastic/elasticsearch/pull/126930)
+* Fix text structure NPE when fields in list have null value [#125922](https://github.com/elastic/elasticsearch/pull/125922)
+* Leverage threadpool schedule for inference api to avoid long running thread [#126858](https://github.com/elastic/elasticsearch/pull/126858) (issue: [#126853](https://github.com/elastic/elasticsearch/issues/126853))
+
+Ranking:
+* Fix LTR rescorer with model alias [#126273](https://github.com/elastic/elasticsearch/pull/126273)
+* LTR score bounding [#125694](https://github.com/elastic/elasticsearch/pull/125694)
+
+Search:
+* Fix npe when using source confirmed text query against missing field [#127414](https://github.com/elastic/elasticsearch/pull/127414)
+
+TSDB:
+* Improve resiliency of `UpdateTimeSeriesRangeService` [#126637](https://github.com/elastic/elasticsearch/pull/126637)
+
+Task Management:
+* Fix race condition in `RestCancellableNodeClient` [#126686](https://github.com/elastic/elasticsearch/pull/126686) (issue: [#88201](https://github.com/elastic/elasticsearch/issues/88201))
+
+Vector Search:
+* Fix `vec_caps` to test for OS support too (on x64) [#126911](https://github.com/elastic/elasticsearch/pull/126911) (issue: [#126809](https://github.com/elastic/elasticsearch/issues/126809))
+* Fix bbq quantization algorithm but for differently distributed components [#126778](https://github.com/elastic/elasticsearch/pull/126778)
+
+
 ## 9.0.0 [elasticsearch-900-release-notes]
 
 ### Highlights [elasticsearch-900-highlights]
 
 ::::{dropdown} rank_vectors field type is now available for late-interaction ranking
-
 [`rank_vectors`](../reference/elasticsearch/mapping-reference/rank-vectors.md) is a new field type released as an experimental feature in Elasticsearch 9.0. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
 
 Late-interaction models are powerful rerankers. While their size and overall cost doesn’t lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
 ::::
 
 ::::{dropdown} ES|QL LOOKUP JOIN is now available in technical preview
-
 [LOOKUP JOIN](../reference/query-languages/esql/esql-commands.md) is now available in technical preview. LOOKUP JOIN combines data from your ES|QL queries with matching records from a lookup index, enabling you to:
 
 - Enrich your search results with reference data

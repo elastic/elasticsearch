@@ -1,2 +1,4 @@
+org.elasticsearch.repository.url:
+  - outbound_network
 org.apache.httpcomponents.httpclient:
   - outbound_network # for URLHttpClient

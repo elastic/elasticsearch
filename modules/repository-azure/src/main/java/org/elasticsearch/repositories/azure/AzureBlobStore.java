@@ -258,18 +258,14 @@ public class AzureBlobStore implements BlobStore {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) {
+    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
-        try {
-            deleteListOfBlobs(
-                getAzureBlobServiceClientClient(purpose),
-                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobNames, Spliterator.ORDERED), false))
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        deleteListOfBlobs(
+            getAzureBlobServiceClientClient(purpose),
+            Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobNames, Spliterator.ORDERED), false))
+        );
     }
 
     private void deleteListOfBlobs(AzureBlobServiceClient azureBlobServiceClient, Flux<String> blobNames) throws IOException {

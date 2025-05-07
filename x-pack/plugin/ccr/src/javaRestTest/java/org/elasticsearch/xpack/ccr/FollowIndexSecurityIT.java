@@ -161,7 +161,7 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
             e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
-            assertThat(indexExists(unallowedIndex), is(false));
+            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             // User does have manage_follow_index index privilege on 'allowed' index,
@@ -176,7 +176,7 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
                 )
             );
             // Verify that the follow index has not been created and no node tasks are running
-            assertThat(indexExists(unallowedIndex), is(false));
+            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(getCcrNodeTasks(), empty()));
 
             followIndex(adminClient(), "leader_cluster", unallowedIndex, unallowedIndex);
@@ -242,7 +242,7 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
         try {
             assertBusy(() -> ensureYellow(allowedIndex), 30, TimeUnit.SECONDS);
             assertBusy(() -> verifyDocuments(allowedIndex, 5, "*:*"), 30, TimeUnit.SECONDS);
-            assertThat(indexExists(disallowedIndex), is(false));
+            assertThat(indexExists(adminClient(), disallowedIndex), is(false));
             withMonitoring(logger, () -> {
                 assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
                 assertBusy(AbstractCCRRestTestCase::verifyAutoFollowMonitoring, 120L, TimeUnit.SECONDS);
@@ -350,11 +350,11 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
                         """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
-                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(leaderClient, dataStreamName, 1);
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
             assertBusy(() -> {
-                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDataStream(client(), dataStreamName, 1);
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
@@ -366,9 +366,10 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
             assertOK(client().performRequest(new Request("POST", "/" + dataStreamName + "/_rollover")));
             // Unfollow .ds-logs-eu-monitor1-000001,
             // which is now possible because this index can now be closed as it is no longer the write index.
-            pauseFollow(backingIndexName(dataStreamName, 1));
-            closeIndex(backingIndexName(dataStreamName, 1));
-            unfollow(backingIndexName(dataStreamName, 1));
+            final String writeIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            pauseFollow(writeIndex);
+            closeIndex(writeIndex);
+            unfollow(writeIndex);
         }
     }
 

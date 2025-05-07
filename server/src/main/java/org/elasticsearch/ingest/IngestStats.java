@@ -105,6 +105,7 @@ public record IngestStats(
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
+            // TODO: This now behaves differently to NodeIndicesStats. Once we've agreed an approach, we should make them consistent.
             if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
                 pipelineStat.projectId().writeTo(out);
             }

@@ -161,13 +161,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         );
         var resolution = new Batch<>(
             "Resolution",
-            /*
-             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
-             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
-             * attempts to resolve this reference.
-             */
-            new ImplicitCasting(),
             new ResolveRefs(),
+            new ImplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
@@ -511,7 +506,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+            if (Resolvables.resolved(groupings) == false || Resolvables.resolved(aggregates) == false) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -522,17 +517,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
                 List<NamedExpression> newAggregates = new ArrayList<>();
-                for (NamedExpression ag : aggregate.aggregates()) {
-                    var agg = (NamedExpression) ag.transformUp(UnresolvedAttribute.class, ua -> {
-                        Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                        if (maybeResolved != null) {
-                            changed.set(true);
-                            ne = maybeResolved;
-                        }
-                        return ne;
-                    });
-                    newAggregates.add(agg);
+                // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
+                // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
+                // resolved, and verifier doesn't report field/reference/column not found errors for them.
+                boolean groupingResolved = Resolvables.resolved(groupings);
+                int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
+                for (int i = 0; i < aggregates.size(); i++) {
+                    NamedExpression maybeResolvedAgg = aggregates.get(i);
+                    if (i < size) { // Skip resolving references to groupings in the aggregations if the groupings are not resolved yet.
+                        maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
+                            Expression ne = ua;
+                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
+                            // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
+                            // to get resolved in the next iteration.
+                            // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                            if (groupingResolved || maybeResolved.resolved()) {
+                                changed.set(true);
+                                ne = maybeResolved;
+                            }
+                            return ne;
+                        });
+                    }
+                    newAggregates.add(maybeResolvedAgg);
                 }
 
                 // TODO: remove this when Stats interface is removed
@@ -1479,7 +1486,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                List<String> types = imf.getTypesToIndices().keySet().stream().toList();
                 return new UnsupportedAttribute(
                     fa.source(),
                     fa.name(),

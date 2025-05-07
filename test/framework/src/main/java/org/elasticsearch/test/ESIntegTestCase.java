@@ -889,7 +889,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+                new GetDataStreamAction.Request(SAFE_AWAIT_TIMEOUT, new String[] { dataStreamName })
             )
         );
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -1802,7 +1802,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {
-            safeAwait(operation);
+            safeAwait(operation, TEST_REQUEST_TIMEOUT);
         }
         if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!

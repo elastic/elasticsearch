@@ -145,7 +145,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     name = "allow_wildcard",
                     type = "boolean",
                     valueHint = { "false", "true" },
-                    description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false. "
+                    description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "analyzer",

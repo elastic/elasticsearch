@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -215,7 +216,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
-                service.checkModelConfig(model, storeModelListener);
+                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service instanceof ElasticsearchInternalService)
+                    .validate(service, model, timeout, storeModelListener);
             }
         });
 

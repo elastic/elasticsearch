@@ -8,25 +8,25 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+abstract class SearchPhase {
     private final String name;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
     }
+
+    protected abstract void run();
 
     /**
      * Returns the phases name.
@@ -36,11 +36,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     }
 
     public void start() {
-        try {
-            run();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        run();
     }
 
     private static String makeMissingShardsError(StringBuilder missingShards) {
@@ -85,7 +81,8 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             ? searchPhaseResult.queryResult()
             : searchPhaseResult.rankFeatureResult();
         if (phaseResult != null
-            && phaseResult.hasSearchContext()
+            && (phaseResult.hasSearchContext()
+                || (phaseResult instanceof QuerySearchResult q && q.isPartiallyReduced() && q.getContextId() != null))
             && context.getRequest().scroll() == null
             && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
             try {

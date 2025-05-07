@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -33,7 +34,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -137,7 +138,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public void chunkedInfer(
             Model model,
             @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
@@ -166,23 +167,20 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
-                for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
-                }
-                results.add(
-                    new ChunkedInferenceEmbedding(
-                        List.of(
-                            new EmbeddingResults.Chunk(
-                                new SparseEmbeddingResults.Embedding(tokens, false),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
-                        )
-                    )
-                );
+            for (ChunkInferenceInput chunkInferenceInput : inputs) {
+                List<ChunkedInput> chunkedInput = chunkInputs(chunkInferenceInput);
+                List<SparseEmbeddingResults.Chunk> chunks = chunkedInput.stream().map(c -> {
+                    var tokens = new ArrayList<WeightedToken>();
+                    for (int i = 0; i < 5; i++) {
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(c.input(), i)));
+                    }
+                    var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
+                    return new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(c.startOffset(), c.endOffset()));
+                }).toList();
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }

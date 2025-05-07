@@ -10,19 +10,24 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle.Template> {
+public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTestCase<DataStreamLifecycle.Template> {
 
     @Override
     protected Writeable.Reader<DataStreamLifecycle.Template> instanceReader() {
@@ -31,33 +36,74 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
 
     @Override
     protected DataStreamLifecycle.Template createTestInstance() {
-        return randomLifecycleTemplate();
+        return randomBoolean() ? randomDataLifecycleTemplate() : randomFailuresLifecycleTemplate();
     }
 
     @Override
     protected DataStreamLifecycle.Template mutateInstance(DataStreamLifecycle.Template instance) throws IOException {
+        var lifecycleTarget = instance.lifecycleType();
         var enabled = instance.enabled();
         var retention = instance.dataRetention();
         var downsampling = instance.downsampling();
-        switch (randomInt(2)) {
-            case 0 -> enabled = enabled == false;
-            case 1 -> retention = randomValueOtherThan(retention, DataStreamLifecycleTemplateTests::randomRetention);
-            case 2 -> downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTemplateTests::randomDownsampling);
+        switch (randomInt(3)) {
+            case 0 -> {
+                lifecycleTarget = lifecycleTarget == DataStreamLifecycle.LifecycleType.DATA
+                    ? DataStreamLifecycle.LifecycleType.FAILURES
+                    : DataStreamLifecycle.LifecycleType.DATA;
+                if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
+                    downsampling = ResettableValue.undefined();
+                }
+            }
+            case 1 -> enabled = enabled == false;
+            case 2 -> retention = randomValueOtherThan(retention, DataStreamLifecycleTemplateTests::randomRetention);
+            case 3 -> {
+                downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTemplateTests::randomDownsampling);
+                if (downsampling.get() != null) {
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                }
+            }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new DataStreamLifecycle.Template(enabled, retention, downsampling);
+        return new DataStreamLifecycle.Template(lifecycleTarget, enabled, retention, downsampling);
     }
 
-    @Override
-    protected DataStreamLifecycle.Template doParseInstance(XContentParser parser) throws IOException {
-        return DataStreamLifecycle.Template.fromXContent(parser);
+    public void testDataLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle.Template lifecycle = randomDataLifecycleTemplate();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.Template.dataLifecycleTemplateFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
+    }
+
+    public void testFailuresLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle.Template lifecycle = randomFailuresLifecycleTemplate();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.Template.failuresLifecycleTemplateFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
     }
 
     public void testInvalidDownsamplingConfiguration() {
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -80,7 +126,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -100,7 +146,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -120,14 +166,14 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder().downsampling((List.of())).buildTemplate()
+                () -> DataStreamLifecycle.dataLifecycleBuilder().downsampling((List.of())).buildTemplate()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         Stream.iterate(1, i -> i * 2)
                             .limit(12)
@@ -147,7 +193,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -165,8 +211,37 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         }
     }
 
-    public static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(randomBoolean(), randomRetention(), randomDownsampling());
+    public static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
+        return DataStreamLifecycle.createDataLifecycleTemplate(randomBoolean(), randomRetention(), randomDownsampling());
+    }
+
+    public void testInvalidLifecycleConfiguration() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataStreamLifecycle.Template(
+                DataStreamLifecycle.LifecycleType.FAILURES,
+                randomBoolean(),
+                randomBoolean() ? null : DataStreamLifecycleTests.randomPositiveTimeValue(),
+                DataStreamLifecycleTests.randomDownsampling()
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("Failure store lifecycle does not support downsampling, please remove the downsampling configuration.")
+        );
+    }
+
+    /**
+     * Failure store lifecycle doesn't support downsampling, this random lifecycle generator never defines
+     * downsampling.
+     */
+    public static DataStreamLifecycle.Template randomFailuresLifecycleTemplate() {
+        return new DataStreamLifecycle.Template(
+            DataStreamLifecycle.LifecycleType.FAILURES,
+            randomBoolean(),
+            randomRetention(),
+            ResettableValue.undefined()
+        );
     }
 
     private static ResettableValue<TimeValue> randomRetention() {

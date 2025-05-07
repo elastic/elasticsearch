@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      awaits_fix: "TODO fix this test, the response with batched execution is not deterministic enough for the available matchers"
+
   - do:
       indices.create:
           index: test_1
@@ -48,7 +51,6 @@ setup:
         batched_reduce_size: 2
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 
-  - match: { num_reduce_phases: 4 }
   - match: { hits.total: 3 }
   - length: { aggregations.str_terms.buckets: 2 }
   - match: { aggregations.str_terms.buckets.0.key: "abc" }

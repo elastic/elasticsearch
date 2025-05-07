@@ -53,10 +53,14 @@ public abstract class SerializationTestCase extends ESTestCase {
         return new BlockStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), blockFactory);
     }
 
-    @SuppressWarnings("unchecked")
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        return serializeDeserializeBlockWithVersion(origBlock, version);
+    }
+
+    @SuppressWarnings("unchecked")
+    <T extends Block> T serializeDeserializeBlockWithVersion(T origBlock, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             out.setTransportVersion(version);
             Block.writeTypedBlock(origBlock, out);
             try (BlockStreamInput in = blockStreamInput(out)) {

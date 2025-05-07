@@ -12,7 +12,6 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -179,14 +178,12 @@ public class ResolvedIndices {
             : indexNameExpressionResolver.concreteIndices(clusterState, localIndices, startTimeInMillis);
 
         // prevent using selectors with remote cluster patterns
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            for (final var indicesPerRemoteClusterAlias : remoteClusterIndices.entrySet()) {
-                final String[] indices = indicesPerRemoteClusterAlias.getValue().indices();
-                if (indices != null) {
-                    for (final String index : indices) {
-                        if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
-                            throw new InvalidIndexNameException(index, "Selectors are not yet supported on remote cluster patterns");
-                        }
+        for (final var indicesPerRemoteClusterAlias : remoteClusterIndices.entrySet()) {
+            final String[] indices = indicesPerRemoteClusterAlias.getValue().indices();
+            if (indices != null) {
+                for (final String index : indices) {
+                    if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
+                        throw new InvalidIndexNameException(index, "Selectors are not yet supported on remote cluster patterns");
                     }
                 }
             }

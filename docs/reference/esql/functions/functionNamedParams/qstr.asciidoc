@@ -21,7 +21,7 @@ default_operator | [keyword] | Default boolean logic used to interpret text in t
 analyzer | [keyword] | Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the default_field.
 fuzzy_max_expansions | [integer] | Maximum number of terms to which the query expands for fuzzy matching. Defaults to 50.
 quote_analyzer | [keyword] | Analyzer used to convert quoted text in the query string into tokens. Defaults to the search_quote_analyzer mapped for the default_field.
-allow_wildcard | [boolean] | If true, the query attempts to analyze wildcard terms in the query string. Defaults to false. 
+allow_wildcard | [boolean] | If true, the query attempts to analyze wildcard terms in the query string. Defaults to false.
 boost | [float] | Floating point number used to decrease or increase the relevance scores of the query.
 quote_field_suffix | [keyword] | Suffix appended to quoted text in the query string.
 enable_position_increments | [boolean] | If true, enable position increments in queries constructed from a query_string search. Defaults to true.

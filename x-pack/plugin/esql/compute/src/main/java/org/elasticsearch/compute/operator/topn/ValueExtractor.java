@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -40,6 +41,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
+            case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

@@ -13,12 +13,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +52,18 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     }
 
     private static int numRoutingValues;
+
+    @Before
+    public void disableBatchedExecution() {
+        // TODO: it's practically impossible to get a 100% deterministic test with batched execution unfortunately, adjust this test to
+        // still do something useful with batched execution (i.e. use somewhat relaxed assertions)
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

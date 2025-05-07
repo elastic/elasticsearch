@@ -48,4 +48,5 @@ Snapshot/Restore::
 Ingest Node::
 * Improve memory aspects of enrich cache {es-pull}120256[#120256] (issues: {es-issue}96050[#96050], {es-issue}120021[#120021])
 
-
+* `VALUES` aggregate function can run for a long, long time when collecting many, many groups. Hundreds of thousands of groups can run on one thread for many minutes and millions of groups run for days. It is O(n^2^) with the number of groups. These will not respond to the tasks cancellation API the whole time. Fixed by {es-pull}123073[#123073] and available in 8.16.5, 8.17.3, 8.18.0, and all releases after that.
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

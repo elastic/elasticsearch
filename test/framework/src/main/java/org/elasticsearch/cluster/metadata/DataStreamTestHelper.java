@@ -371,7 +371,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -496,12 +496,7 @@ public final class DataStreamTestHelper {
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .template(
-                    Template.builder()
-                        .dataStreamOptions(
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? createDataStreamOptionsTemplate(storeFailures) : null
-                        )
-                )
+                .template(Template.builder().dataStreamOptions(createDataStreamOptionsTemplate(storeFailures)))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
@@ -517,7 +512,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE.equals(storeFailures)) {
+            if (Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -599,7 +594,7 @@ public final class DataStreamTestHelper {
         builder.put(dataStreamBuilder.build());
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
+    public static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
         Settings.Builder b = Settings.builder()
             .put(settings)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -798,12 +793,10 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
-    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
-        if (failureStore == null) {
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
             return DataStreamOptions.Template.EMPTY;
         }
-        return new DataStreamOptions.Template(
-            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
-        );
+        return new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(failureStoreEnabled).buildTemplate());
     }
 }

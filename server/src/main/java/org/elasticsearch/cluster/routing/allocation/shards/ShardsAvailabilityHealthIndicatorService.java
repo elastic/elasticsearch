@@ -299,7 +299,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
-            + "shard limit. ",
+            + "shard limit.",
         "Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
@@ -316,7 +316,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_index_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the index shard limit. ",
+                        + "] tier has reached the index shard limit.",
                     "Increase the values for the ["
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] index setting on each index or add more nodes to the target tiers.",
@@ -347,7 +347,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_cluster_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the cluster shard limit. ",
+                        + "] tier has reached the cluster shard limit.",
                     "Increase the values for the ["
                         + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] cluster setting or add more nodes to the target tiers.",
@@ -395,7 +395,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
-            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
         "Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
             + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "

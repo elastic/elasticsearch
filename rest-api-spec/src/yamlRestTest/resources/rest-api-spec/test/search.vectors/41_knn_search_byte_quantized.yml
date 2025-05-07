@@ -611,3 +611,295 @@ setup:
   - match: { hits.hits.0._id: "1"}
   - match: { hits.hits.1._id: "2"}
   - match: { hits.hits.2._id: "3"}
+---
+"Test index configured rescore vector":
+  - requires:
+      cluster_features: ["mapper.dense_vector.rescore_vector"]
+      reason: Needs rescore_vector feature
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: int8_rescore_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 4
+                similarity: max_inner_product
+                index_options:
+                  type: int8_hnsw
+                  rescore_vector:
+                    oversample: 1.5
+
+  - do:
+      bulk:
+        index: int8_rescore_hnsw
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "vector":  [230.0, 300.33, -34.8988, 15.555] }
+          { "index": {"_id": "2"}}
+          { "vector":  [-0.5, 100.0, -13, 14.8] }
+          { "index": {"_id": "3"}}
+          { "vector":  [0.5, 111.3, -13.0, 14.8] }
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_hnsw
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [-0.5, 90.0, -10, 14.8]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }
+---
+"Test index configured rescore vector updateable and settable to 0":
+  - requires:
+      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
+      reason: Needs rescore_zero_vector feature
+
+  - do:
+      indices.create:
+        index: int8_rescore_0_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index_options:
+                  type: int8_hnsw
+                  rescore_vector:
+                    oversample: 0
+
+  - do:
+      indices.create:
+        index: int8_rescore_update_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index_options:
+                  type: int8_hnsw
+                  rescore_vector:
+                    oversample: 1
+
+  - do:
+      indices.put_mapping:
+        index: int8_rescore_update_hnsw
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              index_options:
+                type: int8_hnsw
+                rescore_vector:
+                  oversample: 0
+
+  - do:
+      indices.get_mapping:
+        index: int8_rescore_update_hnsw
+
+  - match: { .int8_rescore_update_hnsw.mappings.properties.vector.index_options.rescore_vector.oversample: 0 }
+---
+"Test index configured rescore vector score consistency":
+  - requires:
+      cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
+      reason: Needs rescore_zero_vector feature
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: int8_rescore_zero_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                similarity: max_inner_product
+                dims: 4
+                index_options:
+                  type: int8_hnsw
+                  rescore_vector:
+                    oversample: 0
+
+  - do:
+      bulk:
+        index: int8_rescore_zero_hnsw
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "vector":  [230.0, 300.33, -34.8988, 15.555] }
+          { "index": {"_id": "2"}}
+          { "vector":  [-0.5, 100.0, -13, 14.8] }
+          { "index": {"_id": "3"}}
+          { "vector":  [0.5, 111.3, -13.0, 14.8] }
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_zero_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: raw_score0 }
+  - set: { hits.hits.1._score: raw_score1 }
+  - set: { hits.hits.2._score: raw_score2 }
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_zero_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 2
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: override_score0 }
+  - set: { hits.hits.1._score: override_score1 }
+  - set: { hits.hits.2._score: override_score2 }
+
+  - do:
+      indices.put_mapping:
+        index: int8_rescore_zero_hnsw
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              similarity: max_inner_product
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                rescore_vector:
+                  oversample: 2
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_zero_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: default_rescore0 }
+  - set: { hits.hits.1._score: default_rescore1 }
+  - set: { hits.hits.2._score: default_rescore2 }
+
+  - do:
+      indices.put_mapping:
+        index: int8_rescore_zero_hnsw
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              similarity: max_inner_product
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                rescore_vector:
+                  oversample: 0
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_zero_hnsw
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [-0.5, 90.0, -10, 14.8]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $override_score0 }
+  - match: { hits.hits.0._score: $default_rescore0 }
+  - match: { hits.hits.1._score: $override_score1 }
+  - match: { hits.hits.1._score: $default_rescore1 }
+  - match: { hits.hits.2._score: $override_score2 }
+  - match: { hits.hits.2._score: $default_rescore2 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: int8_rescore_zero_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8]
+            k: 3
+            num_candidates: 3
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $raw_score0 }
+  - match: { hits.hits.1._score: $raw_score1 }
+  - match: { hits.hits.2._score: $raw_score2 }

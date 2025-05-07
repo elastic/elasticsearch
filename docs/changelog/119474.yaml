@@ -1,5 +1,0 @@
-pr: 119474
-summary: "Add ES|QL cross-cluster query telemetry collection"
-area: ES|QL
-type: enhancement
-issues: []

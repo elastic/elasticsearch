@@ -384,7 +384,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {

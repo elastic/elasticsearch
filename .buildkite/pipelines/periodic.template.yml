@@ -217,7 +217,7 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.19" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

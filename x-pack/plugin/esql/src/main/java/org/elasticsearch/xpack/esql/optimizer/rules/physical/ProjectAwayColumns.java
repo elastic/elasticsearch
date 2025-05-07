@@ -41,7 +41,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
-        Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
+        AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
         // This will require updating should we choose to have non-unary execution plans in the future.
         return plan.transformDown(currentPlanNode -> {
@@ -57,7 +57,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        List<Attribute> output = new ArrayList<>(requiredAttrBuilder.build());
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
@@ -79,9 +79,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     }
                 }
             } else {
-                AttributeSet childOutput = currentPlanNode.inputSet();
-                AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
-                requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.references()));
+                AttributeSet.Builder addedAttrBuilder = currentPlanNode.outputSet().asBuilder();
+                addedAttrBuilder.removeIf(currentPlanNode.inputSet()::contains);
+                requiredAttrBuilder.removeIf(addedAttrBuilder::contains);
+                requiredAttrBuilder.addAll(currentPlanNode.references());
             }
             return currentPlanNode;
         });

@@ -93,6 +93,7 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -134,6 +135,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
@@ -2402,7 +2404,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             client,
                             null,
                             DocumentParsingProvider.EMPTY_INSTANCE,
-                            FailureStoreMetrics.NOOP
+                            FailureStoreMetrics.NOOP,
+                            new FeatureService(List.of()) {
+                                @Override
+                                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                                }
+                            }
                         ),
                         mockFeatureService,
                         client,

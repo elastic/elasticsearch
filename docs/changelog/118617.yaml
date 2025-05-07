@@ -1,5 +1,0 @@
-pr: 118617
-summary: Add support for `sparse_vector` queries against `semantic_text` fields
-area: "Search"
-type: enhancement
-issues: []

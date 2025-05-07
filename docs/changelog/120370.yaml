@@ -1,6 +1,0 @@
-pr: 120370
-summary: "Merge field mappers when updating mappings with [subobjects:false]"
-area: Mapping
-type: bug
-issues:
- - 120216

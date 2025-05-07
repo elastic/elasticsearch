@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -93,6 +95,8 @@ public class ComputeService {
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
 
+    private volatile DataPartitioning defaultDataPartitioning;
+
     @SuppressWarnings("this-escape")
     public ComputeService(
         SearchService searchService,
@@ -123,6 +127,7 @@ public class ComputeService {
             dataNodeComputeHandler
         );
         this.exchangeService = exchangeService;
+        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
     }
 
     public void execute(
@@ -274,7 +279,7 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getProfiles());
                             }, e -> {
-                                if (configuration.allowPartialResults()) {
+                                if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
@@ -292,6 +297,10 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
+                    }
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,
@@ -374,6 +383,12 @@ public class ComputeService {
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            context.foldCtx(),
+            contexts,
+            searchService.getIndicesService().getAnalysis(),
+            defaultDataPartitioning
+        );
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -388,7 +403,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                physicalOperationProviders,
                 contexts
             );
 

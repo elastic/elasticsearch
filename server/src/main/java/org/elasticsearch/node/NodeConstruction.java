@@ -696,6 +696,8 @@ class NodeConstruction {
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -707,7 +709,8 @@ class NodeConstruction {
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             documentParsingProvider,
-            failureStoreMetrics
+            failureStoreMetrics,
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -786,8 +789,6 @@ class NodeConstruction {
         modules.add(loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions));
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
@@ -935,6 +936,8 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -956,7 +959,8 @@ class NodeConstruction {
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
             taskManager,
-            slowLogFieldProvider
+            slowLogFieldProvider,
+            indexingLimits
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -989,7 +993,6 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
 
         ActionModule actionModule = new ActionModule(

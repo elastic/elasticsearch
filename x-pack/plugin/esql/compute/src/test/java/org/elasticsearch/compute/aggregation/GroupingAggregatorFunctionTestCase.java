@@ -142,9 +142,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
      */
     private boolean shouldRandomizeBlocks() {
         return Arrays.stream(Thread.currentThread().getStackTrace())
-            .noneMatch(e ->
-                e.getClassName().equals(OperatorTestCase.class.getName())
-                && e.getMethodName().equals("testSimpleCircuitBreaking")
+            .noneMatch(
+                e -> e.getClassName().equals(OperatorTestCase.class.getName()) && e.getMethodName().equals("testSimpleCircuitBreaking")
             );
     }
 

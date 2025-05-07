@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.authc.service;
+package org.elasticsearch.xpack.core.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,9 +14,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -51,7 +51,6 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     private final ServiceAccountTokenId tokenId;
     private final SecureString secret;
 
-    // pkg private for testing
     ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
         tokenId = new ServiceAccountTokenId(accountId, tokenName);
         this.secret = Objects.requireNonNull(secret, "service account token secret cannot be null");

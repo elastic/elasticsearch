@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.authc.service;
+package org.elasticsearch.xpack.core.security.authc.service;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
@@ -24,9 +24,21 @@ public interface ServiceAccountTokenStore {
         private final boolean success;
         private final TokenSource tokenSource;
 
-        public StoreAuthenticationResult(boolean success, TokenSource tokenSource) {
+        private StoreAuthenticationResult(TokenSource tokenSource, boolean success) {
             this.success = success;
             this.tokenSource = tokenSource;
+        }
+
+        public static StoreAuthenticationResult successful(TokenSource tokenSource) {
+            return new StoreAuthenticationResult(tokenSource, true);
+        }
+
+        public static StoreAuthenticationResult failed(TokenSource tokenSource) {
+            return new StoreAuthenticationResult(tokenSource, false);
+        }
+
+        public static StoreAuthenticationResult fromBooleanResult(TokenSource tokenSource, boolean result) {
+            return result ? successful(tokenSource) : failed(tokenSource);
         }
 
         public boolean isSuccess() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
@@ -242,18 +244,26 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
         // `10s` interval downsample index, downsample it to `20m` and replace it in the data stream instead of the `10s` one.
-        updateDataLifecycle(
-            dataStreamName,
-            DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(
-                    List.of(
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("20m"))
-                        )
+        DataStreamLifecycle lifecycle1 = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsampling(
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("20m"))
                     )
                 )
-                .build()
+            )
+            .build();
+        assertAcked(
+            client().execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                new PutDataStreamLifecycleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName },
+                    lifecycle1
+                )
+            )
         );
 
         String thirtySecondsDownsampleIndex = "downsample-20m-" + firstGenerationBackingIndex;

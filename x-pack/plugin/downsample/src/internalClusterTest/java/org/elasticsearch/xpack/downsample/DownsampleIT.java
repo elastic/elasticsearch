@@ -30,7 +30,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-
+        // Set up template
         putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
             {
               "properties": {
@@ -47,6 +47,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
             """, null, null);
 
+        // Create data stream by indexing documents
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
@@ -62,8 +63,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
         };
         bulkIndex(dataStreamName, sourceSupplier, 100);
+        // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-
         List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
         String sourceIndex = backingIndices.get(0);
         String interval = "5m";
@@ -82,6 +83,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             )
         );
 
+        // Wait for downsampling to complete
         SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             final var indexMetadata = clusterState.metadata().getProject().index(targetIndex);
             if (indexMetadata == null) {

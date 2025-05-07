@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -173,20 +172,6 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                 .build()
         );
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
-    }
-
-    void updateDataLifecycle(String dataStreamName, DataStreamLifecycle lifecycle) throws IOException {
-        assertAcked(
-            client().execute(
-                PutDataStreamLifecycleAction.INSTANCE,
-                new PutDataStreamLifecycleAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    new String[] { dataStreamName },
-                    lifecycle
-                )
-            )
-        );
     }
 
     /**

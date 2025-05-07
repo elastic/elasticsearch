@@ -194,8 +194,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     }
 
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
-        long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
+        long earliestNextBatchStartTime = lastBatchStartTimeNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - nowNS));
         return timeValueNanos(waitTime);
     }
 
@@ -271,7 +271,6 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                 return this;
             }
 
-            long remainingDelay = scheduled.getDelay(TimeUnit.NANOSECONDS);
             // Actually reschedule the task
             if (scheduled == null || false == scheduled.cancel()) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
@@ -279,6 +278,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                 return this;
             }
 
+            long remainingDelay = scheduled.getDelay(TimeUnit.NANOSECONDS);
             /* Strangely enough getting here doesn't mean that you actually
              * cancelled the request, just that you probably did. If you stress
              * test it you'll find that requests sneak through. So each request

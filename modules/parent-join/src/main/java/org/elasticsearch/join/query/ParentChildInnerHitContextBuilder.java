@@ -70,6 +70,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(
                 name,
+                query,
                 context,
                 typeName,
                 fetchChildInnerHits,
@@ -89,8 +90,15 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final boolean fetchChildInnerHits;
         private final Joiner joiner;
 
-        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits, Joiner joiner) {
-            super(name, context);
+        JoinFieldInnerHitSubContext(
+            String name,
+            QueryBuilder query,
+            SearchContext context,
+            String typeName,
+            boolean fetchChildInnerHits,
+            Joiner joiner
+        ) {
+            super(name, query, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
             this.joiner = joiner;

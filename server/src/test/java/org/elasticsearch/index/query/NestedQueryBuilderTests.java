@@ -278,7 +278,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             innerQueryBuilder,
             RandomPicks.randomFrom(random(), ScoreMode.values())
         );
-        InnerHitsRewriteContext rewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), context::nowInMillis);
+        PerDocumentQueryRewriteContext rewriteContext = new PerDocumentQueryRewriteContext(context.getParserConfig(), context::nowInMillis);
         QueryBuilder queryBuilder = Rewriteable.rewrite(nestedQueryBuilder, rewriteContext, true);
         assertTrue(queryBuilder instanceof NestedQueryBuilder);
         NestedQueryBuilder rewritten = (NestedQueryBuilder) queryBuilder;

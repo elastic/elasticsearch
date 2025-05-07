@@ -1,0 +1,5 @@
+pr: 121405
+summary: Refactor `InnerHitsRewriteContext` into a more generic `PerDocumentQueryRewriteContext`
+area: Vector Search
+type: enhancement
+issues: []

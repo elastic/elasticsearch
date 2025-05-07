@@ -33,8 +33,6 @@ import org.elasticsearch.compute.data.$Type$Block;
 $elseif(BytesRef)$
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 $endif$
 import org.elasticsearch.compute.data.IntVector;

@@ -19,22 +19,27 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
 
 import java.util.Locale;
+import java.util.Optional;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.ELASTIC_NAME;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.USER_NOT_FOUND_MESSAGE;
 
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ActionResponse.Empty> {
 
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/xpack/security/user/change_password");
     private final Settings settings;
     private final NativeUsersStore nativeUsersStore;
-    private final FileUserPasswdStore fileUserPasswdStore;
+    private final Realms realms;
 
     @Inject
     public TransportChangePasswordAction(
@@ -42,12 +47,12 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         TransportService transportService,
         ActionFilters actionFilters,
         NativeUsersStore nativeUsersStore,
-        FileUserPasswdStore fileUserPasswdStore
+        Realms realms
     ) {
         super(TYPE.name(), transportService, actionFilters, ChangePasswordRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
-        this.fileUserPasswdStore = fileUserPasswdStore;
+        this.realms = realms;
     }
 
     @Override
@@ -71,24 +76,57 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             return;
         }
 
-        if (fileUserPasswdStore.userExists(request.username())) {
-            // File realm users cannot be managed through this API.
-            // unresolved q: is it possible a username is repeated across file and native realms, such that stopping here is incorrect?
-            logger.debug(() -> format("failed to change password for user [%s]", request.username()));
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError(
-                "user ["
-                    + username
-                    + "] is file-based and cannot be managed via this API."
-                    + (ELASTIC_NAME.equalsIgnoreCase(username)
-                        ? " To update the '" + ELASTIC_NAME + "' user in a cloud deployment, use the console."
-                        : "")
-            );
-            listener.onFailure(validationException);
-            return;
-        }
+        // check if user exists in the native realm
+        nativeUsersStore.getUser(username, new ActionListener<>() {
+            @Override
+            public void onResponse(User user) {
+                Optional<Realm> realm = realms.stream().filter(t -> FileRealmSettings.TYPE.equalsIgnoreCase(t.type())).findAny();
+                if (user == null && realm.isPresent()) {
+                    // we should check if this request is mistakenly trying to reset a file realm user
+                    FileRealm fileRealm = (FileRealm) realm.get();
+                    fileRealm.lookupUser(username, new ActionListener<>() {
+                        @Override
+                        public void onResponse(User user) {
+                            if (user != null) {
+                                ValidationException validationException = new ValidationException();
+                                validationException.addValidationError(
+                                    "user ["
+                                        + username
+                                        + "] is file-based and cannot be managed via this API."
+                                        + (ELASTIC_NAME.equalsIgnoreCase(username)
+                                            ? " To update the '" + ELASTIC_NAME + "' user in a cloud deployment, use the console."
+                                            : "")
+                                );
+                                onFailure(validationException);
+                            } else {
+                                onFailure(createUserNotFoundException());
+                            }
+                        }
 
-        nativeUsersStore.changePassword(request, listener.safeMap(v -> ActionResponse.Empty.INSTANCE));
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } else if (user == null) {
+                    listener.onFailure(createUserNotFoundException());
+                } else {
+                    // safe to proceed
+                    nativeUsersStore.changePassword(request, listener.safeMap(v -> ActionResponse.Empty.INSTANCE));
+                }
+            }
 
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+
+    }
+
+    private static ValidationException createUserNotFoundException() {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationError(USER_NOT_FOUND_MESSAGE);
+        return validationException;
     }
 }

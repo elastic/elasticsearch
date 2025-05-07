@@ -26,13 +26,15 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
@@ -42,6 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -58,8 +61,9 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
             .build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
+
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
+
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -74,7 +78,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms()
         );
         // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
         ChangePasswordRequest request = new ChangePasswordRequest();
@@ -109,7 +113,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             .build();
         ElasticUser elasticUser = new ElasticUser(true);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
+
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -124,12 +128,20 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms(mockFileRealm(elasticUser))
         );
-        Mockito.when(fileUserPasswdStore.userExists(Mockito.eq(elasticUser.principal()))).thenReturn(true);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(elasticUser.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(null);
+            return null;
+        }).when(usersStore).getUser(eq(request.username()), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
@@ -148,7 +160,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(ValidationException.class));
         assertThat(throwableRef.get().getMessage(), containsString("is file-based and cannot be managed via this API"));
-        verifyNoMoreInteractions(usersStore);
+        verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
     }
 
     public void testValidUser() {
@@ -162,7 +174,6 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     private void testValidUser(User user) {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -183,13 +194,21 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(user);
+            return null;
+        }).when(usersStore).getUser(eq(request.username()), anyActionListener());
         Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
         TransportChangePasswordAction action = new TransportChangePasswordAction(
             passwordHashingSettings,
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms()
         );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
@@ -214,7 +233,6 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     public void testWithPasswordThatsNotAHash() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(randomAlphaOfLengthBetween(14, 20).toCharArray());
@@ -236,7 +254,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms()
         );
         action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
@@ -263,7 +281,6 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Hasher hasher = getFastStoredHashAlgoForTests();
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -275,6 +292,14 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(usersStore).changePassword(eq(request), anyActionListener());
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(user);
+            return null;
+        }).when(usersStore).getUser(eq(request.username()), anyActionListener());
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         TransportService transportService = new TransportService(
@@ -296,7 +321,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms()
         );
         action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
@@ -320,7 +345,6 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        FileUserPasswdStore fileUserPasswdStore = mock(FileUserPasswdStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
@@ -333,6 +357,14 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             listener.onFailure(e);
             return null;
         }).when(usersStore).changePassword(eq(request), anyActionListener());
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(user);
+            return null;
+        }).when(usersStore).getUser(eq(request.username()), anyActionListener());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -348,7 +380,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             transportService,
             mock(ActionFilters.class),
             usersStore,
-            fileUserPasswdStore
+            mockRealms()
         );
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
@@ -368,5 +400,31 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).changePassword(eq(request), anyActionListener());
+    }
+
+    private static FileRealm mockFileRealm(User fileRealmUser) {
+
+        FileRealm fileRealm = Mockito.mock(FileRealm.class);
+        Mockito.when(fileRealm.type()).thenReturn("file");
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(fileRealmUser);
+            return null;
+        }).when(fileRealm).lookupUser(Mockito.any(String.class), anyActionListener());
+
+        return fileRealm;
+    }
+
+    private static Realms mockRealms() {
+        return mockRealms(mockFileRealm(null));
+    }
+
+    private static Realms mockRealms(FileRealm realm) {
+        Realms realms = mock(Realms.class);
+        Mockito.when(realms.stream()).thenReturn(realm == null ? Stream.of() : Stream.of(realm));
+        return realms;
     }
 }

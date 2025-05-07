@@ -33,8 +33,13 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -53,7 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -285,7 +290,21 @@ public final class IndexPrivilege extends Privilege {
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, Set<IndexPrivilege>> CACHE = new ConcurrentHashMap<>();
+    static final Setting<Integer> CACHE_SIZE = Setting.intSetting(
+        "xpack.security.privilege.index.cache.size",
+        10_000,
+        Setting.Property.NodeScope
+    );
+    static final Setting<TimeValue> CACHE_TTL = Setting.timeSetting(
+        "xpack.security.privilege.index.cache.ttl",
+        TimeValue.timeValueHours(48),
+        Setting.Property.NodeScope
+    );
+
+    private static final Cache<Set<String>, Set<IndexPrivilege>> CACHE = CacheBuilder.<Set<String>, Set<IndexPrivilege>>builder()
+        .setExpireAfterAccess(CACHE_TTL.get(Settings.EMPTY))
+        .setMaximumWeight(CACHE_SIZE.get(Settings.EMPTY))
+        .build();
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -340,13 +359,17 @@ public final class IndexPrivilege extends Privilege {
      * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
      */
     public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
-        return CACHE.computeIfAbsent(names, (theName) -> {
-            if (theName.isEmpty()) {
-                return Set.of(NONE);
-            } else {
-                return resolve(theName);
-            }
-        });
+        try {
+            return CACHE.computeIfAbsent(names, (theName) -> {
+                if (theName.isEmpty()) {
+                    return Set.of(NONE);
+                } else {
+                    return resolve(theName);
+                }
+            });
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Nullable

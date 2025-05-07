@@ -82,21 +82,22 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
     private static int expectedTotalCountForIngestStats = 0;
 
     public void testIndicesStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
+        // Create two projects. We will use the default project as the third project in this test.
         createProject("project-1");
         createProject("project-2");
-        createProject("project-3");
+
         // Create and write data into a number of indices.
         // Some of the index names are used only in one project, some in two projects, some in all three.
         int numDocs1Only = createPopulatedIndex("project-1", "my-index-project-1-only");
         int numDocs2Only = createPopulatedIndex("project-2", "my-index-project-2-only");
-        int numDocs3Only = createPopulatedIndex("project-3", "my-index-project-3-only");
+        int numDocsDefaultOnly = createPopulatedIndex("default", "my-index-default-project-only");
         int numDocs1Of1And2 = createPopulatedIndex("project-1", "my-index-projects-1-and-2");
         int numDocs2Of1And2 = createPopulatedIndex("project-2", "my-index-projects-1-and-2");
-        int numDocs2Of2And3 = createPopulatedIndex("project-2", "my-index-projects-2-and-3");
-        int numDocs3Of2And3 = createPopulatedIndex("project-3", "my-index-projects-2-and-3");
+        int numDocs2Of2AndDefault = createPopulatedIndex("project-2", "my-index-projects-2-and-default");
+        int numDocsDefaultOf2AndDefault = createPopulatedIndex("default", "my-index-projects-2-and-default");
         int numDocs1All = createPopulatedIndex("project-1", "my-index-all-projects");
         int numDocs2All = createPopulatedIndex("project-2", "my-index-all-projects");
-        int numDocs3All = createPopulatedIndex("project-3", "my-index-all-projects");
+        int numDocsDefaultAll = createPopulatedIndex("default", "my-index-all-projects");
 
         String nodeId = findNodeId();
 
@@ -105,8 +106,8 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(
             totalCount,
             equalTo(
-                numDocs1Only + numDocs2Only + numDocs3Only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3 + numDocs3Of2And3
-                    + numDocs1All + numDocs2All + numDocs3All
+                numDocs1Only + numDocs2Only + numDocsDefaultOnly + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2AndDefault
+                    + numDocsDefaultOf2AndDefault + numDocs1All + numDocs2All + numDocsDefaultAll
             )
         );
 
@@ -119,20 +120,20 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         Set<String> expectedProjectIdAndIndexNames = Set.of(
             "project-1/my-index-project-1-only",
             "project-2/my-index-project-2-only",
-            "project-3/my-index-project-3-only",
+            "default/my-index-default-project-only",
             "project-1/my-index-projects-1-and-2",
             "project-2/my-index-projects-1-and-2",
-            "project-2/my-index-projects-2-and-3",
-            "project-3/my-index-projects-2-and-3",
+            "project-2/my-index-projects-2-and-default",
+            "default/my-index-projects-2-and-default",
             "project-1/my-index-all-projects",
             "project-2/my-index-all-projects",
-            "project-3/my-index-all-projects"
+            "default/my-index-all-projects"
         );
         assertThat(indexStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
         // ...and assert that the docs counts are correct for some of the indices:
         assertThat(ObjectPath.evaluate(indexStats, "project-1/my-index-project-1-only.docs.count"), equalTo(numDocs1Only));
-        assertThat(ObjectPath.evaluate(indexStats, "project-2/my-index-projects-2-and-3.docs.count"), equalTo(numDocs2Of2And3));
-        assertThat(ObjectPath.evaluate(indexStats, "project-3/my-index-all-projects.docs.count"), equalTo(numDocs3All));
+        assertThat(ObjectPath.evaluate(indexStats, "project-2/my-index-projects-2-and-default.docs.count"), equalTo(numDocs2Of2AndDefault));
+        assertThat(ObjectPath.evaluate(indexStats, "default/my-index-all-projects.docs.count"), equalTo(numDocsDefaultAll));
 
         // Get indices stats at shard level...
         Map<String, Object> shardStats = ObjectPath.evaluate(
@@ -146,40 +147,6 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(index1ShardStats, hasSize(1));
         // ...and assert that that is shard 0 and that the doc count is correct:
         assertThat(ObjectPath.evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1Only));
-    }
-
-    public void testIndicesStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
-        int numDocs1 = createPopulatedIndex(Metadata.DEFAULT_PROJECT_ID.id(), "my-index-1");
-        int numDocs2 = createPopulatedIndex(Metadata.DEFAULT_PROJECT_ID.id(), "my-index-2");
-        int numDocs3 = createPopulatedIndex(Metadata.DEFAULT_PROJECT_ID.id(), "my-index-3");
-
-        String nodeId = findNodeId();
-
-        // Get indices stats at index level...
-        Map<String, Object> indexStats = ObjectPath.evaluate(
-            getAsMap("/_nodes/stats/indices?level=indices"),
-            "nodes." + nodeId + ".indices.indices"
-        );
-        // ...assert that all the indices are present, *without* the project ID prefix because they are on the default project...
-        Set<String> expectedProjectIdAndIndexNames = Set.of("my-index-1", "my-index-2", "my-index-3");
-        assertThat(indexStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
-        // ...and assert that the docs counts are correct:
-        assertThat(ObjectPath.evaluate(indexStats, "my-index-1.docs.count"), equalTo(numDocs1));
-        assertThat(ObjectPath.evaluate(indexStats, "my-index-2.docs.count"), equalTo(numDocs2));
-        assertThat(ObjectPath.evaluate(indexStats, "my-index-3.docs.count"), equalTo(numDocs3));
-
-        // Get indices stats at shard level...
-        Map<String, Object> shardStats = ObjectPath.evaluate(
-            getAsMap("/_nodes/stats/indices?level=shards"),
-            "nodes." + nodeId + ".indices.shards"
-        );
-        // ...assert that all the indices are present, prefixed by their project IDs...
-        assertThat(shardStats.keySet(), equalTo(expectedProjectIdAndIndexNames));
-        // ...assert that the entry for the first index has exactly one entry (for its single shards)...
-        List<Map<String, Object>> index1ShardStats = ObjectPath.evaluate(shardStats, "my-index-1");
-        assertThat(index1ShardStats, hasSize(1));
-        // ...and assert that that is shard 0 and that the doc count is correct:
-        assertThat(ObjectPath.evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1));
     }
 
     public void testIngestStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {

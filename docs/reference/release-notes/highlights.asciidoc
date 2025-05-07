@@ -40,9 +40,5 @@ endif::[]
 // === Heading
 //
 // Description.
-
-// tag::notable-highlights[]
-
 // end::notable-highlights[]
-
 

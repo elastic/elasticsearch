@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -39,6 +40,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -163,9 +165,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
      */
-    private final PriorityBlockingQueueWithBudget<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithBudget<>(
-        MergeTask::estimatedRemainingMergeSize,
-        Long.MAX_VALUE
+    private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>(
+        64,
+        Comparator.comparingLong(MergeTask::estimatedMergeSize)
     );
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
@@ -184,6 +186,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
+    private final BudgetTracker<MergeTask> budgetTracker;
     private final AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor;
 
     private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
@@ -213,13 +216,14 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
+        this.budgetTracker = new BudgetTracker<>(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE, queuedMergeTasks::add);
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
                 nodeEnvironment.dataPaths(),
                 threadPool,
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
                 INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
                 INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateAvailableBudget(availableDiskSpaceByteSize.getBytes())
+                (availableDiskSpaceByteSize) -> budgetTracker.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -230,8 +234,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
         );
         clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-                this.availableDiskSpacePeriodicMonitor::setCheckInterval
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setCheckInterval
         );
     }
 
@@ -282,7 +286,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         // To ensure that for a given merge onMergeQueued is called before onMergeAborted or onMergeCompleted, we call onMergeQueued
         // before adding the merge task to the queue. Adding to the queue should not fail.
         mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes()));
-        boolean added = queuedMergeTasks.enqueue(mergeTask);
+        boolean added = queuedMergeTasks.add(mergeTask);
         assert added;
     }
 
@@ -300,10 +304,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
                 while (true) {
-                    PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget smallestMergeTaskWithReleasableBudget;
+                    MergeTask smallestMergeTask;
                     try {
-                        // will block if there are backlogged merges until they're enqueued again
-                        smallestMergeTaskWithReleasableBudget = queuedMergeTasks.take();
+                        // will block if there are backlogged or over-budget merges until they're enqueued again
+                        smallestMergeTask = queuedMergeTasks.take();
                     } catch (InterruptedException e) {
                         // An active worker thread has been interrupted while waiting for backlogged merges to be re-enqueued.
                         // In this case, we terminate the worker thread promptly and forget about the backlogged merges.
@@ -313,9 +317,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         // is also drained, so any queued merge tasks are also forgotten.
                         break;
                     }
-                    try {
-                        // let the task's scheduler decide if it can actually run the merge task now
-                        MergeTask smallestMergeTask = smallestMergeTaskWithReleasableBudget.element();
+                    try (var budgetRelease = budgetTracker.checkBudget(smallestMergeTask)) {
                         ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
                         if (schedule == RUN) {
                             runMergeTask(smallestMergeTask);
@@ -328,8 +330,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             // the merge task is backlogged by the merge scheduler, try to get the next smallest one
                             // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                         }
-                    } finally {
-                        smallestMergeTaskWithReleasableBudget.close();
+                    } catch (BudgetTracker.BudgetOverflowException e) {
+                        // continue to poll for new merge tasks, over-budget merge task will be reenqueued
                     }
                 }
             });
@@ -479,6 +481,75 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return watermark.getAbsolute();
             }
             return ByteSizeValue.subtract(total, watermark.calculateValue(total, maxHeadroom));
+        }
+    }
+
+    static class BudgetTracker<E> {
+        private final ToLongFunction<? super E> budgetFunction;
+        private long availableBudget;
+        private final IdentityHashMap<E, Long> commitedBudgetPerElement;
+        private final List<E> budgetOverflow;
+        private final Consumer<? super E> budgetOverflowConsumer;
+        private final Object mutex = new Object();
+
+        BudgetTracker(ToLongFunction<? super E> budgetFunction, long availableBudget, Consumer<? super E> budgetOverflowConsumer) {
+            this.budgetFunction = budgetFunction;
+            this.availableBudget = availableBudget;
+            this.commitedBudgetPerElement = new IdentityHashMap<>();
+            this.budgetOverflow = new ArrayList<>();
+            this.budgetOverflowConsumer = budgetOverflowConsumer;
+        }
+
+        Releasable checkBudget(E element) throws BudgetOverflowException {
+            long elementBudget = budgetFunction.applyAsLong(element);
+            synchronized (mutex) {
+                if (elementBudget > availableBudget) {
+                    budgetOverflow.add(element);
+                    throw new BudgetOverflowException();
+                } else {
+                    assert commitedBudgetPerElement.containsKey(element) == false;
+                    commitedBudgetPerElement.put(element, elementBudget);
+                    availableBudget -= elementBudget;
+                    assert availableBudget > 0;
+                    return () -> {
+                        synchronized (mutex) {
+                            assert commitedBudgetPerElement.containsKey(element);
+                            availableBudget += commitedBudgetPerElement.remove(element);
+                            dropBudgetOverflow();
+                        }
+                    };
+                }
+            }
+        }
+
+        void updateBudget(long availableBudget) {
+            assert availableBudget > 0;
+            synchronized (mutex) {
+                long previouslyAvailableBudget = this.availableBudget;
+                this.availableBudget = availableBudget;
+                // update the per-element budget
+                commitedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
+                // update available budget given the per-element budget
+                this.availableBudget -= commitedBudgetPerElement.values().stream().reduce(0L, Long::sum);
+                if (this.availableBudget > previouslyAvailableBudget) {
+                    dropBudgetOverflow();
+                }
+            }
+        }
+
+        private void dropBudgetOverflow() {
+            synchronized (mutex) {
+                for (E element : budgetOverflow) {
+                    budgetOverflowConsumer.accept(element);
+                }
+                budgetOverflow.clear();
+            }
+        }
+
+        static final class BudgetOverflowException extends Exception {
+            public BudgetOverflowException() {
+                super("budget overflow");
+            }
         }
     }
 

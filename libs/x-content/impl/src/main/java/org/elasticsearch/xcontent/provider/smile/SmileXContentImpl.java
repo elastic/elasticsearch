@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent.provider.smile;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
@@ -55,6 +56,8 @@ public final class SmileXContentImpl implements XContent {
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         smileFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        // Speeds up deserialization a lot.
+        smileFactory.configure(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES, false);
         smileXContent = new SmileXContentImpl();
     }
 

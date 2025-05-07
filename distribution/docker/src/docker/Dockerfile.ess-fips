@@ -208,6 +208,11 @@ LABEL name="Elasticsearch" \\
 
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
+# Generate a stub command that will be overwritten at runtime
+RUN mkdir /app && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    chmod 0555 /app/elasticsearch.sh
+
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 

@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -57,6 +59,151 @@ class ValuesBytesRefAggregator {
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
         return new GroupingState(bigArrays);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        OrdinalBytesRefBlock valuesOrdinal = values.asOrdinals();
+        if (valuesOrdinal == null) {
+            return delegate;
+        }
+        BytesRefVector dict = valuesOrdinal.getDictionaryVector();
+        final int[] hashIds = new int[dict.getPositionCount()];
+        BytesRef spare = new BytesRef();
+        for (int p = 0; p < dict.getPositionCount(); p++) {
+            hashIds[p] = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, spare))));
+        }
+        IntBlock ordinalIds = valuesOrdinal.getOrdinalsBlock();
+        return new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    if (groupIds.isNull(groupPosition)) {
+                        continue;
+                    }
+                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        int groupId = groupIds.getInt(g);
+                        if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                            continue;
+                        }
+                        int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
+                        int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
+                        for (int v = valuesStart; v < valuesEnd; v++) {
+                            state.values.add(groupId, ordinalIds.getInt(v));
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    if (groupIds.isNull(groupPosition)) {
+                        continue;
+                    }
+                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        int groupId = groupIds.getInt(g);
+                        if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                            continue;
+                        }
+                        int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
+                        int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
+                        for (int v = valuesStart; v < valuesEnd; v++) {
+                            state.values.add(groupId, ordinalIds.getInt(v));
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    int groupId = groupIds.getInt(groupPosition);
+                    if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                        continue;
+                    }
+                    int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
+                    int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
+                    for (int v = valuesStart; v < valuesEnd; v++) {
+                        state.values.add(groupId, ordinalIds.getInt(v));
+                    }
+                }
+            }
+
+            @Override
+            public void close() {
+                delegate.close();
+            }
+        };
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        var valuesOrdinal = values.asOrdinals();
+        if (valuesOrdinal == null) {
+            return delegate;
+        }
+        BytesRefVector dict = valuesOrdinal.getDictionaryVector();
+        final int[] hashIds = new int[dict.getPositionCount()];
+        BytesRef spare = new BytesRef();
+        for (int p = 0; p < dict.getPositionCount(); p++) {
+            hashIds[p] = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, spare))));
+        }
+        var ordinalIds = valuesOrdinal.getOrdinalsVector();
+        return new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    if (groupIds.isNull(groupPosition)) {
+                        continue;
+                    }
+                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        int groupId = groupIds.getInt(g);
+                        state.values.add(groupId, ordinalIds.getInt(groupPosition + positionOffset));
+                    }
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    if (groupIds.isNull(groupPosition)) {
+                        continue;
+                    }
+                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        int groupId = groupIds.getInt(g);
+                        state.values.add(groupId, ordinalIds.getInt(groupPosition + positionOffset));
+                    }
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                    int groupId = groupIds.getInt(groupPosition);
+                    state.values.add(groupId, ordinalIds.getInt(groupPosition + positionOffset));
+                }
+            }
+
+            @Override
+            public void close() {
+                delegate.close();
+            }
+        };
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {

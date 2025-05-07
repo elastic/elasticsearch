@@ -35,7 +35,7 @@ public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBui
     }
 
     @Override
-    public void onInferenceResults(ChatCompletionResults completionResults) {
+    public void addInferenceResult(ChatCompletionResults completionResults) {
         if (completionResults == null || completionResults.getResults().isEmpty()) {
             outputBlockBuilder.appendNull();
         } else {
@@ -47,11 +47,6 @@ public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBui
             }
             outputBlockBuilder.endPositionEntry();
         }
-    }
-
-    @Override
-    protected Class<ChatCompletionResults> inferenceResultsClass() {
-        return ChatCompletionResults.class;
     }
 
     @Override

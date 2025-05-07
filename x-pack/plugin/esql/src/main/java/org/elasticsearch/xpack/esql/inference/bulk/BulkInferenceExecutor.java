@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 public class BulkInferenceExecutor {
     private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
@@ -28,28 +30,25 @@ public class BulkInferenceExecutor {
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, threadPool, bulkExecutionConfig);
     }
 
-    public <InferenceResult extends InferenceServiceResults, OutputType> void execute(
-        BulkInferenceRequestIterator requests,
-        BulkInferenceOutputBuilder<InferenceResult, OutputType> outputBuilder,
-        ActionListener<OutputType> listener
-    ) {
+    public void execute(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         if (requests.hasNext() == false) {
-            listener.onResponse(outputBuilder.buildOutput());
+            listener.onResponse(List.of());
             return;
         }
 
+        final List<InferenceAction.Response> responses = new ArrayList<>();
         final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
 
         try {
             enqueueRequests(requests, bulkExecutionState);
-            persistsInferenceResponses(bulkExecutionState, outputBuilder::onInferenceResponse);
+            persistsInferenceResponses(bulkExecutionState, responses::add);
         } catch (Exception e) {
             listener.onFailure(e);
         }
 
         if (bulkExecutionState.hasFailure() == false) {
             try {
-                listener.onResponse(outputBuilder.buildOutput());
+                listener.onResponse(Collections.unmodifiableList(responses));
                 return;
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -72,10 +71,8 @@ public class BulkInferenceExecutor {
         }
     }
 
-    private void persistsInferenceResponses(
-        BulkInferenceExecutionState bulkExecutionState,
-        CheckedConsumer<InferenceAction.Response, Exception> persister
-    ) throws TimeoutException {
+    private void persistsInferenceResponses(BulkInferenceExecutionState bulkExecutionState, Consumer<InferenceAction.Response> persister)
+        throws TimeoutException {
         // TODO: retry should be from config
         int retry = 30;
         while (bulkExecutionState.getPersistedCheckpoint() < bulkExecutionState.getMaxSeqNo()) {

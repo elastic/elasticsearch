@@ -400,10 +400,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = project.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
+                final var projectId = project.get().id();
                 indicesService.deleteUnassignedIndex(
-                    "deleted index was not assigned to local node",
+                    "deleted index in project [" + projectId + "] was not assigned to local node",
                     metadata,
-                    state.metadata().projects().get(project.get().id())
+                    state.metadata().projects().get(projectId)
                 );
             } else {
                 // The previous cluster state's metadata also does not contain the index,

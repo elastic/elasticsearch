@@ -1075,8 +1075,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
-                            + "] - it's still part "
-                            + "of the cluster state ["
+                            + "] - it's still part of project ["
+                            + project.id()
+                            + "] with UUIDs ["
                             + currentMetadata.getIndexUUID()
                             + "] ["
                             + oldIndexMetadata.getIndexUUID()

@@ -2004,19 +2004,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * @param targetShardCount   target shard count after resharding
          */
         public Builder reshardAddShards(int targetShardCount) {
-            if (targetShardCount % numberOfShards() != 0) {
+            final int sourceNumShards = numberOfShards();
+            if (targetShardCount % sourceNumShards != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
                         + targetShardCount
                         + "] should be a multiple"
                         + " of current shard count ["
-                        + numberOfShards()
+                        + sourceNumShards
                         + "] for ["
                         + index
                         + "]"
                 );
             }
-            final int sourceNumShards = numberOfShards();
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
             var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);

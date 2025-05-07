@@ -454,10 +454,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
             if (other == this) {
                 return true;
             }
-            if (other instanceof IndexOptions otherOptions) {
-                return Objects.equals(prune, otherOptions.prune) && Objects.equals(pruningConfig, otherOptions.pruningConfig);
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
             }
-            return false;
+
+            IndexOptions otherAsIndexOptions = (IndexOptions) other;
+            return Objects.equals(prune, otherAsIndexOptions.prune) && Objects.equals(pruningConfig, otherAsIndexOptions.pruningConfig);
         }
 
         @Override

@@ -2,5 +2,4 @@ pr: 127621
 summary: Fix error message when changing the password for a user in the file realm
 area: Security
 type: bug
-issues:
-  - 113535
+issues: []

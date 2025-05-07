@@ -158,8 +158,8 @@ Will become:
 ```console-result
 {
   "text": [
-    "jumped over the lazy dog",
     "NA",
+    "jumped over the lazy dog",
     "the quick brown fox"
   ]
 }

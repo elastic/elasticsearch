@@ -41,5 +41,3 @@ endif::[]
 //
 // Description.
 // end::notable-highlights[]
-
-

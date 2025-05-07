@@ -326,7 +326,7 @@ Will become:
 [source,console-result]
 ----
 {
-  "kwd": ["bar", "foo", "NA"]
+  "kwd": ["NA", "bar", "foo"]
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]

@@ -25,7 +25,7 @@ import java.util.BitSet;
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
+public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 

@@ -1,0 +1,5 @@
+pr: 127582
+summary: Specialize ags `AddInput` for each block type
+area: ES|QL
+type: enhancement
+issues: []

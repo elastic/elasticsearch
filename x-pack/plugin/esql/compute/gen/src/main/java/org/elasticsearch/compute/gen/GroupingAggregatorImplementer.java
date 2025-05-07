@@ -54,7 +54,8 @@ import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
-import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_ARRAY_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
@@ -76,6 +77,8 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  * and break-point-able as possible.
  */
 public class GroupingAggregatorImplementer {
+    private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
+
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
@@ -196,10 +199,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(INT_VECTOR, blockType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_VECTOR, vectorType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, blockType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, vectorType(aggParam.type())));
+        for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
+            builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
+            builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
+        }
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
@@ -347,15 +350,12 @@ public class GroupingAggregatorImplementer {
         TypeSpec.Builder builder = TypeSpec.anonymousClassBuilder("");
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
 
-        MethodSpec.Builder block = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        block.addParameter(TypeName.INT, "positionOffset").addParameter(INT_BLOCK, "groupIds");
-        addBlock.accept(block);
-        builder.addMethod(block.build());
-
-        MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        vector.addParameter(TypeName.INT, "positionOffset").addParameter(INT_VECTOR, "groupIds");
-        addBlock.accept(vector);
-        builder.addMethod(vector.build());
+        for (ClassName groupIdsType : GROUP_IDS_CLASSES) {
+            MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+            vector.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
+            addBlock.accept(vector);
+            builder.addMethod(vector.build());
+        }
 
         MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addMethod(close.build());

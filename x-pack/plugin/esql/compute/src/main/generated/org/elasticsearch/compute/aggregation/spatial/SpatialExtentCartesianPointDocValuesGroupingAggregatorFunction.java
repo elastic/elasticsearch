@@ -15,6 +15,8 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -71,7 +73,12 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
@@ -87,7 +94,12 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
@@ -102,28 +114,7 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -144,7 +135,7 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -155,6 +146,62 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
         int groupId = groups.getInt(g);
         SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 

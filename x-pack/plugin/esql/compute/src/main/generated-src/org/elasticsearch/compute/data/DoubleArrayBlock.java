@@ -23,7 +23,7 @@ import java.util.BitSet;
  * Block implementation that stores values in a {@link DoubleArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
+public final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 

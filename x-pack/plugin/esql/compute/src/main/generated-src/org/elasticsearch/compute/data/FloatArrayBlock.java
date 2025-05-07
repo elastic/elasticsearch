@@ -23,7 +23,7 @@ import java.util.BitSet;
  * Block implementation that stores values in a {@link FloatArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
+public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class);
 

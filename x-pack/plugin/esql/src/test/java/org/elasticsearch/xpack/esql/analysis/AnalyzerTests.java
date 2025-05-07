@@ -47,8 +47,11 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -80,6 +83,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +114,9 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -368,7 +375,7 @@ public class AnalyzerTests extends ESTestCase {
             DataType.INTEGER,
             DataType.KEYWORD,
             DataType.TEXT,
-            DataType.DATETIME,
+            DATETIME,
             DataType.TEXT,
             DataType.KEYWORD,
             DataType.INTEGER,
@@ -3614,6 +3621,19 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
+            // Unnamed field.
+            try {
+                LogicalPlan plan = analyze("""
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    """, "mapping-books.json");
+            } catch (ParsingException ex) {
+                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+            }
+        }
+
+        {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
@@ -3774,6 +3794,147 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
+    }
+
+    public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
+        var plan = analyze("""
+            FROM test
+            | EVAL date = "2025-01-01"::datetime
+            | STATS c = count(emp_no) BY d = (date == "2025-01-01")
+            """, "mapping-default.json");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(2));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("c", a.name());
+        Count c = as(a.child(), Count.class);
+        FieldAttribute fa = as(c.field(), FieldAttribute.class);
+        assertEquals("emp_no", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(1), ReferenceAttribute.class); // reference in aggregates is resolved
+        assertEquals("d", ra.name());
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        assertEquals("d", ra.name());
+        Equals equals = as(a.child(), Equals.class);
+        ra = as(equals.left(), ReferenceAttribute.class);
+        assertEquals("date", ra.name());
+        Literal literal = as(equals.right(), Literal.class);
+        assertEquals("2025-01-01T00:00:00.000Z", dateTimeToString(Long.parseLong(literal.value().toString())));
+        assertEquals(DATETIME, literal.dataType());
+    }
+
+    public void testResolveGroupingsBeforeResolvingExplicitReferencesToGroupings() {
+        var plan = analyze("""
+            FROM test
+            | EVAL date = "2025-01-01"::datetime
+            | STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+            """, "mapping-default.json");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("c", a.name());
+        Count c = as(a.child(), Count.class);
+        FieldAttribute fa = as(c.field(), FieldAttribute.class);
+        assertEquals("emp_no", fa.name());
+        a = as(aggregates.get(1), Alias.class); // explicit reference to groupings is resolved
+        assertEquals("x", a.name());
+        Add add = as(a.child(), Add.class);
+        ToInteger toInteger = as(add.left(), ToInteger.class);
+        ReferenceAttribute ra = as(toInteger.field(), ReferenceAttribute.class);
+        assertEquals("d", ra.name());
+        ra = as(aggregates.get(2), ReferenceAttribute.class); // reference in aggregates is resolved
+        assertEquals("d", ra.name());
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        assertEquals("d", ra.name());
+        Equals equals = as(a.child(), Equals.class);
+        ra = as(equals.left(), ReferenceAttribute.class);
+        assertEquals("date", ra.name());
+        Literal literal = as(equals.right(), Literal.class);
+        assertEquals("2025-01-01T00:00:00.000Z", dateTimeToString(Long.parseLong(literal.value().toString())));
+        assertEquals(DATETIME, literal.dataType());
+    }
+
+    public void testBucketWithIntervalInStringInBothAggregationAndGrouping() {
+        var plan = analyze("""
+            FROM test
+            | STATS c = count(emp_no), b = BUCKET(hire_date, "1 year") + 1 year BY yr = BUCKET(hire_date, "1 year")
+            """, "mapping-default.json");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("c", a.name());
+        Count c = as(a.child(), Count.class);
+        FieldAttribute fa = as(c.field(), FieldAttribute.class);
+        assertEquals("emp_no", fa.name());
+        a = as(aggregates.get(1), Alias.class); // explicit reference to groupings is resolved
+        assertEquals("b", a.name());
+        Add add = as(a.child(), Add.class);
+        Bucket bucket = as(add.left(), Bucket.class);
+        fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("hire_date", fa.name());
+        Literal literal = as(bucket.buckets(), Literal.class);
+        Literal oneYear = new Literal(EMPTY, Period.ofYears(1), DATE_PERIOD);
+        assertEquals(oneYear, literal);
+        literal = as(add.right(), Literal.class);
+        assertEquals(oneYear, literal);
+        ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class); // reference in aggregates is resolved
+        assertEquals("yr", ra.name());
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        assertEquals("yr", ra.name());
+        bucket = as(a.child(), Bucket.class);
+        fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("hire_date", fa.name());
+        literal = as(bucket.buckets(), Literal.class);
+        assertEquals(oneYear, literal);
+    }
+
+    public void testBucketWithIntervalInStringInGroupingReferencedInAggregation() {
+        var plan = analyze("""
+            FROM test
+            | STATS c = count(emp_no), b = yr + 1 year BY yr = BUCKET(hire_date, "1 year")
+            """, "mapping-default.json");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("c", a.name());
+        Count c = as(a.child(), Count.class);
+        FieldAttribute fa = as(c.field(), FieldAttribute.class);
+        assertEquals("emp_no", fa.name());
+        a = as(aggregates.get(1), Alias.class); // explicit reference to groupings is resolved
+        assertEquals("b", a.name());
+        Add add = as(a.child(), Add.class);
+        ReferenceAttribute ra = as(add.left(), ReferenceAttribute.class);
+        assertEquals("yr", ra.name());
+        Literal oneYear = new Literal(EMPTY, Period.ofYears(1), DATE_PERIOD);
+        Literal literal = as(add.right(), Literal.class);
+        assertEquals(oneYear, literal);
+        ra = as(aggregates.get(2), ReferenceAttribute.class); // reference in aggregates is resolved
+        assertEquals("yr", ra.name());
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
+        assertEquals("yr", ra.name());
+        Bucket bucket = as(a.child(), Bucket.class);
+        fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("hire_date", fa.name());
+        literal = as(bucket.buckets(), Literal.class);
+        assertEquals(oneYear, literal);
     }
 
     @Override

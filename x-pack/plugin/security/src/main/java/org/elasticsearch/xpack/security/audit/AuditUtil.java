@@ -27,6 +27,9 @@ public class AuditUtil {
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
+            if (request.isStreamedContent()) {
+                return "Request body had not been received at the time of the audit event";
+            }
             try {
                 return XContentHelper.convertToJson(request.content(), false, false, request.getXContentType());
             } catch (IOException ioe) {

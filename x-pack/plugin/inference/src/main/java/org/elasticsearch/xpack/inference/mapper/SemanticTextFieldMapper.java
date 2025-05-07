@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -96,6 +97,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -135,6 +137,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
+
+    public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
@@ -1078,10 +1082,28 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
+                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = null;
+                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X)) {
+                    defaultIndexOptions = defaultSemanticDenseIndexOptions();
+                }
+                if (defaultIndexOptions != null
+                    && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
+                    denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
+                }
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");
         };
+    }
+
+    static DenseVectorFieldMapper.IndexOptions defaultSemanticDenseIndexOptions() {
+        // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
+        // options outside of dense_vector defaults
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

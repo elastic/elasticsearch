@@ -9,7 +9,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.initialization.DynamicInstrumentation;
 import org.elasticsearch.entitlement.initialization.EntitlementCheckerUtils;
@@ -42,16 +41,10 @@ public class TestEntitlementInitialization {
 
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
-
-        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
-        if (verifyBytecode) {
-            ensureClassesSensitiveToVerificationAreInitialized();
-        }
-
         DynamicInstrumentation.initialize(
             inst,
             EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            verifyBytecode
+            false
         );
     }
 
@@ -75,24 +68,6 @@ public class TestEntitlementInitialization {
             pathLookup,
             Set.of()
         );
-    }
-
-    /**
-     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
-     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
-     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
-     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
-     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
-     */
-    private static void ensureClassesSensitiveToVerificationAreInitialized() {
-        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
-        for (String className : classesToInitialize) {
-            try {
-                Class.forName(className);
-            } catch (ClassNotFoundException unexpected) {
-                throw new AssertionError(unexpected);
-            }
-        }
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {

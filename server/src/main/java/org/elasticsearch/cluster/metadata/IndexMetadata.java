@@ -1998,11 +1998,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
-         * The new shard count must be a multiple of the original shardcount.
+         * The new shard count must be a multiple of the original shardcount as well as a factor
+         * of routingNumShards.
          * We do not support shrinking the shard count.
          * @param targetShardCount   target shard count after resharding
          */
-        public Builder reshardAddShards(int targetShardCount, final int sourceNumShards) {
+        public Builder reshardAddShards(int targetShardCount) {
             if (targetShardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
@@ -2015,6 +2016,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + "]"
                 );
             }
+            final int sourceNumShards = numberOfShards();
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
             var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);

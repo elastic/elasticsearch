@@ -67,6 +67,35 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "sparse_vector");
     }
 
+    protected void mappingWithDefaultIndexOptions(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+        b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+        b.endObject();
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsPrune(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsPruningConfig(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", 5.0);
+        b.field("tokens_weight_threshold", 0.4);
+        b.endObject();
+        b.endObject();
+    }
+
     @Override
     protected boolean supportsStoredFields() {
         return false;
@@ -97,6 +126,58 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
+
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
+    }
+
+    public void testWithIndexOptionsPrune() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
+
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
+    }
+
+    public void testWithIndexOptionsPruningConfigOnly() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -200,6 +281,151 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [feature] of type [sparse_vector] can't be used in multifields"));
+    }
+
+    public void testPruneMustBeBoolean() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", "othervalue");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[index_options] field [prune] should be true or false"));
+    }
+
+    public void testPruningConfigurationIsMap() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.field("pruning_config", "this_is_not_a_map");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("pruning_config should be a map but was of type:"));
+    }
+
+    public void testWithIndexOptionsPruningConfigPruneRequired() throws Exception {
+
+        Exception eTestPruneIsFalse = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", false);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 5.0);
+            b.field("tokens_weight_threshold", 0.4);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestPruneIsFalse.getMessage(),
+            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
+        );
+
+        Exception eTestPruneIsMissing = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 5.0);
+            b.field("tokens_weight_threshold", 0.4);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestPruneIsMissing.getMessage(),
+            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
+        );
+    }
+
+    public void testTokensFreqRatioCorrect() {
+        Exception eTestInteger = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", "notaninteger");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestInteger.getMessage(),
+            containsString(
+                "Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold]field should be a number between 1 and 100"
+            )
+        );
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", -2);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestRangeLower.getMessage(),
+            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100")
+        );
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 101);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestRangeHigher.getMessage(),
+            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100")
+        );
+    }
+
+    public void testTokensWeightThresholdCorrect() {
+        Exception eTestDouble = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", "notadouble");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestDouble.getMessage(),
+            containsString(
+                "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold]field should be a number between 0.0 and 1.0"
+            )
+        );
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", -0.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestRangeLower.getMessage(),
+            containsString("[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0")
+        );
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", 1.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestRangeHigher.getMessage(),
+            containsString("[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0")
+        );
     }
 
     public void testStoreIsNotUpdateable() throws IOException {

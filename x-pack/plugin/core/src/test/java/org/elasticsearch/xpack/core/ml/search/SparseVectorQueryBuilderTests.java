@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -46,6 +47,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.QUERY_VECTOR_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -57,6 +59,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     private static final String SPARSE_VECTOR_FIELD = "mySparseVectorField";
     private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new WeightedToken("foo", .42f));
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
+
+    private boolean testWithSparseVectorFieldIndexOptions = false;
 
     @Override
     protected SparseVectorQueryBuilder doCreateTestQueryBuilder() {
@@ -144,11 +148,25 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        if (testWithSparseVectorFieldIndexOptions) {
+            addSparseVectorIndexOptionsMapping(mapperService);
+            return;
+        }
+
         mapperService.merge(
             "_doc",
             new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(SPARSE_VECTOR_FIELD, "type=sparse_vector"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
+    }
+
+    private void addSparseVectorIndexOptionsMapping(MapperService mapperService) throws IOException {
+        String addIndexOptionsTemplate = "{\"properties\":{\""
+            + SPARSE_VECTOR_FIELD
+            + "\":{\"type\":\"sparse_vector\",\"index_options\""
+            + ":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\""
+            + ":12,\"tokens_weight_threshold\":0.6}}}}}";
+        mapperService.merge("_doc", new CompressedXContent(addIndexOptionsTemplate), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -337,5 +355,28 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
         assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
         assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+    }
+
+    public void testWeCorrectlyRewriteQueryIntoVectorsWithIndexOptions() {
+        wrapTestSparseVectorIndexOptions((c) -> {
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+            TokenPruningConfig defaultTokenPruningConfig = new TokenPruningConfig(12, 0.6f, false);
+
+            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
+            QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
+            assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
+            assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
+            assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+        });
+    }
+
+    private void wrapTestSparseVectorIndexOptions(Consumer<Boolean> testMethod) {
+        testWithSparseVectorFieldIndexOptions = true;
+        try {
+            testMethod.accept(true);
+        } finally {
+            testWithSparseVectorFieldIndexOptions = false;
+        }
     }
 }

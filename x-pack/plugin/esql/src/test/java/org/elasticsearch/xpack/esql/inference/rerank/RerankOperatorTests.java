@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference;
+package org.elasticsearch.xpack.esql.inference.rerank;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
+import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 

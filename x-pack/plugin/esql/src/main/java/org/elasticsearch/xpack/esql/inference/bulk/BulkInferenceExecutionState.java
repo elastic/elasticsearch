@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
-public class BulkInferenceExecutionState<OutputType> {
+public class BulkInferenceExecutionState {
     private final LocalCheckpointTracker checkpoint = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
     private final FailureCollector failureCollector = new FailureCollector();
     private final AtomicBoolean responseSent = new AtomicBoolean(false);
@@ -77,7 +77,7 @@ public class BulkInferenceExecutionState<OutputType> {
         failureCollector.unwrapAndCollect(e);
     }
 
-    public void maybeSendResponse(CheckedSupplier<OutputType, Exception> responseBuilder, ActionListener<OutputType> l) {
+    public <OutputType> void maybeSendResponse(CheckedSupplier<OutputType, Exception> responseBuilder, ActionListener<OutputType> l) {
         if (allRequestsSent() == false) {
             return;
         }

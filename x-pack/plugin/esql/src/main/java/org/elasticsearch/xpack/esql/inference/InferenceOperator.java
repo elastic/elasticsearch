@@ -26,13 +26,13 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
     private final String inferenceId;
     private final BlockFactory blockFactory;
 
-    private final BulkInferenceExecutor<InferenceResult, Page> bulkInferenceExecutor;
+    private final BulkInferenceExecutor bulkInferenceExecutor;
 
     @SuppressWarnings("this-escape")
     public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, ThreadPool threadPool, String inferenceId) {
         super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = new BulkInferenceExecutor<>(inferenceRunner, threadPool, bulkExecutionConfig());
+        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig());
         this.inferenceId = inferenceId;
     }
 
@@ -75,5 +75,13 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
 
     protected abstract BulkInferenceRequestIterator requests(Page input);
 
-    protected abstract BulkInferenceOutputBuilder<InferenceResult, Page> outputBuilder(Page input);
+    protected abstract OutputBuilder<InferenceResult> outputBuilder(Page input);
+
+    public abstract static class OutputBuilder<InferenceResult extends InferenceServiceResults> extends BulkInferenceOutputBuilder<
+        InferenceResult,
+        Page> {
+        protected void releasePageOnAnyThread(Page page) {
+            InferenceOperator.releasePageOnAnyThread(page);
+        }
+    }
 }

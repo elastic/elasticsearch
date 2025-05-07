@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference;
+package org.elasticsearch.xpack.esql.inference.completion;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -55,24 +56,28 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
                 assertBlockContentEquals(inputBlock, resultBlock);
             }
 
-            BytesRefBlock inputBlock = resultPage.getBlock(0);
-            BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
+            assertCompletionResults(inputPage, resultPage);
+        }
+    }
 
-            BytesRef scratch = new BytesRef();
-            StringBuilder inputBuilder = new StringBuilder();
+    private void assertCompletionResults(Page inputPage, Page resultPage) {
+        BytesRefBlock inputBlock = resultPage.getBlock(0);
+        BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
-            for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
-                inputBuilder.setLength(0);
-                int valueIndex = inputBlock.getFirstValueIndex(curPos);
-                while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
-                    scratch = inputBlock.getBytesRef(valueIndex, scratch);
-                    inputBuilder.append(scratch.utf8ToString()).append("\n");
-                    valueIndex++;
-                }
-                scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
+        BytesRef scratch = new BytesRef();
+        StringBuilder inputBuilder = new StringBuilder();
 
-                assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toLowerCase(Locale.ROOT)));
+        for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
+            inputBuilder.setLength(0);
+            int valueIndex = inputBlock.getFirstValueIndex(curPos);
+            while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
+                scratch = inputBlock.getBytesRef(valueIndex, scratch);
+                inputBuilder.append(scratch.utf8ToString()).append("\n");
+                valueIndex++;
             }
+            scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
+
+            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toLowerCase(Locale.ROOT)));
         }
     }
 

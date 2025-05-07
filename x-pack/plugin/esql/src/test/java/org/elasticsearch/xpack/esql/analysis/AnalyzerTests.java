@@ -184,7 +184,10 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
-        assertEquals(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))), eval.fields().get(0));
+        assertEquals(
+            new Alias(EMPTY, "e", new FieldAttribute.Builder(EMPTY, "emp_no", idx.mapping().get("emp_no")).build()),
+            eval.fields().get(0)
+        );
 
         assertEquals(2, eval.output().size());
         Attribute empNo = eval.output().get(0);
@@ -2911,7 +2914,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
+        var expectedAttribute = new FieldAttribute.Builder(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo")).build();
         assertThat(insist.insistedAttributes(), is(List.of(expectedAttribute)));
         assertThat(insist.output().getLast(), is(expectedAttribute));
     }

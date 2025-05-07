@@ -41,20 +41,55 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
+    /**
+     * Builder pattern to manage many optional fields.  Only source, name, and the EsField are actually required.
+     */
+    public static class Builder {
+        private final Source source;
+        private String parentName;
+        private final String name;
+        private final EsField field;
+        private Nullability nullability;
+        private NameId id;
+        private boolean synthetic;
+
+        public Builder(Source source, String name, EsField field) {
+            this.source = source;
+            this.parentName = null;
+            this.name = name;
+            this.field = field;
+            this.nullability = Nullability.TRUE;
+            this.id = null;
+            this.synthetic = false;
+        }
+
+        public Builder parentName(String parentName) {
+            this.parentName = parentName;
+            return this;
+        }
+
+        public Builder nullability(Nullability nullability) {
+            this.nullability = nullability;
+            return this;
+        }
+
+        public Builder id(NameId id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder synthetic(boolean synthetic) {
+            this.synthetic = synthetic;
+            return this;
+        }
+
+        public FieldAttribute build() {
+            return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
+        }
+    }
+
     private final String parentName;
     private final EsField field;
-
-    public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
-    }
 
     public FieldAttribute(
         Source source,
@@ -153,7 +188,7 @@ public class FieldAttribute extends TypedAttribute {
         } else {
             // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
             // fake FieldAttribute here as long as the name is correct.
-            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, parentName(), field());
+            FieldAttribute fakeParent = parentName() == null ? null : new Builder(Source.EMPTY, parentName(), field()).build();
             out.writeOptionalWriteable(fakeParent);
         }
     }

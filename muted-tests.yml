@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testRerank
   issue: https://github.com/elastic/elasticsearch/issues/127873
+- class: org.elasticsearch.xpack.inference.qa.mixed.HuggingFaceServiceMixedIT
+  method: testHFEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/127874
 
 # Examples:
 #

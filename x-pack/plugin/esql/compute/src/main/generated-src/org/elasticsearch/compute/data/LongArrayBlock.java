@@ -23,7 +23,7 @@ import java.util.BitSet;
  * Block implementation that stores values in a {@link LongArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
+public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
 

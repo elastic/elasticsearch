@@ -138,7 +138,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             useLegacyFormat,
             SPARSE_FIELD,
             SPARSE_MODEL,
-            null,
             semanticTextFieldValue,
             XContentType.JSON
         );
@@ -146,7 +145,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             useLegacyFormat,
             DENSE_FIELD,
             DENSE_MODEL,
-            null,
             semanticTextFieldValue,
             XContentType.JSON
         );

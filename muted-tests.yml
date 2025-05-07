@@ -447,6 +447,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testCohereEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/127872
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testRerank
+  issue: https://github.com/elastic/elasticsearch/issues/127873
 
 # Examples:
 #

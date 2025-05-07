@@ -129,7 +129,8 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
         var function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)).build(),
+            new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+                .build(),
             new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
         );
 

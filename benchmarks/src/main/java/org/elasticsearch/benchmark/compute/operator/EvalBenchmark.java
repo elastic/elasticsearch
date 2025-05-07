@@ -259,7 +259,8 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true)).build();
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true))
+            .build();
     }
 
     private static FieldAttribute intField() {
@@ -267,7 +268,8 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true)).build();
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true))
+            .build();
     }
 
     private static Configuration configuration() {

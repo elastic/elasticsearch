@@ -218,12 +218,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
         this.budgetTracker = new BudgetTracker<>(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE, queuedMergeTasks::add);
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
-                nodeEnvironment.dataPaths(),
-                threadPool,
-                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-                (availableDiskSpaceByteSize) -> budgetTracker.updateBudget(availableDiskSpaceByteSize.getBytes())
+            nodeEnvironment.dataPaths(),
+            threadPool,
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            (availableDiskSpaceByteSize) -> budgetTracker.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -471,9 +471,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
-                ByteSizeValue total,
-                RelativeByteSizeValue watermark,
-                ByteSizeValue maxHeadroom
+            ByteSizeValue total,
+            RelativeByteSizeValue watermark,
+            ByteSizeValue maxHeadroom
         ) {
             // If bytes are given, they can be readily returned as free bytes.
             // If percentages are given, we need to calculate the free bytes.

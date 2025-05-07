@@ -112,16 +112,6 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         return getKnnVectorQuery(field, query, k, null);
     }
 
-    abstract AbstractIVFKnnVectorQuery getThrowingKnnVectorQuery(String field, float[] query, int k, Query queryFilter);
-
-    abstract AbstractIVFKnnVectorQuery getCappedResultsThrowingKnnVectorQuery(
-        String field,
-        float[] vec,
-        int k,
-        Query query,
-        int maxResults
-    );
-
     abstract float[] randomVector(int dim);
 
     abstract Field getKnnVectorField(String name, float[] vector, VectorSimilarityFunction similarityFunction);
@@ -634,7 +624,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
                     // Test an unrestrictive filter and check we use approximate search
                     Query filter3 = IntPoint.newRangeQuery("tag", lower, numDocs);
                     results = searcher.search(
-                        getThrowingKnnVectorQuery("field", randomVector(dimension), 5, filter3),
+                        getKnnVectorQuery("field", randomVector(dimension), 5, filter3),
                         numDocs,
                         new Sort(new SortField("tag", SortField.Type.INT))
                     );

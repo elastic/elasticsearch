@@ -12,17 +12,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -34,16 +28,6 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, int nProbe) {
         return new IVFKnnFloatVectorQuery(field, query, k, queryFilter, nProbe);
-    }
-
-    @Override
-    AbstractIVFKnnVectorQuery getThrowingKnnVectorQuery(String field, float[] vec, int k, Query query) {
-        return new ThrowingKnnVectorQuery(field, vec, k, query, 10);
-    }
-
-    @Override
-    AbstractIVFKnnVectorQuery getCappedResultsThrowingKnnVectorQuery(String field, float[] vec, int k, Query query, int maxResults) {
-        return new CappedResultsThrowingKnnVectorQuery(field, vec, k, query, maxResults, 10);
     }
 
     @Override
@@ -80,43 +64,6 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             Query filter = new TermQuery(new Term("id", "text"));
             query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10, filter);
             assertEquals("IVFKnnFloatVectorQuery:field[0.0,...][10][id:text]", query.toString("ignored"));
-        }
-    }
-
-    static class ThrowingKnnVectorQuery extends IVFKnnFloatVectorQuery {
-
-        ThrowingKnnVectorQuery(String field, float[] target, int k, Query filter, int nProbe) {
-            super(field, target, k, filter, nProbe);
-        }
-
-        @Override
-        public String toString(String field) {
-            return null;
-        }
-    }
-
-    static class CappedResultsThrowingKnnVectorQuery extends ThrowingKnnVectorQuery {
-
-        private final int maxResults;
-
-        CappedResultsThrowingKnnVectorQuery(String field, float[] target, int k, Query filter, int maxResults, int nProbe) {
-            super(field, target, k, filter, nProbe);
-            this.maxResults = maxResults;
-        }
-
-        @Override
-        protected TopDocs approximateSearch(
-            LeafReaderContext context,
-            Bits acceptDocs,
-            int visitedLimit,
-            KnnCollectorManager knnCollectorManager
-        ) throws IOException {
-            TopDocs topDocs = super.approximateSearch(context, acceptDocs, Integer.MAX_VALUE, knnCollectorManager);
-            long results = Math.min(topDocs.totalHits.value(), maxResults);
-            ScoreDoc[] scoreDocs = new ScoreDoc[(int) results];
-            System.arraycopy(topDocs.scoreDocs, 0, scoreDocs, 0, scoreDocs.length);
-
-            return new TopDocs(new TotalHits(results, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
     }
 }

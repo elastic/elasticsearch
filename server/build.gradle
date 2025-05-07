@@ -29,7 +29,6 @@ dependencies {
 
   api project(':libs:core')
   api project(':libs:logging')
-  api project(':libs:secure-sm')
   api project(':libs:x-content')
   api project(":libs:geo")
   api project(":libs:lz4")

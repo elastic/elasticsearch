@@ -166,7 +166,7 @@ When fields from the lookup index match existing column names, the new columns o
 Before the `LOOKUP JOIN` command, preserve columns by either:
 
 * Using `RENAME` to assign non-conflicting names
-* Using `EVAL` to create new columns with different names, then `DROP` to remove the original columns
+* Using `EVAL` to create new columns with different names
 
 ### Sorting behavior
 

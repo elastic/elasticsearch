@@ -95,6 +95,19 @@ class NeighborQueue {
         return order.apply((((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node));
     }
 
+    /** Returns the top element's node id. */
+    int topNode() {
+        return decodeNodeId(heap.top());
+    }
+
+    /**
+     * Returns the top element's node score. For the min heap this is the minimum score. For the max
+     * heap this is the maximum score.
+     */
+    float topScore() {
+        return decodeScore(heap.top());
+    }
+
     private float decodeScore(long heapValue) {
         return NumericUtils.sortableIntToFloat((int) (order.apply(heapValue) >> 32));
     }

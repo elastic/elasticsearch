@@ -80,11 +80,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
 
             @Override
             public float[] centroid(int centroidOrdinal) throws IOException {
-                readQuantizedCentroid(centroidOrdinal);
+                readQuantizedAndRawCentroid(centroidOrdinal);
                 return centroid;
             }
 
-            private void readQuantizedCentroid(int centroidOrdinal) throws IOException {
+            private void readQuantizedAndRawCentroid(int centroidOrdinal) throws IOException {
                 if (centroidOrdinal == currentCentroid) {
                     return;
                 }
@@ -97,7 +97,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
 
             @Override
             public float score(int centroidOrdinal) throws IOException {
-                readQuantizedCentroid(centroidOrdinal);
+                readQuantizedAndRawCentroid(centroidOrdinal);
                 return int4QuantizedScore(
                     quantized,
                     queryParams,

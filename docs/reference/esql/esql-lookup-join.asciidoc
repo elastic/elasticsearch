@@ -252,8 +252,7 @@ Before the `LOOKUP JOIN` command, preserve columns by either:
 ===== Sorting behavior
 
 The output rows produced by `LOOKUP JOIN` can be in any order and may not
-respect preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after
-any `LOOKUP JOIN`s.
+respect preceding `SORT` commands. To guarantee a certain ordering, place a `SORT` after any `LOOKUP JOIN` commands.
 
 [discrete]
 [[esql-lookup-join-limitations]]

@@ -22,8 +22,8 @@ The multivalued column to expand.
 [WARNING]
 ======
 The output rows produced by `MV_EXPAND` can be in any order and may not respect
-preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after any
-`MV_EXPAND`s.
+preceding `SORT` commands. To guarantee a certain ordering, place a `SORT` after any
+`MV_EXPAND` commands.
 ======
 
 *Example*

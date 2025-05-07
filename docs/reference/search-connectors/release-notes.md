@@ -1,5 +1,7 @@
 ---
 navigation_title: "Release notes"
+mapped_pages:
+  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/es-connectors-release-notes.html
 ---
 
 # Connector release notes

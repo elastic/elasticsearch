@@ -56,7 +56,7 @@ public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationT
                 instance.getInferenceEntityId(),
                 instance.getContent(),
                 /*
-                 * See https://github.com/elastic/elasticsearch/blob/8.19/server/src/main/java/org/elasticsearch/common/xcontent/XContentHelper.java#L733
+                 * See XContentHelper.java#L733
                  * for versions prior to 8.0.0, the content type does not have the VND_ instances
                  */
                 XContentType.ofOrdinal(instance.getContentType().canonical().ordinal()),

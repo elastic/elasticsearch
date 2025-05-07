@@ -1,0 +1,5 @@
+pr: 127856
+summary: Fixing Google Vertex AI Rerank task type location field
+area: Machine Learning
+type: bug
+issues: []

@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEO
 
 public class DownsampleIT extends DownsamplingIntegTestCase {
 
-    public void testDownsampling() throws Exception {
+    public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
 
         putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """

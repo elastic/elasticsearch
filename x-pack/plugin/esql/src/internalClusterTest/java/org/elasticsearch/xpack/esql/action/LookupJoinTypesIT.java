@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
@@ -151,7 +152,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Test float and double
-        var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE);
+        var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("floats", TestConfigs::new);
             for (DataType mainType : floatTypes) {
@@ -172,6 +173,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
+
         // Tests for all unsupported types
         DataType[] unsupported = Join.UNSUPPORTED_TYPES;
         {
@@ -197,17 +199,16 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Tests for all types where left and right are the same type
-        DataType[] supported = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD };
+        DataType[] supported = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD, SCALED_FLOAT };
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
             for (DataType type : supported) {
                 assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
-                if (existingIndex(existing, type, type)) {
-                    // Skip existing configurations
-                    continue;
+                if (existingIndex(existing, type, type) == false) {
+                    // Only add the configuration if it doesn't already exist
+                    configs.addPasses(type, type);
                 }
-                configs.addPasses(type, type);
             }
         }
 
@@ -233,11 +234,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             TestConfigs configs = testConfigurations.computeIfAbsent("others", TestConfigs::new);
             for (DataType mainType : supported) {
                 for (DataType lookupType : supported) {
-                    if (existingIndex(existing, mainType, lookupType)) {
-                        // Skip existing configurations
-                        continue;
+                    if (existingIndex(existing, mainType, lookupType) == false) {
+                        // Only add the configuration if it doesn't already exist
+                        configs.addFails(mainType, lookupType);
                     }
-                    configs.addFails(mainType, lookupType);
                 }
             }
         }
@@ -305,10 +305,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private void initIndexes(String group) {
         Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
+        String propertyPrefix = "{\n  \"properties\" : {\n";
+        String propertySuffix = "  }\n}\n";
         // The main index will have many fields, one of each type to use in later type specific joins
-        String mainFields = "{\n  \"properties\" : {\n"
-            + configs.stream().map(TestConfig::mainPropertySpec).distinct().collect(Collectors.joining(",\n    "))
-            + "  }\n}\n";
+        String mainFields = propertyPrefix + configs.stream()
+            .map(TestConfig::mainPropertySpec)
+            .distinct()
+            .collect(Collectors.joining(",\n    ")) + propertySuffix;
         assertAcked(prepareCreate("index").setMapping(mainFields));
 
         Settings.Builder settings = Settings.builder()
@@ -319,7 +322,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             // Each lookup index will get a document with a field to join on, and a results field to get back
             (c) -> assertAcked(
                 prepareCreate(c.indexName()).setSettings(settings.build())
-                    .setMapping(c.fieldName(), "type=" + c.lookupType().esType().replace("cartesian_", ""), "other", "type=keyword")
+                    .setMapping(propertyPrefix + c.lookupPropertySpec() + propertySuffix)
             )
         );
     }
@@ -362,6 +365,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return String.valueOf(value);
     }
 
+    private static final double SCALING_FACTOR = 1.0;
+
     private static Object sampleDataFor(DataType type) {
         return switch (type) {
             case BOOLEAN -> true;
@@ -371,6 +376,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case BYTE, SHORT, INTEGER -> 1;
             case LONG, UNSIGNED_LONG -> 1L;
             case HALF_FLOAT, FLOAT, DOUBLE -> 1.0;
+            case SCALED_FLOAT -> SCALING_FACTOR;
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
@@ -400,10 +406,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         private void addPasses(DataType mainType, DataType lookupType) {
             add(new TestConfigPasses(mainType, lookupType, true));
-        }
-
-        private void addEmptyResult(DataType mainType, DataType lookupType) {
-            add(new TestConfigPasses(mainType, lookupType, false));
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
@@ -443,10 +445,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 )
             );
         }
-
-        private <E extends Exception> void addFails(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion) {
-            add(new TestConfigFails<>(mainType, lookupType, exception, assertion));
-        }
     }
 
     interface TestConfig {
@@ -463,7 +461,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String mainPropertySpec() {
-            return "\"" + fieldName() + "\": { \"type\" : \"" + mainType().esType().replaceAll("cartesian_", "") + "\" }";
+            return propertySpecFor(fieldName(), mainType(), "");
+        }
+
+        default String lookupPropertySpec() {
+            return propertySpecFor(fieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
         }
 
         /** Make sure the left index has the expected fields and types */
@@ -477,6 +479,19 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         void testQuery(String query);
+    }
+
+    private static String propertySpecFor(String fieldName, DataType type, String extra) {
+        if (type == SCALED_FLOAT) {
+            return String.format(
+                Locale.ROOT,
+                "\"%s\": { \"type\" : \"%s\", \"scaling_factor\": %f }",
+                fieldName,
+                type.esType(),
+                SCALING_FACTOR
+            ) + extra;
+        }
+        return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.esType().replaceAll("cartesian_", "")) + extra;
     }
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {

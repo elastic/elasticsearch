@@ -45,7 +45,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
@@ -71,7 +70,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
-        SCALED_FLOAT,
         DATE_NANOS,
         OBJECT,
         SOURCE,

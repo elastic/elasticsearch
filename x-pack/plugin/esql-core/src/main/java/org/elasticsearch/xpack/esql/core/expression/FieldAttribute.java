@@ -41,6 +41,50 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
+    static class FieldAttirbuteBuilder {
+        private final Source source;
+        private String parentName;
+        private final String name;
+        private final EsField field;
+        private Nullability nullability;
+        private NameId id;
+        private boolean synthetic;
+
+        FieldAttirbuteBuilder(Source source, String name, EsField field) {
+            this.source = source;
+            this.parentName = null;
+            this.name = name;
+            this.field = field;
+            this.nullability = Nullability.TRUE;
+            this.id = null;
+            this.synthetic = false;
+        }
+
+        public FieldAttirbuteBuilder parentName(String parentName) {
+            this.parentName = parentName;
+            return this;
+        }
+
+        public FieldAttirbuteBuilder nullability(Nullability nullability) {
+            this.nullability = nullability;
+            return this;
+        }
+
+        public FieldAttirbuteBuilder id(NameId id) {
+            this.id = id;
+            return this;
+        }
+
+        public FieldAttirbuteBuilder synthetic(boolean synthetic) {
+            this.synthetic = synthetic;
+            return this;
+        }
+
+        public FieldAttribute build() {
+            return new FieldAttribute(source, parentName, name, field.getDataType(), field, nullability, id, synthetic);
+        }
+    }
+
     private final String parentName;
     private final EsField field;
 

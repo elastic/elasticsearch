@@ -36,7 +36,9 @@ public class HuggingFaceUnifiedChatCompletionRequestEntity implements ToXContent
         builder.startObject();
         unifiedRequestEntity.toXContent(builder, params);
 
-        builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
+        if (model.getServiceSettings().modelId() != null) {
+            builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
+        }
 
         if (unifiedChatInput.getRequest().maxCompletionTokens() != null) {
             builder.field(MAX_TOKENS_FIELD, unifiedChatInput.getRequest().maxCompletionTokens());

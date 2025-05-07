@@ -37,34 +37,33 @@ public class HuggingFaceChatCompletionResponseHandlerTests extends ESTestCase {
     public void testFailValidationWithAllFields() throws IOException {
         var responseJson = """
             {
-              "error": {
-                "message": "a message",
-                "http_status_code": 422
-              }
+              "error": "a message",
+              "type": "validation"
             }
             """;
 
         var errorJson = invalidResponseJson(responseJson);
 
         assertThat(errorJson, is("""
-            {"error":{"code":"422","message":"Received a server error status code for request from inference entity id [id] status [500]. \
-            Error message: [a message]","type":"HuggingFaceErrorResponse"}}"""));
+            {"error":{"code":"bad_request","message":"Received a server error status code for request from \
+            inference entity id [id] status [500]. \
+            Error message: [a message]",\
+            "type":"hugging_face_error"}}"""));
     }
 
     public void testFailValidationWithoutOptionalFields() throws IOException {
         var responseJson = """
             {
-              "error": {
-                "message": "a message"
-              }
+              "error": "a message"
             }
             """;
 
         var errorJson = invalidResponseJson(responseJson);
 
         assertThat(errorJson, is("""
-            {"error":{"message":"Received a server error status code for request from inference entity id [id] status [500]. \
-            Error message: [a message]","type":"HuggingFaceErrorResponse"}}"""));
+            {"error":{"code":"bad_request","message":"Received a server error status code for request from \
+            inference entity id [id] status [500]. \
+            Error message: [a message]","type":"hugging_face_error"}}"""));
     }
 
     public void testFailValidationWithInvalidJson() throws IOException {

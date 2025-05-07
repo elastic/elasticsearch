@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,11 +20,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -35,13 +34,10 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
-    @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        return super.parseResult(request, flow);
-    }
+    private static final String HUGGING_FACE_ERROR = "hugging_face_error";
 
     public HuggingFaceChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, HuggingFaceErrorResponse::fromResponse);
+        super(requestType, parseFunction, HuggingFaceErrorResponseEntity::fromResponse);
     }
 
     @Override
@@ -51,12 +47,12 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         if (request.isStreaming()) {
             var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
             var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof HuggingFaceErrorResponse huggingFaceErrorResponse
+            return errorResponse instanceof HuggingFaceErrorResponseEntity
                 ? new UnifiedChatCompletionException(
                     restStatus,
                     errorMessage,
-                    createErrorType(errorResponse),
-                    extractErrorCode(huggingFaceErrorResponse)
+                    HUGGING_FACE_ERROR,
+                    restStatus.name().toLowerCase(Locale.ROOT)
                 )
                 : new UnifiedChatCompletionException(
                     restStatus,
@@ -71,8 +67,8 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
 
     @Override
     protected Exception buildMidStreamError(Request request, String message, Exception e) {
-        var errorResponse = HuggingFaceErrorResponse.fromString(message);
-        if (errorResponse instanceof HuggingFaceErrorResponse huggingFaceErrorResponse) {
+        var errorResponse = StreamingHuggingFaceErrorResponseEntity.fromString(message);
+        if (errorResponse instanceof StreamingHuggingFaceErrorResponseEntity streamingHuggingFaceErrorResponseEntity) {
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
                 format(
@@ -81,8 +77,8 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
                     request.getInferenceEntityId(),
                     errorResponse.getErrorMessage()
                 ),
-                createErrorType(errorResponse),
-                extractErrorCode(huggingFaceErrorResponse)
+                HUGGING_FACE_ERROR,
+                extractErrorCode(streamingHuggingFaceErrorResponseEntity)
             );
         } else if (e != null) {
             return UnifiedChatCompletionException.fromThrowable(e);
@@ -96,25 +92,40 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         }
     }
 
-    private static String extractErrorCode(HuggingFaceErrorResponse huggingFaceErrorResponse) {
-        return huggingFaceErrorResponse.httpStatusCode() != null ? String.valueOf(huggingFaceErrorResponse.httpStatusCode()) : null;
+    private static String extractErrorCode(StreamingHuggingFaceErrorResponseEntity streamingHuggingFaceErrorResponseEntity) {
+        return streamingHuggingFaceErrorResponseEntity.httpStatusCode() != null
+            ? String.valueOf(streamingHuggingFaceErrorResponseEntity.httpStatusCode())
+            : null;
     }
 
-    private static class HuggingFaceErrorResponse extends ErrorResponse {
+    /**
+     * Represents a structured error response specifically for streaming operations
+     * using HuggingFace APIs. This is separate from non-streaming error responses,
+     * which are handled by {@link HuggingFaceErrorResponseEntity}.
+     * An example error response for failed field validation for streaming operation would look like
+     * <code>
+     *     {
+     *       "error": "Input validation error: cannot compile regex from schema",
+     *       "http_status_code": 422
+     *     }
+     * </code>
+     */
+    private static class StreamingHuggingFaceErrorResponseEntity extends ErrorResponse {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
-            "hugging_face_error",
+            HUGGING_FACE_ERROR,
             true,
-            args -> Optional.ofNullable((HuggingFaceErrorResponse) args[0])
+            args -> Optional.ofNullable((StreamingHuggingFaceErrorResponseEntity) args[0])
         );
-        private static final ConstructingObjectParser<HuggingFaceErrorResponse, Void> ERROR_BODY_PARSER = new ConstructingObjectParser<>(
-            "hugging_face_error",
-            true,
-            args -> new HuggingFaceErrorResponse((String) args[0], (Integer) args[1])
-        );
+        private static final ConstructingObjectParser<StreamingHuggingFaceErrorResponseEntity, Void> ERROR_BODY_PARSER =
+            new ConstructingObjectParser<>(
+                HUGGING_FACE_ERROR,
+                true,
+                args -> new StreamingHuggingFaceErrorResponseEntity(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
+            );
 
         static {
-            ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
-            ERROR_BODY_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), -1, new ParseField("http_status_code"));
+            ERROR_BODY_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("message"));
+            ERROR_BODY_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("http_status_code"));
 
             ERROR_PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
@@ -124,19 +135,12 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
             );
         }
 
-        private static ErrorResponse fromResponse(HttpResult response) {
-            try (
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(XContentParserConfiguration.EMPTY, response.body())
-            ) {
-                return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
-            } catch (Exception e) {
-                // swallow the error
-            }
-
-            return ErrorResponse.UNDEFINED_ERROR;
-        }
-
+        /**
+         * Parses a streaming HuggingFace error response from a JSON string.
+         *
+         * @param response the raw JSON string representing an error
+         * @return a parsed {@link ErrorResponse} or {@link ErrorResponse#UNDEFINED_ERROR} if parsing fails
+         */
         private static ErrorResponse fromString(String response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -153,7 +157,7 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         @Nullable
         private final Integer httpStatusCode;
 
-        HuggingFaceErrorResponse(String errorMessage, @Nullable Integer httpStatusCode) {
+        StreamingHuggingFaceErrorResponseEntity(String errorMessage, @Nullable Integer httpStatusCode) {
             super(errorMessage);
             this.httpStatusCode = httpStatusCode;
         }

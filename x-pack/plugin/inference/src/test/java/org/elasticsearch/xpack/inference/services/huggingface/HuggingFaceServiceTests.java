@@ -347,14 +347,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testUnifiedCompletionError() throws Exception {
+    public void testUnifiedCompletionNonStreamingError() throws Exception {
         String responseJson = """
             {
-                "error": {
-                    "message": "The model `gpt-4awero` does not exist or you do not have access to it.",
-                    "http_status_code": "404"
-                }
-            }""";
+                "error": "Model not found."
+            }
+            """;
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -383,10 +381,10 @@ public class HuggingFaceServiceTests extends ESTestCase {
                         assertThat(json, is("""
                             {\
                             "error":{\
-                            "code":"404",\
+                            "code":"not_found",\
                             "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-                            [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
-                            "type":"HuggingFaceErrorResponse"\
+                            [404]. Error message: [Model not found.]",\
+                            "type":"hugging_face_error"\
                             }}"""));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
@@ -400,7 +398,46 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testMidStreamUnifiedCompletionError() throws Exception {
         String responseJson = """
             event: error
-            data: { "error": { "message": "Timed out waiting for more data" } }
+            data: {"error":{"message":"Input validation error: cannot compile regex from schema: Unsupported JSON Schema structure \
+            {\\"id\\":\\"123\\"} \\nMake sure it is valid to the JSON Schema specification and check if it's supported by Outlines.\\n\
+            If it should be supported, please open an issue.","http_status_code":422}}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"422",\
+            "message":"Received an error response for request from inference entity id [id]. Error message: [Input validation error: \
+            cannot compile regex from schema: Unsupported JSON Schema structure {\\"id\\":\\"123\\"} \\nMake sure it is valid to the \
+            JSON Schema specification and check if it's supported by Outlines.\\nIf it should be supported, please open an issue.]",\
+            "type":"hugging_face_error"\
+            }}""");
+    }
+
+    public void testMidStreamUnifiedCompletionErrorNoMessage() throws Exception {
+        String responseJson = """
+            event: error
+            data: {"error":{"http_status_code":422}}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"422",\
+            "message":"Received an error response for request from inference entity id [id]. Error message: \
+            [unknown]",\
+            "type":"hugging_face_error"\
+            }}""");
+    }
+
+    public void testMidStreamUnifiedCompletionErrorNoHttpStatusCode() throws Exception {
+        String responseJson = """
+            event: error
+            data: {"error":{"message":"Input validation error: cannot compile regex from schema: Unsupported JSON Schema structure \
+            {\\"id\\":\\"123\\"} \\nMake sure it is valid to the JSON Schema specification and check if it's supported by \
+            Outlines.\\nIf it should be supported, please open an issue."}}
 
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -408,8 +445,42 @@ public class HuggingFaceServiceTests extends ESTestCase {
             {\
             "error":{\
             "message":"Received an error response for request from inference entity id [id]. Error message: \
-            [Timed out waiting for more data]",\
-            "type":"HuggingFaceErrorResponse"\
+            [Input validation error: cannot compile regex from schema: Unsupported JSON Schema structure \
+            {\\"id\\":\\"123\\"} \\nMake sure it is valid to the JSON Schema specification and check if it's supported\
+             by Outlines.\\nIf it should be supported, please open an issue.]",\
+            "type":"hugging_face_error"\
+            }}""");
+    }
+
+    public void testMidStreamUnifiedCompletionErrorNoHttpStatusCodeNoMessage() throws Exception {
+        String responseJson = """
+            event: error
+            data: {"error":{}}
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "message":"Received an error response for request from inference entity id [id]. Error message: \
+            [unknown]",\
+            "type":"hugging_face_error"\
+            }}""");
+    }
+
+    public void testUnifiedCompletionMalformedError() throws Exception {
+        String responseJson = """
+            data: { invalid json }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"bad_request",\
+            "message":"[1:3] Unexpected character ('i' (code 105)): was expecting double-quote to start field name\\n\
+             at [Source: (String)\\"{ invalid json }\\"; line: 1, column: 3]",\
+            "type":"x_content_parse_exception"\
             }}""");
     }
 
@@ -446,22 +517,6 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             });
         }
-    }
-
-    public void testUnifiedCompletionMalformedError() throws Exception {
-        String responseJson = """
-            data: { invalid json }
-
-            """;
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        testStreamError("""
-            {\
-            "error":{\
-            "code":"bad_request",\
-            "message":"[1:3] Unexpected character ('i' (code 105)): was expecting double-quote to start field name\\n\
-             at [Source: (String)\\"{ invalid json }\\"; line: 1, column: 3]",\
-            "type":"x_content_parse_exception"\
-            }}""");
     }
 
     public void testInfer_StreamRequest() throws Exception {
@@ -517,10 +572,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         String responseJson = """
             {
               "error": {
-                "message": "You didn't provide an API key...",
-                "type": "invalid_request_error",
-                "param": null,
-                "code": null
+                "message": "You didn't provide an API key..."
               }
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
@@ -540,8 +592,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(503).setBody("""
             {
               "error": {
-                "message": "server busy",
-                "type": "server_busy"
+                "message": "server busy"
               }
             }"""));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""

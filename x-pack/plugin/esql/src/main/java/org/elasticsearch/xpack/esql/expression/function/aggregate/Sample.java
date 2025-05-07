@@ -34,6 +34,10 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Sample extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
@@ -105,7 +109,18 @@ public class Sample extends AggregateFunction implements ToAggregator {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        int limit = (int) limitField().fold(FoldContext.small());
+        var typeResolution = isType(
+            field(),
+            dt -> dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            FIRST,
+            "any type except unsigned_long"
+        ).and(isNotNullAndFoldable(limitField(), sourceText(), SECOND))
+            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+        if (typeResolution.unresolved()) {
+            return typeResolution;
+        }
+        int limit = limitValue();
         if (limit <= 0) {
             return new TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText(), limit));
         }

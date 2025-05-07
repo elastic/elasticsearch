@@ -838,7 +838,12 @@ public class EsqlCapabilities {
          * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
          * https://github.com/elastic/elasticsearch/issues/126419
          */
-        FIX_JOIN_MASKING_EVAL;
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;
 
         private final boolean enabled;
 

@@ -2,6 +2,7 @@
 navigation_title: "Tutorial"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-postgresql-connector-client-tutorial.html
+  - https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-appsearch.html
 ---
 
 # PostgreSQL self-managed connector tutorial [es-postgresql-connector-client-tutorial]
@@ -101,7 +102,7 @@ Once you’ve created an index, you can set up the connector. You will be guided
     * Open the `config.yml` configuration file in your editor of choice.
     * Replace the values for `host`, `api_key`, and `connector_id` with the values you gathered [earlier](#es-postgresql-connector-client-tutorial-gather-elastic-details). Use the `service_type` value `postgresql` for this connector.
 
-        ::::{dropdown} **Expand** to see an example `config.yml` file
+        ::::{dropdown} Expand to see an example config.yml file
         Replace the values for `host`, `api_key`, and `connector_id` with your own values. Use the `service_type` value `postgresql` for this connector.
 
         ```yaml

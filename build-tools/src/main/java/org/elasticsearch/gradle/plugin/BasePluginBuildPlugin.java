@@ -56,6 +56,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
     public static final String EXPLODED_BUNDLE_PLUGIN_TASK_NAME = "explodedBundlePlugin";
     public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
+    public static final Attribute<Boolean> EXPLODED_PLUGIN_BUNDLE_ATTRIBUTE = Attribute.of("exploded-plugin-bundle", Boolean.class);
 
     protected final ProviderFactory providerFactory;
 
@@ -170,6 +171,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         explodedBundleZip.setCanBeResolved(false);
         explodedBundleZip.setCanBeConsumed(true);
         explodedBundleZip.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        explodedBundleZip.getAttributes().attribute(EXPLODED_PLUGIN_BUNDLE_ATTRIBUTE, true);
         project.getArtifacts().add(EXPLODED_BUNDLE_CONFIG, explodedBundle);
         return bundle;
     }
@@ -181,11 +183,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
-        bundleSpec.from(pluginMetadata, copySpec -> {
-            // metadata (eg custom security policy)
-            // the codebases properties file is only for tests and not needed in production
-            copySpec.exclude("plugin-security.codebases");
-        });
+        bundleSpec.from(pluginMetadata);
         bundleSpec.from(
             (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.gradleup.shadow")
                 ? project.getTasks().named("shadowJar")

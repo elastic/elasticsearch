@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -385,7 +384,19 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return syntheticSourceSupport(ignoreMalformed);
+        return new NumberSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
     }
 
     @Override
@@ -424,20 +435,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> {
-            // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.
-            if (v instanceof BigInteger ul) {
-                if (ul.bitLength() < Long.SIZE) {
-                    return ul.longValue() ^ Long.MIN_VALUE;
-                }
-                return ul.subtract(BigInteger.ONE.shiftLeft(Long.SIZE - 1)).longValue();
-            }
-            return ((Long) v).longValue() ^ Long.MIN_VALUE;
-        };
-    }
-
-    final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
         private final boolean ignoreMalformedEnabled;
 
@@ -452,7 +450,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 if (v.malformedOutput == null) {
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
@@ -468,9 +466,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            Object outBlock = outputFromDocValues.size() == 1 ? outputFromDocValues.get(0) : outputFromDocValues;
-
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            return new SyntheticSourceExample(in, out, this::mapping);
         }
 
         private record Value(Object input, BigInteger output, Object malformedOutput) {}

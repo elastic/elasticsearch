@@ -5,8 +5,6 @@
 ```esql
 FROM books
 | WHERE TERM(author, "gabriel")
-| KEEP book_no, title
-| LIMIT 3
 ```
 
 | book_no:keyword | title:text |

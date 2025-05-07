@@ -49,9 +49,9 @@ final class AggregateMapper {
     }
 
     private List<NamedExpression> doMapping(List<? extends NamedExpression> aggregates, boolean grouping) {
-        AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
-        aggregates.stream().flatMap(ne -> map(ne, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
-        return attrToExpressions.values().stream().toList();
+        AttributeMap.Builder<NamedExpression> attrToExpressionsBuilder = AttributeMap.builder();
+        aggregates.stream().flatMap(ne -> map(ne, grouping)).forEach(ne -> attrToExpressionsBuilder.put(ne.toAttribute(), ne));
+        return attrToExpressionsBuilder.build().values().stream().toList();
     }
 
     public List<NamedExpression> mapGrouping(NamedExpression aggregate) {
@@ -109,7 +109,9 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
+            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+                "unsupported agg type: " + elementType
+            );
         };
     }
 }

@@ -3,5 +3,5 @@
 **Parameters**
 
 `number`
-:   Input value. The input can be a single-valued column or an expression.
+:   Input value. The input can be a single- or multi-valued column or an expression.
 

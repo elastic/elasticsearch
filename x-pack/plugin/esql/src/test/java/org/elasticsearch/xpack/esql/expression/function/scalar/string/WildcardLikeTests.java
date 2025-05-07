@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -57,7 +56,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
@@ -92,7 +91,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotLike() throws IOException {
+    public static void renderNotLike() throws Exception {
         renderNegatedOperator(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d, getTestClass());
     }
 }

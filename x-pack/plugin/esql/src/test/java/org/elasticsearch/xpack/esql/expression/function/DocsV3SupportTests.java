@@ -7,21 +7,54 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
     private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class);
+    private static final String ESQL = "/reference/query-languages/esql";
 
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";
-        String expected = "The value that is greater than half of all values and less than half of all values, "
-            + "also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile).";
+        String expected = "The value that is greater than half of all values and less than half of all values, also known as the 50% "
+            + "[`PERCENTILE`]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile).";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testFunctionHeaderLink() {
+        String text = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create";
+        String expected = "Combine `BUCKET` with an [aggregation](" + ESQL + "/functions-operators/aggregation-functions.md) to create";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testSpatialFunctionLink() {
+        String text = "This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function";
+        String expected = "This is the inverse of the [ST_DISJOINT]("
+            + ESQL
+            + "/functions-operators/spatial-functions.md#esql-st_disjoint) function";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testStringFunctionLink() {
+        String text = "a known order like <<esql-split>>.";
+        String expected = "a known order like [`SPLIT`](" + ESQL + "/functions-operators/string-functions.md#esql-split).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -29,27 +62,31 @@ public class DocsV3SupportTests extends ESTestCase {
         String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
         String expected = """
             If you need floating point division,
-            [`Cast (::)`](/reference/query-languages/esql/esql-functions-operators.md#esql-cast-operator)
-            one of the arguments to a `DOUBLE`.""".replaceAll("\n", " ");
+            [`Cast (::)`](ESQL/functions-operators/operators.md#esql-cast-operator)
+            one of the arguments to a `DOUBLE`.""".replaceAll("ESQL", ESQL).replaceAll("\n", " ");
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testCommandLink() {
         String text = "use a <<esql-where>> command to remove rows";
-        String expected = "use a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command to remove rows";
+        String expected = "use a [`WHERE`](" + ESQL + "/commands/processing-commands.md#esql-where) command to remove rows";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testStatsCommandLink() {
         String text = "Combine `DATE_TRUNC` with <<esql-stats-by>>";
-        String expected = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by)";
+        String expected = "Combine `DATE_TRUNC` with [`STATS`](" + ESQL + "/commands/processing-commands.md#esql-stats-by)";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testFunctionAndHeaderLinks() {
         String text = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.";
-        String expected = "Like [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile), "
-            + "`MEDIAN` is [usually approximate](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile-approximate).";
+        String expected = "Like [`PERCENTILE`]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile), "
+            + "`MEDIAN` is [usually approximate]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile-approximate).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -191,8 +228,11 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
-    public void testRenderingExampleFromClass() throws IOException {
+    public void testRenderingExampleFromClass() throws Exception {
         String expected = """
+            % This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
+
+            **Examples**
 
             ```esql
             FROM employees
@@ -233,7 +273,7 @@ public class DocsV3SupportTests extends ESTestCase {
             | 6 |
 
             To count the number of times an expression returns `TRUE` use a
-            [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command
+            [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command
             to remove rows that shouldn’t be included
 
             ```esql
@@ -261,21 +301,83 @@ public class DocsV3SupportTests extends ESTestCase {
             | --- | --- |
             | 1 | 0 |
             """;
+        TestDocsFileWriter tempFileWriter = renderTestClassDocs();
+        String rendered = tempFileWriter.rendered.get("examples/count.md");
+        assertThat(rendered.trim(), equalTo(expected.trim()));
+    }
+
+    public void testRenderingLayoutFromClass() throws Exception {
+        String expected = """
+            % This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
+
+            ## `COUNT` [esql-count]
+            :::{warning}
+            Do not use on production environments. This functionality is in technical preview and
+            may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview
+            are not subject to the support SLA of official GA features.
+            :::
+
+            :::{note}
+            ###### Serverless: GA, Elastic Stack: COMING 9.1.0
+            Support for optional named parameters is only available from 9.1.0
+
+            ###### DEVELOPMENT
+            The ability to generate more imaginative answers to the question is under development
+
+            ###### DISCONTINUED 9.0.0
+            The ability to count the number of emojis in a string has been discontinued since 9.0.0
+            :::
+
+            **Syntax**
+
+            :::{image} ../../../images/functions/count.svg
+            :alt: Embedded
+            :class: text-center
+            :::
+
+
+            :::{include} ../parameters/count.md
+            :::
+
+            :::{include} ../description/count.md
+            :::
+
+            :::{include} ../types/count.md
+            :::
+
+            :::{include} ../examples/count.md
+            :::
+            """;
+        TestDocsFileWriter tempFileWriter = renderTestClassDocs();
+        String rendered = tempFileWriter.rendered.get("layout/count.md");
+        assertThat(rendered.trim(), equalTo(expected.trim()));
+    }
+
+    private TestDocsFileWriter renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
         assert info != null;
-        DocsV3Support docs = DocsV3Support.forFunctions("count", TestClass.class);
-        StringBuilder results = new StringBuilder();
-        for (Example example : info.examples()) {
-            if (example.description().isEmpty() == false) {
-                results.append("\n");
-                results.append(docs.replaceLinks(example.description().trim()));
-                results.append("\n");
-            }
-            String query = docs.loadExampleQuery(example);
-            String result = docs.loadExampleResult(example);
-            results.append("\n").append(query).append("\n").append(result);
+        FunctionDefinition definition = EsqlFunctionRegistry.def(TestClass.class, TestClass::new, "count");
+        var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures);
+        TestDocsFileWriter tempFileWriter = new TestDocsFileWriter("count");
+        docs.setTempFileWriter(tempFileWriter);
+        docs.renderDocs();
+        return tempFileWriter;
+    }
+
+    private class TestDocsFileWriter implements DocsV3Support.TempFileWriter {
+        private final String name;
+        private final Map<String, String> rendered = new HashMap<>();
+
+        TestDocsFileWriter(String name) {
+            this.name = name;
         }
-        assertThat(results.toString(), equalTo(expected));
+
+        @Override
+        public void writeToTempDir(Path dir, String extension, String str) throws IOException {
+            String file = dir.getFileName() + "/" + name + "." + extension;
+            rendered.put(file, str);
+            logger.info("Wrote to file: {}", file);
+        }
     }
 
     private static FunctionInfo functionInfo(Class<?> clazz) {
@@ -301,9 +403,10 @@ public class DocsV3SupportTests extends ESTestCase {
         return constructors[0];
     }
 
-    public static class TestClass {
+    public static class TestClass extends Function {
         @FunctionInfo(
             returnType = "long",
+            preview = true,
             description = "Returns the total number (count) of input values.",
             type = FunctionType.AGGREGATE,
             examples = {
@@ -325,8 +428,56 @@ public class DocsV3SupportTests extends ESTestCase {
                         `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.""",
                     file = "stats",
                     tag = "count-or-null"
+                ) },
+            appliesTo = {
+                @FunctionAppliesTo(
+                    lifeCycle = FunctionAppliesToLifecycle.COMING,
+                    version = "9.1.0",
+                    description = "Support for optional named parameters is only available from 9.1.0"
+                ),
+                @FunctionAppliesTo(
+                    lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT,
+                    description = "The ability to generate more imaginative answers to the question is under development"
+                ),
+                @FunctionAppliesTo(
+                    lifeCycle = FunctionAppliesToLifecycle.DISCONTINUED,
+                    version = "9.0.0",
+                    description = "The ability to count the number of emojis in a string has been discontinued since 9.0.0"
                 ) }
         )
-        public TestClass() {}
+        public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+            String expression. If `null`, the function returns `null`.
+            The input can be a single- or multi-valued column or an expression.""") Expression field) {
+            super(source, List.of(field));
+        }
+
+        public static Map<List<DataType>, DataType> signatures() {
+            return Map.of(List.of(DataType.KEYWORD), DataType.LONG);
+        }
+
+        @Override
+        public DataType dataType() {
+            return DataType.LONG;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new TestClass(source(), newChildren.getFirst());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, TestClass::new, children().getFirst());
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 }

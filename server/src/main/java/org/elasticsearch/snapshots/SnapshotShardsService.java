@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -56,7 +57,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -98,6 +98,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     // A map of snapshots to the shardIds that we already reported to the master as failed
     private final ResultDeduplicator<UpdateIndexShardSnapshotStatusRequest, Void> remoteFailedRequestDeduplicator;
 
+    // Runs the tasks that start each shard snapshot (e.g. acquiring the index commit)
+    private final ThrottledTaskRunner startShardSnapshotTaskRunner;
+
     // Runs the tasks that promptly notify shards of aborted snapshots so that resources can be released ASAP
     private final ThrottledTaskRunner notifyOnAbortTaskRunner;
 
@@ -130,6 +133,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             "notify-on-abort",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.generic()
+        );
+        this.startShardSnapshotTaskRunner = new ThrottledTaskRunner(
+            "start-shard-snapshots",
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
     }
 
@@ -384,7 +392,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         final var newSnapshotShards = shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>());
 
-        final List<Runnable> shardSnapshotTasks = new ArrayList<>(shardsToStart.size());
         for (final Map.Entry<ShardId, ShardGeneration> shardEntry : shardsToStart.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardEntry.getValue());
@@ -396,26 +403,56 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 : "Found non-null, non-numeric shard generation ["
                     + snapshotStatus.generation()
                     + "] for snapshot with old-format compatibility";
-            shardSnapshotTasks.add(newShardSnapshotTask(shardId, snapshot, indexId, snapshotStatus, entry.version(), entry.startTime()));
-            snapshotStatus.updateStatusDescription("shard snapshot scheduled to start");
+            final var shardSnapshotTask = newShardSnapshotTask(
+                shardId,
+                snapshot,
+                indexId,
+                snapshotStatus,
+                entry.version(),
+                entry.startTime()
+            );
+            startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        shardSnapshotTask.run();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    final var wrapperException = new IllegalStateException(
+                        "impossible failure starting shard snapshot for " + shardId + " in " + snapshot,
+                        e
+                    );
+                    logger.error(wrapperException.getMessage(), wrapperException);
+                    assert false : wrapperException; // impossible
+                }
+            });
+            snapshotStatus.updateStatusDescription("shard snapshot enqueued to start");
         }
 
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> shardSnapshotTasks.forEach(Runnable::run));
+        // apply some backpressure by reserving one SNAPSHOT thread for the startup work
+        startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
     }
 
-    private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry entry) {
-        final var localShardSnapshots = shardSnapshots.getOrDefault(entry.snapshot(), Map.of());
+    /**
+     * Iterates all the shard snapshots for the given snapshot entry. Any shard snapshots assigned to this data node will be: immediately
+     * paused, if not already running; or flagged for pausing, if running.
+     */
+    private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry masterEntryCopy) {
+        final var localShardSnapshots = shardSnapshots.getOrDefault(masterEntryCopy.snapshot(), Map.of());
 
-        for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+        for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : masterEntryCopy.shards().entrySet()) {
             final ShardId shardId = shardEntry.getKey();
-            final ShardSnapshotStatus masterShardSnapshotStatus = shardEntry.getValue();
+            final ShardSnapshotStatus masterShardSnapshotStatusCopy = shardEntry.getValue();
 
-            if (masterShardSnapshotStatus.state() != ShardState.INIT) {
+            if (masterShardSnapshotStatusCopy.state() != ShardState.INIT) {
                 // shard snapshot not currently scheduled by master
                 continue;
             }
 
-            if (localNodeId.equals(masterShardSnapshotStatus.nodeId()) == false) {
+            if (localNodeId.equals(masterShardSnapshotStatusCopy.nodeId()) == false) {
                 // shard snapshot scheduled on a different node
                 continue;
             }
@@ -424,11 +461,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             if (localShardSnapshotStatus == null) {
                 // shard snapshot scheduled but not currently running, pause immediately without starting
                 notifyUnsuccessfulSnapshotShard(
-                    entry.snapshot(),
+                    masterEntryCopy.snapshot(),
                     shardId,
                     ShardState.PAUSED_FOR_NODE_REMOVAL,
                     "paused",
-                    masterShardSnapshotStatus.generation(),
+                    masterShardSnapshotStatusCopy.generation(),
                     // Shard snapshot never began, so there is no status object to update
                     (outcomeInfoString) -> {}
                 );

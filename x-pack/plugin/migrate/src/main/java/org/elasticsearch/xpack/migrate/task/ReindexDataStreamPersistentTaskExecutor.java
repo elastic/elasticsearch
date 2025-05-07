@@ -108,6 +108,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTaskParams params,
         PersistentTaskState persistentTaskState
     ) {
+        Long completionTime = getCompletionTime(persistentTaskState);
+        if (completionTime != null && task instanceof ReindexDataStreamTask reindexDataStreamTask) {
+            reindexDataStreamTask.allReindexesCompleted(threadPool, getTimeToLive(completionTime));
+            return;
+        }
         ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTaskState;
         String sourceDataStream = params.getSourceDataStream();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
@@ -119,7 +124,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
-                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false).test(dataStream.getWriteIndex())) {
+                boolean includeSystem = dataStream.isSystem();
+                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, includeSystem).test(
+                    dataStream.getWriteIndex()
+                )) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
                     rolloverRequest.setParentTask(taskId);
                     client.execute(
@@ -166,7 +174,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     ) {
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
-            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false))
+            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, dataStream.isSystem()))
             .toList();
         final ReindexDataStreamPersistentTaskState updatedState;
         if (params.totalIndices() != totalIndicesInDataStream
@@ -316,6 +324,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
     }
 
+    private Long getCompletionTime(PersistentTaskState persistentTaskState) {
+        if (persistentTaskState instanceof ReindexDataStreamPersistentTaskState state) {
+            return state.completionTime();
+        } else {
+            return null;
+        }
+    }
+
     private TimeValue updateCompletionTimeAndGetTimeToLive(
         ReindexDataStreamTask reindexDataStreamTask,
         @Nullable ReindexDataStreamPersistentTaskState state
@@ -345,6 +361,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 completionTime = state.completionTime();
             }
         }
-        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTime));
+        return getTimeToLive(completionTime);
+    }
+
+    private TimeValue getTimeToLive(long completionTimeInMillis) {
+        return TimeValue.timeValueMillis(
+            TASK_KEEP_ALIVE_TIME.millis() - Math.min(
+                TASK_KEEP_ALIVE_TIME.millis(),
+                threadPool.absoluteTimeInMillis() - completionTimeInMillis
+            )
+        );
     }
 }

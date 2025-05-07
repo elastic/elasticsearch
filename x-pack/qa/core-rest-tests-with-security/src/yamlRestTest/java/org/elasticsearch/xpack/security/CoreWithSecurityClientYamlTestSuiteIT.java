@@ -51,6 +51,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
+        .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

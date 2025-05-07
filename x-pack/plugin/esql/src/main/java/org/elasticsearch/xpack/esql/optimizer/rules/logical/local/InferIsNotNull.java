@@ -47,17 +47,17 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
         // the alias map is shared across the whole plan
-        AttributeMap<Expression> aliases = new AttributeMap<>();
+        AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
         // traverse bottom-up to pick up the aliases as we go
-        plan = plan.transformUp(p -> inspectPlan(p, aliases));
+        plan = plan.transformUp(p -> inspectPlan(p, aliasesBuilder));
         return plan;
     }
 
-    private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap<Expression> aliases) {
+    private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap.Builder<Expression> aliasesBuilder) {
         // inspect just this plan properties
-        plan.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+        plan.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
         // now go about finding isNull/isNotNull
-        LogicalPlan newPlan = plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliases));
+        LogicalPlan newPlan = plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliasesBuilder.build()));
         return newPlan;
     }
 

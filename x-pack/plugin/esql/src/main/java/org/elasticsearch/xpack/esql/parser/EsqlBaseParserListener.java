@@ -122,6 +122,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitField(EsqlBaseParser.FieldContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankFields}.
+   * @param ctx the parse tree
+   */
+  void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankFields}.
+   * @param ctx the parse tree
+   */
+  void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankField}.
+   * @param ctx the parse tree
+   */
+  void enterRerankField(EsqlBaseParser.RerankFieldContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankField}.
+   * @param ctx the parse tree
+   */
+  void exitRerankField(EsqlBaseParser.RerankFieldContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#fromCommand}.
    * @param ctx the parse tree
    */
@@ -132,15 +152,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#timeSeriesCommand}.
    * @param ctx the parse tree
    */
-  void enterMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  void enterTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#timeSeriesCommand}.
    * @param ctx the parse tree
    */
-  void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  void exitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
@@ -171,6 +191,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void enterSelectorString(EsqlBaseParser.SelectorStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   */
+  void exitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
@@ -625,6 +655,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   */
+  void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   */
+  void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

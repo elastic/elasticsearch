@@ -40,9 +40,12 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 
 /**
  * Handles data stream modification requests.
@@ -55,6 +58,7 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
+    private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
@@ -119,12 +123,60 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    updateDataStreamOptions(clusterState, modifyOptionsTask.getDataStreamNames(), modifyOptionsTask.getOptions()),
+                    ClusterState.builder(clusterState)
+                        .putProjectMetadata(
+                            updateDataStreamOptions(
+                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                modifyOptionsTask.getDataStreamNames(),
+                                modifyOptionsTask.getOptions()
+                            )
+                        )
+                        .build(),
                     modifyOptionsTask
                 );
             }
         };
         this.updateOptionsTaskQueue = clusterService.createTaskQueue("modify-data-stream-options", Priority.NORMAL, updateOptionsExecutor);
+        ClusterStateTaskExecutor<UpdateSettingsTask> updateSettingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateSettingsTask updateSettingsTask,
+                ClusterState clusterState
+            ) throws Exception {
+
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+                DataStream dataStream = dataStreamMap.get(updateSettingsTask.dataStreamName);
+                Settings existingSettings = dataStream.getSettings();
+
+                Template.Builder templateBuilder = Template.builder();
+                Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(updateSettingsTask.settingsOverrides);
+                Settings mergedSettings = mergedSettingsBuilder.build();
+
+                final ComposableIndexTemplate template = lookupTemplateForDataStream(updateSettingsTask.dataStreamName, projectMetadata);
+                ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
+                MetadataIndexTemplateService.validateTemplate(
+                    mergedTemplate.template().settings(),
+                    mergedTemplate.template().mappings(),
+                    indicesService
+                );
+
+                templateBuilder.settings(mergedSettingsBuilder);
+                DataStream.Builder dataStreamBuilder = dataStream.copy().setSettings(mergedSettings);
+                projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStreamBuilder.build());
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+                return new Tuple<>(updatedClusterState, updateSettingsTask);
+            }
+        };
+        this.updateSettingsTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-settings",
+            Priority.NORMAL,
+            updateSettingsExecutor
+        );
     }
 
     public void modifyDataStream(
@@ -195,6 +247,7 @@ public class MetadataDataStreamsService {
      * Submits the task to set the provided data stream options to the requested data streams.
      */
     public void setDataStreamOptions(
+        final ProjectId projectId,
         final List<String> dataStreamNames,
         DataStreamOptions options,
         TimeValue ackTimeout,
@@ -203,7 +256,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "set-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, options, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, options, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -212,6 +265,7 @@ public class MetadataDataStreamsService {
      * Submits the task to remove the data stream options from the requested data streams.
      */
     public void removeDataStreamOptions(
+        ProjectId projectId,
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
@@ -219,7 +273,7 @@ public class MetadataDataStreamsService {
     ) {
         updateOptionsTaskQueue.submitTask(
             "delete-data-stream-options",
-            new UpdateOptionsTask(dataStreamNames, null, ackTimeout, listener),
+            new UpdateOptionsTask(projectId, dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -299,7 +353,7 @@ public class MetadataDataStreamsService {
         }
         if (lifecycle != null) {
             // We don't issue any warnings if all data streams are internal data streams
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), onlyInternalDataStreams);
         }
         return builder.build();
     }
@@ -308,18 +362,25 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream options provided.
      * Visible for testing.
      */
-    ClusterState updateDataStreamOptions(
-        ClusterState currentState,
+    ProjectMetadata updateDataStreamOptions(
+        ProjectMetadata project,
         List<String> dataStreamNames,
         @Nullable DataStreamOptions dataStreamOptions
     ) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+        boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
+            var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
+            onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
         }
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
+        if (dataStreamOptions != null && dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            // We don't issue any warnings if all data streams are internal data streams
+            dataStreamOptions.failureStore()
+                .lifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(true), onlyInternalDataStreams);
+        }
+        return builder.build();
     }
 
     /**
@@ -353,6 +414,21 @@ public class MetadataDataStreamsService {
         );
     }
 
+    public void updateSettings(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        Settings settingsOverrides,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateSettingsTaskQueue.submitTask(
+            "updating settings on data stream",
+            new UpdateSettingsTask(projectId, dataStreamName, settingsOverrides, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
     private static void addBackingIndex(
         ProjectMetadata project,
         ProjectMetadata.Builder builder,
@@ -373,6 +449,7 @@ public class MetadataDataStreamsService {
                 mapperSupplier,
                 false,
                 failureStore,
+                dataStream.isSystem(),
                 nodeSettings
             );
         } catch (IOException e) {
@@ -525,19 +602,25 @@ public class MetadataDataStreamsService {
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
     static class UpdateOptionsTask extends AckedBatchedClusterStateUpdateTask {
-
+        ProjectId projectId;
         private final List<String> dataStreamNames;
         private final DataStreamOptions options;
 
         UpdateOptionsTask(
+            ProjectId projectId,
             List<String> dataStreamNames,
             @Nullable DataStreamOptions options,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamNames = dataStreamNames;
             this.options = options;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public List<String> getDataStreamNames() {
@@ -588,6 +671,25 @@ public class MetadataDataStreamsService {
 
         public boolean targetFailureStore() {
             return targetFailureStore;
+        }
+    }
+
+    static class UpdateSettingsTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String dataStreamName;
+        private final Settings settingsOverrides;
+
+        UpdateSettingsTask(
+            ProjectId projectId,
+            String dataStreamName,
+            Settings settingsOverrides,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.dataStreamName = dataStreamName;
+            this.settingsOverrides = settingsOverrides;
         }
     }
 }

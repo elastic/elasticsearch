@@ -197,11 +197,6 @@ public class RankedDocsResults implements InferenceServiceResults {
     }
 
     @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("Legacy format not supported by " + NAME);
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(RERANK, rankedDocs.stream().map(RankedDoc::asMap).collect(Collectors.toList()));

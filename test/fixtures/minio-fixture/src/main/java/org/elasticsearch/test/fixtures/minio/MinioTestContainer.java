@@ -19,6 +19,14 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2024-12-18T13-15-44Z";
     private final boolean enabled;
 
+    /**
+     * for packer caching only
+     * see CacheCacheableTestFixtures.
+     * */
+    protected MinioTestContainer() {
+        this(true, "minio", "minio123", "test-bucket");
+    }
+
     public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
         super(
             new ImageFromDockerfile("es-minio-testfixture").withDockerfileFromBuilder(

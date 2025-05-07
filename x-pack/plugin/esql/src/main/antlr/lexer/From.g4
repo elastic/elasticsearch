@@ -11,13 +11,14 @@ lexer grammar From;
 //
 FROM : 'from'                 -> pushMode(FROM_MODE);
 
-DEV_METRICS : {this.isDevVersion()}? 'metrics' -> pushMode(FROM_MODE);
+DEV_TIME_SERIES : {this.isDevVersion()}? 'ts' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COLON : COLON -> type(COLON);
+FROM_SELECTOR : CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';

@@ -16,10 +16,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -32,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -40,55 +41,33 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
-    public static final class HashAggregationOperatorFactory implements OperatorFactory {
-        final Function<DriverContext, BlockHash> blockHashSupplier;
-        final AggregatorMode aggregatorMode;
-        final List<GroupingAggregator.Factory> aggregators;
-        final int maxPageSize;
-        final AnalysisRegistry analysisRegistry;
-
-        public HashAggregationOperatorFactory(
-            Function<DriverContext, BlockHash> blockHashSupplier,
-            AggregatorMode aggregatorMode,
-            List<GroupingAggregator.Factory> aggregators,
-            int maxPageSize,
-            AnalysisRegistry analysisRegistry
-        ) {
-            this.blockHashSupplier = blockHashSupplier;
-            this.aggregatorMode = aggregatorMode;
-            this.aggregators = aggregators;
-            this.maxPageSize = maxPageSize;
-            this.analysisRegistry = analysisRegistry;
-
-        }
-
-        public HashAggregationOperatorFactory(
-            List<BlockHash.GroupSpec> groups,
-            AggregatorMode aggregatorMode,
-            List<GroupingAggregator.Factory> aggregators,
-            int maxPageSize,
-            AnalysisRegistry analysisRegistry
-        ) {
-            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
-                this.blockHashSupplier = driverContext -> BlockHash.buildCategorizeBlockHash(
-                    groups,
-                    aggregatorMode,
-                    driverContext.blockFactory(),
-                    analysisRegistry,
-                    maxPageSize
-                );
-            } else {
-                this.blockHashSupplier = driverContext -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
-            }
-            this.aggregatorMode = aggregatorMode;
-            this.aggregators = aggregators;
-            this.maxPageSize = maxPageSize;
-            this.analysisRegistry = analysisRegistry;
-        }
-
+    public record HashAggregationOperatorFactory(
+        List<BlockHash.GroupSpec> groups,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregators,
+        int maxPageSize,
+        AnalysisRegistry analysisRegistry
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> blockHashSupplier.apply(driverContext), driverContext);
+            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
+                return new HashAggregationOperator(
+                    aggregators,
+                    () -> BlockHash.buildCategorizeBlockHash(
+                        groups,
+                        aggregatorMode,
+                        driverContext.blockFactory(),
+                        analysisRegistry,
+                        maxPageSize
+                    ),
+                    driverContext
+                );
+            }
+            return new HashAggregationOperator(
+                aggregators,
+                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                driverContext
+            );
         }
 
         @Override
@@ -108,7 +87,7 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
-    private final DriverContext driverContext;
+    protected final DriverContext driverContext;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -167,17 +146,21 @@ public class HashAggregationOperator implements Operator {
                 long aggStart;
 
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    if (groupIdsVector != null) {
-                        add(positionOffset, groupIdsVector);
-                    } else {
-                        startAggEndHash();
-                        for (GroupingAggregatorFunction.AddInput p : prepared) {
-                            p.add(positionOffset, groupIds);
-                        }
-                        end();
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
                     }
+                    end();
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
+                    }
+                    end();
                 }
 
                 @Override
@@ -248,9 +231,10 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
+            var evaluationContext = evaluationContext(keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, driverContext);
+                aggregator.evaluate(blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -264,6 +248,10 @@ public class HashAggregationOperator implements Operator {
                 Releasables.closeExpectNoException(blocks);
             }
         }
+    }
+
+    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+        return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
     @Override

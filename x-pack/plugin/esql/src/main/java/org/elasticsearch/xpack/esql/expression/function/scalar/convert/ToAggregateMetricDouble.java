@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -67,14 +68,17 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "aggregate_metric_double",
         description = "Encode a numeric to an aggregate_metric_double.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "9.1") }
+        examples = {
+            @Example(file = "convert", tag = "toAggregateMetricDouble"),
+            @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) }
     )
     public ToAggregateMetricDouble(
         Source source,
         @Param(
             name = "number",
             type = { "double", "long", "unsigned_long", "integer", "aggregate_metric_double" },
-            description = "Input value. The input can be a single-valued column or an expression."
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);
@@ -137,26 +141,20 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         private Block build() {
-            Block[] blocks = new Block[4];
-            Block block;
+            DoubleBlock doubleBlock = null;
+            IntBlock countBlock = null;
             boolean success = false;
             try {
-                block = valuesBuilder.build().asBlock();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block;
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = blockFactory.newConstantIntBlockWith(
-                    1,
-                    block.getPositionCount()
-                );
-                CompositeBlock compositeBlock = new CompositeBlock(blocks);
+                doubleBlock = valuesBuilder.build().asBlock();
+                countBlock = blockFactory.newConstantIntBlockWith(1, doubleBlock.getPositionCount());
+                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleBlock(doubleBlock, doubleBlock, doubleBlock, countBlock);
+                doubleBlock.incRef();
+                doubleBlock.incRef();
                 success = true;
-                return compositeBlock;
+                return aggBlock;
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(doubleBlock, countBlock);
                 }
             }
         }

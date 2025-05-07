@@ -47,7 +47,7 @@ Final relevance scores from the `script_score` query cannot be negative. To supp
 
 
 `min_score`
-:   (Optional, float) Documents with a score lower than this floating point number are excluded from the search results.
+:   (Optional, float) Documents with a score lower than this floating point number are excluded from search results and results collected by aggregations.
 
 `boost`
 :   (Optional, float) Documents' scores produced by `script` are multiplied by `boost` to produce final documents' scores. Defaults to `1.0`.

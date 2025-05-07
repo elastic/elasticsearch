@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -22,7 +21,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBigArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -31,8 +29,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-
-import java.util.Objects;
 
 /**
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
@@ -43,7 +39,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     private final int tsHashChannel;
     private final int timestampIntervalChannel;
 
-    private final BytesRef lastTsid = new BytesRef();
+    private int lastTsidPosition = 0;
     private final BytesRefArrayWithSize tsidArray;
 
     private long lastTimestamp;
@@ -52,15 +48,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
     private int currentTimestampCount;
     private final IntArrayWithSize perTsidCountArray;
 
-    int groupOrdinal = -1;
-
     public TimeSeriesBlockHash(int tsHashChannel, int timestampIntervalChannel, BlockFactory blockFactory) {
         super(blockFactory);
         this.tsHashChannel = tsHashChannel;
         this.timestampIntervalChannel = timestampIntervalChannel;
-        this.tsidArray = new BytesRefArrayWithSize();
-        this.timestampArray = new LongArrayWithSize();
-        this.perTsidCountArray = new IntArrayWithSize();
+        this.tsidArray = new BytesRefArrayWithSize(blockFactory);
+        this.timestampArray = new LongArrayWithSize(blockFactory);
+        this.perTsidCountArray = new IntArrayWithSize(blockFactory);
     }
 
     @Override
@@ -68,43 +62,75 @@ public final class TimeSeriesBlockHash extends BlockHash {
         Releasables.close(tsidArray, timestampArray, perTsidCountArray);
     }
 
+    private OrdinalBytesRefVector getTsidVector(Page page) {
+        BytesRefBlock block = page.getBlock(tsHashChannel);
+        var ordinalBlock = block.asOrdinals();
+        if (ordinalBlock == null) {
+            throw new IllegalStateException("expected ordinal block for tsid");
+        }
+        var ordinalVector = ordinalBlock.asVector();
+        if (ordinalVector == null) {
+            throw new IllegalStateException("expected ordinal vector for tsid");
+        }
+        return ordinalVector;
+    }
+
+    private LongVector getTimestampVector(Page page) {
+        final LongBlock timestampsBlock = page.getBlock(timestampIntervalChannel);
+        LongVector timestampsVector = timestampsBlock.asVector();
+        if (timestampsVector == null) {
+            throw new IllegalStateException("expected long vector for timestamp");
+        }
+        return timestampsVector;
+    }
+
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        final BytesRefBlock tsidBlock = page.getBlock(tsHashChannel);
-        final BytesRefVector tsidVector = Objects.requireNonNull(tsidBlock.asVector(), "tsid input must be a vector");
-        final LongBlock timestampBlock = page.getBlock(timestampIntervalChannel);
-        final LongVector timestampVector = Objects.requireNonNull(timestampBlock.asVector(), "timestamp input must be a vector");
-        try (var ordsBuilder = blockFactory.newIntVectorBuilder(tsidVector.getPositionCount())) {
+        final BytesRefVector tsidDict;
+        final IntVector tsidOrdinals;
+        {
+            final var tsidVector = getTsidVector(page);
+            tsidDict = tsidVector.getDictionaryVector();
+            tsidOrdinals = tsidVector.getOrdinalsVector();
+        }
+        try (var ordsBuilder = blockFactory.newIntVectorBuilder(tsidOrdinals.getPositionCount())) {
             final BytesRef spare = new BytesRef();
-            // TODO: optimize incoming ordinal block
-            for (int i = 0; i < tsidVector.getPositionCount(); i++) {
-                final BytesRef tsid = tsidVector.getBytesRef(i, spare);
+            final BytesRef lastTsid = new BytesRef();
+            final LongVector timestampVector = getTimestampVector(page);
+            int lastOrd = -1;
+            for (int i = 0; i < tsidOrdinals.getPositionCount(); i++) {
+                final int newOrd = tsidOrdinals.getInt(i);
+                boolean newGroup = false;
+                if (lastOrd != newOrd) {
+                    final var newTsid = tsidDict.getBytesRef(newOrd, spare);
+                    if (positionCount() == 0) {
+                        newGroup = true;
+                    } else if (lastOrd == -1) {
+                        tsidArray.get(lastTsidPosition, lastTsid);
+                        newGroup = lastTsid.equals(newTsid) == false;
+                    } else {
+                        newGroup = true;
+                    }
+                    if (newGroup) {
+                        endTsidGroup();
+                        lastTsidPosition = tsidArray.count;
+                        tsidArray.append(newTsid);
+                    }
+                    lastOrd = newOrd;
+                }
                 final long timestamp = timestampVector.getLong(i);
-                ordsBuilder.appendInt(addOnePosition(tsid, timestamp));
+                if (newGroup || timestamp != lastTimestamp) {
+                    assert newGroup || lastTimestamp >= timestamp : "@timestamp goes backward " + lastTimestamp + " < " + timestamp;
+                    timestampArray.append(timestamp);
+                    lastTimestamp = timestamp;
+                    currentTimestampCount++;
+                }
+                ordsBuilder.appendInt(timestampArray.count - 1);
             }
             try (var ords = ordsBuilder.build()) {
                 addInput.add(0, ords);
             }
         }
-    }
-
-    private int addOnePosition(BytesRef tsid, long timestamp) {
-        boolean newGroup = false;
-        if (groupOrdinal == -1 || lastTsid.equals(tsid) == false) {
-            assert groupOrdinal == -1 || lastTsid.compareTo(tsid) < 0 : "tsid goes backward ";
-            endTsidGroup();
-            tsidArray.append(tsid);
-            tsidArray.get(tsidArray.count - 1, lastTsid);
-            newGroup = true;
-        }
-        if (newGroup || timestamp != lastTimestamp) {
-            assert newGroup || lastTimestamp >= timestamp : "@timestamp goes backward " + lastTimestamp + " < " + timestamp;
-            timestampArray.append(timestamp);
-            lastTimestamp = timestamp;
-            groupOrdinal++;
-            currentTimestampCount++;
-        }
-        return groupOrdinal;
     }
 
     private void endTsidGroup() {
@@ -177,7 +203,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     private int positionCount() {
-        return groupOrdinal + 1;
+        return timestampArray.count;
     }
 
     @Override
@@ -197,15 +223,17 @@ public final class TimeSeriesBlockHash extends BlockHash {
             + "], LongKey[channel="
             + timestampIntervalChannel
             + "]], entries="
-            + groupOrdinal
+            + positionCount()
             + "b}";
     }
 
-    private class LongArrayWithSize implements Releasable {
+    private static class LongArrayWithSize implements Releasable {
+        private final BlockFactory blockFactory;
         private LongArray array;
         private int count = 0;
 
-        LongArrayWithSize() {
+        LongArrayWithSize(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
             this.array = blockFactory.bigArrays().newLongArray(1, false);
         }
 
@@ -216,10 +244,12 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
 
         LongBlock toBlock() {
-            LongBlock block = new LongBigArrayVector(array, count, blockFactory).asBlock();
-            blockFactory.adjustBreaker(block.ramBytesUsed() - RamUsageEstimator.sizeOf(array));
-            array = null;
-            return block;
+            try (var builder = blockFactory.newLongVectorFixedBuilder(count)) {
+                for (int i = 0; i < count; i++) {
+                    builder.appendLong(array.get(i));
+                }
+                return builder.build().asBlock();
+            }
         }
 
         @Override
@@ -228,11 +258,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
     }
 
-    private class IntArrayWithSize implements Releasable {
+    private static class IntArrayWithSize implements Releasable {
+        private final BlockFactory blockFactory;
         private IntArray array;
         private int count = 0;
 
-        IntArrayWithSize() {
+        IntArrayWithSize(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
             this.array = blockFactory.bigArrays().newIntArray(1, false);
         }
 
@@ -248,11 +280,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
     }
 
-    private class BytesRefArrayWithSize implements Releasable {
-        private final BytesRefArray array;
+    private static class BytesRefArrayWithSize implements Releasable {
+        private final BlockFactory blockFactory;
+        private BytesRefArray array;
         private int count = 0;
 
-        BytesRefArrayWithSize() {
+        BytesRefArrayWithSize(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
             this.array = new BytesRefArray(1, blockFactory.bigArrays());
         }
 
@@ -266,8 +300,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
 
         BytesRefVector toVector() {
-            BytesRefVector vector = blockFactory.newBytesRefArrayVector(tsidArray.array, tsidArray.count);
-            blockFactory.adjustBreaker(vector.ramBytesUsed() - tsidArray.array.bigArraysRamBytesUsed());
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, count);
+            array = null;
             return vector;
         }
 

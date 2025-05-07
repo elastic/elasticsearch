@@ -385,6 +385,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertFalse(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersions.V_7_17_0));
     }
 
+    public void testHas6DigitSuffix() {
+        assertTrue(MlIndexAndAlias.has6DigitSuffix("index-000001"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index1"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index-foo"));
+        assertFalse(MlIndexAndAlias.has6DigitSuffix("index000001"));
+    }
+
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,

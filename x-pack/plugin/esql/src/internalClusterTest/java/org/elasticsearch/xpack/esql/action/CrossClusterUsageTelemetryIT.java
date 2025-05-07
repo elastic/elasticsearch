@@ -138,32 +138,6 @@ public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelem
         assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
     }
 
-    // TODO: enable when skip-un patch is merged
-    // public void testSkipAllRemotes() throws Exception {
-    // var telemetry = getTelemetryFromQuery("from logs-*,c*:no_such_index | stats sum (v)", "unknown");
-    //
-    // assertThat(telemetry.getTotalCount(), equalTo(1L));
-    // assertThat(telemetry.getSuccessCount(), equalTo(1L));
-    // assertThat(telemetry.getFailureReasons().size(), equalTo(0));
-    // assertThat(telemetry.getTook().count(), equalTo(1L));
-    // assertThat(telemetry.getTookMrtFalse().count(), equalTo(0L));
-    // assertThat(telemetry.getTookMrtTrue().count(), equalTo(0L));
-    // assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
-    // assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-    // assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
-    // assertThat(telemetry.getClientCounts().size(), equalTo(0));
-    //
-    // var perCluster = telemetry.getByRemoteCluster();
-    // assertThat(perCluster.size(), equalTo(3));
-    // for (String clusterAlias : remoteClusterAlias()) {
-    // var clusterData = perCluster.get(clusterAlias);
-    // assertThat(clusterData.getCount(), equalTo(0L));
-    // assertThat(clusterData.getSkippedCount(), equalTo(1L));
-    // assertThat(clusterData.getTook().count(), equalTo(0L));
-    // }
-    // assertPerClusterCount(perCluster.get(LOCAL_CLUSTER), 1L);
-    // }
-
     public void testRemoteOnly() throws Exception {
         setupClusters();
         var telemetry = getTelemetryFromQuery("from c*:logs-* | stats sum (v)", "kibana");

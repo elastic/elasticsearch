@@ -10,9 +10,9 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
@@ -25,9 +25,13 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         super(FieldType.KEYWORD.toString(), params);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        return expectedValue(fieldMapping, value, params, testContext);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
@@ -45,8 +49,10 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
             .filter(Objects::nonNull);
 
-        boolean hasDocValues = hasDocValues(fieldMapping, false);
-        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
+            || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Sorted and no duplicates
             var resultList = convertValues.andThen(Stream::distinct)
@@ -61,7 +67,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private BytesRef convert(String value, String nullValue, int ignoreAbove) {
+    private static BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;

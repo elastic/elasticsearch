@@ -108,7 +108,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
                     .map(
                         dataStream -> new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),
-                            dataStream.getLifecycle(),
+                            dataStream.getDataLifecycle(),
                             dataStream.isSystem()
                         )
                     )

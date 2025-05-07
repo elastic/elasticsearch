@@ -433,7 +433,9 @@ public final class MlIndexAndAlias {
     }
 
     public static boolean has6DigitSuffix(String indexName) {
-        return HAS_SIX_DIGIT_SUFFIX.test(indexName);
+        String[] indexParts = indexName.split("-");
+        String suffix = indexParts[indexParts.length - 1];
+        return HAS_SIX_DIGIT_SUFFIX.test(suffix);
     }
 
     /**

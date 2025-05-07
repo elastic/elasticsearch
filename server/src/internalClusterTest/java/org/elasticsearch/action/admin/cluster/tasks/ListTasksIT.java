@@ -137,8 +137,8 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         volatile CyclicBarrier barrier;
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TEST_ACTION, TestTransportAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TEST_ACTION, TestTransportAction.class));
         }
     }
 

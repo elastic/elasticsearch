@@ -139,7 +139,7 @@ public class InlineJoin extends Join {
         JoinType joinType = config().type();
         List<Attribute> output;
         if (LEFT.equals(joinType)) {
-            AttributeSet rightFields = new AttributeSet(config().rightFields());
+            AttributeSet rightFields = AttributeSet.of(config().rightFields());
             List<Attribute> leftOutputWithoutMatchFields = new ArrayList<>();
             // at this point "left" part of the join contains all the attributes that represent the input of the join
             // including any aliasing (evals) of expressions used as grouping attributes (or join "match fields") in the join itself

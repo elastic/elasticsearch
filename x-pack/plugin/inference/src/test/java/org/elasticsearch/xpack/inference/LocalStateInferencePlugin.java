@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -61,6 +62,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return inferencePlugin.getMappers();
+    }
+
+    @Override
+    public Map<String, Highlighter> getHighlighters() {
+        return inferencePlugin.getHighlighters();
     }
 
     @Override

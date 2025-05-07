@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -390,6 +391,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
+        Map<String, AssignmentState> assignmentStates = new HashMap<>();
         // Check for recent scale ups in the deployment stats, because a different node may have
         // caused a scale up when an inference request arrives and there were zero allocations.
         Set<String> hasRecentObservedScaleUp = new HashSet<>();
@@ -397,6 +399,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             String deploymentId = assignmentStats.getDeploymentId();
             numberOfAllocations.put(deploymentId, assignmentStats.getNumberOfAllocations());
+            assignmentStates.put(deploymentId, assignmentStats.getState());
             Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(
                 deploymentId,
                 key -> new HashMap<>()
@@ -447,6 +450,14 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (newNumberOfAllocations < numberOfAllocations.get(deploymentId)
                     && (hasRecentScaleUp || hasRecentObservedScaleUp.contains(deploymentId))) {
                     logger.debug("adaptive allocations scaler: skipping scaling down [{}] because of recent scaleup.", deploymentId);
+                    continue;
+                }
+                if (assignmentStates.get(deploymentId) != AssignmentState.STARTED) {
+                    logger.debug(
+                        "adaptive allocations scaler: skipping scaling [{}] because it is in [{}] state.",
+                        deploymentId,
+                        assignmentStates.get(deploymentId)
+                    );
                     continue;
                 }
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {

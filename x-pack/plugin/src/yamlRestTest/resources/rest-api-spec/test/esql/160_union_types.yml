@@ -263,6 +263,15 @@ load single index ip_long stats invalid grouping:
 
 ---
 load two indices, showing unsupported type and null value for event_duration:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "Uses original_types"
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -276,8 +285,10 @@ load two indices, showing unsupported type and null value for event_duration:
   - match: { columns.0.type: "date" }
   - match: { columns.1.name: "client_ip" }
   - match: { columns.1.type: "ip" }
+  - is_false: columns.1.original_types
   - match: { columns.2.name: "event_duration" }
   - match: { columns.2.type: "unsupported" }
+  - match: { columns.2.original_types: ["keyword", "long"] }
   - match: { columns.3.name: "message" }
   - match: { columns.3.type: "keyword" }
   - match: { columns.4.name: "_index" }
@@ -302,8 +313,8 @@ load two indices with no conversion function, but needs TO_LONG conversion:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_fix_rename_resolution]
-      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "Uses original_types"
 
   - do:
       allowed_warnings_regex:
@@ -318,7 +329,9 @@ load two indices with no conversion function, but needs TO_LONG conversion:
   - match: { columns.1.type: "date" }
   - match: { columns.2.name: "client_ip" }
   - match: { columns.2.type: "ip" }
+  - is_false: columns.2.original_types
   - match: { columns.3.name: "event_duration" }
+  - match: { columns.3.original_types: ["keyword", "long"] }
   - match: { columns.3.type: "unsupported" }
   - match: { columns.4.name: "message" }
   - match: { columns.4.type: "keyword" }
@@ -892,3 +905,80 @@ CASE:
   - match: { values.2.0: 3 }
   - match: { values.2.1: null }
   - match: { values.2.2: "a" }
+
+---
+suggested_type:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [recommended_cast]
+      reason: "uses recommended_cast"
+
+  - do:
+      indices.create:
+        index: metrics_1
+        body:
+          mappings:
+            properties:
+              my_metric:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max
+              my_date:
+                type: date
+              my_double:
+                type: double
+              some_other_field:
+                type: geo_point
+  - do:
+      indices.create:
+        index: metrics_2
+        body:
+          mappings:
+            properties:
+              my_metric:
+                type: long
+              my_date:
+                type: date_nanos
+              my_double:
+                type: double
+              some_other_field:
+                type: ip
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index" : { "_index": "metrics_1" } }
+          - { "my_metric":  { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 }, "my_date": "2021-04-28T18:50:04.467Z", "my_double": 105.2, "some_other_field": "52.374081,4.912350" }
+          - { "index" : { "_index": "metrics_2" } }
+          - { "my_metric": 5, "my_date": "2021-04-28T19:34:00.000Z", "my_double": 843205.9, "some_other_field": 192.168.30.1 }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM metrics_* | KEEP my_metric, my_date, my_double, some_other_field'
+
+  - match: { columns.0.name: "my_metric" }
+  - match: { columns.0.type: "unsupported" }
+  - match: { columns.0.original_types: ["aggregate_metric_double", "long"] }
+  - match: { columns.0.suggested_cast: "aggregate_metric_double" }
+  - match: { columns.1.name: "my_date" }
+  - match: { columns.1.type: "unsupported" }
+  - match: { columns.1.original_types: ["date_nanos", "datetime"] }
+  - match: { columns.1.suggested_cast: "date_nanos" }
+  - match: { columns.2.name: "my_double" }
+  - match: { columns.2.type: "double" }
+  - is_false: columns.2.original_types
+  - is_false: columns.2.suggested_cast
+  - match: { columns.3.name: "some_other_field" }
+  - match: { columns.3.type: "unsupported" }
+  - match: { columns.3.original_types: ["geo_point", "ip"] }
+  - match: { columns.3.suggested_cast: "keyword" }
+  - length: { values: 2 }
+

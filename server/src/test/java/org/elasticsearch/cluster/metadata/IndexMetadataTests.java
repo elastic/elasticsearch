@@ -727,7 +727,8 @@ public class IndexMetadataTests extends ESTestCase {
             name,
             randomIdentifier(),
             randomIdentifier(),
-            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new)
+            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
+            InferenceFieldMetadataTests.generateRandomChunkingSettings()
         );
     }
 
@@ -737,6 +738,7 @@ public class IndexMetadataTests extends ESTestCase {
         for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
             indexWriteLoadBuilder.withShardWriteLoad(
                 i,
+                randomDoubleBetween(0.0, 128.0, true),
                 randomDoubleBetween(0.0, 128.0, true),
                 randomDoubleBetween(0.0, 128.0, true),
                 randomNonNegativeLong()

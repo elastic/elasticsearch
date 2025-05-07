@@ -232,6 +232,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 TaskType.ANY,
                 inferenceId,
                 null,
+                null,
+                null,
                 List.of(query),
                 Map.of(),
                 InputType.INTERNAL_SEARCH,

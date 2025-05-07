@@ -1973,7 +1973,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromDocValues(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce);
             }
 
@@ -2274,7 +2275,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             if (ignoreMalformed.value()) {
                 layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));

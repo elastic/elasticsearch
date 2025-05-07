@@ -29,7 +29,7 @@ $$$cluster-indices-close-enable$$$
     ::::{warning}
     For versions 7.1 and below, closed indices represent a data loss risk. Enable this setting only temporarily for these versions.
     ::::
-    
+
     ::::{note}
     Closed indices still consume a significant amount of disk space.
     ::::
@@ -38,7 +38,7 @@ $$$cluster-indices-close-enable$$$
 $$$stack-templates-enabled$$$
 
 `stack.templates.enabled`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If `true`, enables built-in index and component templates. [{{agent}}](docs-content://reference/ingestion-tools/fleet/index.md) uses these templates to create data streams. If `false`, {{es}} disables these index and component templates. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If `true`, enables built-in index and component templates. [{{agent}}](docs-content://reference/fleet/index.md) uses these templates to create data streams. If `false`, {{es}} disables these index and component templates. Defaults to `true`.
 
 ::::{note}
 It is not recommended to disable the built-in stack templates, as some functionality of {{es}} or Kibana will not work correctly when disabled. Features like log and metric collection, as well as Kibana reporting, may malfunction without the built-in stack templates. Stack templates should only be disabled temporarily, if necessary, to resolve upgrade issues, then re-enabled after any issues have been resolved.
@@ -65,7 +65,7 @@ This setting also affects the following built-in component templates:
 * `synthetics@mapping`
 * `synthetics@settings`
 
-### Universal Profiling settings 
+### Universal Profiling settings
 
 The following settings for Elastic Universal Profiling are supported:
 
@@ -93,13 +93,25 @@ $$$reindex-remote-whitelist$$$
 :   Specifies the path to the PEM encoded private key associated with the certificate used for client authentication (`reindex.ssl.certificate`). You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 
 `reindex.ssl.key_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   Specifies the passphrase to decrypt the PEM encoded private key (`reindex.ssl.key`) if it is encrypted. [7.17.0] Prefer `reindex.ssl.secure_key_passphrase` instead. Cannot be used with `reindex.ssl.secure_key_passphrase`.
+:   Specifies the passphrase to decrypt the PEM encoded private key (`reindex.ssl.key`) if it is encrypted.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `reindex.ssl.secure_key_passphrase` instead. Cannot be used with `reindex.ssl.secure_key_passphrase`.
+    :::
 
 `reindex.ssl.keystore.key_password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   The password for the key in the keystore (`reindex.ssl.keystore.path`). Defaults to the keystore password. [7.17.0] Prefer `reindex.ssl.keystore.secure_key_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_key_password`.
+:   The password for the key in the keystore (`reindex.ssl.keystore.path`). Defaults to the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `reindex.ssl.keystore.secure_key_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_key_password`.
+    :::
 
 `reindex.ssl.keystore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   The password to the keystore (`reindex.ssl.keystore.path`). [7.17.0] Prefer `reindex.ssl.keystore.secure_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_password`.
+:   The password to the keystore (`reindex.ssl.keystore.path`).
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `reindex.ssl.keystore.secure_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_password`.
+    :::
 
 `reindex.ssl.keystore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the path to the keystore that contains a private key and certificate to be used for HTTP client authentication (if required by the remote cluster). This keystore can be in "JKS" or "PKCS#12" format. You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
@@ -117,7 +129,11 @@ $$$reindex-remote-whitelist$$$
 :   The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used with `reindex.ssl.keystore.password`.
 
 `reindex.ssl.truststore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   The password to the truststore (`reindex.ssl.truststore.path`). [7.17.0] Prefer `reindex.ssl.truststore.secure_password` instead. This setting cannot be used with `reindex.ssl.truststore.secure_password`.
+:   The password to the truststore (`reindex.ssl.truststore.path`).
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `reindex.ssl.truststore.secure_password` instead. This setting cannot be used with `reindex.ssl.truststore.secure_password`.
+    :::
 
 `reindex.ssl.truststore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   The path to the Java Keystore file that contains the certificates to trust. This keystore can be in "JKS" or "PKCS#12" format. You cannot specify both `reindex.ssl.certificate_authorities` and `reindex.ssl.truststore.path`.

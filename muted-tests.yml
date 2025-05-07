@@ -399,9 +399,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPluginsViaConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/127158
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
-  method: testRetryOnlyMovedShards
-  issue: https://github.com/elastic/elasticsearch/issues/127168
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
@@ -435,12 +432,18 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testSnapshotShutdownProgressTracker
   issue: https://github.com/elastic/elasticsearch/issues/127690
-- class: org.elasticsearch.xpack.core.template.IndexTemplateRegistryRolloverIT
-  method: testRollover
-  issue: https://github.com/elastic/elasticsearch/issues/127692
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityFcActionAuthorizationIT
+  method: testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions
+  issue: https://github.com/elastic/elasticsearch/issues/127782
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
+  method: test3BytesRefs {forcePackedHash=true}
+  issue: https://github.com/elastic/elasticsearch/issues/127825
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashTests
+  method: test3BytesRefs {forcePackedHash=false}
+  issue: https://github.com/elastic/elasticsearch/issues/127826
 
 # Examples:
 #

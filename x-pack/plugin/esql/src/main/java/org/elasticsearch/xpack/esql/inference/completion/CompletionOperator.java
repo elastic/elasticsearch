@@ -65,16 +65,24 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
     }
 
     @Override
+    protected Class<ChatCompletionResults> inferenceResultsClass() {
+        return ChatCompletionResults.class;
+    }
+
+    @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
         return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     @Override
-    protected CompletionOperatorOutputBuilder outputBuilder(Page inputPage) {
+    protected CompletionOperatorOutputBuilder outputBuilder(OnGoingInference<ChatCompletionResults> onGoingInference) {
         try {
-            return new CompletionOperatorOutputBuilder(blockFactory().newBytesRefBlockBuilder(inputPage.getPositionCount()), inputPage);
+            return new CompletionOperatorOutputBuilder(
+                blockFactory().newBytesRefBlockBuilder(onGoingInference.inputPage().getPositionCount()),
+                onGoingInference.inputPage()
+            );
         } catch (Exception e) {
-            releasePageOnAnyThread(inputPage);
+            releaseFetchedOnAnyThread(onGoingInference);
             throw (e);
         }
     }

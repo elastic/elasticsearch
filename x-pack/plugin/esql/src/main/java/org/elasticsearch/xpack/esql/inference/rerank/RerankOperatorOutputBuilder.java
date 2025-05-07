@@ -29,11 +29,6 @@ public class RerankOperatorOutputBuilder extends InferenceOperator.OutputBuilder
     }
 
     @Override
-    protected Class<RankedDocsResults> inferenceResultsClass() {
-        return RankedDocsResults.class;
-    }
-
-    @Override
     public void close() {
         releasePageOnAnyThread(inputPage);
         Releasables.close(scoreBlockBuilder);
@@ -61,7 +56,7 @@ public class RerankOperatorOutputBuilder extends InferenceOperator.OutputBuilder
     }
 
     @Override
-    public void onInferenceResults(RankedDocsResults results) {
+    public void addInferenceResult(RankedDocsResults results) {
         results.getRankedDocs()
             .stream()
             .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))

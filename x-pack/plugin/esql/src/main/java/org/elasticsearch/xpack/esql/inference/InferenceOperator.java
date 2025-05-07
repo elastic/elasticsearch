@@ -12,14 +12,19 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
-public abstract class InferenceOperator<InferenceResult extends InferenceServiceResults> extends AsyncOperator<Page> {
+import java.util.List;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+
+public abstract class InferenceOperator<IR extends InferenceServiceResults> extends AsyncOperator<InferenceOperator.OnGoingInference<IR>> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
@@ -45,23 +50,53 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
     }
 
     @Override
-    protected void releaseFetchedOnAnyThread(Page page) {
-        releasePageOnAnyThread(page);
+    protected void releaseFetchedOnAnyThread(OnGoingInference<IR> onGoingInference) {
+        releasePageOnAnyThread(onGoingInference.inputPage);
     }
 
     @Override
     public Page getOutput() {
-        return fetchFromBuffer();
+        OnGoingInference<IR> onGoingInference = fetchFromBuffer();
+
+        if (onGoingInference == null) {
+            return null;
+        }
+
+        try (OutputBuilder<IR> outputBuilder = outputBuilder(onGoingInference)) {
+            onGoingInference.inferenceResponses.forEach(outputBuilder::addInferenceResult);
+            return outputBuilder.buildOutput();
+        }
     }
 
     @Override
-    protected void performAsync(Page input, ActionListener<Page> listener) {
-        try (OutputBuilder<InferenceResult> outputBuilder = outputBuilder(input); BulkInferenceRequestIterator requests = requests(input)) {
-            bulkInferenceExecutor.execute(requests, outputBuilder, listener);
+    protected void performAsync(Page input, ActionListener<OnGoingInference<IR>> listener) {
+        try (BulkInferenceRequestIterator requests = requests(input)) {
+            bulkInferenceExecutor.execute(requests, listener.map(r -> onGoingInference(input, r)));
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
+
+    private OnGoingInference<IR> onGoingInference(Page input, List<InferenceAction.Response> inferenceResponses) {
+        return new OnGoingInference<>(input, inferenceResponses.stream().map(this::inferenceResults).toList());
+    }
+
+    IR inferenceResults(InferenceAction.Response inferenceResponse) {
+        InferenceServiceResults results = inferenceResponse.getResults();
+        if (inferenceResultsClass().isInstance(results)) {
+            return inferenceResultsClass().cast(results);
+        }
+
+        throw new IllegalStateException(
+            format(
+                "Inference result has wrong type. Got [{}] while expecting [{}]",
+                results.getClass().getName(),
+                inferenceResultsClass().getName()
+            )
+        );
+    }
+
+    protected abstract Class<IR> inferenceResultsClass();
 
     protected BulkInferenceExecutionConfig bulkExecutionConfig() {
         return BulkInferenceExecutionConfig.DEFAULT;
@@ -69,13 +104,20 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
 
     protected abstract BulkInferenceRequestIterator requests(Page input);
 
-    protected abstract OutputBuilder<InferenceResult> outputBuilder(Page input);
+    protected abstract OutputBuilder<IR> outputBuilder(OnGoingInference<IR> onGoingInference);
 
-    public abstract static class OutputBuilder<InferenceResult extends InferenceServiceResults> extends BulkInferenceOutputBuilder<
-        InferenceResult,
-        Page> {
+    public abstract static class OutputBuilder<IR extends InferenceServiceResults> implements Releasable {
+
+        public abstract void addInferenceResult(IR inferenceResult);
+
+        public abstract Page buildOutput();
+
         protected void releasePageOnAnyThread(Page page) {
             InferenceOperator.releasePageOnAnyThread(page);
         }
+    }
+
+    public record OnGoingInference<IR extends InferenceServiceResults>(Page inputPage, List<IR> inferenceResponses) {
+
     }
 }

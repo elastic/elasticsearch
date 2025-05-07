@@ -131,7 +131,15 @@ class SampleBytesRefAggregator {
         private GroupingState(BigArrays bigArrays, int limit) {
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
-            this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
+            boolean success = false;
+            try {
+                this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(sort);
+                }
+            }
         }
 
         public void add(int groupId, BytesRef value) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -227,9 +228,12 @@ public class CustomServiceTests extends AbstractServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                similarityMeasure,
-                123,
-                456,
+                new CustomServiceSettings.TextEmbeddingSettings(
+                    SimilarityMeasure.DOT_PRODUCT,
+                    123,
+                    456,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -249,9 +253,7 @@ public class CustomServiceTests extends AbstractServiceTests {
             taskType,
             CustomService.NAME,
             new CustomServiceSettings(
-                null,
-                null,
-                null,
+                CustomServiceSettings.TextEmbeddingSettings.EMPTY,
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,

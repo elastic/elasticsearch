@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.BaseCus
 
 public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
 
+    private static final Logger logger = LogManager.getLogger(ErrorResponseParser.class);
     public static final String MESSAGE_PATH = "path";
 
     private final String messagePath;
@@ -90,7 +94,6 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
                 .createParser(XContentParserConfiguration.EMPTY, httpResult.body())
         ) {
             var map = jsonParser.map();
-
             // NOTE: This deviates from what we've done in the past. In the ErrorMessageResponseEntity logic
             // if we find the top level error field we'll return a response with an empty message but indicate
             // that we found the structure of the error object. Here if we're missing the final field we will return
@@ -101,7 +104,14 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             var errorText = toType(MapPathExtractor.extract(map, messagePath).extractedObject(), String.class, messagePath);
             return new ErrorResponse(errorText);
         } catch (Exception e) {
-            // swallow the error
+            logger.info(
+                Strings.format(
+                    "Failed to parse error object for custom service inference id [%s], message path: [%s]",
+                    httpResult.request().inferenceEntityId(),
+                    messagePath
+                ),
+                e
+            );
         }
 
         return ErrorResponse.UNDEFINED_ERROR;

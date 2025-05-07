@@ -169,6 +169,6 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true));
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true)).build();
     }
 }

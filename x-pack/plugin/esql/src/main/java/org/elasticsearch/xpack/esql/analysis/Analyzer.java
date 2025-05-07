@@ -881,11 +881,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute(fa.source(), name, field);
+            return new FieldAttribute.FieldAttirbuteBuilder(fa.source(), name, field).build();
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+            return new FieldAttribute.FieldAttirbuteBuilder(
+                attribute.source(),
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name())
+            ).build();
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {

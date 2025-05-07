@@ -41,7 +41,10 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
-    static class FieldAttirbuteBuilder {
+    /**
+     * Builder pattern to manage many optional fields.  Only source, name, and the EsField are actually required.
+     */
+    public static class FieldAttirbuteBuilder {
         private final Source source;
         private String parentName;
         private final String name;
@@ -50,7 +53,7 @@ public class FieldAttribute extends TypedAttribute {
         private NameId id;
         private boolean synthetic;
 
-        FieldAttirbuteBuilder(Source source, String name, EsField field) {
+        public FieldAttirbuteBuilder(Source source, String name, EsField field) {
             this.source = source;
             this.parentName = null;
             this.name = name;
@@ -87,10 +90,6 @@ public class FieldAttribute extends TypedAttribute {
 
     private final String parentName;
     private final EsField field;
-
-    public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
 
     public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
         this(source, parentName, name, field, Nullability.TRUE, null, false);
@@ -197,7 +196,9 @@ public class FieldAttribute extends TypedAttribute {
         } else {
             // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
             // fake FieldAttribute here as long as the name is correct.
-            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, parentName(), field());
+            FieldAttribute fakeParent = parentName() == null
+                ? null
+                : new FieldAttirbuteBuilder(Source.EMPTY, parentName(), field()).build();
             out.writeOptionalWriteable(fakeParent);
         }
     }

@@ -202,11 +202,11 @@ public class EvalBenchmark {
                 yield evaluator;
             }
             case "date_trunc" -> {
-                FieldAttribute timestamp = new FieldAttribute(
+                FieldAttribute timestamp = new FieldAttribute.FieldAttirbuteBuilder(
                     Source.EMPTY,
                     "timestamp",
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true)
-                );
+                ).build();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION), timestamp),
@@ -255,19 +255,19 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true));
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true)).build();
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true)).build();
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true));
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true)).build();
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true));
+        return new FieldAttribute.FieldAttirbuteBuilder(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true)).build();
     }
 
     private static Configuration configuration() {

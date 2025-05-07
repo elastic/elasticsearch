@@ -1,0 +1,5 @@
+pr: 127812
+summary: Add Retry Logic for `ElasticsearchInternalService#chunkedInfer`
+area: Machine Learning
+type: feature
+issues: []

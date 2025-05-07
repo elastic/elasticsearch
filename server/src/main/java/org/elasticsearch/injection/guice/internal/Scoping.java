@@ -16,8 +16,7 @@
 
 package org.elasticsearch.injection.guice.internal;
 
-import org.elasticsearch.injection.guice.Scope;
-import org.elasticsearch.injection.guice.Scopes;
+import org.elasticsearch.injection.guice.Injector;
 
 /**
  * References a scope, either directly (as a scope instance), or indirectly (as a scope annotation).
@@ -25,69 +24,14 @@ import org.elasticsearch.injection.guice.Scopes;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public abstract class Scoping {
-
+public enum Scoping {
     /**
      * No scoping annotation has been applied. Note that this is different from {@code
      * in(Scopes.NO_SCOPE)}, where the 'NO_SCOPE' has been explicitly applied.
      */
-    public static final Scoping UNSCOPED = new Scoping() {
-
-        @Override
-        public Scope getScopeInstance() {
-            return Scopes.NO_SCOPE;
-        }
-
-        @Override
-        public String toString() {
-            return Scopes.NO_SCOPE.toString();
-        }
-
-    };
-
-    public static final Scoping EAGER_SINGLETON = new Scoping() {
-
-        @Override
-        public Scope getScopeInstance() {
-            return Scopes.SINGLETON;
-        }
-
-        @Override
-        public String toString() {
-            return "eager singleton";
-        }
-
-    };
-
+    UNSCOPED,
     /**
-     * Returns true if this scope was explicitly applied. If no scope was explicitly applied then the
-     * scoping annotation will be used.
+     * One instance per {@link Injector}.
      */
-    public boolean isExplicitlyScoped() {
-        return this != UNSCOPED;
-    }
-
-    /**
-     * Returns true if this is the default scope. In this case a new instance will be provided for
-     * each injection.
-     */
-    public boolean isNoScope() {
-        return getScopeInstance() == Scopes.NO_SCOPE;
-    }
-
-    /**
-     * Returns true if this scope is a singleton that should be loaded eagerly in {@code stage}.
-     */
-    public boolean isEagerSingleton() {
-        return this == EAGER_SINGLETON;
-    }
-
-    /**
-     * Returns the scope instance, or {@code null} if that isn't known for this instance.
-     */
-    public Scope getScopeInstance() {
-        return null;
-    }
-
-    private Scoping() {}
+    EAGER_SINGLETON
 }

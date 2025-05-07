@@ -209,9 +209,8 @@ public class S3ServiceTests extends ESTestCase {
             ),
             equalTo(URI.create("https://" + endpointWithoutScheme))
         );
-        assertWarnings(Strings.format("""
-            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release. \
-            See the breaking changes documentation for the next major version.""", clientName));
+        assertCriticalWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release.""", clientName));
     }
 
     public void testEndpointOverrideSchemeUsesHttpIfHttpProtocolSpecified() {
@@ -226,9 +225,8 @@ public class S3ServiceTests extends ESTestCase {
             ),
             equalTo(URI.create("http://" + endpointWithoutScheme))
         );
-        assertWarnings(Strings.format("""
-            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release. \
-            See the breaking changes documentation for the next major version.""", clientName));
+        assertCriticalWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release.""", clientName));
     }
 
     private static URI getEndpointUri(Settings.Builder settings, String clientName) {

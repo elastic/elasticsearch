@@ -2341,6 +2341,22 @@ keystore then calling the <<cluster-nodes-reload-secure-settings, reload API>>.
 Defaults to `1m`.
 // end::jwt-client-authentication-rotation-grace-period-tag[]
 
+`http.proxy.host`::
+(<<static-cluster-setting,Static>>)
+Specifies the address of the proxy server for the HTTP client used for
+fetching the JSON Web Key Set from a remote URL.
+
+`http.proxy.scheme`::
+(<<static-cluster-setting,Static>>)
+Specifies the protocol to use to connect to the proxy server for the
+HTTP client used for fetching the JSON Web Key Set from a remote URL.
+Must be `http`.
+
+`http.proxy.port`::
+(<<static-cluster-setting,Static>>)
+Specifies the port of the proxy server for the HTTP client used for
+fetching the JSON Web Key Set from a remote URL. Defaults to `80`
+
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)

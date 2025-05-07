@@ -13,18 +13,13 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -33,18 +28,13 @@ import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEO
 
 public class DownsampleIT extends DownsamplingIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
-    }
-
     public void testDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
 
         putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
             {
               "properties": {
-                "metrics": {
+                "attributes": {
                   "type": "passthrough",
                   "priority": 10,
                   "time_series_dimension": true
@@ -64,7 +54,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 return XContentFactory.jsonBuilder()
                     .startObject()
                     .field("@timestamp", ts)
-                    .field("metrics.host.name", randomFrom("host1", "host2", "host3"))
+                    .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
                     .field("metrics.cpu_usage", randomDouble())
                     .endObject();
             } catch (IOException e) {

@@ -84,7 +84,7 @@ public class FieldAttribute extends TypedAttribute {
         }
 
         public FieldAttribute build() {
-            return new FieldAttribute(source, parentName, name, field.getDataType(), field, nullability, id, synthetic);
+            return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
         }
     }
 

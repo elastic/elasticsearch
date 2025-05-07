@@ -156,13 +156,17 @@ To obtain a join key with a compatible type, use a [conversion function](/refere
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 
-## Implementation details
+## Usage notes
 
-This section covers key implementation aspects of `LOOKUP JOIN` that affect query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
+This section covers important details about `LOOKUP JOIN` that impact query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
 
 ### Handling name collisions
 
-In case of name collisions, the newly created columns will override existing columns.
+When fields from the lookup index match existing column names, the new columns override the existing ones.
+Before the `LOOKUP JOIN`, preserve columns by either:
+
+* Using `RENAME` to assign non-conflicting names
+* Using `EVAL` to create new columns with different names, then `DROP` the original columns
 
 ### Sorting behavior
 

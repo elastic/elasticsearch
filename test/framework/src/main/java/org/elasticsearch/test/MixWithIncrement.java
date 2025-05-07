@@ -12,6 +12,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.SeedDecorator;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.hash.MurmurHash3;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -59,15 +60,6 @@ public class MixWithIncrement implements SeedDecorator {
     }
 
     public static void next() {
-        mix.updateAndGet(MixWithIncrement::fmix64);
-    }
-
-    private static long fmix64(long k) {
-        k ^= k >>> 33;
-        k *= -49064778989728563L;
-        k ^= k >>> 33;
-        k *= -4265267296055464877L;
-        k ^= k >>> 33;
-        return k;
+        mix.updateAndGet(MurmurHash3::fmix);
     }
 }

@@ -214,12 +214,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
-                nodeEnvironment.dataPaths(),
-                threadPool,
-                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateAvailableBudget(availableDiskSpaceByteSize.getBytes())
+            nodeEnvironment.dataPaths(),
+            threadPool,
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            (availableDiskSpaceByteSize) -> queuedMergeTasks.updateAvailableBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -230,8 +230,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
         );
         clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-                this.availableDiskSpacePeriodicMonitor::setCheckInterval
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setCheckInterval
         );
     }
 
@@ -469,9 +469,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
-                ByteSizeValue total,
-                RelativeByteSizeValue watermark,
-                ByteSizeValue maxHeadroom
+            ByteSizeValue total,
+            RelativeByteSizeValue watermark,
+            ByteSizeValue maxHeadroom
         ) {
             // If bytes are given, they can be readily returned as free bytes.
             // If percentages are given, we need to calculate the free bytes.

@@ -185,8 +185,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
-        if (useLegacyFormat == false
-            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)) {
+        if (useLegacyFormat == false && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)) {
             throw new IllegalArgumentException("Index version " + indexVersion + " does not support new semantic text format");
         }
     }

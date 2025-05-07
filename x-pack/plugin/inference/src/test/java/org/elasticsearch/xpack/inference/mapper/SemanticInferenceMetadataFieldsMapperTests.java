@@ -34,7 +34,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             }
             return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
         } else {
-                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
+            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
         }
     }
 

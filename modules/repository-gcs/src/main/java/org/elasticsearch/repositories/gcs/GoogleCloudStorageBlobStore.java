@@ -52,7 +52,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
@@ -173,14 +172,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String pathPrefix = buildKey(path, prefix);
         final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
         client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
-                .iterateAll()
-                .forEach(blob -> {
-                    assert blob.getName().startsWith(path);
-                    if (blob.isDirectory() == false) {
-                        final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
-                    }
-                });
+            .iterateAll()
+            .forEach(blob -> {
+                assert blob.getName().startsWith(path);
+                if (blob.isDirectory() == false) {
+                    final String suffixName = blob.getName().substring(path.length());
+                    mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
+                }
+            });
         return Map.copyOf(mapBuilder);
     }
 
@@ -188,18 +187,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String pathStr = path.buildAsString();
         final Map<String, BlobContainer> mapBuilder = new HashMap<>();
         client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
-                .iterateAll()
-                .forEach(blob -> {
-                    if (blob.isDirectory()) {
-                        assert blob.getName().startsWith(pathStr);
-                        assert blob.getName().endsWith("/");
-                        // Strip path prefix and trailing slash
-                        final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
-                        if (suffixName.isEmpty() == false) {
-                            mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
-                        }
+            .iterateAll()
+            .forEach(blob -> {
+                if (blob.isDirectory()) {
+                    assert blob.getName().startsWith(pathStr);
+                    assert blob.getName().endsWith("/");
+                    // Strip path prefix and trailing slash
+                    final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
+                    if (suffixName.isEmpty() == false) {
+                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
                     }
-                });
+                }
+            });
         return Map.copyOf(mapBuilder);
     }
 
@@ -655,10 +654,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     OptionalBytesReference getRegister(OperationPurpose purpose, String blobName, String container, String key) throws IOException {
         final var blobId = BlobId.of(bucketName, blobName);
-        try (
-            var meteredReadChannel = client().meteredReader(purpose, blobId);
-            var stream = Channels.newInputStream(meteredReadChannel)
-        ) {
+        try (var meteredReadChannel = client().meteredReader(purpose, blobId); var stream = Channels.newInputStream(meteredReadChannel)) {
             return OptionalBytesReference.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
         } catch (Exception e) {
             final var serviceException = unwrapServiceException(e);
@@ -726,13 +722,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         while (true) {
             try {
                 client().meteredCreate(
-                        purpose,
-                        blobInfo,
-                        bytesRef.bytes,
-                        bytesRef.offset,
-                        bytesRef.length,
-                        Storage.BlobTargetOption.generationMatch()
-                    );
+                    purpose,
+                    blobInfo,
+                    bytesRef.bytes,
+                    bytesRef.offset,
+                    bytesRef.length,
+                    Storage.BlobTargetOption.generationMatch()
+                );
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);

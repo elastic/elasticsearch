@@ -232,9 +232,7 @@ class RetryingHttpInputStream extends InputStream {
                     String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
                     IOUtils.closeWhileHandlingException(response);
                     throw new IOException(
-                        getErrorMessage(
-                            "The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body
-                        )
+                        getErrorMessage("The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body)
                     );
                 }
 

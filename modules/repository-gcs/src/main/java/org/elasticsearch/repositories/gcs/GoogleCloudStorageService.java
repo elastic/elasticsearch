@@ -167,7 +167,7 @@ public class GoogleCloudStorageService {
                 notifyProxyIsSet(proxy);
             }
             httpTransport = builder.build();
-        } catch (RuntimeException|IOException e) {
+        } catch (RuntimeException | IOException e) {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);

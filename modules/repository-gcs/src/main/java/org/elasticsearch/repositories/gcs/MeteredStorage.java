@@ -30,8 +30,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Iterator;
 import java.util.stream.Stream;
 

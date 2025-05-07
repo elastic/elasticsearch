@@ -11,8 +11,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
@@ -22,7 +20,6 @@ import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
 import java.net.URL;
-import java.security.PrivilegedActionException;
 import java.util.Arrays;
 import java.util.Objects;
 

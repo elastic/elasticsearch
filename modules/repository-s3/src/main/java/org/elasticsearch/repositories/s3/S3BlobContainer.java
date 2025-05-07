@@ -184,11 +184,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                         try (var clientReference = blobStore.clientReference()) {
                             uploadId.set(
                                 clientReference.client()
-                                        .createMultipartUpload(
-                                            createMultipartUpload(purpose, Operation.PUT_MULTIPART_OBJECT, absoluteBlobKey)
-                                        )
-                                        .uploadId()
-                                );
+                                    .createMultipartUpload(createMultipartUpload(purpose, Operation.PUT_MULTIPART_OBJECT, absoluteBlobKey))
+                                    .uploadId()
+                            );
                         }
                         if (Strings.isEmpty(uploadId.get())) {
                             throw new IOException("Failed to initialize multipart upload " + absoluteBlobKey);
@@ -207,7 +205,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final UploadPartResponse uploadResponse;
                     try (var clientReference = blobStore.clientReference()) {
                         uploadResponse = clientReference.client()
-                                .uploadPart(uploadRequest, RequestBody.fromInputStream(partContentStream, buffer.size()));
+                            .uploadPart(uploadRequest, RequestBody.fromInputStream(partContentStream, buffer.size()));
                     }
                     finishPart(CompletedPart.builder().partNumber(parts.size() + 1).eTag(uploadResponse.eTag()).build());
                 }
@@ -678,8 +676,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 final UploadPartRequest uploadRequest = createPartUploadRequest(purpose, uploadId, partNum, blobName, partSize, lastPart);
 
                 try (var clientReference = s3BlobStore.clientReference()) {
-                    final UploadPartResponse uploadResponse =
-                        clientReference.client().uploadPart(uploadRequest, RequestBody.fromInputStream(input, partSize));
+                    final UploadPartResponse uploadResponse = clientReference.client()
+                        .uploadPart(uploadRequest, RequestBody.fromInputStream(input, partSize));
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
                 }
             }
@@ -941,10 +939,8 @@ class S3BlobContainer extends AbstractBlobContainer {
             uploadPartRequestBuilder.partNumber(1);
             uploadPartRequestBuilder.sdkPartType(SdkPartType.LAST);
             S3BlobStore.configureRequestForMetrics(uploadPartRequestBuilder, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
-            return client.uploadPart(
-                    uploadPartRequestBuilder.build(),
-                    RequestBody.fromInputStream(updated.streamInput(), updated.length())
-                ).eTag();
+            return client.uploadPart(uploadPartRequestBuilder.build(), RequestBody.fromInputStream(updated.streamInput(), updated.length()))
+                .eTag();
         }
 
         private int getUploadIndex(String targetUploadId, List<MultipartUpload> multipartUploads) {

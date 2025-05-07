@@ -247,8 +247,7 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong bytesDeleted = new AtomicLong(0);
         final AzureBlobServiceClient client = getAzureBlobServiceClientClient(purpose);
         final BlobContainerAsyncClient blobContainerAsyncClient = client.getAsyncClient().getBlobContainerAsyncClient(container);
-        final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
-            .setDetails(new BlobListDetails().setRetrieveMetadata(true));
+        final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path).setDetails(new BlobListDetails().setRetrieveMetadata(true));
         final Flux<String> blobsFlux = blobContainerAsyncClient.listBlobs(options).filter(bi -> bi.isPrefix() == false).map(bi -> {
             bytesDeleted.addAndGet(bi.getProperties().getContentLength());
             blobsDeleted.incrementAndGet();
@@ -443,11 +442,8 @@ public class AzureBlobStore implements BlobStore {
                     return;
                 }
                 final String blockId = makeMultipartBlockId();
-                blockBlobAsyncClient.stageBlock(
-                        blockId,
-                        Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes())),
-                        buffer.size()
-                    ).block();
+                blockBlobAsyncClient.stageBlock(blockId, Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes())), buffer.size())
+                    .block();
                 finishPart(blockId);
             }
 

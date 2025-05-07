@@ -138,10 +138,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
         // execution of privileged code
-        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
-            eventLoopThreadsFromSettings(settings),
-            eventLoopExecutor
-        );
+        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings), eventLoopExecutor);
 
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);

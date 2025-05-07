@@ -62,7 +62,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -426,11 +425,11 @@ class S3Service extends AbstractLifecycleComponent {
                 // (in CustomWebIdentityTokenCredentialsProvider) is unavailable to the ES server, before falling back to a standard
                 // credential provider.
                 return AwsCredentialsProviderChain.builder()
-                        // If credentials are refreshed, we want to look around for different forms of credentials again.
-                        .reuseLastProviderEnabled(false)
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
-                        .build();
+                    // If credentials are refreshed, we want to look around for different forms of credentials again.
+                    .reuseLastProviderEnabled(false)
+                    .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
+                    .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
+                    .build();
             } else {
                 logger.debug("Using DefaultCredentialsProvider for credentials");
                 return DefaultCredentialsProvider.create();

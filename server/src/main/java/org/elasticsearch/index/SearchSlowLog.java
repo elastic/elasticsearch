@@ -111,8 +111,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     );
 
     /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
+     * Legacy index setting, kept for 7.x read-only BWC compatibility. This setting has no effect in 8.x. Do not use.
      */
     @Deprecated
     public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(

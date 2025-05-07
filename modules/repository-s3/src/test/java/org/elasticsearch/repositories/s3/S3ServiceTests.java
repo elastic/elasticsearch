@@ -14,7 +14,6 @@ import software.amazon.awssdk.core.retry.RetryPolicyContext;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
 import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointProvider;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -223,20 +222,57 @@ public class S3ServiceTests extends ESTestCase {
     }
 
     public void testEndpointOverrideSchemeDefaultsToHttpsWhenNotSpecified() {
-        final S3Service s3Service = new S3Service(
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(Settings.builder().put("s3.client." + clientName + ".endpoint", endpointWithoutScheme), clientName),
+            equalTo(URI.create("https://" + endpointWithoutScheme))
+        );
+    }
+
+    public void testEndpointOverrideSchemeUsesHttpsIfHttpsProtocolSpecified() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(
+                Settings.builder()
+                    .put("s3.client." + clientName + ".endpoint", endpointWithoutScheme)
+                    .put("s3.client." + clientName + ".protocol", "https"),
+                clientName
+            ),
+            equalTo(URI.create("https://" + endpointWithoutScheme))
+        );
+        assertWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""", clientName));
+    }
+
+    public void testEndpointOverrideSchemeUsesHttpIfHttpProtocolSpecified() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(
+                Settings.builder()
+                    .put("s3.client." + clientName + ".endpoint", endpointWithoutScheme)
+                    .put("s3.client." + clientName + ".protocol", "http"),
+                clientName
+            ),
+            equalTo(URI.create("http://" + endpointWithoutScheme))
+        );
+        assertWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""", clientName));
+    }
+
+    private static URI getEndpointUri(Settings.Builder settings, String clientName) {
+        return new S3Service(
             mock(Environment.class),
             Settings.EMPTY,
             mock(ResourceWatcherService.class),
-            () -> Region.of("es-test-region")
-        );
-        final String endpointWithoutScheme = randomIdentifier() + ".ignore";
-        S3Client s3Client = s3Service.buildClient(
-            S3ClientSettings.getClientSettings(
-                Settings.builder().put("s3.client.test-client.endpoint", endpointWithoutScheme).build(),
-                "test-client"
-            ),
-            mock(SdkHttpClient.class)
-        );
-        assertThat(s3Client.serviceClientConfiguration().endpointOverride().get(), equalTo(URI.create("https://" + endpointWithoutScheme)));
+            () -> Region.of(randomIdentifier())
+        ).buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))
+            .serviceClientConfiguration()
+            .endpointOverride()
+            .get();
     }
 }

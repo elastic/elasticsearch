@@ -45,11 +45,11 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             : DataStreamLifecycleFeatureSetUsage.DISABLED;
     }
 
-    private static DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats generateGlobalRetention() {
+    static DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats generateGlobalRetention() {
         return new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private static DataStreamLifecycleFeatureSetUsage.RetentionStats generateRetentionStats() {
+    static DataStreamLifecycleFeatureSetUsage.RetentionStats generateRetentionStats() {
         return randomBoolean()
             ? DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA
             : new DataStreamLifecycleFeatureSetUsage.RetentionStats(

@@ -199,6 +199,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     }
 
     record LeafMappingParametersGenerator(
+        DataSource dataSource,
         String fieldName,
         String fieldType,
         Set<String> eligibleCopyToFields,

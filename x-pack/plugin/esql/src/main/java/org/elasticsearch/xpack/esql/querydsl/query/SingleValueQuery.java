@@ -52,6 +52,9 @@ import java.util.Objects;
  *     for now we're going to always wrap so we can always push. When we find cases
  *     where double checking is better we'll try that.
  * </p>
+ * <p>
+ *     NOTE: This will only work with {@code text} fields.
+ * </p>
  */
 public class SingleValueQuery extends Query {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

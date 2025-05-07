@@ -1932,6 +1932,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // as well as any current search nodes.
             trackOutstandingUnpromotableShardCommitRef(currentRoutingNodesWithAssignedSearchShards, blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            var initializingShardNodeIds = shardRoutingTable.map(
+                routingTable -> routingTable.assignedUnpromotableShards()
+                    .stream()
+                    .filter(ShardRouting::initializing)
+                    .map(ShardRouting::currentNodeId)
+                    .collect(Collectors.toSet())
+            ).orElse(Set.of());
+            assert currentRoutingNodesWithAssignedSearchShards.containsAll(initializingShardNodeIds);
 
             statelessCommitNotificationPublisher.sendNewUploadedCommitNotificationAndFetchInUseCommits(
                 shardRoutingTable.isPresent() ? shardRoutingTable.get() : null,
@@ -1943,7 +1951,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 clusterService,
                 ActionListener.wrap(searchNodesAndCommitsResult -> {
                     onNewUploadedCommitNotificationResponse(
-                        searchNodesAndCommitsResult.allSearchNodes(),
+                        // Open PITs might be transferred between search nodes during relocations, for that reason we are conservative,
+                        // and we just consider responses from started or old nodes retaining commits, that way we won't delete any
+                        // commit related to that initializing node until the PIT contexts are transferred to the new target node.
+                        Sets.difference(searchNodesAndCommitsResult.allSearchNodes(), initializingShardNodeIds),
                         uploadedBcc.primaryTermAndGeneration().generation(),
                         notificationCommitGeneration,
                         notificationCommitBCCDependencies,

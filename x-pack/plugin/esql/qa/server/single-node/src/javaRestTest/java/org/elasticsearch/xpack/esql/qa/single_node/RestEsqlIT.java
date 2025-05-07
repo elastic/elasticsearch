@@ -55,6 +55,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
@@ -724,6 +725,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                if (isMillisOrNanos(listOfTypes.get(i)) && isMillisOrNanos(listOfTypes.get(j))) {
+                    // datetime and date_nanos are casted to date_nanos implicitly
+                    continue;
+                }
                 String query = String.format(Locale.ROOT, """
                     {
                         "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"

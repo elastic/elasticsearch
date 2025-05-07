@@ -57,7 +57,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         project.getTasks().withType(GenerateTestBuildInfoTask.class).named("generateTestBuildInfo").configure(task -> {
             var jarTask = project.getTasks().withType(Jar.class).named("jar").get();
-            String moduleName = (String)jarTask.getManifest().getAttributes().get("Automatic-Module-Name");
+            String moduleName = (String) jarTask.getManifest().getAttributes().get("Automatic-Module-Name");
             if (moduleName == null) {
                 moduleName = jarTask.getArchiveBaseName().getOrNull();
             }

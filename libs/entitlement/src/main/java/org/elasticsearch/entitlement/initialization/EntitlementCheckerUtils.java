@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-class EntitlementCheckerUtils {
+public class EntitlementCheckerUtils {
 
     /**
      * Returns the "most recent" checker class compatible with the provided runtime Java version.
@@ -17,7 +17,7 @@ class EntitlementCheckerUtils {
      * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
      * the various mainXX source sets).
      */
-    static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
+    public static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
         String packageName = baseClass.getPackageName();
         String baseClassName = baseClass.getSimpleName();
 

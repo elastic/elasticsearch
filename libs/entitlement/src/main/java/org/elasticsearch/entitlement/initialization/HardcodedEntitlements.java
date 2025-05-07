@@ -42,7 +42,7 @@ import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
-class HardcodedEntitlements {
+public class HardcodedEntitlements {
 
     private static List<Scope> createServerEntitlements(Path pidFile) {
 
@@ -179,7 +179,7 @@ class HardcodedEntitlements {
         return serverScopes;
     }
 
-    static Policy serverPolicy(Path pidFile, Policy serverPolicyPatch) {
+    public static Policy serverPolicy(Path pidFile, Policy serverPolicyPatch) {
         var serverScopes = createServerEntitlements(pidFile);
         return new Policy(
             "server",
@@ -190,7 +190,7 @@ class HardcodedEntitlements {
     // agents run without a module, so this is a special hack for the apm agent
     // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
     // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
-    static List<Entitlement> agentEntitlements() {
+    public static List<Entitlement> agentEntitlements() {
         return List.of(
             new CreateClassLoaderEntitlement(),
             new ManageThreadsEntitlement(),

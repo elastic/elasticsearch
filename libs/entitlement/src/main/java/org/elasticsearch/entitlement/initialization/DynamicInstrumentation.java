@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-class DynamicInstrumentation {
+public class DynamicInstrumentation {
 
     interface InstrumentationInfoFactory {
         InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
@@ -93,7 +93,7 @@ class DynamicInstrumentation {
      * @param checkerInterface the interface to use to find methods to instrument and to use in the injected instrumentation code
      * @param verifyBytecode   whether we should perform bytecode verification before and after instrumenting each method
      */
-    static void initialize(Instrumentation inst, Class<?> checkerInterface, boolean verifyBytecode) throws ClassNotFoundException,
+    public static void initialize(Instrumentation inst, Class<?> checkerInterface, boolean verifyBytecode) throws ClassNotFoundException,
         NoSuchMethodException, UnmodifiableClassException {
 
         var checkMethods = getMethodsToInstrument(checkerInterface);

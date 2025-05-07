@@ -365,7 +365,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return String.valueOf(value);
     }
 
-    private static final double SCALING_FACTOR = 1.0;
+    private static final double SCALING_FACTOR = 10.0;
 
     private static Object sampleDataFor(DataType type) {
         return switch (type) {
@@ -375,8 +375,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case KEYWORD, TEXT -> "key";
             case BYTE, SHORT, INTEGER -> 1;
             case LONG, UNSIGNED_LONG -> 1L;
-            case HALF_FLOAT, FLOAT, DOUBLE -> 1.0;
-            case SCALED_FLOAT -> SCALING_FACTOR;
+            case HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT -> 1.0;
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";

@@ -1,0 +1,5 @@
+pr: 127795
+summary: Do not respect synthetic_source_keep=arrays if type parses arrays
+area: Mapping
+type: enhancement
+issues: []

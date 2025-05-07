@@ -45,8 +45,11 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -56,7 +59,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -92,9 +97,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -111,6 +118,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
+import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_STARTED_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
@@ -128,6 +136,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1364,7 +1373,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
     }
 
-    public void testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimistically() throws Exception {
+    public void testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts() throws Exception {
         var indexNode = startMasterAndIndexNode(
             Settings.builder()
                 .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(2))
@@ -1383,6 +1392,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
 
+        var openPITs = new ArrayList<BytesReference>();
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         for (int i = 0; i < 10; i++) {
             indexDocsAndFlush(indexName);
@@ -1405,6 +1415,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 TransportOpenPointInTimeAction.TYPE,
                 new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueHours(1)).allowPartialSearchResults(false)
             ).actionGet();
+            openPITs.add(openPITResponse.getPointInTimeId());
             assertThat(openPITResponse.getFailedShards(), is(equalTo(0)));
             if (i % 2 == 0) {
                 forceMerge(true);
@@ -1417,41 +1428,138 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var newSearchNode = startSearchNode();
 
         var newCommitNotificationReceivedLatch = new CountDownLatch(1);
-        var newCommitNotificationsBlocked = new CountDownLatch(1);
         MockTransportService.getInstance(newSearchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 newCommitNotificationReceivedLatch.countDown();
-                safeAwait(newCommitNotificationsBlocked);
                 handler.messageReceived(request, channel, task);
             });
         var retainedBlobsBeforeUnpromotableShardMoved = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+
+        var delayShardStartedMessages = new AtomicBoolean(true);
+        var delayedShardStartedMessages = new ConcurrentLinkedQueue<CheckedRunnable<Exception>>();
+        var shardStartedSentFromNewSearchNode = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(SHARD_STARTED_ACTION_NAME, (handler, request, channel, task) -> {
+                shardStartedSentFromNewSearchNode.countDown();
+                if (delayShardStartedMessages.get()) {
+                    delayedShardStartedMessages.add(() -> handler.messageReceived(request, channel, task));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
 
         updateIndexSettings(
             Settings.builder().put("index.routing.allocation.include._name", String.join(",", indexName, newSearchNode)),
             indexName
         );
-        ensureGreen(indexName);
+        // We'll block the shard started message to ensure that the shard is still initializing while new commits arrive to the
+        // new search node
 
-        // The new search node hasn't responded back to any commit notification and the previous node is still around with the open PITs
-        // hence we should retain all commits
-        assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(retainedBlobsBeforeUnpromotableShardMoved)));
+        safeAwait(shardStartedSentFromNewSearchNode);
 
+        // Wait until the new search node has received at least one new commit notification
         safeAwait(newCommitNotificationReceivedLatch);
 
-        // firstSearchNode was retaining all the commits by the open PITs
-        internalCluster().stopNode(firstSearchNode);
-
-        // The new search node hasn't responded back to any commit notifications, hence we should retain all commits
+        // The new search node should have responded back to the new commit notification
+        // (and at this point it'll be just using the latest commit), but since it's still initializing
+        // the response would be ignored
         assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(retainedBlobsBeforeUnpromotableShardMoved)));
 
-        newCommitNotificationsBlocked.countDown();
+        // The default waitForActiveShards would wait until the relocating search shard has finished, we don't need to wait for that.
+        indexDocs(indexName, randomIntBetween(10, 20), bulkRequest -> bulkRequest.setWaitForActiveShards(ActiveShardCount.NONE));
+        var flushResponse = indicesAdmin().prepareFlush(indexName).get();
+        assertNoFailures(flushResponse);
+        // Up until now we're retaining all commits by the open PITs + the force merged commit and the newly flushed commit
+
+        var blobsAfterFlushWhileSearchShardIsRecovering = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+
+        assertThat(blobsAfterFlushWhileSearchShardIsRecovering.containsAll(retainedBlobsBeforeUnpromotableShardMoved), is(true));
+        assertThat(blobsAfterFlushWhileSearchShardIsRecovering, hasSize(retainedBlobsBeforeUnpromotableShardMoved.size() + 1));
+
+        // At this point we should be retaining all commits since the unpromotable shard is still recovering,
+        // and we'll be holding all commits in that case until the initialization finishes
+        var forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        assertNoFailures(forceMergeResponse);
+
+        var blobsAfterSecondForceMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+
+        assertThat(blobsAfterSecondForceMerge.containsAll(blobsAfterFlushWhileSearchShardIsRecovering), is(true));
 
         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
         assertThat(latestUploadedBcc, is(notNullValue()));
         var latestUploadedBlob = StatelessCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
 
+        var testScenario = randomFrom(PITRetentionTestScenarios.values());
+        switch (testScenario) {
+            case SUCCESSFUL_RELOCATION -> {
+                // Do nothing
+            }
+            case FAIL_SOURCE -> failSearchShard(indexName, firstSearchNode);
+            case FAIL_TARGET -> {
+                // We want to abort the relocation, hence we revert the allocation filter to only include the first search node
+                updateIndexSettings(
+                    Settings.builder().put("index.routing.allocation.include._name", String.join(",", indexName, firstSearchNode)),
+                    indexName
+                );
+                failSearchShard(indexName, newSearchNode);
+            }
+            case STOP_SOURCE_NODE -> internalCluster().stopNode(firstSearchNode);
+            case STOP_TARGET_NODE -> internalCluster().stopNode(newSearchNode);
+            default -> throw new IllegalStateException("Unexpected value: " + testScenario);
+        }
+
+        delayShardStartedMessages.set(false);
+        // If the shard was marked as failed this will be ignored
+        CheckedRunnable<Exception> startedShardMessage;
+        while ((startedShardMessage = delayedShardStartedMessages.poll()) != null) {
+            startedShardMessage.run();
+        }
+        ensureGreen(indexName);
+
+        if (testScenario != PITRetentionTestScenarios.STOP_SOURCE_NODE) {
+            // TODO: We should remove this once PIT transfers are in place
+            // If we close the PITS, the retained commits should be released
+            closePITs(openPITs);
+        }
+
         // TODO: This should fail once the PIT hand-off is in place
         assertBusy(() -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))));
+    }
+
+    private static void failSearchShard(String indexName, String searchNode) {
+        var indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
+        var indexShard = indicesService.indexService(resolveIndex(indexName)).getShard(0);
+        ShardStateAction shardStateAction = internalCluster().getInstance(ShardStateAction.class, searchNode);
+        ShardRouting shardRouting = indexShard.routingEntry();
+        assertThat("Unexpected shard role", shardRouting.role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        shardStateAction.remoteShardFailed(
+            indexShard.shardId(),
+            shardRouting.allocationId().getId(),
+            indexShard.getOperationPrimaryTerm(),
+            true,
+            "broken",
+            new Exception("boom remote"),
+            listener
+        );
+        listener.actionGet();
+    }
+
+    private static void closePITs(List<BytesReference> openPITs) throws Exception {
+        for (BytesReference pitID : openPITs) {
+            var closePITRequest = new ClosePointInTimeRequest(pitID);
+            var closePITResponse = client().execute(TransportClosePointInTimeAction.TYPE, closePITRequest).get();
+            assertThat(closePITResponse.isSucceeded(), is(true));
+        }
+    }
+
+    enum PITRetentionTestScenarios {
+        SUCCESSFUL_RELOCATION,
+        FAIL_SOURCE,
+        FAIL_TARGET,
+        STOP_TARGET_NODE,
+        STOP_SOURCE_NODE,
+        // TODO: inject failures into the unpromotable relocation hand-off
     }
 
     private int indexDocsAndFlush(String indexName) {

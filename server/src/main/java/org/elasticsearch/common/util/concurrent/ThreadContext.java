@@ -449,9 +449,7 @@ public final class ThreadContext implements Writeable, TraceContext {
      *     new Thread() {
      *         public void run() {
      *             try (ThreadContext.StoredContext ctx = restorable.get()) {
-     *                 // execute with the parents context and restore the thread's context afterwards
-     *                 // response headers of this child context will be propagated back to the parent context
-     *                 // if `propagateResponseHeaders` is true
+     *                 // execute with the parents context and restore the threads context afterwards
      *             }
      *         }
      *
@@ -459,39 +457,10 @@ public final class ThreadContext implements Writeable, TraceContext {
      * </pre>
      *
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
-     * @param propagateResponseHeaders if set to <code>true</code> the response headers of the child context will be propagated back.
      * @return a restorable context supplier
      */
-    public Supplier<StoredContext> newRestorableContext(boolean preserveResponseHeaders, boolean propagateResponseHeaders) {
-        return wrapRestorable(
-            preserveResponseHeaders ? newStoredContextPreservingResponseHeaders() : newStoredContext(),
-            propagateResponseHeaders
-        );
-    }
-
-    /**
-     * Returns a supplier that gathers a {@link #newStoredContextPreservingResponseHeaders()} and restores it once the
-     * returned supplier is invoked. The context returned from the supplier is a stored version of the
-     * suppliers callers context that should be restored once the originally gathered context is not needed anymore.
-     * For instance this method should be used like this:
-     *
-     * <pre>
-     *     Supplier&lt;ThreadContext.StoredContext&gt; restorable = context.newRestorableContext(true);
-     *     new Thread() {
-     *         public void run() {
-     *             try (ThreadContext.StoredContext ctx = restorable.get()) {
-     *                 // execute with the parents context and restore the thread's context afterwards
-     *             }
-     *         }
-     *
-     *     }.start();
-     * </pre>
-     *
-     * @param preserveExistingResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
-     * @return a restorable context supplier
-     */
-    public Supplier<StoredContext> newRestorableContext(boolean preserveExistingResponseHeaders) {
-        return newRestorableContext(preserveExistingResponseHeaders, false);
+    public Supplier<StoredContext> newRestorableContext(boolean preserveResponseHeaders) {
+        return wrapRestorable(preserveResponseHeaders ? newStoredContextPreservingResponseHeaders() : newStoredContext());
     }
 
     /**
@@ -499,12 +468,8 @@ public final class ThreadContext implements Writeable, TraceContext {
      * @param storedContext the context to restore
      */
     public Supplier<StoredContext> wrapRestorable(StoredContext storedContext) {
-        return wrapRestorable(storedContext, false);
-    }
-
-    private Supplier<StoredContext> wrapRestorable(StoredContext storedContext, boolean propagateResponseHeaders) {
         return () -> {
-            var context = propagateResponseHeaders ? newStoredContextPreservingResponseHeaders() : newStoredContext();
+            StoredContext context = newStoredContext();
             storedContext.restore();
             return context;
         };

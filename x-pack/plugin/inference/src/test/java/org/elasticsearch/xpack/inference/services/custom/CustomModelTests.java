@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -107,9 +108,12 @@ public class CustomModelTests extends ESTestCase {
         String requestContentString = "\"input\":\"${input}\"";
 
         CustomServiceSettings serviceSettings = new CustomServiceSettings(
-            SimilarityMeasure.DOT_PRODUCT,
-            dims,
-            maxInputTokens,
+            new CustomServiceSettings.TextEmbeddingSettings(
+                SimilarityMeasure.DOT_PRODUCT,
+                dims,
+                maxInputTokens,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            ),
             url,
             headers,
             QueryParameters.EMPTY,

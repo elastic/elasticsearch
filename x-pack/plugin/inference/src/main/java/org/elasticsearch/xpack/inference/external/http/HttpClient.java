@@ -137,7 +137,7 @@ public class HttpClient implements Closeable {
     private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
+                listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response, request));
             } catch (Exception e) {
                 throttlerManager.warn(
                     logger,

@@ -238,9 +238,12 @@ public class CustomService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         return new CustomServiceSettings(
-            similarityToUse,
-            embeddingSize,
-            serviceSettings.getMaxInputTokens(),
+            new CustomServiceSettings.TextEmbeddingSettings(
+                similarityToUse,
+                embeddingSize,
+                serviceSettings.getMaxInputTokens(),
+                serviceSettings.elementType()
+            ),
             serviceSettings.getUrl(),
             serviceSettings.getHeaders(),
             serviceSettings.getQueryParameters(),

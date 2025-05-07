@@ -13,12 +13,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -66,9 +68,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
 
         String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -134,9 +134,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         }
 
         return new CustomServiceSettings(
-            similarity,
-            dims,
-            maxInputTokens,
+            textEmbeddingSettings,
             url,
             stringHeaders,
             queryParams,
@@ -147,9 +145,59 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         );
     }
 
-    private final SimilarityMeasure similarity;
-    private final Integer dimensions;
-    private final Integer maxInputTokens;
+    public record TextEmbeddingSettings(
+        @Nullable SimilarityMeasure similarityMeasure,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
+        @Nullable DenseVectorFieldMapper.ElementType elementType
+    ) implements ToXContentFragment, Writeable {
+
+        public static final TextEmbeddingSettings EMPTY = new TextEmbeddingSettings(null, null, null, null);
+
+        public static TextEmbeddingSettings fromMap(Map<String, Object> map, TaskType taskType, ValidationException validationException) {
+            if (taskType != TaskType.TEXT_EMBEDDING) {
+                return EMPTY;
+            }
+
+            SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+            Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+            return new TextEmbeddingSettings(similarity, dims, maxInputTokens, DenseVectorFieldMapper.ElementType.FLOAT);
+        }
+
+        public TextEmbeddingSettings(StreamInput in) throws IOException {
+            this(
+                in.readOptionalEnum(SimilarityMeasure.class),
+                in.readOptionalVInt(),
+                in.readOptionalVInt(),
+                in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalEnum(similarityMeasure);
+            out.writeOptionalVInt(dimensions);
+            out.writeOptionalVInt(maxInputTokens);
+            out.writeOptionalEnum(elementType);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (similarityMeasure != null) {
+                builder.field(SIMILARITY, similarityMeasure);
+            }
+            if (dimensions != null) {
+                builder.field(DIMENSIONS, dimensions);
+            }
+            if (maxInputTokens != null) {
+                builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+            }
+            return builder;
+        }
+    }
+
+    private final TextEmbeddingSettings textEmbeddingSettings;
     private final String url;
     private final Map<String, String> headers;
     private final QueryParameters queryParameters;
@@ -159,9 +207,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final ErrorResponseParser errorParser;
 
     public CustomServiceSettings(
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
+        @Nullable TextEmbeddingSettings textEmbeddingSettings,
         String url,
         @Nullable Map<String, String> headers,
         @Nullable QueryParameters queryParameters,
@@ -170,9 +216,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable RateLimitSettings rateLimitSettings,
         ErrorResponseParser errorParser
     ) {
-        this.similarity = similarity;
-        this.dimensions = dimensions;
-        this.maxInputTokens = maxInputTokens;
+        this.textEmbeddingSettings = textEmbeddingSettings == null ? TextEmbeddingSettings.EMPTY : textEmbeddingSettings;
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
         this.queryParameters = Objects.requireNonNullElse(queryParameters, QueryParameters.EMPTY);
@@ -183,9 +227,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
+        textEmbeddingSettings = new TextEmbeddingSettings(in);
         url = in.readString();
         headers = in.readImmutableMap(StreamInput::readString);
         queryParameters = new QueryParameters(in);
@@ -203,21 +245,21 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public SimilarityMeasure similarity() {
-        return similarity;
+        return textEmbeddingSettings.similarityMeasure;
     }
 
     @Override
     public Integer dimensions() {
-        return dimensions;
+        return textEmbeddingSettings.dimensions;
     }
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
+        return textEmbeddingSettings.elementType;
     }
 
     public Integer getMaxInputTokens() {
-        return maxInputTokens;
+        return textEmbeddingSettings.maxInputTokens;
     }
 
     public String getUrl() {
@@ -270,15 +312,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (similarity != null) {
-            builder.field(SIMILARITY, similarity);
-        }
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
-        }
-        if (maxInputTokens != null) {
-            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-        }
+        textEmbeddingSettings.toXContent(builder, params);
         builder.field(URL, url);
 
         if (headers.isEmpty() == false) {
@@ -317,9 +351,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(similarity);
-        out.writeOptionalVInt(dimensions);
-        out.writeOptionalVInt(maxInputTokens);
+        textEmbeddingSettings.writeTo(out);
         out.writeString(url);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         queryParameters.writeTo(out);
@@ -334,9 +366,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CustomServiceSettings that = (CustomServiceSettings) o;
-        return Objects.equals(similarity, that.similarity)
-            && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens)
+        return Objects.equals(textEmbeddingSettings, that.textEmbeddingSettings)
             && Objects.equals(url, that.url)
             && Objects.equals(headers, that.headers)
             && Objects.equals(queryParameters, that.queryParameters)
@@ -349,9 +379,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     @Override
     public int hashCode() {
         return Objects.hash(
-            similarity,
-            dimensions,
-            maxInputTokens,
+            textEmbeddingSettings,
             url,
             headers,
             queryParameters,

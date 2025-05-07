@@ -115,11 +115,12 @@ public class RetryingHttpSender implements RequestSender {
 
             try {
                 if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                    httpClient.stream(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
+                    var httpRequest = request.createHttpRequest();
+                    httpClient.stream(httpRequest, context, retryableListener.delegateFailure((l, r) -> {
                         if (r.isSuccessfulResponse()) {
-                            l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
+                            l.onResponse(responseHandler.parseResult(request, r.toHttpResult(httpRequest)));
                         } else {
-                            r.readFullResponse(l.delegateFailureAndWrap((ll, httpResult) -> {
+                            r.readFullResponse(httpRequest, l.delegateFailureAndWrap((ll, httpResult) -> {
                                 try {
                                     responseHandler.validateResponse(throttlerManager, logger, request, httpResult, true);
                                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);

@@ -14,6 +14,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -58,7 +59,7 @@ public class CustomRequest implements Request {
             jsonParams.put(QUERY, toJson(query, QUERY));
         }
 
-        jsonParams.put(INPUT, toJson(input, INPUT));
+        addInputJsonParam(jsonParams, input, model.getTaskType());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
@@ -80,6 +81,14 @@ public class CustomRequest implements Request {
     private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, ?> params) {
         for (var entry : params.entrySet()) {
             jsonStringParams.put(entry.getKey(), toJson(entry.getValue(), entry.getKey()));
+        }
+    }
+
+    private static void addInputJsonParam(Map<String, String> jsonParams, List<String> input, TaskType taskType) {
+        if (taskType == TaskType.COMPLETION && input.isEmpty() == false) {
+            jsonParams.put(INPUT, toJson(input.get(0), INPUT));
+        } else {
+            jsonParams.put(INPUT, toJson(input, INPUT));
         }
     }
 

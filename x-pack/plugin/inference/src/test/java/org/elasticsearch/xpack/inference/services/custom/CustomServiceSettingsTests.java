@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,9 +79,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         RateLimitSettings rateLimitSettings = new RateLimitSettings(randomLongBetween(1, 1000000));
 
         return new CustomServiceSettings(
-            similarityMeasure,
-            dims,
-            maxInputTokens,
+            new CustomServiceSettings.TextEmbeddingSettings(
+                similarityMeasure,
+                dims,
+                maxInputTokens,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            ),
             url,
             headers,
             queryParameters,
@@ -144,9 +148,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             settings,
             is(
                 new CustomServiceSettings(
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        SimilarityMeasure.DOT_PRODUCT,
+                        dims,
+                        maxInputTokens,
+                        DenseVectorFieldMapper.ElementType.FLOAT
+                    ),
                     url,
                     headers,
                     new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"))),
@@ -193,9 +200,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             settings,
             is(
                 new CustomServiceSettings(
-                    null,
-                    null,
-                    null,
+                    CustomServiceSettings.TextEmbeddingSettings.EMPTY,
                     url,
                     Map.of(),
                     null,
@@ -258,9 +263,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             settings,
             is(
                 new CustomServiceSettings(
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        SimilarityMeasure.DOT_PRODUCT,
+                        dims,
+                        maxInputTokens,
+                        DenseVectorFieldMapper.ElementType.FLOAT
+                    ),
                     url,
                     Map.of("value", "abc"),
                     null,
@@ -656,9 +664,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     public void testXContent() throws IOException {
         var entity = new CustomServiceSettings(
-            null,
-            null,
-            null,
+            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
             "http://www.abc.com",
             Map.of("key", "value"),
             null,

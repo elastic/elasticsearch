@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -50,9 +51,12 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            SimilarityMeasure.DOT_PRODUCT,
-            dims,
-            maxInputTokens,
+            new CustomServiceSettings.TextEmbeddingSettings(
+                SimilarityMeasure.DOT_PRODUCT,
+                dims,
+                maxInputTokens,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            ),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
@@ -96,9 +100,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            null,
-            null,
-            null,
+            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
             "http://www.elastic.co",
             null,
             // escaped characters retrieved from here: https://docs.microfocus.com/OMi/10.62/Content/OMi/ExtGuide/ExtApps/URL_encoding.htm
@@ -149,9 +151,12 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            SimilarityMeasure.DOT_PRODUCT,
-            dims,
-            maxInputTokens,
+            new CustomServiceSettings.TextEmbeddingSettings(
+                SimilarityMeasure.DOT_PRODUCT,
+                dims,
+                maxInputTokens,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            ),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
@@ -198,9 +203,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            null,
-            null,
-            null,
+            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
             "http://www.elastic.co",
             null,
             null,
@@ -242,9 +245,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            null,
-            null,
-            null,
+            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
             "http://www.elastic.co",
             Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
             null,
@@ -275,9 +276,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            null,
-            null,
-            null,
+            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
             "${url}",
             Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
             null,

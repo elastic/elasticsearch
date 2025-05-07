@@ -138,6 +138,18 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         stats[5] = centroidDot;
     }
 
+    @Override
+    public float soarResidual(float[] v1, float[] centroid, float[] originalResidual) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        float proj = 0;
+        for (int i = 0; i < v1.length; i++) {
+            float djk = v1[i] - centroid[i];
+            proj = fma(djk, originalResidual[i], proj);
+        }
+        return proj;
+    }
+
     public static int ipByteBitImpl(byte[] q, byte[] d) {
         return ipByteBitImpl(q, d, 0);
     }

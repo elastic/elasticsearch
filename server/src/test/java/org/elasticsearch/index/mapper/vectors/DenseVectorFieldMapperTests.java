@@ -1881,7 +1881,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 128, 0, 0 }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1897,7 +1906,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1907,7 +1917,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1916,7 +1935,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1932,7 +1960,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1946,7 +1975,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1963,7 +1993,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1997,7 +2028,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -2011,7 +2043,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -2028,7 +2061,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(

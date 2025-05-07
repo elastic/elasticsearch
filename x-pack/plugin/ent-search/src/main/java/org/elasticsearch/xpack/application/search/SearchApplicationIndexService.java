@@ -291,21 +291,19 @@ public class SearchApplicationIndexService {
     }
 
     private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
-        try (
-            ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
-            XContentBuilder source = XContentFactory.jsonBuilder(buffer)
-        ) {
-            source.startObject()
-                .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
-                .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
-                .directFieldAsBase64(
-                    SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                    os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
-                )
-                .endObject();
+        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+            try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
+                source.startObject()
+                    .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
+                    .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
+                    .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
+                    .directFieldAsBase64(
+                        SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
+                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
+                    )
+                    .endObject();
+            }
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
-            source.flush();
             final IndexRequest indexRequest = new IndexRequest(SEARCH_APPLICATION_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(app.name())
                 .opType(opType)

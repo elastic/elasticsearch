@@ -163,10 +163,10 @@ This section covers important details about `LOOKUP JOIN` that impact query beha
 ### Handling name collisions
 
 When fields from the lookup index match existing column names, the new columns override the existing ones.
-Before the `LOOKUP JOIN`, preserve columns by either:
+Before the `LOOKUP JOIN` command, preserve columns by either:
 
 * Using `RENAME` to assign non-conflicting names
-* Using `EVAL` to create new columns with different names, then `DROP` the original columns
+* Using `EVAL` to create new columns with different names, then `DROP` to remove the original columns
 
 ### Sorting behavior
 

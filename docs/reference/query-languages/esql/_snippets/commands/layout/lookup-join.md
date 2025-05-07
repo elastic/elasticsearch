@@ -42,7 +42,7 @@ If multiple documents in the lookup index match a single row in your
 results, the output will contain one row for each matching combination.
 
 ::::{tip}
-For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#implementation-details).
+For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#usage-notes).
 ::::
 
 **Examples**

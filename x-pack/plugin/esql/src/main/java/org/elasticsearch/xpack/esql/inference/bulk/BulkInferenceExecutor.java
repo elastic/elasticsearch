@@ -51,11 +51,7 @@ public class BulkInferenceExecutor {
                             e -> bulkExecutionState.onInferenceException(seqNo, e)
                         ),
                         () -> {
-                            if (bulkExecutionState.responseSent()) {
-                                return;
-                            }
-
-                            bulkExecutionState.persistsResponse(outputBuilder::onInferenceResponse);
+                            bulkExecutionState.persistsResponses(outputBuilder::onInferenceResponse);
                             bulkExecutionState.maybeSendResponse(outputBuilder::buildOutput, listener);
                         }
                     )

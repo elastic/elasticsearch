@@ -12,17 +12,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public record HttpResult(HttpResponse response, byte[] body, HttpRequest request) {
+public record HttpResult(HttpResponse response, byte[] body) {
 
-    public static HttpResult create(ByteSizeValue maxResponseSize, HttpResponse response, HttpRequest request) throws IOException {
-        return new HttpResult(response, limitBody(maxResponseSize, response), request);
+    public static HttpResult create(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
+        return new HttpResult(response, limitBody(maxResponseSize, response));
     }
 
     private static byte[] limitBody(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
@@ -44,7 +43,6 @@ public record HttpResult(HttpResponse response, byte[] body, HttpRequest request
     public HttpResult {
         Objects.requireNonNull(response);
         Objects.requireNonNull(body);
-        Objects.requireNonNull(request);
     }
 
     public boolean isBodyEmpty() {

@@ -120,6 +120,10 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
             );
         }
 
+        private static ErrorResponse fromResponse(Request request, HttpResult response) {
+            return fromResponse(response);
+        }
+
         private static ErrorResponse fromResponse(HttpResult response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)

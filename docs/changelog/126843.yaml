@@ -42,8 +42,7 @@ breaking:
       `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
 
     * AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so
-      the `s3.client.${CLIENT_NAME}.protocol` setting is deprecated and no longer
-      has any effect.
+      the `s3.client.${CLIENT_NAME}.protocol` setting is deprecated.
 
     * AWS SDK v2 does not permit control over throttling for retries, so the
       the `s3.client.${CLIENT_NAME}.use_throttle_retries` setting is deprecated
@@ -81,9 +80,9 @@ breaking:
     * If applicable, discontinue use of the
       `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
 
-    * If applicable, specify that you wish to use the insecure HTTP protocol to
-      access the S3 API by setting `s3.client.${CLIENT_NAME}.endpoint` to a URL
-      which starts with `http://`.
+    * If applicable, specify the protocol to use to access the S3 API by
+      setting `s3.client.${CLIENT_NAME}.endpoint` to a URL which starts with
+      `http://` or `https://`.
 
     * If applicable, discontinue use of the `log-delivery-write` canned ACL.
 

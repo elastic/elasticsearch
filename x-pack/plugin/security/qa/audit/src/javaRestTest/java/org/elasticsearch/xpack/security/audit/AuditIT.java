@@ -63,6 +63,7 @@ public class AuditIT extends ESRestTestCase {
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
+        .setting("rest.incremental_bulk", "true")
         .user("admin_user", "admin-password")
         .user(API_USER, "api-password", "superuser", false)
         .build();

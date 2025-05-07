@@ -560,6 +560,10 @@ public enum DataType {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
 
+    public static boolean isSpatialShape(DataType t) {
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
     public static boolean isSpatialGeo(DataType t) {
         return t == GEO_POINT || t == GEO_SHAPE;
     }

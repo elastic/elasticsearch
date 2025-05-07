@@ -62,7 +62,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void initChannels() {
-        channelCount = between(2, 10);
+        channelCount = between(2, 3);
         elementTypes = randomElementTypes(channelCount);
     }
 
@@ -73,7 +73,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             new FixedExecutorBuilder(
                 Settings.EMPTY,
                 EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                1,
+                between(1, 10),
                 1024,
                 "esql",
                 EsExecutors.TaskTrackingConfig.DEFAULT

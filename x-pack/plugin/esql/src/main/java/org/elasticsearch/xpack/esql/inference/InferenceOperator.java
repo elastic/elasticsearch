@@ -56,13 +56,7 @@ public abstract class InferenceOperator<InferenceResult extends InferenceService
 
     @Override
     protected void performAsync(Page input, ActionListener<Page> listener) {
-        try {
-            BulkInferenceOutputBuilder<InferenceResult, Page> outputBuilder = outputBuilder(input);
-            listener = ActionListener.releaseBefore(outputBuilder, listener);
-
-            BulkInferenceRequestIterator requests = requests(input);
-            listener = ActionListener.releaseBefore(requests, listener);
-
+        try (OutputBuilder<InferenceResult> outputBuilder = outputBuilder(input); BulkInferenceRequestIterator requests = requests(input)) {
             bulkInferenceExecutor.execute(requests, outputBuilder, listener);
         } catch (Exception e) {
             listener.onFailure(e);

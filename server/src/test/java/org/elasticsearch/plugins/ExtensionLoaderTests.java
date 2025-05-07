@@ -10,7 +10,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -35,7 +34,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         int getValue();
     }
 
-    private ClosableURLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
+    private URLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
@@ -55,7 +54,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
         URL[] urls = new URL[] { jar.toUri().toURL() };
 
-        return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, this.getClass().getClassLoader()));
+        return URLClassLoader.newInstance(urls, this.getClass().getClassLoader());
     }
 
     private String defineProvider(String name, int value) {
@@ -79,7 +78,7 @@ public class ExtensionLoaderTests extends ESTestCase {
     public void testOneProvider() throws Exception {
         Map<String, CharSequence> sources = Map.of("p.FooService", defineProvider("FooService", 1));
         try (var loader = buildProviderJar(sources)) {
-            TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()))
+            TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader))
                 .orElseThrow(AssertionError::new);
             assertThat(service, not(nullValue()));
             assertThat(service.getValue(), equalTo(1));
@@ -96,7 +95,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         try (var loader = buildProviderJar(sources)) {
             var e = expectThrows(
                 IllegalStateException.class,
-                () -> ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()))
+                () -> ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader))
             );
             assertThat(e.getMessage(), containsString("More than one extension found"));
             assertThat(e.getMessage(), containsString("TestService"));

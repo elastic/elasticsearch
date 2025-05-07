@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -63,7 +61,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -94,7 +91,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -153,7 +149,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -180,10 +175,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new ResolveUnionTypesInEsRelation()
         ),
-        new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting(), new ResolveUnionTypes()  // Must be after ResolveRefs, so union
-                                                                                                     // types can be found
-        // Must be after ResolveUnionTypes, if there is explicit casting on the union typed fields, implicit casting won't be added
-        // new ImplicitCastingForUnionTypedFields()
+        new Batch<>(
+            "Resolution",
+            new ResolveRefs(),
+            new ImplicitCasting(),
+            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -1680,15 +1676,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false
+                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by ResolveUnionTypesInEsRelation has synthetic = false
                 && fa.field() instanceof MultiTypeEsField mtf) {
                     // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
-                    // ResolveUnionTypesInEsRelation, do not do double casting.
+                    // ResolveUnionTypesInEsRelation, it is not necessary to cast it into date_nanos and then do explicit casting.
                     if (((Expression) convert).dataType() == mtf.getDataType()) {
-                        // The same data type between implicit and explicit casting, explicit conversion is not needed
+                        // The same data type between implicit(date_nanos) and explicit casting, explicit conversion is not needed
                         return convert.field();
                     } else {
-                        // TODO Is there an easy way to convert from one MultiTypeEsField to another MultiTypeEsField?
+                        // Data type is different between implicit(date_nanos) and explicit casting, create a new MultiTypeEsField with
+                        // explicit casting type. TODO Is there an easy way to convert one MultiTypeEsField to another MultiTypeEsField?
                         HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         Set<DataType> supportedTypes = convert.supportedTypes();
                         Holder<Boolean> conversionSupported = new Holder<>(true);
@@ -1705,10 +1702,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 conversionSupported.set(false);
                             }
                         });
-                        // If the conversions are supported, create a new FieldAttribute with a new MultiTypeEsField, and add it to
-                        // unionFieldAttributes.
+                        // If the conversions are supported, all the data types in a MultiTypeEsField can be cast to the explicit casting
+                        // data type, create a new FieldAttribute with a new MultiTypeEsField, and add it to unionFieldAttributes.
                         if (conversionSupported.get()) {
-                            // build the map between index name and conversion expressions
+                            // Build the mapping between index name and conversion expressions, as a MultiTypeEsField does not store the
+                            // mapping between data types and index names,
                             Map<String, Expression> indexToConversionExpressions = new HashMap<>();
                             for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
                                 String indexName = entry.getKey();
@@ -1848,186 +1846,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
-        }
-    }
-
-    /**
-     * Cast union typed fields that are mixed of date and date_nanos types into date_nanos.
-     */
-    private static class ImplicitCastingForUnionTypedFields extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        @Override
-        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled() == false) {
-                return plan;
-            }
-            // This rule should be applied after ResolveUnionTypes, so that the InvalidMappedFields with explicit casting are converted into
-            // MultiTypeEsField, and don't get double cast here.
-            Map<FieldAttribute, Alias> invalidMappedFieldCasted = new HashMap<>();
-            LogicalPlan transformedPlan = plan.transformUp(LogicalPlan.class, p -> {
-                // exclude LookupJoin for now, as it doesn't support date_nanos as join key yet
-                if (p instanceof UnaryPlan == false) {
-                    return p;
-                }
-                Set<FieldAttribute> invalidMappedFields = invalidMappedFieldsInLogicalPlan(p);
-                if (invalidMappedFields.isEmpty() == false) {
-                    // If we are at a plan node that has invalid mapped fields, we need to either add an EVAL, or if that has been done
-                    // we should instead replace with the already cast field
-                    Map<FieldAttribute, Alias> newAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
-                    Map<FieldAttribute, Alias> existingAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
-                    for (FieldAttribute fa : invalidMappedFields) {
-                        if (invalidMappedFieldCasted.containsKey(fa)) {
-                            // There is already an eval plan created for the implicit cast field, just reference to it
-                            Alias alias = invalidMappedFieldCasted.get(fa);
-                            existingAliases.put(fa, alias);
-                        } else {
-                            // Create a new alias and later on add a new EVAL with this new aliases for implicit casting
-                            DataType targetType = commonDataType(fa);
-                            if (targetType != null) {
-                                Expression conversionFunction = castInvalidMappedField(targetType, fa);
-                                Alias alias = new Alias(fa.source(), fa.name(), conversionFunction);
-                                newAliases.put(fa, alias);
-                                invalidMappedFieldCasted.put(fa, alias);
-                            }
-                        }
-                    }
-                    // If there are new aliases created, create a new eval child with new aliases for the current plan。
-                    // How many children does a LogicalPlan have? Only deal with UnaryPlan and LookupJoin for now.
-                    if (newAliases.isEmpty() == false) { // create a new eval child plan
-                        UnaryPlan u = (UnaryPlan) p; // this must be a unary plan, as it is checked at the beginning of plan loop
-                        Eval eval = new Eval(u.source(), u.child(), newAliases.values().stream().toList());
-                        p = u.replaceChild(eval);
-                        // TODO Lookup join does not work on date_nanos field yet, joining on a date_nanos field does not find a match.
-                        // And lookup up join is a special case as a lookup join has two children, after date_nanos is supported as a join
-                        // key, the transformation needs to take it into account.
-                    }
-                    // If there are new or existing aliases identified, combine them into one map
-                    Map<FieldAttribute, Alias> allAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
-                    allAliases.putAll(newAliases);
-                    allAliases.putAll(existingAliases);
-                    if (allAliases.isEmpty() == false) { // there is already eval plan for that union typed field, reference to the aliases
-                        p = p.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                            Alias alias = allAliases.get(fa);
-                            return alias != null ? alias.toAttribute() : fa;
-                        });
-                        // MvExpand and Stats have ReferenceAttribute referencing the FieldAttribute in the same plan.
-                        // The ReferenceAttribute need to be updated to point to the casting expression.
-                        if (p instanceof MvExpand mvExpand) {
-                            p = transformMvExpand(mvExpand);
-                        } else if (p instanceof Aggregate aggregate) {
-                            p = transformAggregate(aggregate);
-                        }
-                    }
-                }
-                return p;
-            });
-            transformedPlan = castInvalidMappedFieldInFinalOutput(transformedPlan);
-            return transformedPlan;
-        }
-
-        /**
-         * Find a common data type that the union typed field can cast to, only date and date_nanos types are supported.
-         * This method can be extended to support implicit casting for the other data types.
-         */
-        private static DataType commonDataType(FieldAttribute unionTypedField) {
-            DataType targetType = null;
-            if (unionTypedField.field() instanceof InvalidMappedField imf) {
-                for (DataType type : imf.types()) {
-                    if (isMillisOrNanos(type) == false) { // if there is field that is no date or date_nanos, don't do implicit casting
-                        return null;
-                    }
-                    if (targetType == null) { // initialize the target type to the first type
-                        targetType = type;
-                    } else if (targetType == DATE_NANOS || type == DATE_NANOS) {
-                        targetType = DATE_NANOS;
-                    }
-                }
-            }
-            return targetType;
-        }
-
-        /**
-         * Do implicit casting for date and date_nanos only.
-         */
-        private static Expression castInvalidMappedField(DataType targetType, FieldAttribute fa) {
-            Source source = fa.source();
-            return switch (targetType) {
-                case DATETIME -> new ToDatetime(source, fa); // in case we decided to use DATE as a common type instead of DATE_NANOS
-                case DATE_NANOS -> new ToDateNanos(source, fa);
-                default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
-            };
-        }
-
-        /**
-         * Return all the FieldAttribute that contain InvalidMappedField in the current plan.
-         */
-        private static Set<FieldAttribute> invalidMappedFieldsInLogicalPlan(LogicalPlan plan) {
-            Set<FieldAttribute> fas = new HashSet<>();
-            // Invalid mapped fields are legal at EsRelation level, as long as they are not used elsewhere. In the final output, if they
-            // have not been dropped, implicit cast will be added for them, so that we can return not null values, the implicit casting is
-            // deferred to when the fields are used or returned.
-            if (plan instanceof EsRelation == false) {
-                plan.forEachExpression(FieldAttribute.class, fa -> {
-                    if (fa.field() instanceof InvalidMappedField) {
-                        fas.add(fa);
-                    }
-                });
-            }
-            return fas;
-        }
-
-        /**
-         * Cast the InvalidMappedFields in the final output of the query, this is needed when these fields are not referenced in the query
-         * explicitly, so there is no chance to cast them to a common type earlier, an example of such query is from index*.
-         */
-        private static LogicalPlan castInvalidMappedFieldInFinalOutput(LogicalPlan logicalPlan) {
-            // Check the output of the query, if the top level plan is resolved, check if there is InvalidMappedField in its output,
-            // if so add a project with eval, so that a not null value can be returned for a union typed field
-            if (logicalPlan.resolved()) {
-                List<Attribute> output = logicalPlan.output();
-                Map<FieldAttribute, Alias> newAliases = Maps.newHashMapWithExpectedSize(output.size());
-                output.forEach(a -> {
-                    if (a instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField) {
-                        DataType targetType = commonDataType(fa);
-                        if (targetType != null) {
-                            Expression conversionFunction = castInvalidMappedField(targetType, fa);
-                            Alias alias = new Alias(fa.source(), fa.name(), conversionFunction);
-                            newAliases.put(fa, alias);
-                        }
-                    }
-                });
-                if (newAliases.isEmpty() == false) { // add an Eval for the union typed fields left that are not cast implicitly yet
-                    if (logicalPlan instanceof EsRelation esr) {
-                        // EsRelation does not have a child, we should not see row here, add a eval on top of it
-                        logicalPlan = new Eval(esr.source(), esr, newAliases.values().stream().toList());
-                    } else if (logicalPlan instanceof UnaryPlan unary) {
-                        // Add an Eval as the child of this plan
-                        Eval eval = new Eval(unary.source(), unary.child(), newAliases.values().stream().toList());
-                        logicalPlan = unary.replaceChild(eval);
-                    }
-                    // TODO LookupJoin is a binary plan, it does not create a new field, ideally adding an Eval on top of it should be fine,
-                    // however because the output of a LookupJoin does not include InvalidMappedFields even the LHS output has
-                    // InvalidMappedFields, it is a bug need to be addressed
-                }
-            }
-            return logicalPlan;
-        }
-
-        private static MvExpand transformMvExpand(MvExpand mvExpand) {
-            NamedExpression target = mvExpand.target();
-            return new MvExpand(mvExpand.source(), mvExpand.child(), target, target.toAttribute());
-        }
-
-        private static Aggregate transformAggregate(Aggregate aggregate) {
-            List<? extends NamedExpression> aggregates = aggregate.aggregates();
-            List<Expression> groupings = aggregate.groupings();
-            List<NamedExpression> aggregatesWithNewRefs = new ArrayList<>(aggregates.size());
-            for (int i = 0; i < aggregates.size() - groupings.size(); i++) {
-                aggregatesWithNewRefs.add(aggregates.get(i));
-            }
-            for (Expression e : groupings) { // Add groupings
-                aggregatesWithNewRefs.add(Expressions.attribute(e));
-            }
-            return aggregate.with(groupings, aggregatesWithNewRefs);
         }
     }
 

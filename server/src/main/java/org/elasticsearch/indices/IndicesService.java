@@ -295,11 +295,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = builder.threadPool;
         this.pluginsService = builder.pluginsService;
         this.nodeEnv = builder.nodeEnv;
-        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            threadPool,
-            settings,
-            nodeEnv
-        );
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRegistry(builder.xContentRegistry);
         this.valuesSourceRegistry = builder.valuesSourceRegistry;
@@ -320,6 +315,12 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings(),
+                nodeEnv
+        );
         this.projectResolver = builder.projectResolver;
         this.client = builder.client;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());

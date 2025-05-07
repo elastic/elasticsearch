@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
@@ -182,37 +184,54 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
-    private final Scheduler.Cancellable diskSpaceMonitor;
+    private final AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor;
 
     private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
         Settings settings,
+        ClusterSettings clusterSettings,
         NodeEnvironment nodeEnvironment
     ) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
-            return new ThreadPoolMergeExecutorService(threadPool, settings, nodeEnvironment);
+            return new ThreadPoolMergeExecutorService(threadPool, settings, clusterSettings, nodeEnvironment);
         } else {
             return null;
         }
     }
 
-    private ThreadPoolMergeExecutorService(ThreadPool threadPool, Settings settings, NodeEnvironment nodeEnvironment) {
+    private ThreadPoolMergeExecutorService(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
+    ) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
         // the intent here is to throttle down whenever we submit a task and no other task is running
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
-        this.diskSpaceMonitor = threadPool.scheduleWithFixedDelay(
-            new DiskSpaceMonitor(
+        this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
+                nodeEnvironment.dataPaths(),
+                threadPool,
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
                 INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
-                nodeEnvironment.dataPaths()
-            ),
-            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-            threadPool.generic()
+                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateAvailableBudget(availableDiskSpaceByteSize.getBytes())
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setHighStageWatermark
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+                this.availableDiskSpacePeriodicMonitor::setCheckInterval
         );
     }
 
@@ -354,24 +373,69 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    class DiskSpaceMonitor implements Runnable {
-        private static final Logger LOGGER = LogManager.getLogger(ThreadPoolMergeExecutorService.DiskSpaceMonitor.class);
-        private final RelativeByteSizeValue highStageWatermark;
-        private final ByteSizeValue highStageMaxHeadroom;
+    static class AvailableDiskSpacePeriodicMonitor implements Closeable {
+        private static final Logger LOGGER = LogManager.getLogger(AvailableDiskSpacePeriodicMonitor.class);
         private final NodeEnvironment.DataPath[] dataPaths;
+        private final ThreadPool threadPool;
+        private volatile RelativeByteSizeValue highStageWatermark;
+        private volatile ByteSizeValue highStageMaxHeadroom;
+        private volatile TimeValue checkInterval;
+        private final Consumer<ByteSizeValue> updateConsumer;
+        private volatile boolean closed;
+        private volatile Scheduler.Cancellable monitor;
 
-        DiskSpaceMonitor(
+        AvailableDiskSpacePeriodicMonitor(
+            NodeEnvironment.DataPath[] dataPaths,
+            ThreadPool threadPool,
             RelativeByteSizeValue highStageWatermark,
             ByteSizeValue highStageMaxHeadroom,
-            NodeEnvironment.DataPath[] dataPaths
+            TimeValue checkInterval,
+            Consumer<ByteSizeValue> updateConsumer
         ) {
+            this.dataPaths = dataPaths;
+            this.threadPool = threadPool;
             this.highStageWatermark = highStageWatermark;
             this.highStageMaxHeadroom = highStageMaxHeadroom;
-            this.dataPaths = dataPaths;
+            this.checkInterval = checkInterval;
+            this.updateConsumer = updateConsumer;
+            this.closed = false;
+            reschedule();
+            // early monitor run in the constructor
+            run();
+        }
+
+        public void setCheckInterval(TimeValue checkInterval) {
+            this.checkInterval = checkInterval;
+            reschedule();
+        }
+
+        public void setHighStageWatermark(RelativeByteSizeValue highStageWatermark) {
+            this.highStageWatermark = highStageWatermark;
+        }
+
+        public void setHighStageMaxHeadroom(ByteSizeValue highStageMaxHeadroom) {
+            this.highStageMaxHeadroom = highStageMaxHeadroom;
+        }
+
+        private synchronized void reschedule() {
+            if (monitor != null) {
+                monitor.cancel();
+            }
+            if (closed == false && checkInterval.duration() > 0) {
+                monitor = threadPool.scheduleWithFixedDelay(this::run, checkInterval, threadPool.generic());
+            }
         }
 
         @Override
-        public void run() {
+        public void close() throws IOException {
+            closed = true;
+            reschedule();
+        }
+
+        private void run() {
+            if (closed) {
+                return;
+            }
             FsInfo.Path mostAvailablePath = null;
             IOException fsInfoException = null;
             for (NodeEnvironment.DataPath dataPath : dataPaths) {
@@ -399,17 +463,18 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             // subtract the configured free disk space threshold
             mostAvailableDiskSpaceBytes -= getFreeBytesThreshold(mostAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
                 .getBytes();
+            // clamp available space to 0
             long maxMergeSizeLimit = Math.max(0L, mostAvailableDiskSpaceBytes);
-            queuedMergeTasks.updateAvailableBudget(maxMergeSizeLimit);
+            updateConsumer.accept(ByteSizeValue.ofBytes(maxMergeSizeLimit));
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
-            ByteSizeValue total,
-            RelativeByteSizeValue watermark,
-            ByteSizeValue maxHeadroom
+                ByteSizeValue total,
+                RelativeByteSizeValue watermark,
+                ByteSizeValue maxHeadroom
         ) {
-            // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free
-            // bytes.
+            // If bytes are given, they can be readily returned as free bytes.
+            // If percentages are given, we need to calculate the free bytes.
             if (watermark.isAbsolute()) {
                 return watermark.getAbsolute();
             }
@@ -517,7 +582,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     @Override
     public void close() throws IOException {
-        diskSpaceMonitor.cancel();
+        availableDiskSpacePeriodicMonitor.close();
     }
 
     private static long newTargetIORateBytesPerSec(

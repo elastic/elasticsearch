@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -1279,7 +1281,13 @@ public class BlockHashTests extends BlockHashTestCase {
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    groupIds.incRef();
+                    output1.add(new Output(positionOffset, groupIds, null));
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
@@ -1297,7 +1305,13 @@ public class BlockHashTests extends BlockHashTestCase {
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    groupIds.incRef();
+                    output2.add(new Output(positionOffset, groupIds, null));
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
@@ -1383,7 +1397,12 @@ public class BlockHashTests extends BlockHashTestCase {
                         Holder<IntVector> ords1 = new Holder<>();
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
+                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                                throw new AssertionError("time-series block hash should emit a vector");
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
@@ -1400,13 +1419,22 @@ public class BlockHashTests extends BlockHashTestCase {
                         });
                         Holder<IntVector> ords2 = new Holder<>();
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
+                            private void addBlock(int positionOffset, IntBlock groupIds) {
                                 // TODO: check why PackedValuesBlockHash doesn't emit a vector?
                                 IntVector vector = groupIds.asVector();
                                 assertNotNull("should emit a vector", vector);
                                 vector.incRef();
                                 ords2.set(vector);
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                                addBlock(positionOffset, groupIds);
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                                addBlock(positionOffset, groupIds);
                             }
 
                             @Override

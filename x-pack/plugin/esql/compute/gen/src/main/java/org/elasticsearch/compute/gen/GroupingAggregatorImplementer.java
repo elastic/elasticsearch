@@ -56,9 +56,7 @@ import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_A
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
-import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
-import static org.elasticsearch.compute.gen.Types.INT_VECTOR_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
@@ -79,13 +77,7 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  * and break-point-able as possible.
  */
 public class GroupingAggregatorImplementer {
-    private static final List<ClassName> GROUP_IDS_CLASSES = List.of(
-        INT_BLOCK,
-        INT_ARRAY_BLOCK,
-        INT_VECTOR_BLOCK,
-        INT_BIG_ARRAY_BLOCK,
-        INT_VECTOR
-    );
+    private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;

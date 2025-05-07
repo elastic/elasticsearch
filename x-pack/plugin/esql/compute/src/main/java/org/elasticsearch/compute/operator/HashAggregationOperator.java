@@ -22,9 +22,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -146,26 +144,6 @@ public class HashAggregationOperator implements Operator {
             class AddInput implements GroupingAggregatorFunction.AddInput {
                 long hashStart = System.nanoTime();
                 long aggStart;
-
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    if (groupIdsVector != null) {
-                        add(positionOffset, groupIdsVector);
-                    } else {
-                        startAggEndHash();
-                        for (GroupingAggregatorFunction.AddInput p : prepared) {
-                            p.add(positionOffset, groupIds);
-                        }
-                        end();
-                    }
-                }
-
-                @Override
-                public void add(int positionOffset, IntVectorBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    add(positionOffset, groupIdsVector);
-                }
 
                 @Override
                 public void add(int positionOffset, IntArrayBlock groupIds) {

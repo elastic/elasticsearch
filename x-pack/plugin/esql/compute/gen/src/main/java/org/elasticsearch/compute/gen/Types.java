@@ -46,7 +46,6 @@ public class Types {
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
     static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
-    static final ClassName INT_VECTOR_BLOCK = ClassName.get(DATA_PACKAGE, "IntVectorBlock");
     static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
     static final ClassName INT_BIG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntBigArrayBlock");
     static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");

@@ -15,9 +15,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -75,17 +73,7 @@ public final class FirstOverTimeDoubleGroupingAggregatorFunction implements Grou
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
-        }
-
-        @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVectorBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
         }
 
@@ -106,17 +94,7 @@ public final class FirstOverTimeDoubleGroupingAggregatorFunction implements Grou
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
-      }
-
-      @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
-      }
-
-      @Override
-      public void add(int positionOffset, IntVectorBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
       }
 
@@ -134,44 +112,6 @@ public final class FirstOverTimeDoubleGroupingAggregatorFunction implements Grou
       public void close() {
       }
     };
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          FirstOverTimeDoubleAggregator.combine(state, groupId, timestamps.getLong(v), values.getDouble(v));
-        }
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        var valuePosition = groupPosition + positionOffset;
-        FirstOverTimeDoubleAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getDouble(valuePosition));
-      }
-    }
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock values,
@@ -197,44 +137,6 @@ public final class FirstOverTimeDoubleGroupingAggregatorFunction implements Grou
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        var valuePosition = groupPosition + positionOffset;
-        FirstOverTimeDoubleAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getDouble(valuePosition));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVectorBlock groups, DoubleBlock values,
-      LongVector timestamps) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          FirstOverTimeDoubleAggregator.combine(state, groupId, timestamps.getLong(v), values.getDouble(v));
-        }
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVectorBlock groups, DoubleVector values,
       LongVector timestamps) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {

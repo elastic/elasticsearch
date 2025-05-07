@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.sort.LongBucketedSort;
 import org.elasticsearch.compute.data.sort.LongTopNUniqueSort;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeLong;
@@ -88,12 +87,12 @@ public final class LongTopNBlockHash extends BlockHash {
         LongVector vector = castBlock.asVector();
         if (vector == null) {
             try (IntBlock groupIds = add(castBlock)) {
-                addInput.addSpecific(0, groupIds);
+                addInput.add(0, groupIds);
             }
             return;
         }
         try (IntBlock groupIds = add(vector)) {
-            addInput.addSpecific(0, groupIds);
+            addInput.add(0, groupIds);
         }
     }
 

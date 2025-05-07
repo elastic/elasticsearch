@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -51,50 +52,21 @@ public interface GroupingAggregatorFunction extends Releasable {
          *     be skipped entirely or the groupIds block could contain a
          *     {@code null} value at that position.
          * </p>
+         * <p>
+         *     This method delegates the processing to the other overloads for specific groupIds block types.
+         * </p>
          * @param positionOffset offset into the {@link Page} used to build this
          *                       {@link AddInput} of these ids
          * @param groupIds {@link Block} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, IntBlock groupIds);
-
-        /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
-         * <p>
-         *     If not implemented, defaults to the generic implementation.
-         * </p>
-         */
-        default void add(int positionOffset, IntArrayBlock groupIds) {
-            add(positionOffset, (IntBlock) groupIds);
-        }
-
-        /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
-         * <p>
-         *     If not implemented, defaults to the generic implementation.
-         * </p>
-         */
-        default void add(int positionOffset, IntVectorBlock groupIds) {
-            add(positionOffset, (IntBlock) groupIds);
-        }
-
-        /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
-         * <p>
-         *     If not implemented, defaults to the generic implementation.
-         * </p>
-         */
-        default void add(int positionOffset, IntBigArrayBlock groupIds) {
-            add(positionOffset, (IntBlock) groupIds);
-        }
-
-        /**
-         * Calls an {@code add()} implementation given the specific {@code groupIds} block type.
-         */
-        default void addSpecific(int positionOffset, IntBlock groupIds) {
+        default void add(int positionOffset, IntBlock groupIds) {
             switch (groupIds) {
+                case ConstantNullBlock ignored:
+                    // No-op
+                    break;
                 case IntVectorBlock b:
-                    add(positionOffset, b);
+                    add(positionOffset, b.asVector());
                     break;
                 case IntArrayBlock b:
                     add(positionOffset, b);
@@ -102,11 +74,18 @@ public interface GroupingAggregatorFunction extends Releasable {
                 case IntBigArrayBlock b:
                     add(positionOffset, b);
                     break;
-                default:
-                    add(positionOffset, groupIds);
-                    break;
             }
         }
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntArrayBlock groupIds);
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntBigArrayBlock groupIds);
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}

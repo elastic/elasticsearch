@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -65,8 +67,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
 
     protected static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
         blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntBlock groupIds) {
+            private void addBlock(int positionOffset, IntBlock groupIds) {
                 OrdsAndKeys result = new OrdsAndKeys(
                     blockHash.toString(),
                     positionOffset,
@@ -100,8 +101,18 @@ public abstract class BlockHashTestCase extends ESTestCase {
             }
 
             @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                addBlock(positionOffset, groupIds);
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                addBlock(positionOffset, groupIds);
+            }
+
+            @Override
             public void add(int positionOffset, IntVector groupIds) {
-                add(positionOffset, groupIds.asBlock());
+                addBlock(positionOffset, groupIds.asBlock());
             }
 
             @Override
@@ -109,7 +120,6 @@ public abstract class BlockHashTestCase extends ESTestCase {
                 fail("hashes should not close AddInput");
             }
         });
-        assertSeenGroupIdsAndNonEmpty(blockHash);
         if (blockHash instanceof LongLongBlockHash == false
             && blockHash instanceof BytesRefLongBlockHash == false
             && blockHash instanceof BytesRef2BlockHash == false

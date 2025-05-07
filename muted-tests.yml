@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.HuggingFaceServiceMixedIT
   method: testHFEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/127874
+- class: org.elasticsearch.xpack.inference.qa.mixed.OpenAIServiceMixedIT
+  method: testOpenAiEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/127875
 
 # Examples:
 #

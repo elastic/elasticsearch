@@ -550,103 +550,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             public BudgetOverflowException() {
                 super("budget overflow");
             }
-        }
-    }
-
-    static class PriorityBlockingQueueWithBudget<E> {
-        private final ToLongFunction<? super E> budgetFunction;
-        private final PriorityQueue<E> enqueuedByBudget;
-        private final IdentityHashMap<E, Long> unreleasedBudgetPerElement;
-        private final ReentrantLock lock;
-        private final Condition elementAvailable;
-        private long availableBudget;
-
-        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long availableBudget) {
-            this.budgetFunction = budgetFunction;
-            this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(budgetFunction));
-            this.unreleasedBudgetPerElement = new IdentityHashMap<>();
-            this.lock = new ReentrantLock();
-            this.elementAvailable = lock.newCondition();
-            this.availableBudget = availableBudget;
-        }
-
-        boolean enqueue(E e) {
-            final ReentrantLock lock = this.lock;
-            lock.lock();
-            try {
-                enqueuedByBudget.offer(e);
-                elementAvailable.signal();
-            } finally {
-                lock.unlock();
-            }
-            return true;
-        }
-
-        ElementWithReleasableBudget take() throws InterruptedException {
-            final ReentrantLock lock = this.lock;
-            lock.lockInterruptibly();
-            try {
-                E peek;
-                long peekBudget;
-                while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget) {
-                    elementAvailable.await();
-                }
-                return new ElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
-            } finally {
-                lock.unlock();
-            }
-        }
-
-        void updateAvailableBudget(long availableBudget) {
-            final ReentrantLock lock = this.lock;
-            lock.lock();
-            try {
-                this.availableBudget = availableBudget;
-                // update the per-element budget
-                unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
-                // update available budget given the per-element budget
-                this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
-                elementAvailable.signalAll();
-            } finally {
-                lock.unlock();
-            }
-        }
-
-        boolean isEmpty() {
-            return enqueuedByBudget.isEmpty();
-        }
-
-        int size() {
-            return enqueuedByBudget.size();
-        }
-
-        class ElementWithReleasableBudget implements Releasable {
-            private final E element;
-
-            private ElementWithReleasableBudget(E element, long budget) {
-                this.element = element;
-                assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
-                var prev = unreleasedBudgetPerElement.put(element, budget);
-                assert prev == null;
-                availableBudget -= budget;
-                assert availableBudget >= 0L;
-            }
 
             @Override
-            public void close() {
-                final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
-                lock.lock();
-                try {
-                    assert unreleasedBudgetPerElement.containsKey(element);
-                    availableBudget += unreleasedBudgetPerElement.remove(element);
-                    elementAvailable.signalAll();
-                } finally {
-                    lock.unlock();
-                }
-            }
-
-            public E element() {
-                return element;
+            public Throwable fillInStackTrace() {
+                return this; // this exception doesn't imply a bug, no need for a stack trace
             }
         }
     }

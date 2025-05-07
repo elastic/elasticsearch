@@ -251,6 +251,7 @@ public class TransportVersions {
     public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
     public static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = def(9_073_0_00);
     public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = def(9_074_00_0);
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = def(9_075_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

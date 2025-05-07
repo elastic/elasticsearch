@@ -39,7 +39,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
         try (
             proxyServer;
             httpClient;
-            var httpResponse = SocketAccess.doPrivilegedIOException(() -> httpClient.execute(new HttpGet("http://googleapis.com/")))
+            var httpResponse = httpClient.execute(new HttpGet("http://googleapis.com/"))
         ) {
             assertEquals(httpBody.length(), httpResponse.getEntity().getContentLength());
             assertEquals(httpBody, EntityUtils.toString(httpResponse.getEntity()));

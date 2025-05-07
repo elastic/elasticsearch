@@ -158,11 +158,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
 
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return url.openStream();
     }
 
     @Override

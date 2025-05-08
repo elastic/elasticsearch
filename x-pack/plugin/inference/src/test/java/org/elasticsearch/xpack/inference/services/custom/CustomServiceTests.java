@@ -164,12 +164,16 @@ public class CustomServiceTests extends AbstractServiceTests {
         );
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(Map.of(ServiceFields.SIMILARITY,
-                SimilarityMeasure.DOT_PRODUCT.toString(),
-                ServiceFields.DIMENSIONS,
-                1536,
-                ServiceFields.MAX_INPUT_TOKENS,
-                512));
+            settingsMap.putAll(
+                Map.of(
+                    ServiceFields.SIMILARITY,
+                    SimilarityMeasure.DOT_PRODUCT.toString(),
+                    ServiceFields.DIMENSIONS,
+                    1536,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    512
+                )
+            );
         }
 
         return settingsMap;
@@ -235,12 +239,7 @@ public class CustomServiceTests extends AbstractServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(
-                    similarityMeasure,
-                    123,
-                    456,
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                ),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, DenseVectorFieldMapper.ElementType.FLOAT),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,

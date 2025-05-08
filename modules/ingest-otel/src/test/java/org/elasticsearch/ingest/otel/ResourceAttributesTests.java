@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-//@LuceneTestCase.Nightly()
+@LuceneTestCase.Nightly()
 public class ResourceAttributesTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")

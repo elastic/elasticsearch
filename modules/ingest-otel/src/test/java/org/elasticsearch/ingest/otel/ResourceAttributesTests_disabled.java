@@ -17,7 +17,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class ResourceAttributesTests extends ESTestCase {
+/**
+ * <b>DISABLED BY DEFAULT!</b><br><br>
+ * These tests are not meant for CI, but rather to be run manually to check whether the static {@link EcsOTelResourceAttributes resource
+ * attributes set} is up to date with the latest ECS and/or OpenTelemetry Semantic Conventions.
+ * We may add them to CI in the future, but as such that run periodically (nightly/weekly) and used to notify whenever the resource
+ * attributes set is not up to date.
+ */
+@SuppressWarnings("NewClassNamingConvention")
+public class ResourceAttributesTests_disabled extends ESTestCase {
 
     public void testResourceAttributes_webCrawler() {
         testCrawler(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);

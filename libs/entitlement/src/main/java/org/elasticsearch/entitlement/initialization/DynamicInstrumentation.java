@@ -44,8 +44,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.getVersionSpecificCheckerClass;
-
 class DynamicInstrumentation {
 
     interface InstrumentationInfoFactory {
@@ -191,7 +189,7 @@ class DynamicInstrumentation {
         );
 
         if (Runtime.version().feature() >= 20) {
-            var java20EntitlementCheckerClass = getVersionSpecificCheckerClass(EntitlementChecker.class, 20);
+            var java20EntitlementCheckerClass = EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, 20);
             var java20Methods = Stream.of(
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     FileSystemProvider.class,

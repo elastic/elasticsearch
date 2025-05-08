@@ -16,11 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -74,13 +72,6 @@ public class BootstrapForTesting {
 
         // init mockito
         SecureMockMaker.init();
-
-        // init the privileged operation
-        try {
-            MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
-        }
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();

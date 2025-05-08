@@ -1149,7 +1149,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return false;
         }
 
-        if (value.length() > fieldType().ignoreAbove()) {
+        if (value.stringLength() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it

@@ -65,7 +65,6 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
     }
 
     public void testIsEnabledByDefault() {
-        // Test upgrades from 8.x
         var settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),

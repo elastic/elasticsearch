@@ -1198,10 +1198,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchResult.incRef();
                         return fetchResult;
                     }
-                    fetchResult.contextId.writeTo(networkBuffer);
-                    fetchResult.consumeHits(networkBuffer);
-                    networkBuffer.writeOptionalWriteable(fetchResult.profileResult());
-                    return new BytesTransportResponse(new ReleasableBytesReference(networkBuffer.bytes(), networkBuffer));
+                    try (networkBuffer) {
+                        // no need to worry about releasing this instance safely before we write the first byte to it
+                        // => the try-with-resources here is all we need to not leak any buffers
+                        fetchResult.contextId.writeTo(networkBuffer);
+                        fetchResult.consumeHits(networkBuffer);
+                        networkBuffer.writeOptionalWriteable(fetchResult.profileResult());
+                        return new BytesTransportResponse(networkBuffer.moveToBytesReference());
+                    }
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     // we handle the failure in the failure listener below

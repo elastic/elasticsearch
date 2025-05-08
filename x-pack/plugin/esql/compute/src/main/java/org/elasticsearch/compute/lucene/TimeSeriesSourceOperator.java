@@ -44,7 +44,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
 
@@ -607,6 +609,40 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
         Status(TimeSeriesSourceOperator operator, long tsidLoaded, long valuesLoaded) {
             super(operator);
+            this.tsidLoaded = tsidLoaded;
+            this.valuesLoaded = valuesLoaded;
+        }
+
+        Status(
+            int processedSlices,
+            Set<String> processedQueries,
+            Set<String> processedShards,
+            long processNanos,
+            int sliceIndex,
+            int totalSlices,
+            int pagesEmitted,
+            int sliceMin,
+            int sliceMax,
+            int current,
+            long rowsEmitted,
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies,
+            long tsidLoaded,
+            long valuesLoaded
+        ) {
+            super(
+                processedSlices,
+                processedQueries,
+                processedShards,
+                processNanos,
+                sliceIndex,
+                totalSlices,
+                pagesEmitted,
+                sliceMin,
+                sliceMax,
+                current,
+                rowsEmitted,
+                partitioningStrategies
+            );
             this.tsidLoaded = tsidLoaded;
             this.valuesLoaded = valuesLoaded;
         }

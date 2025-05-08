@@ -343,7 +343,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("TimeSeriesSourceOperator[maxPageSize=1, remainingDocs=1]");
+        return equalTo("TimeSeriesSourceOperator[shards = [test], maxPageSize = 1[maxPageSize=1, remainingDocs=1]]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {

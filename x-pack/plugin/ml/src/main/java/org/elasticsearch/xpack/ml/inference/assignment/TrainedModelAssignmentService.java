@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TrainedModelAssignmentService {
@@ -120,7 +120,16 @@ public class TrainedModelAssignmentService {
 
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {
         default void onTimeout(TimeValue timeout) {
-            onFailure(new ElasticsearchStatusException("Starting deployment timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout));
+            onFailure(
+                new ModelDeploymentScaleUpException(
+                    format(
+                        "Timed out after [%s] waiting for trained model deployment to start. "
+                            + "Please ensure the trained model deployment has started and try again.",
+                        timeout
+                    ),
+                    RestStatus.REQUEST_TIMEOUT
+                )
+            );
         }
     }
 

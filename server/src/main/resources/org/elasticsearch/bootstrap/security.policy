@@ -77,6 +77,7 @@ grant codeBase "${codebase.elasticsearch-simdvec}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
+
 //// Everything else:
 
 grant {

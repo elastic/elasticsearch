@@ -1341,6 +1341,18 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
+    public void testAvoidGrokAttributesRemoval() {
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("message", "x", "x.*", "message.*")));
+    }
+
     public void testEnrichOnDefaultField() {
         Set<String> fieldNames = fieldNames("""
             from employees
@@ -1708,28 +1720,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on languages
             | lookup join message_types_lookup on language_name
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
-    }
-
-    public void testJoinMaskingGrok() {
-        assertFieldNames("""
-              from message_types
-              | grok message "%{WORD:type}"
-              | drop type
-              | lookup join message_types_lookup on message
-              | stats `ratings` = count(*) by type
-              | keep ratings
-            """, Set.of("type", "message", "ratings", "message.*", "type.*", "ratings.*"));
-    }
-
-    public void testJoinMaskingDissect() {
-        assertFieldNames("""
-              from message_types
-              | dissect message "%{type}"
-              | stats message = max(message)
-              | lookup join message_types_lookup on message
-              | stats `ratings` = count(*) by type
-              | keep ratings
-            """, Set.of("type", "message", "ratings", "message.*", "type.*", "ratings.*"));
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

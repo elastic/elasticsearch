@@ -278,13 +278,17 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
+        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        inferenceServiceSettings.init(services.clusterService());
+
         // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
         var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
             settings,
             services.threadPool(),
             services.clusterService(),
             throttlerManager,
-            getSslService()
+            getSslService(),
+            inferenceServiceSettings.getConnectionTtl()
         );
 
         var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
@@ -293,9 +297,6 @@ public class InferencePlugin extends Plugin
             services.clusterService()
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
-
-        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-        inferenceServiceSettings.init(services.clusterService());
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),

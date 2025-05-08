@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.PatternSyntaxException;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace.MAX_RESULT_LENGTH;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReplaceTests extends AbstractScalarFunctionTestCase {
@@ -85,7 +86,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "regex"),
                     new TestCaseSupplier.TypedData(new BytesRef(newStr), DataType.KEYWORD, "newStr")
                 ),
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
@@ -101,6 +102,27 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 .withFoldingException(
                     PatternSyntaxException.class,
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
+                );
+        }));
+
+        suppliers.add(new TestCaseSupplier("result too big", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
+            String textAndNewStr = randomAlphaOfLength((int) (MAX_RESULT_LENGTH / 10));
+            String regex = ".";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(textAndNewStr), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(regex), DataType.KEYWORD, "regex"),
+                    new TestCaseSupplier.TypedData(new BytesRef(textAndNewStr), DataType.KEYWORD, "newStr")
+                ),
+                "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
+                DataType.KEYWORD,
+                equalTo(null)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line 1:1: java.lang.IllegalArgumentException: "
+                        + "Creating strings with more than ["
+                        + MAX_RESULT_LENGTH
+                        + "] bytes is not supported"
                 );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);

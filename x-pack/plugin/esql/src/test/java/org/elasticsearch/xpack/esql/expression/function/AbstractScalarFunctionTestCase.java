@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -304,11 +305,17 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
+
+        List<Object> simpleData = testCase.getDataValues();
+        // Ensure we don't run this test with too much data that could take too long to process.
+        // The calculation "ramUsed * count" is just a hint of how much data will the function process,
+        // and the limit is arbitrary
+        assumeTrue("Input data too big", row(simpleData).ramBytesUsedByBlocks() * count < GB.toBytes(1));
+
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
-                List<Object> simpleData = testCase.getDataValues();
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {

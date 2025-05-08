@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -38,6 +40,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class Replace extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
+
+    static final long MAX_RESULT_LENGTH = MB.toBytes(1);
 
     private final Expression str;
     private final Expression regex;
@@ -121,15 +125,15 @@ public class Replace extends EsqlScalarFunction {
         return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class)
+    @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
     static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
         }
-        return new BytesRef(regex.matcher(str.utf8ToString()).replaceAll(newStr.utf8ToString()));
+        return safeReplace(str, regex, newStr);
     }
 
-    @Evaluator(warnExceptions = PatternSyntaxException.class)
+    @Evaluator(warnExceptions = IllegalArgumentException.class)
     static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
         if (str == null) {
             return null;
@@ -138,7 +142,30 @@ public class Replace extends EsqlScalarFunction {
         if (regex == null || newStr == null) {
             return str;
         }
-        return new BytesRef(str.utf8ToString().replaceAll(regex.utf8ToString(), newStr.utf8ToString()));
+        return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
+    }
+
+    /**
+     * Executes a Replace without surpassing the memory limit.
+     */
+    private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        String str = strBytesRef.utf8ToString();
+        Matcher m = regex.matcher(str);
+        if (false == m.find()) {
+            return strBytesRef;
+        }
+        String newStr = newStrBytesRef.utf8ToString();
+        // Initialize the buffer with an approximate size for the first replacement
+        StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
+        do {
+            m.appendReplacement(result, newStr);
+
+            if (result.length() > MAX_RESULT_LENGTH) {
+                throw new IllegalArgumentException("Creating strings with more than [" + MAX_RESULT_LENGTH + "] bytes is not supported");
+            }
+        } while (m.find());
+        m.appendTail(result);
+        return new BytesRef(result.toString());
     }
 
     @Override

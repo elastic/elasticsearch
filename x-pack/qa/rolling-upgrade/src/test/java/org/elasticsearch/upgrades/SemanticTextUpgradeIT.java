@@ -70,8 +70,13 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     @BeforeClass
     public static void beforeClass() {
         SPARSE_MODEL = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        // Exclude bit vectors because semantic text does not fully support them
         // Exclude dot product because we are not producing unit length vectors
-        DENSE_MODEL = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
+        DENSE_MODEL = TestModel.createRandomInstance(
+            TaskType.TEXT_EMBEDDING,
+            List.of(DenseVectorFieldMapper.ElementType.BIT),
+            List.of(SimilarityMeasure.DOT_PRODUCT)
+        );
     }
 
     public SemanticTextUpgradeIT(boolean useLegacyFormat) {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -62,6 +63,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -113,14 +115,31 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
+        return createMapperService(mappings, useLegacyFormat, indexVersion, indexVersion);
+    }
+
+    private MapperService createMapperService(
+        XContentBuilder mappings,
+        boolean useLegacyFormat,
+        IndexVersion minIndexVersion,
+        IndexVersion maxIndexVersion
+    ) throws IOException {
+        validateIndexVersion(minIndexVersion, useLegacyFormat);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
         var settings = Settings.builder()
-            .put(
-                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
-            )
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
-        return createMapperService(settings, mappings);
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
+    private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
+        if (useLegacyFormat == false
+            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
+            throw new IllegalArgumentException("Index version " + indexVersion + " does not support new semantic text format");
+        }
     }
 
     @Override

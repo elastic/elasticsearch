@@ -125,7 +125,12 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public OffsetSourceFieldMapper build(MapperBuilderContext context) {
-            OffsetSourceFieldType fieldType = new OffsetSourceFieldType(context.buildFullName(leafName()), charset.get(), meta.getValue(), this.excludeFromFieldCaps);
+            OffsetSourceFieldType fieldType = new OffsetSourceFieldType(
+                context.buildFullName(leafName()),
+                charset.get(),
+                meta.getValue(),
+                this.excludeFromFieldCaps
+            );
 
             return new OffsetSourceFieldMapper(leafName(), fieldType, builderParams(this, context));
         }

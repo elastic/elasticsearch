@@ -82,7 +82,13 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
-        key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
+        key -> new Setting<>(
+            key,
+            "https",
+            s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        )
     );
 
     /** The host name of a proxy to connect to s3 through. */
@@ -145,7 +151,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> UNUSED_USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, true, Property.NodeScope, Property.Deprecated)
+        key -> Setting.boolSetting(key, true, Property.NodeScope, Property.DeprecatedWarning)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -173,7 +179,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<String> UNUSED_SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> Setting.simpleString(key, Property.NodeScope, Property.Deprecated)
+        key -> Setting.simpleString(key, Property.NodeScope, Property.DeprecatedWarning)
     );
 
     /** Credentials to authenticate with s3. */

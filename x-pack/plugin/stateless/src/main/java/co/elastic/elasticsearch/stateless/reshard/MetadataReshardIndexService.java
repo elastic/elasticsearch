@@ -91,6 +91,27 @@ public class MetadataReshardIndexService {
          */
     }
 
+    /* When we reshard an index, the target number of shards must be a multiple of the
+     * source number of shards as well as a factor of the routingNumShards. This is so that documents from the source shards
+     * route to the correct target shards.
+     * Look at IndexRouting#hashToShardId to see how we route documents to shards (Math.floorMod(hash, routingNumShards) / routingFactor).
+     * So if we have a source index with 2 shards and routingNumShards 1024,
+     * we can reshard to an index with 4 shards and routingNumShards 1024 (because 1024 is a multiple of 4).
+     * But if we want to reshard to an index with 6 shards, we would have to change the routingNumShards to 768
+     * (because 1024 is not a multiple of 6). We cannot change the routingNumShards because if we do that, documents from
+     * source shards might move to undesirable shards. In this example of going from 2 -> 6 shards, consider a document
+     * whose id hashes to 800.
+     * For source IndexMetadata, numShards = 2, routingNumShards = 1024, routing factor = 1024/2 = 512
+     * For target IndexMetadata, numShards = 6, routingNumShards = 768, routing factor = 768/6 = 128
+     * Now the document with hash 800 routes to shard 1 = (800 % 1024)/ 512 in the source shards
+     * But the same document routes to shard 0 = (800 % 768)/ 512 in the target shards
+     * We DO NOT want documents moving from shard 1 to shard 0!!
+     */
+    public void validateNumTargetShards(int numTargetShards, IndexMetadata sourceIndexMetadata) {
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        IndexMetadata.assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
+    }
+
     public void reshardIndex(
         final TimeValue masterNodeTimeout,
         final TimeValue ackTimeout,
@@ -360,6 +381,8 @@ public class MetadataReshardIndexService {
         final int sourceNumShards = sourceMetadata.getNumberOfShards();
         final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, request.getMultiple());
         final int targetNumShards = reshardingMetadata.shardCountAfter();
+        // TODO: We should do this validation in TransportReshardAction as well
+        validateNumTargetShards(targetNumShards, sourceMetadata);
 
         // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
         final var routingTableBuilder = reshardUpdateNumberOfShards(

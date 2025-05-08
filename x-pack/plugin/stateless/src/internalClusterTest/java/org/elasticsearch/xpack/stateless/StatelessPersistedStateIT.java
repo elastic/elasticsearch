@@ -127,7 +127,8 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static void assertTransportVersionConsistency() {
+    private void assertTransportVersionConsistency(String viaNode, String expectedMasterNodeName) {
+        awaitMasterNode(viaNode, expectedMasterNodeName);
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         assertEquals(TransportVersion.current(), clusterService.state().getMinTransportVersion());
         assertEquals(clusterService.state().nodes().getNodes().keySet(), clusterService.state().compatibilityVersions().keySet());
@@ -135,7 +136,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
 
     public void testTransportVersions() throws Exception {
         final var node0 = startMasterOnlyNode(fastFullClusterRestartSettings);
-        assertTransportVersionConsistency();
+        assertTransportVersionConsistency(node0, node0);
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
@@ -143,13 +144,16 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
                 return fastFullClusterRestartSettings;
             }
         });
-        assertTransportVersionConsistency();
+        assertTransportVersionConsistency(node0, node0);
 
         final var node1 = startMasterOnlyNode(fastFullClusterRestartSettings);
-        assertTransportVersionConsistency();
+        awaitMasterNode(node1, node0);
+        assertTransportVersionConsistency(node0, node0);
 
-        internalCluster().stopNode(randomFrom(node0, node1));
-        assertTransportVersionConsistency();
+        final var nodeToStop = randomBoolean() ? node0 : node1;
+        final var remainingNode = node0.equals(nodeToStop) ? node1 : node0;
+        assertTrue("unable to stop node " + nodeToStop, internalCluster().stopNode(nodeToStop));
+        assertTransportVersionConsistency(remainingNode, remainingNode);
     }
 
     public void testNodeLeftGeneration() throws Exception {

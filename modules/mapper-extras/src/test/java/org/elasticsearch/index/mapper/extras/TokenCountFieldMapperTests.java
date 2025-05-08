@@ -36,8 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -213,17 +211,13 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     var value = generateValue();
-                    return new SyntheticSourceExample(value.text, value.text, value.tokenCount, this::mapping);
+                    return new SyntheticSourceExample(value.text, value.text, this::mapping);
                 }
 
                 var values = randomList(1, 5, this::generateValue);
-
                 var textArray = values.stream().map(Value::text).toList();
 
-                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).sorted().toList();
-                var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
-
-                return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
+                return new SyntheticSourceExample(textArray, textArray, this::mapping);
             }
 
             private record Value(String text, Integer tokenCount) {}
@@ -256,11 +250,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
-    }
-
-    protected Function<Object, Object> loadBlockExpected() {
-        // we can get either a number from doc values or null
-        return v -> v != null ? (Number) v : null;
     }
 
     @Override

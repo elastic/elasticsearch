@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
 public class FieldTypeTests extends ESTestCase {

@@ -459,6 +459,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.HuggingFaceServiceMixedIT
   method: testElser
   issue: https://github.com/elastic/elasticsearch/issues/127876
+- class: org.elasticsearch.xpack.inference.qa.mixed.OpenAIServiceMixedIT
+  method: testOpenAiCompletions
+  issue: https://github.com/elastic/elasticsearch/issues/127878
 
 # Examples:
 #

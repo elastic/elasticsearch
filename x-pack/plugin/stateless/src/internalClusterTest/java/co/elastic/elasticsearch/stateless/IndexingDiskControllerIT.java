@@ -26,6 +26,11 @@ import org.apache.lucene.tests.mockfile.FilterFileSystem;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,6 +54,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,12 +64,17 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -157,7 +168,17 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
     }
 
     @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
-    public void testAvailableDiskSpaceBelowLimit() throws Exception {
+    public void testAvailableDiskSpaceBelowLimitWithIndexingPausedOnThrottle() throws Exception {
+        testAvailableDiskSpaceBelowLimit(true);
+    }
+
+    @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
+    public void testAvailableDiskSpaceBelowLimitWithoutIndexingPausedOnThrottle() throws Exception {
+        testAvailableDiskSpaceBelowLimit(false);
+    }
+
+    @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
+    private void testAvailableDiskSpaceBelowLimit(boolean pauseIndexingOnThrottle) throws Exception {
         final ByteSizeValue reservedDiskSpace = ByteSizeValue.ofMb(randomIntBetween(11, 100));
         startMasterOnlyNode();
         startIndexNode(
@@ -165,6 +186,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
                 .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
                 .put(IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.getKey(), reservedDiskSpace)
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10L))
+                .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), pauseIndexingOnThrottle)
                 .build()
         );
 
@@ -227,6 +249,66 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             }
         });
 
+        var diskUsage = shardDiskUsages();
+        // Check that indexing will proceed for the unthrottled shards as usual.
+        for (int i = 1; i < nbIndices; i++) {
+            var shard = diskUsage.get(i).shard();
+            var indexName = shard.routingEntry().getIndexName();
+            long indexCountBefore = getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0);
+
+            final BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client());
+            final int batchSize = randomIntBetween(1, 3);
+            for (int j = 0; j < batchSize; j++) {
+                bulkRequestBuilder.add(new IndexRequest(indexName).source("field", randomAlphaOfLength(10)));
+            }
+
+            BulkResponse response = bulkRequestBuilder.get();
+            assertNoFailures(response);
+            var indexCountAfter = getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0);
+            MatcherAssert.assertThat(indexCountAfter, equalTo(indexCountBefore + batchSize));
+        }
+
+        // Test that indexing is paused completely for the throttled shard
+        long indexCountBeforeForThrottledIndex = 0;
+        int batchSizeForThrottledIndex = 0;
+        String throttledIndexName = "";
+        CountDownLatch throttledIndexDone = new CountDownLatch(1);
+        if (pauseIndexingOnThrottle) {
+            var throttledShard = diskUsage.get(0).shard();
+            var indexName = throttledShard.routingEntry().getIndexName();
+            // var indexName = "index-" + i;
+            long indexCountBefore = getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0);
+
+            final BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client());
+            final int batchSize = randomIntBetween(1, 5);
+            for (int j = 0; j < batchSize; j++) {
+                bulkRequestBuilder.add(new IndexRequest(indexName).source("field", randomAlphaOfLength(10)));
+            }
+            throttledIndexName = indexName;
+            indexCountBeforeForThrottledIndex = indexCountBefore;
+            batchSizeForThrottledIndex = batchSize;
+            ActionListener<BulkResponse> bulkListener = new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse bulkResponse) {
+                    assertNoFailures(bulkResponse);
+                    throttledIndexDone.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("Encounterd " + e.toString());
+                    fail(e, "Encounterd " + e.toString());
+                }
+            };
+            bulkRequestBuilder.execute(bulkListener);
+            // Pause briefly to give a chance for the bulk indexing job to run, but you can wait as long
+            // as you like, the bulk indexing job is paused due to throttling!!
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+            flushAndRefresh(indexName);
+            var indexCountAfter = getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0);
+            MatcherAssert.assertThat(indexCountAfter, equalTo(indexCountBefore));
+        }
+
         unblockCommitUploads();
 
         assertBusy(() -> {
@@ -248,6 +330,11 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             );
         });
 
+        if (pauseIndexingOnThrottle) {
+            throttledIndexDone.await();
+            var indexCountAfter = getIndexCount(client().admin().indices().prepareStats(throttledIndexName).execute().actionGet(), 0);
+            MatcherAssert.assertThat(indexCountAfter, equalTo(indexCountBeforeForThrottledIndex + batchSizeForThrottledIndex));
+        }
         setUsableSpaceOnNode(null);
     }
 
@@ -399,5 +486,13 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
         void unblock() {
             addListener(delegate);
         }
+    }
+
+    private static long getIndexCount(IndicesStatsResponse statsResponse, int shardId) {
+        ShardStats primaryStats = Arrays.stream(statsResponse.getShards())
+            .filter(shardStat -> shardStat.getShardRouting().primary() && shardStat.getShardRouting().id() == shardId)
+            .findAny()
+            .get();
+        return primaryStats.getStats().indexing.getTotal().getIndexCount();
     }
 }

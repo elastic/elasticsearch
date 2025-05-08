@@ -70,6 +70,17 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Total time to live (TTL)  defines maximum life span of persistent connections regardless of their
+     * expiration setting. No persistent connection will be re-used past its TTL value.
+     * Using a TTL of -1 will disable the expiration of persistent connections (the idle connection evictor will still apply).
+     */
+    public static final Setting<TimeValue> CONNECTION_TTL_SETTING = Setting.timeSetting(
+        "xpack.inference.elastic.http.connection_ttl",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope
+    );
+
     @Deprecated
     private final String eisGatewayUrl;
 
@@ -77,6 +88,7 @@ public class ElasticInferenceServiceSettings {
     private final boolean periodicAuthorizationEnabled;
     private volatile TimeValue authRequestInterval;
     private volatile TimeValue maxAuthorizationRequestJitter;
+    private final TimeValue connectionTtl;
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
@@ -84,6 +96,7 @@ public class ElasticInferenceServiceSettings {
         periodicAuthorizationEnabled = PERIODIC_AUTHORIZATION_ENABLED.get(settings);
         authRequestInterval = AUTHORIZATION_REQUEST_INTERVAL.get(settings);
         maxAuthorizationRequestJitter = MAX_AUTHORIZATION_REQUEST_JITTER.get(settings);
+        connectionTtl = CONNECTION_TTL_SETTING.get(settings);
     }
 
     /**
@@ -115,6 +128,10 @@ public class ElasticInferenceServiceSettings {
         return maxAuthorizationRequestJitter;
     }
 
+    public TimeValue getConnectionTtl() {
+        return connectionTtl;
+    }
+
     public static List<Setting<?>> getSettingsDefinitions() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.add(EIS_GATEWAY_URL);
@@ -124,6 +141,7 @@ public class ElasticInferenceServiceSettings {
         settings.add(PERIODIC_AUTHORIZATION_ENABLED);
         settings.add(AUTHORIZATION_REQUEST_INTERVAL);
         settings.add(MAX_AUTHORIZATION_REQUEST_JITTER);
+        settings.add(CONNECTION_TTL_SETTING);
         return settings;
     }
 

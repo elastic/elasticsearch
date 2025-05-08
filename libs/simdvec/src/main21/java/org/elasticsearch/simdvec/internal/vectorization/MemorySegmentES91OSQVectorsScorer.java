@@ -20,6 +20,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

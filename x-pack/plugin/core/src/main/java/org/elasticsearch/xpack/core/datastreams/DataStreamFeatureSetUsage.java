@@ -134,17 +134,26 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readVLong()
+                        : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readVLong()
+                        : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                    ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
-                    : Map.of()
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                        : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                        : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
+                        : Map.of()
             );
         }
 
@@ -159,7 +168,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 }
                 out.writeVLong(this.failureStoreIndicesCount);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
                 out.writeVLong(failuresLifecycleExplicitlyEnabledCount);
                 out.writeVLong(failuresLifecycleEffectivelyEnabledCount);
                 failuresLifecycleDataRetentionStats.writeTo(out);

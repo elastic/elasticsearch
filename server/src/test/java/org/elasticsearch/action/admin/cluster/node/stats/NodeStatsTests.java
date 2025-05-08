@@ -593,6 +593,7 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             ++iota
         );
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));

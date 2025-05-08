@@ -14,8 +14,6 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * Reflective access to unwrap non-accessible delegate in AssertingKnnVectorsReader.
@@ -52,23 +50,11 @@ public class AssertingKnnVectorsReaderReflect {
             if (cls == null) {
                 return MethodHandles.throwException(KnnVectorsReader.class, AssertionError.class);
             }
-            var lookup = privilegedPrivateLookupIn(cls, MethodHandles.lookup());
+            var lookup = MethodHandles.privateLookupIn(cls, MethodHandles.lookup());
             return lookup.findGetter(cls, "delegate", KnnVectorsReader.class);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
-    }
-
-    @SuppressWarnings("removal")
-    static MethodHandles.Lookup privilegedPrivateLookupIn(Class<?> cls, MethodHandles.Lookup lookup) throws IllegalAccessException {
-        PrivilegedAction<MethodHandles.Lookup> pa = () -> {
-            try {
-                return MethodHandles.privateLookupIn(cls, lookup);
-            } catch (IllegalAccessException e) {
-                throw new AssertionError("should not happen, check opens", e);
-            }
-        };
-        return AccessController.doPrivileged(pa);
     }
 
     static void handleThrowable(Throwable t) {

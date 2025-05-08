@@ -21,6 +21,7 @@ import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -167,6 +168,6 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
-        return new HealthInfo(Map.of(), dslHealthInfo, Map.of());
+        return new HealthInfo(Map.of(), dslHealthInfo, Map.of(), FileSettingsHealthInfo.INDETERMINATE);
     }
 }

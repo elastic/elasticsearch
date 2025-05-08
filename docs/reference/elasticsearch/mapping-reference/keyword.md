@@ -232,6 +232,42 @@ Will become:
 }
 ```
 
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source:
+
+$$$synthetic-source-keyword-example-null-value$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "kwd": ["NA", "bar", "foo"]
+}
+```
+
 
 ## Constant keyword field type [constant-keyword-field-type]
 

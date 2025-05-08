@@ -850,3 +850,37 @@ c:long | b:date
 11     | 1984-05-01T00:00:00.000Z
 11     | 1991-01-01T00:00:00.000Z
 ;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = BUCKET(hire_date, "1 year") + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = yr + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;

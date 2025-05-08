@@ -12,10 +12,9 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-## 9.1.0 [elasticsearch-910-breaking-changes]
+## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
 
-ES|QL
-:   * Allow partial results by default in ES|QL [#125060](https://github.com/elastic/elasticsearch/pull/125060)
+No breaking changes in this version.
 
 ## 9.0.0 [elasticsearch-900-breaking-changes]
 

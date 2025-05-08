@@ -353,7 +353,7 @@ public class MetadataDataStreamsService {
         }
         if (lifecycle != null) {
             // We don't issue any warnings if all data streams are internal data streams
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), onlyInternalDataStreams);
         }
         return builder.build();
     }
@@ -378,7 +378,7 @@ public class MetadataDataStreamsService {
             // We don't issue any warnings if all data streams are internal data streams
             dataStreamOptions.failureStore()
                 .lifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(true), onlyInternalDataStreams);
         }
         return builder.build();
     }

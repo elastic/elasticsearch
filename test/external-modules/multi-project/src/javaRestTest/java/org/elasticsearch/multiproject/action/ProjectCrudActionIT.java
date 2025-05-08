@@ -12,9 +12,9 @@ package org.elasticsearch.multiproject.action;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.multiproject.MultiProjectRestTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
@@ -31,11 +31,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.not;
 
-public class ProjectCrudActionIT extends ESRestTestCase {
+public class ProjectCrudActionIT extends MultiProjectRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster CLUSTER = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
+        .distribution(DistributionType.INTEG_TEST)
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();

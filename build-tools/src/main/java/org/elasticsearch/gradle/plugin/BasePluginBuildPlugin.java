@@ -183,11 +183,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
-        bundleSpec.from(pluginMetadata, copySpec -> {
-            // metadata (eg custom security policy)
-            // the codebases properties file is only for tests and not needed in production
-            copySpec.exclude("plugin-security.codebases");
-        });
+        bundleSpec.from(pluginMetadata);
         bundleSpec.from(
             (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.gradleup.shadow")
                 ? project.getTasks().named("shadowJar")

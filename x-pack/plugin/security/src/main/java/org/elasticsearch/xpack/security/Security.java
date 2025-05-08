@@ -208,6 +208,8 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -310,6 +312,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -915,12 +918,34 @@ public class Security extends Plugin
         this.realms.set(realms);
 
         systemIndices.getMainIndexManager().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
-
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
-        cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
-        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
+        ServiceAccountService serviceAccountService = createServiceAccountService(
+            components,
+            cacheInvalidatorRegistry,
+            extensionComponents,
+            () -> new IndexServiceAccountTokenStore(
+                settings,
+                threadPool,
+                getClock(),
+                client,
+                systemIndices.getMainIndexManager(),
+                clusterService,
+                cacheInvalidatorRegistry
+            ),
+            () -> new FileServiceAccountTokenStore(
+                environment,
+                resourceWatcherService,
+                threadPool,
+                clusterService,
+                cacheInvalidatorRegistry
+            )
+        );
+
+        components.add(serviceAccountService);
+
+        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(
             settings,
             client,
@@ -1003,33 +1028,6 @@ public class Security extends Plugin
             telemetryProvider.getMeterRegistry()
         );
         components.add(apiKeyService);
-
-        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
-            settings,
-            threadPool,
-            getClock(),
-            client,
-            systemIndices.getMainIndexManager(),
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(indexServiceAccountTokenStore);
-
-        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
-            environment,
-            resourceWatcherService,
-            threadPool,
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(fileServiceAccountTokenStore);
-
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            client,
-            fileServiceAccountTokenStore,
-            indexServiceAccountTokenStore
-        );
-        components.add(serviceAccountService);
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
@@ -1248,6 +1246,74 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private ServiceAccountService createServiceAccountService(
+        List<Object> components,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        SecurityExtension.SecurityComponents extensionComponents,
+        Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
+        Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
+    ) {
+        Map<String, ServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
+
+        for (var extension : securityExtensions) {
+            var serviceAccountTokenStore = extension.getServiceAccountTokenStore(extensionComponents);
+            if (serviceAccountTokenStore != null) {
+                if (isInternalExtension(extension) == false) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom ServiceAccountTokenStore. This functionality is not available to "
+                            + "external extensions."
+                    );
+                }
+                accountTokenStoreByExtension.put(extension.extensionName(), serviceAccountTokenStore);
+            }
+        }
+
+        if (accountTokenStoreByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "More than one extension provided a ServiceAccountTokenStore override: " + accountTokenStoreByExtension.keySet()
+            );
+        }
+
+        if (accountTokenStoreByExtension.isEmpty()) {
+            var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
+            var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
+
+            components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
+            components.add(fileServiceAccountTokenStore);
+            components.add(indexServiceAccountTokenStore);
+            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+            return new ServiceAccountService(
+                client.get(),
+                new CompositeServiceAccountTokenStore(
+                    List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                    client.get().threadPool().getThreadContext()
+                ),
+                indexServiceAccountTokenStore
+            );
+        }
+        // Completely handover service account token management to the extension if provided,
+        // this will disable the index managed
+        // service account tokens managed through the service account token API
+        var extensionStore = accountTokenStoreByExtension.values().stream().findFirst();
+        components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, (token, listener) -> {
+            throw new IllegalStateException("Node local config not supported by [" + extensionStore.get().getClass() + "]");
+        }));
+        components.add(extensionStore);
+        logger.debug("Service account authentication handled by extension, disabling file and index token stores");
+        return new ServiceAccountService(client.get(), extensionStore.get());
+    }
+
+    private static boolean isInternalExtension(SecurityExtension extension) {
+        final String canonicalName = extension.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     @FixForMultiProject

@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,6 +44,18 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntBlock groupIds) {
+                assert false : "Intermediate group id must not have nulls";
+                throw new IllegalStateException("Intermediate group id must not have nulls");
+            }
+
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                assert false : "Intermediate group id must not have nulls";
+                throw new IllegalStateException("Intermediate group id must not have nulls");
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }

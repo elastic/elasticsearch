@@ -74,6 +74,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
             || failureStore == null
             || failureStore().enabled() != null) {
             out.writeOptionalWriteable(failureStore);
@@ -139,6 +140,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
                 || failureStore.get() == null
                 || failureStore().mapAndGet(DataStreamFailureStore.Template::enabled).get() != null) {
                 ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));

@@ -225,8 +225,7 @@ public class EsqlQueryGenerator {
 
     private static String randomName(List<Column> previousOutput) {
         String result = randomRawName(previousOutput);
-        if (result.isEmpty() // bug https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
-            || (randomBoolean() && result.contains("*") == false)) {
+        if ((randomBoolean() && result.contains("*") == false)) {
             result = "`" + result + "`";
         }
         return result;
@@ -311,12 +310,10 @@ public class EsqlQueryGenerator {
                 continue;
             }
             nameToType.put(newName, nameToType.get(name));
-            if (name.length() == 0 // https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
-                || (randomBoolean() && name.startsWith("`") == false)) {
+            if (randomBoolean() && name.startsWith("`") == false) {
                 name = "`" + name + "`";
             }
-            if (newName.length() == 0 // https://github.com/elastic/elasticsearch/issues/125870, we'll manage it as an error later
-                || (randomBoolean() && newName.startsWith("`") == false)) {
+            if (randomBoolean() && newName.startsWith("`") == false) {
                 newName = "`" + newName + "`";
             }
             proj.add(name + " AS " + newName);

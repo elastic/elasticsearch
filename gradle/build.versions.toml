@@ -48,4 +48,4 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.1" }
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.2" }

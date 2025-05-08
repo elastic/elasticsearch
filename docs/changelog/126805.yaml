@@ -1,0 +1,5 @@
+pr: 126805
+summary: Adding timeout to request for creating inference endpoint
+area: Machine Learning
+type: bug
+issues: []

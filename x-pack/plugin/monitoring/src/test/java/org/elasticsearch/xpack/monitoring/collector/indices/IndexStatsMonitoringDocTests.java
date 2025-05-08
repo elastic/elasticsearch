@@ -404,6 +404,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             no
         );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));

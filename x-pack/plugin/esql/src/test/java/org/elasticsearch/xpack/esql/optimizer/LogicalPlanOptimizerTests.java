@@ -1585,7 +1585,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Alias(
                     EMPTY,
                     "y",
-                    new Mul(EMPTY, new FieldAttribute(EMPTY, null, "emp_no", mapping.get("emp_no"), Nullability.TRUE, null, false), new Literal(EMPTY, 2, INTEGER))
+                    new Mul(
+                        EMPTY,
+                        new FieldAttribute(EMPTY, null, "emp_no", mapping.get("emp_no"), Nullability.TRUE, null, false),
+                        new Literal(EMPTY, 2, INTEGER)
+                    )
                 )
             )
         );

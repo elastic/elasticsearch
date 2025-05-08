@@ -141,7 +141,10 @@ public class EsRelation extends LeafPlan {
                     parent != null ? parent.name() : null,
                     parent != null ? parent.name() + "." + name : name,
                     t,
-                    Nullability.TRUE, null, false);
+                    Nullability.TRUE,
+                    null,
+                    false
+                );
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {

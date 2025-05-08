@@ -54,7 +54,15 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     public void testNameForArithmeticFunctionAppliedOnTableColumn() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, null, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true), Nullability.TRUE, null, false);
+        FieldAttribute fa = new FieldAttribute(
+            EMPTY,
+            null,
+            "myField",
+            new EsField("myESField", DataType.INTEGER, emptyMap(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
         String e = "myField  + 10";
         Add add = new Add(s(e), fa, l(10));
         assertEquals(e, add.sourceText());

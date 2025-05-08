@@ -885,7 +885,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), null, attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()), Nullability.TRUE, null, false);
+            return new FieldAttribute(
+                attribute.source(),
+                null,
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name()),
+                Nullability.TRUE,
+                null,
+                false
+            );
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
@@ -1687,7 +1695,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, Nullability.TRUE, null, true);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parentName(),
+                unionTypedFieldName,
+                resolvedField,
+                Nullability.TRUE,
+                null,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs

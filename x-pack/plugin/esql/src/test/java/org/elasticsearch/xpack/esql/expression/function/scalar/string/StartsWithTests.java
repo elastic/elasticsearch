@@ -80,8 +80,24 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldablePrefix_NonTranslatable() {
         var function = new StartsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, null, "field", new EsField("field", DataType.KEYWORD, Map.of(), true), Nullability.TRUE, null, false),
-            new FieldAttribute(Source.EMPTY, null, "field", new EsField("prefix", DataType.KEYWORD, Map.of(), true), Nullability.TRUE, null, false)
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("field", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("prefix", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            )
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
@@ -90,7 +106,15 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldablePrefix_Translatable() {
         var function = new StartsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, null, "field", new EsField("prefix", DataType.KEYWORD, Map.of(), true), Nullability.TRUE, null, false),
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("prefix", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            ),
             new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
         );
 

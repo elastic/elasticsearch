@@ -447,7 +447,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), null, name, new EsField(name, type, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.synthetic(name),
+            null,
+            name,
+            new EsField(name, type, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     /**

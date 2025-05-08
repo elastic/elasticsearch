@@ -83,7 +83,15 @@ public class RepeatStaticTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), null, name, new EsField(name, type, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.synthetic(name),
+            null,
+            name,
+            new EsField(name, type, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     private DriverContext driverContext() {

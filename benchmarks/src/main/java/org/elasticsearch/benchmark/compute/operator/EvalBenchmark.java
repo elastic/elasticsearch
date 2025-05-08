@@ -205,9 +205,13 @@ public class EvalBenchmark {
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
                     Source.EMPTY,
-                        null, "timestamp",
+                    null,
+                    "timestamp",
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true),
-                    Nullability.TRUE, null, false);
+                    Nullability.TRUE,
+                    null,
+                    false
+                );
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION), timestamp),
@@ -256,19 +260,51 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute(Source.EMPTY, null, "long", new EsField("long", DataType.LONG, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "long",
+            new EsField("long", DataType.LONG, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(Source.EMPTY, null, "double", new EsField("double", DataType.DOUBLE, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "double",
+            new EsField("double", DataType.DOUBLE, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute(Source.EMPTY, null, "int", new EsField("int", DataType.INTEGER, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "int",
+            new EsField("int", DataType.INTEGER, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute(Source.EMPTY, null, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true), Nullability.TRUE, null, false);
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "keyword",
+            new EsField("keyword", DataType.KEYWORD, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     private static Configuration configuration() {

@@ -130,7 +130,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperator() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute(Source.EMPTY, null, "field", new EsField("field", DataType.INTEGER, Map.of(), true), Nullability.TRUE, null, false);
+        FieldAttribute sortField = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "field",
+            new EsField("field", DataType.INTEGER, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -157,7 +165,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperatorDistanceSort() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute(Source.EMPTY, null, "point", new EsField("point", DataType.GEO_POINT, Map.of(), true), Nullability.TRUE, null, false);
+        FieldAttribute sortField = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            "point",
+            new EsField("point", DataType.GEO_POINT, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(

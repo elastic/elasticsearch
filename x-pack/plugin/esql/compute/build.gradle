@@ -649,6 +649,33 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/StdDevDoubleAggregator.java"
   }
 
+  File sampleAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SampleAggregator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBooleanAggregator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBytesRefAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleDoubleAggregator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleLongAggregator.java"
+  }
+
   File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
   template {
     it.properties = intProperties

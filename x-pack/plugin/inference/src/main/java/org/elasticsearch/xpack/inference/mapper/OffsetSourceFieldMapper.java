@@ -107,9 +107,15 @@ public class OffsetSourceFieldMapper extends FieldMapper {
             CharsetFormat.class
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private boolean excludeFromFieldCaps = false;
 
         public Builder(String name) {
             super(name);
+        }
+
+        public Builder excludeFromFieldCaps(boolean value) {
+            excludeFromFieldCaps = value;
+            return this;
         }
 
         @Override
@@ -119,9 +125,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
 
         @Override
         public OffsetSourceFieldMapper build(MapperBuilderContext context) {
-            OffsetSourceFieldType fieldType = new OffsetSourceFieldType(context.buildFullName(leafName()), charset.get(), meta.getValue());
-            // explicitly setting the field type to be not available for field caps
-            fieldType.setExcludeFromFieldCaps(true);
+            OffsetSourceFieldType fieldType = new OffsetSourceFieldType(context.buildFullName(leafName()), charset.get(), meta.getValue(), this.excludeFromFieldCaps);
 
             return new OffsetSourceFieldMapper(leafName(), fieldType, builderParams(this, context));
         }
@@ -133,7 +137,11 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         private final CharsetFormat charset;
 
         public OffsetSourceFieldType(String name, CharsetFormat charset, Map<String, String> meta) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+            this(name, charset, meta, false);
+        }
+
+        public OffsetSourceFieldType(String name, CharsetFormat charset, Map<String, String> meta, boolean excludeFromFieldCaps) {
+            super(name, true, false, false, TextSearchInfo.NONE, meta, excludeFromFieldCaps);
             this.charset = charset;
         }
 

@@ -301,8 +301,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder excludeFromFieldCaps(boolean excludeFromFieldCaps) {
-            this.excludeFromFieldCaps = excludeFromFieldCaps;
+        public Builder excludeFromFieldCaps(boolean value) {
+            this.excludeFromFieldCaps = value;
             return this;
         }
 
@@ -415,7 +415,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 searchAnalyzer,
                 quoteAnalyzer,
                 this,
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                excludeFromFieldCaps
             );
         }
 
@@ -456,7 +457,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
 
             KeywordFieldType keywordFieldType = buildFieldType(context, fieldtype);
-            keywordFieldType.setExcludeFromFieldCaps(excludeFromFieldCaps);
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
@@ -526,13 +526,36 @@ public final class KeywordFieldMapper extends FieldMapper {
             Builder builder,
             boolean isSyntheticSource
         ) {
+            this(
+                name,
+                fieldType,
+                normalizer,
+                searchAnalyzer,
+                quoteAnalyzer,
+                builder,
+                isSyntheticSource,
+                false
+            );
+        }
+
+        public KeywordFieldType(
+            String name,
+            FieldType fieldType,
+            NamedAnalyzer normalizer,
+            NamedAnalyzer searchAnalyzer,
+            NamedAnalyzer quoteAnalyzer,
+            Builder builder,
+            boolean isSyntheticSource,
+            boolean excludeFromFieldCaps
+        ) {
             super(
                 name,
                 fieldType.indexOptions() != IndexOptions.NONE && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 textSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
-                builder.meta.getValue()
+                builder.meta.getValue(),
+                excludeFromFieldCaps
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;

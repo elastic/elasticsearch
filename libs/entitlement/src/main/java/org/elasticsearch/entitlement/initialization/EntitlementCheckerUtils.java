@@ -17,7 +17,7 @@ class EntitlementCheckerUtils {
      * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
      * the various mainXX source sets).
      */
-    public static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
+    static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
         String packageName = baseClass.getPackageName();
         String baseClassName = baseClass.getSimpleName();
 

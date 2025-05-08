@@ -1078,7 +1078,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
+    public static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
         throws IOException {
         for (var field : semanticTextInferenceResults) {
             sourceBuilder.field(field.fieldName());

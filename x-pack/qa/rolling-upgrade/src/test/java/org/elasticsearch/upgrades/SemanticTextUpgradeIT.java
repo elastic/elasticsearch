@@ -7,8 +7,6 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -17,11 +15,11 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -31,14 +29,12 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -68,8 +64,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static Model SPARSE_MODEL;
     private static Model DENSE_MODEL;
 
-    private final boolean useLegacyFormat;
-
     @BeforeClass
     public static void beforeClass() {
         SPARSE_MODEL = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
@@ -80,21 +74,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             List.of(DenseVectorFieldMapper.ElementType.BIT),
             List.of(SimilarityMeasure.DOT_PRODUCT)
         );
-    }
-
-    public SemanticTextUpgradeIT(boolean useLegacyFormat) {
-        this.useLegacyFormat = useLegacyFormat;
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        List<Object[]> parameters = new ArrayList<>();
-        parameters.add(new Object[] { true });
-        if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0)) {
-            // New semantic text format added in 8.18
-            parameters.add(new Object[] { false });
-        }
-        return parameters;
     }
 
     public void testSemanticTextOperations() throws Exception {
@@ -123,12 +102,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             }
             """, SPARSE_FIELD, SPARSE_MODEL.getInferenceEntityId(), DENSE_FIELD, DENSE_MODEL.getInferenceEntityId());
 
-        Settings.Builder settingsBuilder = Settings.builder();
-        if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0)) {
-            settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
-        }
-
-        CreateIndexResponse response = createIndex(indexName, settingsBuilder.build(), mapping);
+        CreateIndexResponse response = createIndex(indexName, Settings.EMPTY, mapping);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         indexDoc(DOC_1_ID, DOC_VALUES.get(DOC_1_ID));
@@ -145,33 +119,22 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private String getIndexName() {
-        return INDEX_BASE_NAME + (useLegacyFormat ? "_legacy" : "_new");
+        return INDEX_BASE_NAME;
     }
 
     private void indexDoc(String id, List<String> semanticTextFieldValue) throws IOException {
         final String indexName = getIndexName();
         final SemanticTextField sparseFieldValue = randomSemanticText(
-            useLegacyFormat,
             SPARSE_FIELD,
             SPARSE_MODEL,
             semanticTextFieldValue,
             XContentType.JSON
         );
-        final SemanticTextField denseFieldValue = randomSemanticText(
-            useLegacyFormat,
-            DENSE_FIELD,
-            DENSE_MODEL,
-            semanticTextFieldValue,
-            XContentType.JSON
-        );
+        final SemanticTextField denseFieldValue = randomSemanticText(DENSE_FIELD, DENSE_MODEL, semanticTextFieldValue, XContentType.JSON);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        if (useLegacyFormat == false) {
-            builder.field(sparseFieldValue.fieldName(), semanticTextFieldValue);
-            builder.field(denseFieldValue.fieldName(), semanticTextFieldValue);
-        }
-        addSemanticTextInferenceResults(useLegacyFormat, builder, List.of(sparseFieldValue, denseFieldValue));
+        addSemanticTextInferenceResults(builder, List.of(sparseFieldValue, denseFieldValue));
         builder.endObject();
 
         RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addParameter("refresh", "true").build();
@@ -190,7 +153,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         final QueryBuilder innerQueryBuilder = switch (fieldModel.getTaskType()) {
             case SPARSE_EMBEDDING -> {
                 List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
-                yield new SparseVectorQueryBuilder(embeddingsFieldName, weightedTokens, null, null, null, null);
+                var boolQuery = QueryBuilders.boolQuery();
+                for (var weightedToken : weightedTokens) {
+                    boolQuery.should(QueryBuilders.termQuery(embeddingsFieldName, weightedToken.token()).boost(weightedToken.weight()));
+                }
+                boolQuery.minimumShouldMatch(1);
+                yield boolQuery;
             }
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.ElementType elementType = fieldModel.getServiceSettings().elementType();
@@ -208,7 +176,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                     Arrays.fill(queryVector, 1.0f);
                 }
 
-                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null, null);
+                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null);
             }
             default -> throw new UnsupportedOperationException("Unhandled task type [" + fieldModel.getTaskType() + "]");
         };
@@ -250,13 +218,6 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             String id = ObjectPath.evaluate(hit, "_id");
             assertThat(id, notNullValue());
             docIds.add(id);
-
-            if (UPGRADE_FROM_VERSION_PARSED.onOrAfter(Version.V_8_18_0) || CLUSTER_TYPE == ClusterType.UPGRADED) {
-                // Semantic highlighting only functions reliably on clusters where all nodes are 8.18.0 or later
-                List<String> expectedHighlight = DOC_VALUES.get(id);
-                assertThat(expectedHighlight, notNullValue());
-                assertThat(ObjectPath.evaluate(hit, "highlight." + field), equalTo(expectedHighlight));
-            }
         }
 
         assertThat(docIds, equalTo(Set.of(DOC_1_ID, DOC_2_ID)));

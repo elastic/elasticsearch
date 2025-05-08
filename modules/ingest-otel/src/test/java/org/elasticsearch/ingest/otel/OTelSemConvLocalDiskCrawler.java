@@ -134,7 +134,7 @@ public class OTelSemConvLocalDiskCrawler {
                             try {
                                 Files.delete(path);
                             } catch (IOException e) {
-                                logger.warn("failed to delete file: {}", path, e);
+                                logger.warn("failed to delete file: " + path, e);
                             }
                         });
                 } catch (IOException e) {

@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Collection;
@@ -42,4 +45,19 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
     public MappedFieldType getMappedFieldType() {
         return new SemanticInferenceMetadataFieldsMapper.FieldType();
     }
+
+    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+        if (useLegacyFormat) {
+            // Randomly choose an index version compatible with the legacy semantic text format
+            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.SEMANTIC_TEXT_FIELD_TYPE, IndexVersion.current());
+        } else {
+            // Randomly choose an index version compatible with the new semantic text format
+            return IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersion.current()
+            );
+        }
+    }
+
 }

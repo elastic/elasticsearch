@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -64,7 +65,7 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
         LogicalPlan transformed = project.transformExpressionsOnly(
             NamedExpression.class,
-            n -> n.name().equals("one") ? new FieldAttribute(EMPTY, null, "changed", one.field()) : n
+            n -> n.name().equals("one") ? new FieldAttribute(EMPTY, null, "changed", one.field(), Nullability.TRUE, null, false) : n
         );
 
         assertEquals(Project.class, transformed.getClass());

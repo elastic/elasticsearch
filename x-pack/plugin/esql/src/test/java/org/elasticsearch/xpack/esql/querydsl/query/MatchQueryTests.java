@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -65,14 +66,14 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, null, "a", new EsField("af", KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, null, "a", new EsField("af", KEYWORD, emptyMap(), true), Nullability.TRUE, null, false);
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", options);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, null, "a", new EsField("af", KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, null, "a", new EsField("af", KEYWORD, emptyMap(), true), Nullability.TRUE, null, false);
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo");
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }

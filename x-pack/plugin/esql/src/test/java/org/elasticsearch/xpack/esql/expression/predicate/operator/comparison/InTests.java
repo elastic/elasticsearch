@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -90,7 +91,7 @@ public class InTests extends AbstractFunctionTestCase {
     public void testConvertedNull() {
         In in = new In(
             EMPTY,
-            new FieldAttribute(Source.EMPTY, null, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(Source.EMPTY, null, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true), Nullability.TRUE, null, false),
             Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
         );
         var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);

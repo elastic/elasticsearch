@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -82,7 +83,7 @@ public class RepeatStaticTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), null, name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(Source.synthetic(name), null, name, new EsField(name, type, Map.of(), true), Nullability.TRUE, null, false);
     }
 
     private DriverContext driverContext() {

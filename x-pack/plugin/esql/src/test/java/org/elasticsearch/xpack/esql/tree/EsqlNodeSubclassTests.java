@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -733,7 +734,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, null, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(Source.EMPTY, null, name, new EsField(name, type, Collections.emptyMap(), false), Nullability.TRUE, null, false);
     }
 
     public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {

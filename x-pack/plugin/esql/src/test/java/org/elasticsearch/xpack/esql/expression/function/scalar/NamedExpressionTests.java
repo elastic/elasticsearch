@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,7 +54,7 @@ public class NamedExpressionTests extends ESTestCase {
     }
 
     public void testNameForArithmeticFunctionAppliedOnTableColumn() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, null, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, null, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true), Nullability.TRUE, null, false);
         String e = "myField  + 10";
         Add add = new Add(s(e), fa, l(10));
         assertEquals(e, add.sourceText());

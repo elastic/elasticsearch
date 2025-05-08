@@ -220,8 +220,8 @@ class OTelSemConvWebCrawler {
             if (groupsObj instanceof List<?> groups) {
                 for (Object groupObj : groups) {
                     if (groupObj instanceof Map<?, ?> groupMap) {
-                        // check if 'type' is 'resource'
-                        if ("resource".equals(groupMap.get("type"))) {
+                        // check if 'type' is 'entity'
+                        if ("entity".equals(groupMap.get("type"))) {
                             // Get 'attributes' and extract 'ref' fields
                             Object attributesObj = groupMap.get("attributes");
                             if (attributesObj instanceof List<?> attributesList && attributesList.isEmpty() == false) {

@@ -9,20 +9,30 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
-@Ignore
+//@LuceneTestCase.Nightly()
 public class ResourceAttributesTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
-    public void testResourceAttributesWebCrawler() {
-        Set<String> resourceAttributes = OTelSemConvWebCrawler.collectOTelSemConvResourceAttributes();
+    public void testResourceAttributes_webCrawler() {
+        testCrawler(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);
+    }
+
+    @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
+    public void testResourceAttributes_localDiskCrawler() {
+        testCrawler(OTelSemConvLocalDiskCrawler::collectOTelSemConvResourceAttributes);
+    }
+
+    private static void testCrawler(Supplier<Set<String>> otelResourceAttributesSupplier) {
+        Set<String> resourceAttributes = otelResourceAttributesSupplier.get();
         System.out.println("Resource Attributes: " + resourceAttributes.size());
         for (String attribute : resourceAttributes) {
             System.out.println(attribute);
@@ -38,9 +48,17 @@ public class ResourceAttributesTests extends ESTestCase {
         }
     }
 
-    public void testAttributesSetUpToDate() {
+    public void testAttributesSetUpToDate_localDiskCrawler() {
+        testAttributesSetUpToDate(OTelSemConvLocalDiskCrawler::collectOTelSemConvResourceAttributes);
+    }
+
+    public void testAttributesSetUpToDate_webCrawler() {
+        testAttributesSetUpToDate(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);
+    }
+
+    private static void testAttributesSetUpToDate(Supplier<Set<String>> otelResourceAttributesSupplier) {
         Map<String, String> ecsToOTelAttributeNames = EcsFieldsDiscoverer.getInstance().getEcsToOTelAttributeNames();
-        Set<String> otelResourceAttributes = OTelSemConvWebCrawler.collectOTelSemConvResourceAttributes();
+        Set<String> otelResourceAttributes = otelResourceAttributesSupplier.get();
         Set<String> latestEcsOTelResourceAttributes = new HashSet<>();
         ecsToOTelAttributeNames.forEach((ecsAttributeName, otelAttributeName) -> {
             if (otelResourceAttributes.contains(otelAttributeName)) {

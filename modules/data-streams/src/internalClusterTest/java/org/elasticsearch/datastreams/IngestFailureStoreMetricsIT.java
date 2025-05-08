@@ -57,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * An integration test that verifies how different paths/scenarios affect the APM metrics for failure stores.
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
 
     private static final List<String> METRICS = List.of(

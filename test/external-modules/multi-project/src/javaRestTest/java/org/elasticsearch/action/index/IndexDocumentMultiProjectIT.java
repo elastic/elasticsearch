@@ -42,7 +42,7 @@ public class IndexDocumentMultiProjectIT extends MultiProjectRestTestCase {
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .nodes(NODE_NUM)
-            .distribution(DistributionType.INTEG_TEST) // TODO multi-project: make this test suite work under the default distrib
+            .distribution(DistributionType.INTEG_TEST)
             .module("test-multi-project")
             .setting("test.multi_project.enabled", "true")
             .setting("xpack.security.enabled", "false") // TODO multi-project: make this test suite work with Security enabled

@@ -487,7 +487,6 @@ public class PolicyManager {
         }
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
-            generalLogger.warn("trivially allowed: " + requestingClass.getName());
             return;
         }
 

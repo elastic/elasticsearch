@@ -841,6 +841,11 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_EVAL,
 
         /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV,
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;

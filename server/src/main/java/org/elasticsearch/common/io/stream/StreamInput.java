@@ -391,9 +391,12 @@ public abstract class StreamInput extends InputStream {
         if (length == -1) {
             return null;
         }
-        var byteBuffs = BytesReference.toByteBuffers(readBytesReference(length));
-        assert byteBuffs.length == 1;
-        return new Text(byteBuffs[0]);
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var byteBuff = ByteBuffer.wrap(bytes);
+        return new Text(byteBuff);
     }
 
     public Text readText() throws IOException {

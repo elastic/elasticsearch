@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  * Both {@link String} and {@link ByteBuffer} representation of the text. Starts with one of those, and if
  * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
  */
-public final class Text implements Comparable<Text>, ToXContentFragment {
+public final class Text implements XContentString, Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
@@ -34,15 +34,23 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
     private ByteBuffer bytes;
     private String text;
     private int hash;
-    private int length = -1;
+    private int stringLength = -1;
 
+    /**
+     * Construct a Text from a UTF-8 encoded ByteBuffer. Since no string length is specified, {@link #stringLength()}
+     * will perform a string conversion to measure the string length.
+     */
     public Text(ByteBuffer bytes) {
         this.bytes = bytes;
     }
 
-    public Text(ByteBuffer bytes, int length) {
+    /**
+     * Construct a Text from a UTF-8 encoded ByteBuffer and an explicit string length. Used to avoid string conversion
+     * in {@link #stringLength()}.
+     */
+    public Text(ByteBuffer bytes, int stringLength) {
         this.bytes = bytes;
-        this.length = length;
+        this.stringLength = stringLength;
     }
 
     public Text(String text) {
@@ -56,9 +64,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return bytes != null;
     }
 
-    /**
-     * Returns a {@link ByteBuffer} view of the data.
-     */
+    @Override
     public ByteBuffer bytes() {
         if (bytes == null) {
             bytes = StandardCharsets.UTF_8.encode(text);
@@ -73,9 +79,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return text != null;
     }
 
-    /**
-     * Returns a {@link String} view of the data.
-     */
+    @Override
     public String string() {
         if (text == null) {
             text = StandardCharsets.UTF_8.decode(bytes).toString();
@@ -83,14 +87,12 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return text;
     }
 
-    /**
-     * Returns the number of characters in the represented string
-     */
-    public int length() {
-        if (length < 0) {
-            length = string().length();
+    @Override
+    public int stringLength() {
+        if (stringLength < 0) {
+            stringLength = string().length();
         }
-        return length;
+        return stringLength;
     }
 
     @Override

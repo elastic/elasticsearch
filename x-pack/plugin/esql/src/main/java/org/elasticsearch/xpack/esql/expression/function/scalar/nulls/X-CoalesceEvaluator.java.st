@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
-// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.List;
 import java.util.stream.IntStream;
-// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.

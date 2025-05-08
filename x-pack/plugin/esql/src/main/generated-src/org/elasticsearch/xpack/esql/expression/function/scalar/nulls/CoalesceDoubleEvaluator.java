@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
-// begin generated imports
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.List;
 import java.util.stream.IntStream;
-// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.

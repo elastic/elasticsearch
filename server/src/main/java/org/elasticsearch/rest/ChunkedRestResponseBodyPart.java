@@ -166,7 +166,10 @@ public interface ChunkedRestResponseBodyPart {
                     if (serialization.hasNext() == false) {
                         builder.close();
                     }
-                    final var result = chunkStream.moveToBytesReference();
+                    final var result = new ReleasableBytesReference(
+                        chunkStream.bytes(),
+                        () -> Releasables.closeExpectNoException(chunkStream)
+                    );
                     target = null;
                     return result;
                 } catch (Exception e) {

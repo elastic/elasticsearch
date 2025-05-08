@@ -13,7 +13,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.util.Map;
 import java.util.Objects;
@@ -68,9 +67,5 @@ public class ErrorMessageResponseEntity extends ErrorResponse {
      */
     public static ErrorResponse fromResponse(HttpResult response) {
         return fromResponse(response, "");
-    }
-
-    public static ErrorResponse fromResponse(Request request, HttpResult response) {
-        return fromResponse(response);
     }
 }

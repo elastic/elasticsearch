@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -242,10 +242,12 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     private void assertRandomBulkOperations(String indexName, Function<Boolean, Map<String, Object>> sourceSupplier) throws Exception {
         int numHits = numHits(indexName);
-        int totalBulkReqs = randomIntBetween(2, 10);
+        int totalBulkReqs = randomIntBetween(2, 100);
+        long totalDocs = numHits;
         Set<String> ids = new HashSet<>();
-        for (int bulkReqs = 0; bulkReqs < totalBulkReqs; bulkReqs++) {
-            BulkRequestBuilder bulkReqBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int bulkReqs = numHits; bulkReqs < totalBulkReqs; bulkReqs++) {
+            BulkRequestBuilder bulkReqBuilder = client().prepareBulk();
             int totalBulkSize = randomIntBetween(1, 100);
             for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
                 if (ids.size() > 0 && rarely(random())) {
@@ -255,15 +257,24 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                     bulkReqBuilder.add(request);
                     continue;
                 }
-                boolean isIndexRequest = ids.size() == 0 || randomBoolean();
+                String id = Long.toString(totalDocs++);
+                boolean isIndexRequest = randomBoolean();
                 Map<String, Object> source = sourceSupplier.apply(isIndexRequest);
                 if (isIndexRequest) {
-                    String id = randomAlphaOfLength(20);
                     bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(indexName).setId(id).setSource(source));
                     ids.add(id);
                 } else {
-                    String id = randomFrom(ids);
-                    bulkReqBuilder.add(new UpdateRequestBuilder(client()).setIndex(indexName).setId(id).setDoc(source));
+                    boolean isUpsert = randomBoolean();
+                    UpdateRequestBuilder request = new UpdateRequestBuilder(client()).setIndex(indexName).setDoc(source);
+                    if (isUpsert || ids.size() == 0) {
+                        request.setDocAsUpsert(true);
+                    } else {
+                        // Update already existing document
+                        id = randomFrom(ids);
+                    }
+                    request.setId(id);
+                    bulkReqBuilder.add(request);
+                    ids.add(id);
                 }
             }
             BulkResponse bulkResponse = bulkReqBuilder.get();
@@ -282,7 +293,8 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             }
             assertFalse(bulkResponse.hasFailures());
         }
-        assertThat(numHits(indexName), equalTo(numHits + ids.size()));
+        client().admin().indices().refresh(new RefreshRequest(indexName)).get();
+        assertThat(numHits(indexName), equalTo(ids.size() + numHits));
     }
 
     private int numHits(String indexName) throws Exception {

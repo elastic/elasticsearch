@@ -501,46 +501,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat("Must retry only affected shards", resolvedShards, contains(shard2));
     }
 
-    public void testRetryUnassignedShardWithoutPartialResults() {
-        var attempt = new AtomicInteger(0);
-        var future = sendRequests(false, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
-            attempt.incrementAndGet();
-            return Map.of(shard1, List.of());
-        },
-            (node, shardIds, aliasFilters, listener) -> runWithDelay(
-                () -> listener.onResponse(
-                    Objects.equals(shardIds, List.of(shard2))
-                        ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
-                        : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
-                )
-            )
-
-        );
-        expectThrows(NoShardAvailableActionException.class, containsString("no such shard"), future::actionGet);
-    }
-
-    public void testRetryUnassignedShardWithPartialResults() {
-        var response = safeGet(
-            sendRequests(
-                true,
-                -1,
-                List.of(targetShard(shard1, node1), targetShard(shard2, node2)),
-                shardIds -> Map.of(shard1, List.of()),
-                (node, shardIds, aliasFilters, listener) -> runWithDelay(
-                    () -> listener.onResponse(
-                        Objects.equals(shardIds, List.of(shard2))
-                            ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
-                            : new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of(shard1, new ShardNotFoundException(shard1)))
-                    )
-                )
-            )
-        );
-        assertThat(response.totalShards, equalTo(2));
-        assertThat(response.successfulShards, equalTo(1));
-        assertThat(response.skippedShards, equalTo(0));
-        assertThat(response.failedShards, equalTo(1));
-    }
-
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
         return new DataNodeRequestSender.TargetShard(shardId, new ArrayList<>(Arrays.asList(nodes)), null);
     }

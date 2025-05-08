@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -91,7 +92,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotLike() throws Exception {
+    public static void renderNotLike() throws IOException {
         renderNegatedOperator(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d, getTestClass());
     }
 }

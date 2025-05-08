@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
 import java.util.concurrent.Flow;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
@@ -50,7 +50,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     protected OpenAiResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);

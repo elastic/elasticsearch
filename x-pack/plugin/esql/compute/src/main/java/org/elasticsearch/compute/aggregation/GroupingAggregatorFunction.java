@@ -8,12 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantNullBlock;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.IntVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
@@ -52,40 +48,12 @@ public interface GroupingAggregatorFunction extends Releasable {
          *     be skipped entirely or the groupIds block could contain a
          *     {@code null} value at that position.
          * </p>
-         * <p>
-         *     This method delegates the processing to the other overloads for specific groupIds block types.
-         * </p>
          * @param positionOffset offset into the {@link Page} used to build this
          *                       {@link AddInput} of these ids
          * @param groupIds {@link Block} of group id, some of which may be null
          *                 or multivalued
          */
-        default void add(int positionOffset, IntBlock groupIds) {
-            switch (groupIds) {
-                case ConstantNullBlock ignored:
-                    // No-op
-                    break;
-                case IntVectorBlock b:
-                    add(positionOffset, b.asVector());
-                    break;
-                case IntArrayBlock b:
-                    add(positionOffset, b);
-                    break;
-                case IntBigArrayBlock b:
-                    add(positionOffset, b);
-                    break;
-            }
-        }
-
-        /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
-         */
-        void add(int positionOffset, IntArrayBlock groupIds);
-
-        /**
-         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
-         */
-        void add(int positionOffset, IntBigArrayBlock groupIds);
+        void add(int positionOffset, IntBlock groupIds);
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}

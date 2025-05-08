@@ -58,7 +58,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.api.tasks.util.internal.PatternSetFactory;
+import org.gradle.internal.Factory;
 
 import java.io.File;
 import java.io.IOException;
@@ -99,21 +99,23 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
+    protected Factory<PatternSet> getPatternSetFactory() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
     public RestCompatTestTransformTask(FileSystemOperations fileSystemOperations, ObjectFactory objectFactory) {
         this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
-        this.testPatternSet = getPatternSetFactory().createPatternSet();
+        this.testPatternSet = getPatternSetFactory().create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
         headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         getTransformations().add(new InjectHeaders(headers, Sets.newHashSet(RestCompatTestTransformTask::doesNotHaveCatOperation)));
     }
-
-    @Inject
-    protected abstract PatternSetFactory getPatternSetFactory();
 
     private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
         final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
@@ -142,7 +144,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
             );
         }
 
-        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
+        PatternSet skippedPatternSet = getPatternSetFactory().create();
         // create file patterns for all a1/a2/a3/b.yml possibilities.
         for (int i = testParts.length - 1; i > 1; i--) {
             final String lastPart = testParts[i];
@@ -156,7 +158,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void skipTestsByFilePattern(String filePattern, String reason) {
-        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
+        PatternSet skippedPatternSet = getPatternSetFactory().create();
         skippedPatternSet.include(filePattern);
         skippedTestByFilePatternTransformations.put(skippedPatternSet, reason);
     }

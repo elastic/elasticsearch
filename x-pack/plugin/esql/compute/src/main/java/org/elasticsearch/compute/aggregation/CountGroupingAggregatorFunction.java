@@ -11,8 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -69,12 +68,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 }
                 return new AddInput() {
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
-                        addRawInput(positionOffset, groupIds, valuesBlock);
-                    }
-
-                    @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    public void add(int positionOffset, IntBlock groupIds) {
                         addRawInput(positionOffset, groupIds, valuesBlock);
                     }
 
@@ -90,12 +84,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         }
         return new AddInput() {
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                addRawInput(groupIds);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            public void add(int positionOffset, IntBlock groupIds) {
                 addRawInput(groupIds);
             }
 
@@ -120,25 +109,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         }
     }
 
-    private void addRawInput(int positionOffset, IntArrayBlock groups, Block values) {
-        int position = positionOffset;
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
-            if (groups.isNull(groupPosition)) {
-                continue;
-            }
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
-                if (values.isNull(position)) {
-                    continue;
-                }
-                state.increment(groupId, values.getValueCount(position));
-            }
-        }
-    }
-
-    private void addRawInput(int positionOffset, IntBigArrayBlock groups, Block values) {
+    private void addRawInput(int positionOffset, IntBlock groups, Block values) {
         int position = positionOffset;
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
             if (groups.isNull(groupPosition)) {
@@ -169,24 +140,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     /**
      * This method is called for count all.
      */
-    private void addRawInput(IntArrayBlock groups) {
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition)) {
-                continue;
-            }
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
-                state.increment(groupId, 1);
-            }
-        }
-    }
-
-    /**
-     * This method is called for count all.
-     */
-    private void addRawInput(IntBigArrayBlock groups) {
+    private void addRawInput(IntBlock groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             if (groups.isNull(groupPosition)) {
                 continue;

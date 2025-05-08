@@ -98,7 +98,10 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     protected static final String SQL_ACTION_NAME = "indices:data/read/sql";
     /**
-     * Location of the audit log file.
+     * Location of the audit log file. We could technically figure this out by reading the admin
+     * APIs but it isn't worth doing because we also have to give ourselves permission to read
+     * the file and that must be done by setting a system property and reading it in
+     * {@code plugin-security.policy}. So we may as well have gradle set the property.
      */
     private static final Path AUDIT_LOG_FILE = lookupAuditLog();
     private static final Path ROLLED_OVER_AUDIT_LOG_FILE = lookupRolledOverAuditLog();

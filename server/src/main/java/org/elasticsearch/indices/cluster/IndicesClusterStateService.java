@@ -400,12 +400,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = project.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
-                final var projectId = project.get().id();
-                indicesService.deleteUnassignedIndex(
-                    "deleted index in project [" + projectId + "] was not assigned to local node",
-                    metadata,
-                    state.metadata().projects().get(projectId)
-                );
+                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
             } else {
                 // The previous cluster state's metadata also does not contain the index,
                 // which is what happens on node startup when an index was deleted while the
@@ -1262,13 +1257,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
          * but does not deal with in-memory structures. For those call {@link #removeIndex}
-         *
-         * @param reason the reason why this index should be deleted
-         * @param oldIndexMetadata the index metadata of the index that should be deleted
-         * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
-         *                       anymore - can be null in case the whole project got deleted while there were still indices in it
          */
-        void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject);
+        void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index

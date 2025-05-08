@@ -132,7 +132,7 @@ public class WhitelistLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         try (var loader = JarUtils.loadJar(jar)) {
-            Controller controller = JarUtils.loadModule(jar, loader, "m");
+            Controller controller = JarUtils.loadModule(jar, loader.classloader(), "m");
             Module module = controller.layer().findModule("m").orElseThrow();
 
             Class<?> ownerClass = module.getClassLoader().loadClass("p.TestOwner");

@@ -1,0 +1,4 @@
+grant {
+  // example security manager permission
+  permission java.util.PropertyPermission "foobar", "read";
+};

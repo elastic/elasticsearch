@@ -34,25 +34,13 @@ public class PutInferenceModelActionTests extends ESTestCase {
 
     public void testValidate() {
         // valid model ID
-        var request = new PutInferenceModelAction.Request(
-            TASK_TYPE,
-            MODEL_ID + "_-0",
-            BYTES,
-            X_CONTENT_TYPE,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
+        var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID + "_-0", BYTES, X_CONTENT_TYPE);
         ActionRequestValidationException validationException = request.validate();
         assertNull(validationException);
 
         // invalid model IDs
 
-        var invalidRequest = new PutInferenceModelAction.Request(
-            TASK_TYPE,
-            "",
-            BYTES,
-            X_CONTENT_TYPE,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
+        var invalidRequest = new PutInferenceModelAction.Request(TASK_TYPE, "", BYTES, X_CONTENT_TYPE);
         validationException = invalidRequest.validate();
         assertNotNull(validationException);
 
@@ -60,19 +48,12 @@ public class PutInferenceModelActionTests extends ESTestCase {
             TASK_TYPE,
             randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStringsTests.SOME_INVALID_CHARS),
             BYTES,
-            X_CONTENT_TYPE,
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            X_CONTENT_TYPE
         );
         validationException = invalidRequest2.validate();
         assertNotNull(validationException);
 
-        var invalidRequest3 = new PutInferenceModelAction.Request(
-            TASK_TYPE,
-            null,
-            BYTES,
-            X_CONTENT_TYPE,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
+        var invalidRequest3 = new PutInferenceModelAction.Request(TASK_TYPE, null, BYTES, X_CONTENT_TYPE);
         validationException = invalidRequest3.validate();
         assertNotNull(validationException);
     }

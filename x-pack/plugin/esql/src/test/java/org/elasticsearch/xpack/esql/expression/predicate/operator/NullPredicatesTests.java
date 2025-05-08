@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToStringTests;
 import org.junit.AfterClass;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,7 @@ public class NullPredicatesTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws Exception {
+    public static void renderDocs() throws IOException {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
@@ -61,7 +62,7 @@ public class NullPredicatesTests extends ESTestCase {
         );
     }
 
-    private static void renderNullPredicate(DocsV3Support.OperatorConfig op) throws Exception {
+    private static void renderNullPredicate(DocsV3Support.OperatorConfig op) throws IOException {
         var docs = new DocsV3Support.OperatorsDocsSupport(op.name(), NullPredicatesTests.class, op, NullPredicatesTests::signatures);
         docs.renderSignature();
         docs.renderDocs();

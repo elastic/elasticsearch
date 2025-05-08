@@ -49,7 +49,6 @@ spotless {
     /*
      * Generated files go here.
      */
-    toggleOffOn('begin generated imports', 'end generated imports')
     targetExclude "src/main/generated/**/*.java"
   }
 }
@@ -101,7 +100,7 @@ tasks.named('stringTemplates').configure {
     "",
     "BYTES_REF",
     "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF",
-    "BytesRefArray",
+    "",
     "BytesRefHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")

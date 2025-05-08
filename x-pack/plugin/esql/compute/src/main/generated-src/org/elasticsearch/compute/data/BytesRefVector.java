@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
-// end generated imports
 
 /**
  * Vector that stores BytesRef values.

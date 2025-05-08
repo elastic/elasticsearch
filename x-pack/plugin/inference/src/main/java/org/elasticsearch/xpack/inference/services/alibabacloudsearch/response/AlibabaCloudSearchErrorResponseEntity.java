@@ -15,17 +15,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.request.Request;
 
 public class AlibabaCloudSearchErrorResponseEntity extends ErrorResponse {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchErrorResponseEntity.class);
 
     private AlibabaCloudSearchErrorResponseEntity(String errorMessage) {
         super(errorMessage);
-    }
-
-    public static ErrorResponse fromResponse(Request request, HttpResult response) {
-        return fromResponse(response);
     }
 
     /**

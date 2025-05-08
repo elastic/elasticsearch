@@ -11,8 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryTests;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.test.ESTestCase;
@@ -158,7 +156,8 @@ public class AddPageTests extends ESTestCase {
     private class TestAddInput implements GroupingAggregatorFunction.AddInput {
         private final List<Added> added = new ArrayList<>();
 
-        private void addBlock(int positionOffset, IntBlock groupIds) {
+        @Override
+        public void add(int positionOffset, IntBlock groupIds) {
             List<List<Integer>> result = new ArrayList<>(groupIds.getPositionCount());
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 int valueCount = groupIds.getValueCount(p);
@@ -174,18 +173,8 @@ public class AddPageTests extends ESTestCase {
         }
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
-        }
-
-        @Override
         public void add(int positionOffset, IntVector groupIds) {
-            addBlock(positionOffset, groupIds.asBlock());
+            add(positionOffset, groupIds.asBlock());
         }
 
         @Override
@@ -198,12 +187,7 @@ public class AddPageTests extends ESTestCase {
         private int count;
 
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            count++;
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
             count++;
         }
 

@@ -7,16 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
-// begin generated imports
+$if(BytesRef)$
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
+
+$else$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
-import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-// end generated imports
+$endif$
 
 /**
  * Block build of $Type$Blocks.

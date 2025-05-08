@@ -24,6 +24,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -423,7 +427,12 @@ public class LeafDocLookupTests extends ESTestCase {
     public void testLookupPrivilegesAdvanceDoc() {
         nextDocCallback = i -> SpecialPermission.check();
 
-        ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
-        assertEquals(docValues, fetchedDocValues);
+        // mimic the untrusted codebase, which gets no permissions
+        var restrictedContext = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, null) });
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
+            assertEquals(docValues, fetchedDocValues);
+            return null;
+        }, restrictedContext);
     }
 }

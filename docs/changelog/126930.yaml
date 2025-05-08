@@ -1,0 +1,5 @@
+pr: 126930
+summary: Adding missing `onFailure` call for Inference API start model request
+area: Machine Learning
+type: bug
+issues: []

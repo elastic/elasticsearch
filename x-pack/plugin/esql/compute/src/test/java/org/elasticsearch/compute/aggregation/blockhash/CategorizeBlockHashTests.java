@@ -25,8 +25,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -101,7 +99,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                    private void addBlock(int positionOffset, IntBlock groupIds) {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
                         assertEquals(groupIds.getPositionCount(), positions);
 
                         assertEquals(1, groupIds.getInt(0));
@@ -117,18 +116,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        addBlock(positionOffset, groupIds.asBlock());
+                        add(positionOffset, groupIds.asBlock());
                     }
 
                     @Override
@@ -173,7 +162,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                    private void addBlock(int positionOffset, IntBlock groupIds) {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
                         assertEquals(groupIds.getPositionCount(), positions);
 
                         assertThat(groupIds.getFirstValueIndex(0), equalTo(0));
@@ -196,18 +186,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        addBlock(positionOffset, groupIds.asBlock());
+                        add(positionOffset, groupIds.asBlock());
                     }
 
                     @Override
@@ -263,7 +243,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
-                private void addBlock(int positionOffset, IntBlock groupIds) {
+                @Override
+                public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions1);
                     assertEquals(1, groupIds.getInt(0));
                     assertEquals(2, groupIds.getInt(1));
@@ -278,18 +259,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    addBlock(positionOffset, groupIds.asBlock());
+                    add(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -300,7 +271,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             intermediatePage1 = new Page(rawHash1.getKeys()[0]);
 
             rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
-                private void addBlock(int positionOffset, IntBlock groupIds) {
+                @Override
+                public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions2);
                     assertEquals(1, groupIds.getInt(0));
                     assertEquals(2, groupIds.getInt(1));
@@ -310,18 +282,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    addBlock(positionOffset, groupIds.asBlock());
+                    add(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -337,7 +299,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
-                private void addBlock(int positionOffset, IntBlock groupIds) {
+                @Override
+                public void add(int positionOffset, IntBlock groupIds) {
                     List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                         .map(groupIds::getInt)
                         .boxed()
@@ -350,18 +313,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    addBlock(positionOffset, groupIds);
-                }
-
-                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    addBlock(positionOffset, groupIds.asBlock());
+                    add(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -372,7 +325,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
             for (int i = randomInt(2); i < 3; i++) {
                 intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
-                    private void addBlock(int positionOffset, IntBlock groupIds) {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
                         List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                             .map(groupIds::getInt)
                             .boxed()
@@ -383,18 +337,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                        addBlock(positionOffset, groupIds);
-                    }
-
-                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        addBlock(positionOffset, groupIds.asBlock());
+                        add(positionOffset, groupIds.asBlock());
                     }
 
                     @Override

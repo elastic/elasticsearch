@@ -552,17 +552,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
         }
-        DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
-        return vectorFieldType.createKnnQuery(
-            queryVector,
-            k,
-            adjustedNumCands,
-            oversample,
-            filterQuery,
-            vectorSimilarity,
-            parentBitSet,
-            heuristic
-        );
+
+        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, oversample, filterQuery, vectorSimilarity, parentBitSet);
     }
 
     @Override

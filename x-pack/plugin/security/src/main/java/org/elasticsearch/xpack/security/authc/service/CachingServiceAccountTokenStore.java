@@ -19,8 +19,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
@@ -99,10 +97,10 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
             if (valueAlreadyInCache.get()) {
                 listenableCacheEntry.addListener(listener.delegateFailureAndWrap((l, result) -> {
                     if (result.success) {
-                        l.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), result.verify(token)));
+                        l.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
                     } else if (result.verify(token)) {
                         // same wrong token
-                        l.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
+                        l.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
                     } else {
                         cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                         authenticateWithCache(token, l);

@@ -7,12 +7,10 @@
 
 package org.elasticsearch.compute.data;
 
-// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-// end generated imports
 
 /**
  * Generic {@link Block#lookup} implementation {@link LongBlock}s.

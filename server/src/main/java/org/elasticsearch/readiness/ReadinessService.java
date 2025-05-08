@@ -32,6 +32,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -120,20 +122,25 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
-        InetSocketAddress socketAddress;
-        try {
-            socketAddress = socketAddress(InetAddress.getByName("0"), portNumber);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve readiness host address", e);
-        }
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                return socketAddress(InetAddress.getByName("0"), portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+            }
+        });
 
         try {
             serverChannel = socketChannelFactory.get();
-            try {
-                serverChannel.bind(socketAddress);
-            } catch (IOException e) {
-                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
-            }
+
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                try {
+                    serverChannel.bind(socketAddress);
+                } catch (IOException e) {
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
+                }
+                return null;
+            });
 
             // First time bounding the socket, we notify any listeners
             if (boundSocket.get() == null) {
@@ -173,11 +180,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
-                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
-                        logger.debug("encountered exception while responding to readiness check request", e);
-                    } catch (Exception other) {
-                        logger.warn("encountered unknown exception while responding to readiness check request", other);
-                    }
+                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                        try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
+                            logger.debug("encountered exception while responding to readiness check request", e);
+                        } catch (Exception other) {
+                            logger.warn("encountered unknown exception while responding to readiness check request", other);
+                        }
+                        return null;
+                    });
                 }
             } finally {
                 listenerThreadLatch.countDown();

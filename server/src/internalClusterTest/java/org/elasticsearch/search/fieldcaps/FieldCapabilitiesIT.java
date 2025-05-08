@@ -906,10 +906,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-            // skip rewriting on the coordinator
-            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
-                return this;
-            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {

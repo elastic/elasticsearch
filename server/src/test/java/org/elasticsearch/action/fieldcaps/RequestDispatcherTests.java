@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -136,7 +135,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -208,7 +206,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -331,7 +328,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -456,7 +452,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -555,7 +550,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -648,7 +642,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 mockClusterService(clusterState),
                 transportService,
                 TestProjectResolvers.singleProject(projectId),
-                coordinatorRewriteContextProvider(),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -1038,9 +1031,5 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         final OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, clusterSettings);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
         return clusterService;
-    }
-
-    static CoordinatorRewriteContextProvider coordinatorRewriteContextProvider() {
-        return mock(CoordinatorRewriteContextProvider.class);
     }
 }

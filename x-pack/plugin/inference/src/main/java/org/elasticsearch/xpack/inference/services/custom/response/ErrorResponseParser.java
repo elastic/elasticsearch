@@ -22,18 +22,17 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ERROR_PARSER;
 import static org.elasticsearch.xpack.inference.services.custom.response.BaseCustomResponseParser.toType;
 
-public class ErrorResponseParser implements ToXContentFragment, BiFunction<Request, HttpResult, ErrorResponse> {
+public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
 
     private static final Logger logger = LogManager.getLogger(ErrorResponseParser.class);
     public static final String MESSAGE_PATH = "path";
@@ -89,7 +88,7 @@ public class ErrorResponseParser implements ToXContentFragment, BiFunction<Reque
     }
 
     @Override
-    public ErrorResponse apply(Request request, HttpResult httpResult) {
+    public ErrorResponse apply(HttpResult httpResult) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, httpResult.body())
@@ -108,7 +107,7 @@ public class ErrorResponseParser implements ToXContentFragment, BiFunction<Reque
             logger.info(
                 Strings.format(
                     "Failed to parse error object for custom service inference id [%s], message path: [%s]",
-                    request.getInferenceEntityId(),
+                    httpResult.request().inferenceEntityId(),
                     messagePath
                 ),
                 e

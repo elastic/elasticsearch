@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -230,7 +231,7 @@ public class FollowIndexIT extends AbstractCCRRestTestCase {
         try (RestClient leaderClient = buildLeaderClient()) {
             Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
             assertOK(leaderClient.performRequest(request));
-            verifyDataStream(leaderClient, dataStreamName, 1);
+            verifyDataStream(leaderClient, dataStreamName, DataStream.getDefaultBackingIndexName("logs-syslog-prod", 1));
         }
 
         ResponseException failure = expectThrows(ResponseException.class, () -> followIndex(dataStreamName, dataStreamName));

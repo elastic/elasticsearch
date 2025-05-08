@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     public OpenAiChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -23,7 +23,7 @@ public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     protected OpenAiChatCompletionResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction
+        Function<HttpResult, ErrorResponse> errorParseFunction
     ) {
         super(requestType, parseFunction, errorParseFunction, true);
     }

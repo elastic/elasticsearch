@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
-import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +38,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     GetServiceAccountCredentialsNodesResponse.Node,
     Void> {
 
-    private final NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore;
+    private final FileServiceAccountTokenStore fileServiceAccountTokenStore;
 
     @Inject
     public TransportGetServiceAccountNodesCredentialsAction(
@@ -46,7 +46,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore
+        FileServiceAccountTokenStore fileServiceAccountTokenStore
     ) {
         super(
             GetServiceAccountNodesCredentialsAction.NAME,
@@ -56,7 +56,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
             GetServiceAccountCredentialsNodesRequest.Node::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
+        this.fileServiceAccountTokenStore = fileServiceAccountTokenStore;
     }
 
     @Override
@@ -84,7 +84,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         Task task
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        final List<TokenInfo> tokenInfos = readOnlyServiceAccountTokenStore.findNodeLocalTokensFor(accountId);
+        final List<TokenInfo> tokenInfos = fileServiceAccountTokenStore.findTokensFor(accountId);
         return new GetServiceAccountCredentialsNodesResponse.Node(
             clusterService.localNode(),
             tokenInfos.stream().map(TokenInfo::getName).toArray(String[]::new)

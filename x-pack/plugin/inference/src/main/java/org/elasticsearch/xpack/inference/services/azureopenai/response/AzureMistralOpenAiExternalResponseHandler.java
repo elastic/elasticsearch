@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiStreamingProcessor;
 
 import java.util.concurrent.Flow;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
@@ -55,7 +55,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     public AzureMistralOpenAiExternalResponseHandler(
         String requestType,
         ResponseParser parseFunction,
-        BiFunction<Request, HttpResult, ErrorResponse> errorParseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
         super(requestType, parseFunction, errorParseFunction);

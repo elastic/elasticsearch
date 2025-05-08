@@ -19,8 +19,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -46,6 +44,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1277,13 +1276,7 @@ public class BlockHashTests extends BlockHashTestCase {
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    groupIds.incRef();
-                    output1.add(new Output(positionOffset, groupIds, null));
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBlock groupIds) {
                     groupIds.incRef();
                     output1.add(new Output(positionOffset, groupIds, null));
                 }
@@ -1301,13 +1294,7 @@ public class BlockHashTests extends BlockHashTestCase {
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    groupIds.incRef();
-                    output2.add(new Output(positionOffset, groupIds, null));
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                public void add(int positionOffset, IntBlock groupIds) {
                     groupIds.incRef();
                     output2.add(new Output(positionOffset, groupIds, null));
                 }
@@ -1329,8 +1316,7 @@ public class BlockHashTests extends BlockHashTestCase {
                 Output o2 = output2.get(i);
                 assertThat(o1.offset, equalTo(o2.offset));
                 if (o1.vector != null) {
-                    assertNull(o1.block);
-                    assertThat(o1.vector, equalTo(o2.vector != null ? o2.vector : o2.block.asVector()));
+                    assertThat(o1.vector, either(equalTo(o2.vector)).or(equalTo(o2.block.asVector())));
                 } else {
                     assertNull(o2.vector);
                     assertThat(o1.block, equalTo(o2.block));
@@ -1394,12 +1380,7 @@ public class BlockHashTests extends BlockHashTestCase {
                         Holder<IntVector> ords1 = new Holder<>();
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                throw new AssertionError("time-series block hash should emit a vector");
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            public void add(int positionOffset, IntBlock groupIds) {
                                 throw new AssertionError("time-series block hash should emit a vector");
                             }
 
@@ -1416,22 +1397,13 @@ public class BlockHashTests extends BlockHashTestCase {
                         });
                         Holder<IntVector> ords2 = new Holder<>();
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
-                            private void addBlock(int positionOffset, IntBlock groupIds) {
+                            @Override
+                            public void add(int positionOffset, IntBlock groupIds) {
                                 // TODO: check why PackedValuesBlockHash doesn't emit a vector?
                                 IntVector vector = groupIds.asVector();
                                 assertNotNull("should emit a vector", vector);
                                 vector.incRef();
                                 ords2.set(vector);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                addBlock(positionOffset, groupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                                addBlock(positionOffset, groupIds);
                             }
 
                             @Override
@@ -1526,7 +1498,8 @@ public class BlockHashTests extends BlockHashTestCase {
 
     static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
         blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
-            private void addBlock(int positionOffset, IntBlock groupIds) {
+            @Override
+            public void add(int positionOffset, IntBlock groupIds) {
                 OrdsAndKeys result = new OrdsAndKeys(
                     blockHash.toString(),
                     positionOffset,
@@ -1560,18 +1533,8 @@ public class BlockHashTests extends BlockHashTestCase {
             }
 
             @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                addBlock(positionOffset, groupIds);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                addBlock(positionOffset, groupIds);
-            }
-
-            @Override
             public void add(int positionOffset, IntVector groupIds) {
-                addBlock(positionOffset, groupIds.asBlock());
+                add(positionOffset, groupIds.asBlock());
             }
 
             @Override

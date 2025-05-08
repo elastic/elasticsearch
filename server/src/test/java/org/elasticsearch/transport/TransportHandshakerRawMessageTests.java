@@ -27,6 +27,8 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -191,6 +193,8 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
 
     private Socket openTransportConnection() throws Exception {
         final var transportAddress = randomFrom(getInstanceFromNode(TransportService.class).boundAddress().boundAddresses()).address();
-        return new Socket(transportAddress.getAddress(), transportAddress.getPort());
+        return AccessController.doPrivileged(
+            (PrivilegedExceptionAction<Socket>) (() -> new Socket(transportAddress.getAddress(), transportAddress.getPort()))
+        );
     }
 }

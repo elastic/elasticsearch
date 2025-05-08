@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -38,7 +37,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
+    private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
     private final Recycler<BytesRef> recycler;
     private final int pageSize;
     private int pageIndex = -1;
@@ -238,24 +237,11 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public void close() {
-        var pages = this.pages;
-        if (pages != null) {
-            this.pages = null;
+        try {
             Releasables.close(pages);
+        } finally {
+            pages.clear();
         }
-    }
-
-    /**
-     * Move the contents written to this stream to a {@link ReleasableBytesReference}. Closing this instance becomes a noop after
-     * this method returns successfully and its buffers need to be released by releasing the returned bytes reference.
-     *
-     * @return a {@link ReleasableBytesReference} that must be released once no longer needed
-     */
-    public ReleasableBytesReference moveToBytesReference() {
-        var bytes = bytes();
-        var pages = this.pages;
-        this.pages = null;
-        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
     }
 
     /**

@@ -1,0 +1,23 @@
+grant {
+  // needed because of problems in unbound LDAP library
+  permission java.util.PropertyPermission "*", "read,write";
+
+  // required to configure the custom mailcap for watcher
+  permission java.lang.RuntimePermission "setFactory";
+
+  // needed when sending emails for javax.activation
+  // otherwise a classnotfound exception is thrown due to trying
+  // to load the class with the application class loader
+  permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+  // TODO: remove use of this jar as soon as possible!!!!
+  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.activation.registries";
+
+  // needed for multiple server implementations used in tests
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant codeBase "${codebase.elasticsearch-rest-client}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -15,7 +14,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-// end generated imports
 
 /**
  * Generic {@link Block#lookup} implementation {@link $Type$Block}s.

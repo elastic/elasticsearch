@@ -10,8 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -58,21 +56,7 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
 
     private record FilteredAddInput(BooleanVector mask, AddInput nextAdd, int positionCount) implements AddInput {
         @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            addBlock(positionOffset, groupIds);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            addBlock(positionOffset, groupIds.asBlock());
-        }
-
-        private void addBlock(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
             if (positionOffset == 0) {
                 try (IntBlock filtered = groupIds.keepMask(mask)) {
                     nextAdd.add(positionOffset, filtered);
@@ -87,6 +71,11 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
                     nextAdd.add(positionOffset, filtered);
                 }
             }
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+            add(positionOffset, groupIds.asBlock());
         }
 
         @Override

@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 
 import java.util.List;
 import java.util.function.Function;
@@ -40,7 +38,7 @@ public final class CompositeServiceAccountTokenStore implements ServiceAccountTo
                 stores,
                 threadContext,
                 Function.identity(),
-                storeAuthenticationResult -> storeAuthenticationResult.isSuccess() == false
+                storeAuthenticationResult -> false == storeAuthenticationResult.isSuccess()
             );
         try {
             authenticatingListener.run();

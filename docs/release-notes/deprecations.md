@@ -16,10 +16,6 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.0.1 [elasticsearch-9.0.1-deprecations]
-
-No deprecations in this version.
-
 ## 9.0.0 [elasticsearch-900-deprecations]
 
 ES|QL:

@@ -17,6 +17,11 @@ import org.apache.logging.log4j.spi.LoggerContextFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +75,13 @@ public class DeprecationLoggerTests extends ESTestCase {
 
             DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("name");
 
-            deprecationLogger.warn(DeprecationCategory.API, "key", "foo", "bar");
+            AccessControlContext noPermissionsAcc = new AccessControlContext(
+                new ProtectionDomain[] { new ProtectionDomain(null, new Permissions()) }
+            );
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                deprecationLogger.warn(DeprecationCategory.API, "key", "foo", "bar");
+                return null;
+            }, noPermissionsAcc);
             assertThat("supplier called", supplierCalled.get(), is(true));
         } finally {
             LogManager.setFactory(originalFactory);

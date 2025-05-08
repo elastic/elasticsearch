@@ -257,18 +257,14 @@ class S3Service extends AbstractLifecycleComponent {
             String endpoint = clientSettings.endpoint;
             if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
                 // The SDK does not know how to interpret endpoints without a scheme prefix and will error. Therefore, when the scheme is
-                // absent, we'll look at the deprecated .protocol setting
+                // absent, we'll supply HTTPS as a default to avoid errors.
                 // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
-                endpoint = switch (clientSettings.protocol) {
-                    case HTTP -> "http://" + endpoint;
-                    case HTTPS -> "https://" + endpoint;
-                };
+                endpoint = "https://" + endpoint;
                 LOGGER.warn(
                     """
-                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should be [{}]; \
+                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should use 'https://'; \
                         to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
                     clientSettings.endpoint,
-                    endpoint,
                     S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
                 );
             }

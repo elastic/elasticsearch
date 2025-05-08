@@ -25,7 +25,8 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
-import org.gradle.api.tasks.util.internal.PatternSetFactory;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,14 +65,14 @@ public class CopyRestApiTask extends DefaultTask {
     @Inject
     public CopyRestApiTask(
         ProjectLayout projectLayout,
-        PatternSetFactory patternSetFactory,
+        Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
         ObjectFactory objectFactory
     ) {
         this.include = objectFactory.listProperty(String.class);
         this.outputResourceDir = objectFactory.directoryProperty();
         this.additionalYamlTestsDir = objectFactory.directoryProperty();
-        this.patternSet = patternSetFactory.createPatternSet();
+        this.patternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
     }

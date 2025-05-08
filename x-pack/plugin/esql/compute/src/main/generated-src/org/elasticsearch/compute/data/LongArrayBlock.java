@@ -7,23 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
-// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
-// end generated imports
 
 /**
  * Block implementation that stores values in a {@link LongArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
+final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
 

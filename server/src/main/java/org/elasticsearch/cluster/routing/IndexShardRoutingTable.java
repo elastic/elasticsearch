@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -259,14 +258,22 @@ public class IndexShardRoutingTable {
         return new ShardIterator(shardId, ordered);
     }
 
+    private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
+        final Set<String> nodeIds = new HashSet<>();
+        for (ShardRouting shard : shards) {
+            nodeIds.add(shard.currentNodeId());
+        }
+        return nodeIds;
+    }
+
     private static Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> getNodeStats(
-        List<ShardRouting> shardRoutings,
+        final Set<String> nodeIds,
         final ResponseCollectorService collector
     ) {
 
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>();
-        for (ShardRouting shardRouting : shardRoutings) {
-            nodeStats.computeIfAbsent(shardRouting.currentNodeId(), collector::getNodeStatistics);
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = Maps.newMapWithExpectedSize(nodeIds.size());
+        for (String nodeId : nodeIds) {
+            nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));
         }
         return nodeStats;
     }
@@ -335,28 +342,32 @@ public class IndexShardRoutingTable {
         }
 
         // Retrieve which nodes we can potentially send the query to
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(shards, collector);
+        final Set<String> nodeIds = getAllNodeIds(shards);
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(nodeIds, collector);
 
         // Retrieve all the nodes the shards exist on
+        final Map<String, Double> nodeRanks = rankNodes(nodeStats, nodeSearchCounts);
 
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts)));
+        Collections.sort(sortedShards, new NodeRankComparator(nodeRanks));
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
-        ShardRouting minShard = sortedShards.get(0);
-        // If the winning shard is not started we are ranking initializing
-        // shards, don't bother to do adjustments
-        if (minShard.started()) {
-            String minNodeId = minShard.currentNodeId();
-            Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
-            if (maybeMinStats.isPresent()) {
-                adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
-                // Increase the number of searches for the "winning" node by one.
-                // Note that this doesn't actually affect the "real" counts, instead
-                // it only affects the captured node search counts, which is
-                // captured once for each query in TransportSearchAction
-                nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+        if (sortedShards.size() > 1) {
+            ShardRouting minShard = sortedShards.get(0);
+            // If the winning shard is not started we are ranking initializing
+            // shards, don't bother to do adjustments
+            if (minShard.started()) {
+                String minNodeId = minShard.currentNodeId();
+                Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
+                if (maybeMinStats.isPresent()) {
+                    adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
+                    // Increase the number of searches for the "winning" node by one.
+                    // Note that this doesn't actually affect the "real" counts, instead
+                    // it only affects the captured node search counts, which is
+                    // captured once for each query in TransportSearchAction
+                    nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                }
             }
         }
 

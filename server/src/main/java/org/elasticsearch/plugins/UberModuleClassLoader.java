@@ -23,8 +23,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.CodeSigner;
 import java.security.CodeSource;
+import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.List;
@@ -117,7 +119,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
 
         Set<String> packageNames = finder.find(moduleName).map(ModuleReference::descriptor).map(ModuleDescriptor::packages).orElseThrow();
 
-        return new UberModuleClassLoader(
+        PrivilegedAction<UberModuleClassLoader> pa = () -> new UberModuleClassLoader(
             parent,
             moduleName,
             jarUrls.toArray(new URL[0]),
@@ -126,6 +128,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             packageNames,
             modulesWithNativeAccess
         );
+        return AccessController.doPrivileged(pa);
     }
 
     private static boolean isPackageInLayers(String packageName, ModuleLayer moduleLayer) {
@@ -309,12 +312,17 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     }
 
     @Override
+    @SuppressWarnings("removal")
     public void close() throws Exception {
-        try {
-            internalLoader.close();
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not close internal URLClassLoader");
-        }
+        PrivilegedAction<Void> pa = () -> {
+            try {
+                internalLoader.close();
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not close internal URLClassLoader");
+            }
+            return null;
+        };
+        AccessController.doPrivileged(pa);
     }
 
     // visible for testing

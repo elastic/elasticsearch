@@ -12,15 +12,14 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 
-    public ESKnnByteVectorQuery(String field, byte[] target, Integer k, int numCands, Query filter, KnnSearchStrategy strategy) {
-        super(field, target, numCands, filter, strategy);
+    public ESKnnByteVectorQuery(String field, byte[] target, Integer k, int numCands, Query filter) {
+        super(field, target, numCands, filter);
         this.kParam = k;
     }
 
@@ -39,9 +38,5 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     public Integer kParam() {
         return kParam;
-    }
-
-    public KnnSearchStrategy getStrategy() {
-        return searchStrategy;
     }
 }

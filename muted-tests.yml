@@ -257,12 +257,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/125946
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations {p0=true}
-  issue: https://github.com/elastic/elasticsearch/issues/127937
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/127938
 
 # Examples:
 #

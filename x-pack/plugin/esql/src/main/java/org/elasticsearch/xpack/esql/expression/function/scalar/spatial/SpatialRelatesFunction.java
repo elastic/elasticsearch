@@ -178,7 +178,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return super.translatable(pushdownPredicates); // only for the explicit Override, as only this subclass implements TranslationAware
     }
 

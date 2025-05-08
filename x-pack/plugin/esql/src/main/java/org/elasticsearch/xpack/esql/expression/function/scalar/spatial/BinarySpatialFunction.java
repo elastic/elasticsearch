@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -266,12 +267,14 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public TranslationAware.Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
         return isPushableSpatialAttribute(left(), pushdownPredicates) && right().foldable()
-            || isPushableSpatialAttribute(right(), pushdownPredicates) && left().foldable();
+            || isPushableSpatialAttribute(right(), pushdownPredicates) && left().foldable()
+                ? TranslationAware.Translatable.YES
+                : TranslationAware.Translatable.NO;
 
     }
 

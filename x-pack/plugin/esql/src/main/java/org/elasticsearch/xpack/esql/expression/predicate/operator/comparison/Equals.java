@@ -129,11 +129,11 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
-            if (false && left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
-                    return true;
+                    return Translatable.YES_BUT_RECHECK_NEGATED;
                 }
             }
         }
@@ -143,8 +143,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (right() instanceof Literal lit) {
-            // Disabled because it cased a bug with !=. Fix incoming shortly.
-            if (false && left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 String value = ((BytesRef) lit.value()).utf8ToString();
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
                     String name = handler.nameOf(fa);

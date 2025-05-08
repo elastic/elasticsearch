@@ -254,7 +254,9 @@ public class Reindexer {
                 return IndexMode.STANDARD;
             }
             Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
-            return IndexSettings.MODE.get(settings);
+            // We retrieve the setting without performing any validation because that the template has already been validated
+            String indexMode = settings.get(IndexSettings.MODE.getKey());
+            return indexMode == null ? IndexMode.STANDARD : IndexMode.fromString(indexMode);
         }
 
         @Override

@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
+public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
 
     private IndexReader reader;
     private final Directory directory = newDirectory();
@@ -239,7 +239,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             try (var reader = writer.getReader()) {
                 var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
                 Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
-                var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                var timeSeriesFactory = TimeSeriesSourceOperatorFactory.create(
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
                     1,
@@ -274,12 +274,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]");
+        return equalTo("TimeSeriesSourceOperator[maxPageSize = 1, limit = 1]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("Impl[maxPageSize=1, remainingDocs=1]");
+        return equalTo("TimeSeriesSourceOperator[maxPageSize=1, remainingDocs=1]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {
@@ -324,7 +324,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     }
 
-    public static TimeSeriesSortedSourceOperatorFactory createTimeSeriesSourceOperator(
+    public static TimeSeriesSourceOperatorFactory createTimeSeriesSourceOperator(
         Directory directory,
         Consumer<IndexReader> readerConsumer,
         boolean emitDocIds,
@@ -370,7 +370,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             )
             .toList();
 
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
+        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {

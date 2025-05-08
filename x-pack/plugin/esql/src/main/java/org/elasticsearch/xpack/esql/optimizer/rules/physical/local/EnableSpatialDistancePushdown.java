@@ -12,6 +12,7 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -42,8 +43,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
 /**
@@ -106,7 +107,8 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
             return comparison;
         });
-        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
+        if (rewritten.equals(filterExec.condition()) == false
+            && translatable(rewritten, lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
             return new FilterExec(filterExec.source(), esQueryExec, rewritten);
         }
         return filterExec;
@@ -156,7 +158,8 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(ctx, resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
+            if (rewritten.equals(resExp) == false
+                && translatable(rewritten, lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
                 pushable.add(rewritten);
             } else {
                 nonPushable.add(exp);
@@ -183,7 +186,8 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, LucenePushdownPredicates lucenePushdownPredicates) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && distance.translatable(lucenePushdownPredicates)) {
+            if (alias.child() instanceof StDistance distance
+                && distance.translatable(lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());

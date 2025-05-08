@@ -17,14 +17,13 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
@@ -249,7 +248,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
         final boolean emitDocIds = ts.attrs().stream().anyMatch(EsQueryExec::isSourceAttribute);
-        LuceneOperator.Factory luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+        LuceneOperator.Factory luceneFactory = TimeSeriesSourceOperatorFactory.create(
             limit,
             context.pageSize(ts.estimatedRowSize()),
             context.queryPragmas().taskConcurrency(),

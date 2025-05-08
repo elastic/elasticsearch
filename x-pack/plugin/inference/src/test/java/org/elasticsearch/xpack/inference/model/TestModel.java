@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,19 +44,35 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        return createRandomInstance(taskType, null);
+        return createRandomInstance(taskType, null, null);
     }
 
-    public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities) {
+    public static TestModel createRandomInstance(
+        TaskType taskType,
+        List<DenseVectorFieldMapper.ElementType> excludedElementTypes,
+        List<SimilarityMeasure> excludedSimilarities
+    ) {
         // Use a max dimension count that has a reasonable probability of being compatible with BBQ
-        return createRandomInstance(taskType, excludedSimilarities, BBQ_MIN_DIMS * 2);
+        return createRandomInstance(taskType, excludedElementTypes, excludedSimilarities, BBQ_MIN_DIMS * 2);
     }
 
-    public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
-        // Don't use bit vectors because of incomplete support
-        var elementType = taskType == TaskType.TEXT_EMBEDDING
-            ? randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BYTE)
-            : null;
+    public static TestModel createRandomInstance(
+        TaskType taskType,
+        List<DenseVectorFieldMapper.ElementType> excludedElementTypes,
+        List<SimilarityMeasure> excludedSimilarities,
+        int maxDimensions
+    ) {
+        List<DenseVectorFieldMapper.ElementType> supportedElementTypes = new ArrayList<>(
+            Arrays.asList(DenseVectorFieldMapper.ElementType.values())
+        );
+        if (excludedElementTypes != null) {
+            supportedElementTypes.removeAll(excludedElementTypes);
+            if (supportedElementTypes.isEmpty()) {
+                throw new IllegalArgumentException("No supported element types with excluded element types " + excludedElementTypes);
+            }
+        }
+
+        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(supportedElementTypes) : null;
         var dimensions = taskType == TaskType.TEXT_EMBEDDING
             ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions)
             : null;

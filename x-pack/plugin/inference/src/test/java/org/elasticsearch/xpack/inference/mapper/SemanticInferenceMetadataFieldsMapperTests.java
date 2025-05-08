@@ -22,22 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTestCase {
-
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
-        return getRandomCompatibleIndexVersion(useLegacyFormat, IndexVersion.current());
-    }
-
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat, IndexVersion maxVersion) {
-        if (useLegacyFormat) {
-            if (randomBoolean()) {
-                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
-            }
-            return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
-        } else {
-            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
-        }
-    }
-
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new InferencePlugin(Settings.EMPTY));
@@ -61,4 +45,19 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
     public MappedFieldType getMappedFieldType() {
         return new SemanticInferenceMetadataFieldsMapper.FieldType();
     }
+
+    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+        if (useLegacyFormat) {
+            // Randomly choose an index version compatible with the legacy semantic text format
+            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.SEMANTIC_TEXT_FIELD_TYPE, IndexVersion.current());
+        } else {
+            // Randomly choose an index version compatible with the new semantic text format
+            return IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersion.current()
+            );
+        }
+    }
+
 }

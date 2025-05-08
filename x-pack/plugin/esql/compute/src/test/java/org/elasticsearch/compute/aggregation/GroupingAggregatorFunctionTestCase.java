@@ -131,7 +131,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     /**
-     * Checks whether the clas is being run by {@link org.elasticsearch.compute.test.OperatorTestCase#testSimpleCircuitBreaking} or not.
+     * Checks whether the class is being run by {@link org.elasticsearch.compute.test.OperatorTestCase#testSimpleCircuitBreaking} or not.
      * <p>
      *     If it is, then we can't randomize blocks, as it expects a deterministic memory usage.
      * </p>

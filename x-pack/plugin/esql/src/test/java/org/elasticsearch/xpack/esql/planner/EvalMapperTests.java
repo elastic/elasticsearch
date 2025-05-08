@@ -161,7 +161,7 @@ public class EvalMapperTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(Source.EMPTY, null, name, new EsField(name, type, Collections.emptyMap(), false));
     }
 
     static DriverContext driverContext() {

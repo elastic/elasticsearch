@@ -204,7 +204,7 @@ public class EvalBenchmark {
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
                     Source.EMPTY,
-                    "timestamp",
+                        null, "timestamp",
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
@@ -255,19 +255,19 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, null, "long", new EsField("long", DataType.LONG, Map.of(), true));
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, null, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, null, "int", new EsField("int", DataType.INTEGER, Map.of(), true));
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, null, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true));
     }
 
     private static Configuration configuration() {

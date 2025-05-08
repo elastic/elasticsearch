@@ -46,7 +46,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name, type, emptyMap(), randomBoolean()));
     }
 
     public static FieldAttribute getFieldAttribute(String name) {
@@ -54,7 +54,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */

@@ -11,6 +11,7 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.Flow;
@@ -21,7 +22,7 @@ public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> 
         return RestStatus.isSuccessful(response.getStatusLine().getStatusCode());
     }
 
-    public Flow.Publisher<HttpResult> toHttpResult() {
+    public Flow.Publisher<HttpResult> toHttpResult(HttpRequest httpRequest) {
         return subscriber -> body().subscribe(new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
@@ -45,7 +46,7 @@ public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> 
         });
     }
 
-    public void readFullResponse(ActionListener<HttpResult> fullResponse) {
+    public void readFullResponse(HttpRequest httpRequest, ActionListener<HttpResult> fullResponse) {
         var stream = new ByteArrayOutputStream();
         AtomicReference<Flow.Subscription> upstream = new AtomicReference<>(null);
         body.subscribe(new Flow.Subscriber<>() {

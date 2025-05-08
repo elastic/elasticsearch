@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -31,30 +35,40 @@ import static org.elasticsearch.xpack.inference.services.custom.response.BaseCus
 
 public class ErrorResponseParser implements ToXContentFragment, Function<HttpResult, ErrorResponse> {
 
+    private static final Logger logger = LogManager.getLogger(ErrorResponseParser.class);
     public static final String MESSAGE_PATH = "path";
 
     private final String messagePath;
+    private final String inferenceId;
 
-    public static ErrorResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, MESSAGE_PATH, ERROR_PARSER, validationException);
+    public static ErrorResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        String inferenceId,
+        ValidationException validationException
+    ) {
+        var path = extractRequiredString(responseParserMap, MESSAGE_PATH, String.join(".", scope, ERROR_PARSER), validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ErrorResponseParser(path);
+        return new ErrorResponseParser(path, inferenceId);
     }
 
-    public ErrorResponseParser(String messagePath) {
+    public ErrorResponseParser(String messagePath, String inferenceId) {
         this.messagePath = Objects.requireNonNull(messagePath);
+        this.inferenceId = Objects.requireNonNull(inferenceId);
     }
 
     public ErrorResponseParser(StreamInput in) throws IOException {
         this.messagePath = in.readString();
+        this.inferenceId = in.readString();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(messagePath);
+        out.writeString(inferenceId);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -86,7 +100,6 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
                 .createParser(XContentParserConfiguration.EMPTY, httpResult.body())
         ) {
             var map = jsonParser.map();
-
             // NOTE: This deviates from what we've done in the past. In the ErrorMessageResponseEntity logic
             // if we find the top level error field we'll return a response with an empty message but indicate
             // that we found the structure of the error object. Here if we're missing the final field we will return
@@ -97,9 +110,19 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             var errorText = toType(MapPathExtractor.extract(map, messagePath).extractedObject(), String.class, messagePath);
             return new ErrorResponse(errorText);
         } catch (Exception e) {
-            // swallow the error
-        }
+            var resultAsString = new String(httpResult.body(), StandardCharsets.UTF_8);
 
-        return ErrorResponse.UNDEFINED_ERROR;
+            logger.info(
+                Strings.format(
+                    "Failed to parse error object for custom service inference id [%s], message path: [%s], result as string: [%s]",
+                    inferenceId,
+                    messagePath,
+                    resultAsString
+                ),
+                e
+            );
+
+            return new ErrorResponse(Strings.format("Unable to parse the error, response body: [%s]", resultAsString));
+        }
     }
 }

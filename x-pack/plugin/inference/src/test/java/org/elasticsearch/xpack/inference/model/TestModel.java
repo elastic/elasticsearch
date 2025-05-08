@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -47,14 +46,9 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities) {
-        // Use a max dimension count that has a reasonable probability of being compatible with BBQ
-        return createRandomInstance(taskType, excludedSimilarities, BBQ_MIN_DIMS * 2);
-    }
-
-    public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
         var dimensions = taskType == TaskType.TEXT_EMBEDDING
-            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions)
+            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 64)
             : null;
 
         SimilarityMeasure similarity = null;

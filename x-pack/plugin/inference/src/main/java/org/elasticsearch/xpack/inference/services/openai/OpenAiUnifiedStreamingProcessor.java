@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -59,9 +60,19 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
 
     private final BiFunction<String, Exception, Exception> errorParser;
+    private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
 
     public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
+    }
+
+    @Override
+    protected void upstreamRequest(long n) {
+        if (buffer.isEmpty()) {
+            super.upstreamRequest(n);
+        } else {
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
+        }
     }
 
     @Override
@@ -85,8 +96,15 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
         if (results.isEmpty()) {
             upstream().request(1);
-        } else {
+        } else if (results.size() == 1) {
             downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
+        } else {
+            // results > 1, but openai spec only wants 1 chunk per SSE event
+            var firstItem = singleItem(results.poll());
+            while (results.isEmpty() == false) {
+                buffer.offer(results.poll());
+            }
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(firstItem));
         }
     }
 
@@ -278,5 +296,13 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 return PARSER.parse(parser, null);
             }
         }
+    }
+
+    private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
+        StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
+    ) {
+        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
+        deque.offer(result);
+        return deque;
     }
 }

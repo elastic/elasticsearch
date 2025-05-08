@@ -441,6 +441,30 @@ tests:
 - class: org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunctionTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/127833
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test025SyncPluginsUsingProxy
+  issue: https://github.com/elastic/elasticsearch/issues/127138
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testCohereEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/127872
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testRerank
+  issue: https://github.com/elastic/elasticsearch/issues/127873
+- class: org.elasticsearch.xpack.inference.qa.mixed.HuggingFaceServiceMixedIT
+  method: testHFEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/127874
+- class: org.elasticsearch.xpack.inference.qa.mixed.OpenAIServiceMixedIT
+  method: testOpenAiEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/127875
+- class: org.elasticsearch.xpack.inference.qa.mixed.HuggingFaceServiceMixedIT
+  method: testElser
+  issue: https://github.com/elastic/elasticsearch/issues/127876
+- class: org.elasticsearch.xpack.inference.qa.mixed.OpenAIServiceMixedIT
+  method: testOpenAiCompletions
+  issue: https://github.com/elastic/elasticsearch/issues/127878
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/120_profile/avg 8.14 or after}
+  issue: https://github.com/elastic/elasticsearch/issues/127879
 
 # Examples:
 #

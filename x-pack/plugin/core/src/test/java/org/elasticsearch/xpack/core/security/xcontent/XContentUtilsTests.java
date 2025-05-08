@@ -63,7 +63,7 @@ public class XContentUtilsTests extends ESTestCase {
     }
 
     public void testAddAuthorizationInfoWithServiceAccount() throws IOException {
-        String account = "elastic/" + randomFrom("kibana", "fleet-server", "enterprise-search-server");
+        String account = "elastic/" + randomFrom("kibana", "fleet-server");
         User user = new User(account);
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder().serviceAccount(user);
         Authentication authentication = builder.build();

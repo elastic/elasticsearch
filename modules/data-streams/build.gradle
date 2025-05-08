@@ -15,13 +15,14 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities', 'reindex'
   }
 }
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:reindex')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -159,7 +160,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(ValidationException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is file-based and cannot be managed via this API"));
+        assertThat(throwableRef.get().getMessage(), containsString("is not a native user and cannot be managed via this API"));
         verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
     }
 
@@ -425,6 +426,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     private static Realms mockRealms(FileRealm realm) {
         Realms realms = mock(Realms.class);
         Mockito.when(realms.stream()).thenReturn(realm == null ? Stream.of() : Stream.of(realm));
+        Mockito.when(realms.getActiveRealms()).thenReturn(realm == null ? List.of() : List.of(realm));
         return realms;
     }
 }

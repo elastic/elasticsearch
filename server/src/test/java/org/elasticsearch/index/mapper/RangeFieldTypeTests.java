@@ -45,6 +45,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -93,9 +94,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .plus(increment, precision)
             .truncatedTo(precision);
         return switch (precision) {
-            case MILLIS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(dateTime);
-            case SECONDS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").format(dateTime);
-            case MINUTES -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm'Z'").format(dateTime);
+            case MILLIS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT).format(dateTime);
+            case SECONDS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT).format(dateTime);
+            case MINUTES -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm'Z'", Locale.ROOT).format(dateTime);
             default -> dateTime.toString();
         };
     }

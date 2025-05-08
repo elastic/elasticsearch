@@ -74,23 +74,23 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets
     ) {
-        return new CustomModel(modelId, taskType, CustomService.NAME, serviceSettings, taskSettings, secrets, null);
+        return new CustomModel(inferenceId, taskType, CustomService.NAME, serviceSettings, taskSettings, secrets, null);
     }
 
     public static CustomModel createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         CustomServiceSettings serviceSettings,
         CustomTaskSettings taskSettings,
         @Nullable CustomSecretSettings secretSettings
     ) {
-        return new CustomModel(modelId, taskType, CustomService.NAME, serviceSettings, taskSettings, secretSettings);
+        return new CustomModel(inferenceId, taskType, CustomService.NAME, serviceSettings, taskSettings, secretSettings);
     }
 
     public static CustomModel getTestModel() {
@@ -102,6 +102,7 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser, String url) {
+        var inferenceId = "inference_id";
         Integer dims = 1536;
         Integer maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, "${" + secretSettingsKey + "}");
@@ -120,12 +121,12 @@ public class CustomModelTests extends ESTestCase {
             requestContentString,
             responseParser,
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         CustomTaskSettings taskSettings = new CustomTaskSettings(Map.of(taskSettingsKey, taskSettingsValue));
         CustomSecretSettings secretSettings = new CustomSecretSettings(Map.of(secretSettingsKey, secretSettingsValue));
 
-        return CustomModelTests.createModel("service", taskType, serviceSettings, taskSettings, secretSettings);
+        return CustomModelTests.createModel(inferenceId, taskType, serviceSettings, taskSettings, secretSettings);
     }
 }

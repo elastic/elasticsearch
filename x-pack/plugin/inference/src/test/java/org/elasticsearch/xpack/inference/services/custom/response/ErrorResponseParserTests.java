@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -25,35 +24,38 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser.MESSAGE_PATH;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ErrorResponseParserTests extends ESTestCase {
 
     public static ErrorResponseParser createRandom() {
-        return new ErrorResponseParser("$." + randomAlphaOfLength(5));
+        return new ErrorResponseParser("$." + randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testFromMap() {
         var validation = new ValidationException();
-        var parser = ErrorResponseParser.fromMap(new HashMap<>(Map.of(MESSAGE_PATH, "$.error.message")), "scope", validation);
+        var parser = ErrorResponseParser.fromMap(
+            new HashMap<>(Map.of(MESSAGE_PATH, "$.error.message")),
+            "scope",
+            "inference_id",
+            validation
+        );
 
-        assertThat(parser, is(new ErrorResponseParser("$.error.message")));
+        assertThat(parser, is(new ErrorResponseParser("$.error.message", "inference_id")));
     }
 
     public void testFromMap_ThrowsException_WhenRequiredFieldIsNotPresent() {
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> ErrorResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.error.message")), "scope", validation)
+            () -> ErrorResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.error.message")), "scope", "inference_id", validation)
         );
 
         assertThat(exception.getMessage(), is("Validation Failed: 1: [scope.error_parser] does not contain the required setting [path];"));
     }
 
     public void testToXContent() throws IOException {
-        var entity = new ErrorResponseParser("$.error.message");
+        var entity = new ErrorResponseParser("$.error.message", "inference_id");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         {
@@ -82,8 +84,8 @@ public class ErrorResponseParserTests extends ESTestCase {
                 }
             }""");
 
-        var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockRequest(), result);
+        var parser = new ErrorResponseParser("$.error.message", "inference_id");
+        var error = parser.apply(result);
         assertThat(error, is(new ErrorResponse("test_error_message")));
     }
 
@@ -99,8 +101,8 @@ public class ErrorResponseParserTests extends ESTestCase {
             }
             """;
 
-        var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockRequest(), getMockResult(responseJson));
+        var parser = new ErrorResponseParser("$.error.message", "inference_id");
+        var error = parser.apply(getMockResult(responseJson));
 
         assertThat(error, is(new ErrorResponse("You didn't provide an API key")));
     }
@@ -114,45 +116,33 @@ public class ErrorResponseParserTests extends ESTestCase {
             }
             """;
 
-        var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockRequest(), getMockResult(responseJson));
+        var parser = new ErrorResponseParser("$.error.message", "inference_id");
+        var error = parser.apply(getMockResult(responseJson));
 
-        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
-        assertThat(error.getErrorMessage(), is(""));
-        assertFalse(error.errorStructureFound());
+        assertThat(error.getErrorMessage(), is("Unable to parse the error, response body: [{\"error\":{\"type\":\"not_found_error\"}}]"));
+        assertTrue(error.errorStructureFound());
     }
 
     public void testErrorResponse_ReturnsUndefinedObjectIfNoError() throws IOException {
         var mockResult = getMockResult("""
             {"noerror":true}""");
 
-        var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockRequest(), mockResult);
+        var parser = new ErrorResponseParser("$.error.message", "inference_id");
+        var error = parser.apply(mockResult);
 
-        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
+        assertThat(error.getErrorMessage(), is("Unable to parse the error, response body: [{\"noerror\":true}]"));
     }
 
     public void testErrorResponse_ReturnsUndefinedObjectIfNotJson() {
         var result = new HttpResult(mock(HttpResponse.class), Strings.toUTF8Bytes("not a json string"));
 
-        var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockRequest(), result);
-        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
+        var parser = new ErrorResponseParser("$.error.message", "inference_id");
+        var error = parser.apply(result);
+        assertThat(error.getErrorMessage(), is("Unable to parse the error, response body: [not a json string]"));
     }
 
     private static HttpResult getMockResult(String jsonString) throws IOException {
         var response = mock(HttpResponse.class);
         return new HttpResult(response, Strings.toUTF8Bytes(XContentHelper.stripWhitespace(jsonString)));
-    }
-
-    private static Request getMockRequest() {
-        return getMockRequest("id");
-    }
-
-    private static Request getMockRequest(String inferenceId) {
-        var mockRequest = mock(Request.class);
-        when(mockRequest.getInferenceEntityId()).thenReturn(inferenceId);
-
-        return mockRequest;
     }
 }

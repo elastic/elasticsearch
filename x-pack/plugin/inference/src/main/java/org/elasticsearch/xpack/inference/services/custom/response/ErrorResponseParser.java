@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -38,10 +39,12 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
     public static final String MESSAGE_PATH = "path";
 
     private final String messagePath;
+    private final String inferenceId;
 
     public static ErrorResponseParser fromMap(
         Map<String, Object> responseParserMap,
         String scope,
+        String inferenceId,
         ValidationException validationException
     ) {
         var path = extractRequiredString(responseParserMap, MESSAGE_PATH, String.join(".", scope, ERROR_PARSER), validationException);
@@ -50,19 +53,22 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             throw validationException;
         }
 
-        return new ErrorResponseParser(path);
+        return new ErrorResponseParser(path, inferenceId);
     }
 
-    public ErrorResponseParser(String messagePath) {
+    public ErrorResponseParser(String messagePath, String inferenceId) {
         this.messagePath = Objects.requireNonNull(messagePath);
+        this.inferenceId = Objects.requireNonNull(inferenceId);
     }
 
     public ErrorResponseParser(StreamInput in) throws IOException {
         this.messagePath = in.readString();
+        this.inferenceId = in.readString();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(messagePath);
+        out.writeString(inferenceId);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -104,16 +110,19 @@ public class ErrorResponseParser implements ToXContentFragment, Function<HttpRes
             var errorText = toType(MapPathExtractor.extract(map, messagePath).extractedObject(), String.class, messagePath);
             return new ErrorResponse(errorText);
         } catch (Exception e) {
+            var resultAsString = new String(httpResult.body(), StandardCharsets.UTF_8);
+
             logger.info(
                 Strings.format(
-                    "Failed to parse error object for custom service inference id [%s], message path: [%s]",
-                    httpResult.request().inferenceEntityId(),
-                    messagePath
+                    "Failed to parse error object for custom service inference id [%s], message path: [%s], result as string: [%s]",
+                    inferenceId,
+                    messagePath,
+                    resultAsString
                 ),
                 e
             );
-        }
 
-        return ErrorResponse.UNDEFINED_ERROR;
+            return new ErrorResponse(Strings.format("Unable to parse the error, response body: [%s]", resultAsString));
+        }
     }
 }

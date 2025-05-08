@@ -74,7 +74,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             default -> new NoopResponseParser();
         };
 
-        var errorParser = new ErrorResponseParser("$.error.message");
+        var errorParser = new ErrorResponseParser("$.error.message", randomAlphaOfLength(5));
 
         RateLimitSettings rateLimitSettings = new RateLimitSettings(randomLongBetween(1, 1000000));
 
@@ -141,7 +141,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 )
             ),
             ConfigurationParseContext.REQUEST,
-            TaskType.TEXT_EMBEDDING
+            TaskType.TEXT_EMBEDDING,
+            "inference_id"
         );
 
         assertThat(
@@ -160,7 +161,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message")
+                    new ErrorResponseParser("$.error.message", "inference_id")
                 )
             )
         );
@@ -193,7 +194,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 )
             ),
             ConfigurationParseContext.REQUEST,
-            TaskType.TEXT_EMBEDDING
+            TaskType.TEXT_EMBEDDING,
+            "inference_id"
         );
 
         MatcherAssert.assertThat(
@@ -207,7 +209,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message")
+                    new ErrorResponseParser("$.error.message", "inference_id")
                 )
             )
         );
@@ -256,7 +258,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 )
             ),
             ConfigurationParseContext.REQUEST,
-            TaskType.TEXT_EMBEDDING
+            TaskType.TEXT_EMBEDDING,
+                "inference_id"
         );
 
         MatcherAssert.assertThat(
@@ -275,7 +278,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message")
+                    new ErrorResponseParser("$.error.message", "inference_id")
                 )
             )
         );
@@ -318,7 +321,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ValidationException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -367,7 +370,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ValidationException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -407,7 +410,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ValidationException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -447,7 +450,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ValidationException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -489,7 +492,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -534,7 +537,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -576,7 +579,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -616,7 +619,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
         assertThat(
@@ -656,7 +659,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.CHAT_COMPLETION)
+            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.CHAT_COMPLETION, "inference_id")
         );
 
         assertThat(exception.getMessage(), is("Invalid task type received [chat_completion] while constructing response parser"));
@@ -671,7 +674,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
             null,
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", "inference_id")
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

@@ -228,8 +228,10 @@ public class CustomServiceTests extends AbstractServiceTests {
         TextEmbeddingResponseParser parser,
         String url
     ) {
+        var inferenceId = "inference_id";
+
         return new CustomModel(
-            "model_id",
+            inferenceId,
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
@@ -245,7 +247,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 "\"input\":\"${input}\"",
                 parser,
                 new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message")
+                new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
@@ -253,6 +255,8 @@ public class CustomServiceTests extends AbstractServiceTests {
     }
 
     private static CustomModel createCustomModel(TaskType taskType, CustomResponseParser customResponseParser, String url) {
+        var inferenceId = "inference_id";
+
         return new CustomModel(
             "model_id",
             taskType,
@@ -265,7 +269,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 "\"input\":\"${input}\"",
                 customResponseParser,
                 new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message")
+                new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))

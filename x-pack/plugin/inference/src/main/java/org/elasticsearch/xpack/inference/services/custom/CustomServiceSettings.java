@@ -65,7 +65,12 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
 
-    public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
+    public static CustomServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        TaskType taskType,
+        String inferenceId
+    ) {
         ValidationException validationException = new ValidationException();
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
@@ -110,7 +115,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             validationException
         );
 
-        var errorParser = ErrorResponseParser.fromMap(errorParserMap, RESPONSE_SCOPE, validationException);
+        var errorParser = ErrorResponseParser.fromMap(errorParserMap, RESPONSE_SCOPE, inferenceId, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -151,6 +156,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer maxInputTokens,
         @Nullable DenseVectorFieldMapper.ElementType elementType
     ) implements ToXContentFragment, Writeable {
+
         // This specifies float for the element type but null for all other settings
         public static final TextEmbeddingSettings DEFAULT_FLOAT = new TextEmbeddingSettings(
             null,

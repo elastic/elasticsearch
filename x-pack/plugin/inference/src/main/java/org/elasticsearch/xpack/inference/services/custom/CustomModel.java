@@ -33,7 +33,7 @@ public class CustomModel extends Model {
     }
 
     public CustomModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
@@ -42,10 +42,10 @@ public class CustomModel extends Model {
         ConfigurationParseContext context
     ) {
         this(
-            modelId,
+            inferenceId,
             taskType,
             service,
-            CustomServiceSettings.fromMap(serviceSettings, context, taskType),
+            CustomServiceSettings.fromMap(serviceSettings, context, taskType, inferenceId),
             CustomTaskSettings.fromMap(taskSettings),
             CustomSecretSettings.fromMap(secrets)
         );
@@ -53,7 +53,7 @@ public class CustomModel extends Model {
 
     // should only be used for testing
     CustomModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         String service,
         CustomServiceSettings serviceSettings,
@@ -61,7 +61,7 @@ public class CustomModel extends Model {
         @Nullable CustomSecretSettings secretSettings
     ) {
         this(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             serviceSettings
         );

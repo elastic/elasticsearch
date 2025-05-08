@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.is;
 public class CustomRequestTests extends ESTestCase {
 
     public void testCreateRequest() throws IOException {
+        var inferenceId = "inference_id";
         var dims = 1536;
         var maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("${api_key}"));
@@ -63,11 +64,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
@@ -93,6 +94,7 @@ public class CustomRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_QueryParametersAreEscaped_AndEncoded() {
+        var inferenceId = "inferenceId";
         var requestContentString = """
             {
                 "input": ${input}
@@ -116,11 +118,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
@@ -140,6 +142,7 @@ public class CustomRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_SecretsInTheJsonBody_AreEncodedCorrectly() throws IOException {
+        var inferenceId = "inference_id";
         var dims = 1536;
         var maxInputTokens = 512;
         Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("${api_key}"));
@@ -163,11 +166,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
@@ -195,6 +198,7 @@ public class CustomRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_HandlesQuery() throws IOException {
+        var inferenceId = "inference_id";
         var requestContentString = """
             {
                 "input": ${input},
@@ -210,11 +214,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new RerankResponseParser("$.result.score"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of()),
@@ -238,6 +242,7 @@ public class CustomRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_IgnoresNonStringFields_ForStringParams() throws IOException {
+        var inferenceId = "inference_id";
         var requestContentString = """
             {
                 "input": ${input}
@@ -252,11 +257,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new RerankResponseParser("$.result.score"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of("task.key", 100)),
@@ -269,6 +274,7 @@ public class CustomRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_ThrowsException_ForInvalidUrl() {
+        var inferenceId = "inference_id";
         var requestContentString = """
             {
                 "input": ${input}
@@ -283,11 +289,11 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new RerankResponseParser("$.result.score"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "^")),

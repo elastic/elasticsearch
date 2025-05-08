@@ -49,6 +49,8 @@ public class CustomRequestManagerTests extends ESTestCase {
     }
 
     public void testCreateRequest_ThrowsException_ForInvalidUrl() {
+        var inferenceId = "inference_id";
+
         var requestContentString = """
             {
                 "input": ${input}
@@ -63,11 +65,11 @@ public class CustomRequestManagerTests extends ESTestCase {
             requestContentString,
             new RerankResponseParser("$.result.score"),
             new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message")
+            new ErrorResponseParser("$.error.message", inferenceId)
         );
 
         var model = CustomModelTests.createModel(
-            "service",
+            inferenceId,
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "^")),

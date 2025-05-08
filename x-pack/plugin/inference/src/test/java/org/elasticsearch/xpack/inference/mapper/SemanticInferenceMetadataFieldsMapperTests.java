@@ -57,7 +57,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
                     random(),
                     IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
                     IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
-                )  // 8.x version range
+                )  // 8.x version range prior to the introduction of the new format
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
             .build();
@@ -70,7 +70,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
                     random(),
                     IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                     IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
-                )  // 9.x version range
+                )  // 9.x version range prior to the introduction of the new format
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
             .build();

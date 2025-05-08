@@ -1,6 +1,7 @@
 pr: 127824
 summary: Skip the validation when retrieving the index mode during reindexing a time
   series data stream
-area: "Data streams, TSDB"
+area: "TSDB"
 type: bug
-issues: []
+issues: 
+ - 125607

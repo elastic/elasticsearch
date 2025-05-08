@@ -391,7 +391,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
     }
 
-    public void testXContentString() throws Exception {
+    public void testOptimizedText() throws Exception {
         final var random = ByteBuffer.wrap(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 

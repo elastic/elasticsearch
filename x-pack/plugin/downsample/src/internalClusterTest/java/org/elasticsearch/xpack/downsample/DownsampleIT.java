@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -25,6 +24,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleIT extends DownsamplingIntegTestCase {
 
@@ -83,16 +83,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             )
         );
 
-        // Wait for downsampling to complete
-        SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().index(targetIndex);
-            if (indexMetadata == null) {
-                return false;
-            }
-            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
+        assertBusy(() -> {
+            var response = indicesAdmin().getIndex(new GetIndexRequest().indices(targetIndex)).actionGet();
+            String downsampleStatus = response.getSetting(targetIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey());
+            assertThat(downsampleStatus, equalTo("success"));
         });
-        safeAwait(listener);
 
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
     }

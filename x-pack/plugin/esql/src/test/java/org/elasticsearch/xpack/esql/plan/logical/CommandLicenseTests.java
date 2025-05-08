@@ -41,8 +41,7 @@ public class CommandLicenseTests extends ESTestCase {
         for (var commandName : getCommandClasses().keySet()) {
             Class<? extends LogicalPlan> commandClass = getCommandClasses().get(commandName);
             try {
-                var arg = (commandClass == InlineStats.class) ? new Aggregate(Source.EMPTY, sourceCommand, null, null) : sourceCommand;
-                checkLicense(commandName, createInstance(commandClass, arg));
+                checkLicense(commandName, createInstance(commandClass, sourceCommand));
             } catch (Exception e) {
                 Throwable c = e.getCause();
                 fail("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c);
@@ -155,11 +154,8 @@ public class CommandLicenseTests extends ESTestCase {
             case "Grok" -> {
                 return new Grok(source, child, null, null, List.of());
             }
-            case "Fork" -> {
-                return new Fork(source, List.of(child, child));
-            }
-            case "Sample" -> {
-                return new Sample(source, null, null, child);
+            case "InlineStats" -> {
+                return new InlineStats(source, new Aggregate(Source.EMPTY, child, Aggregate.AggregateType.STANDARD, null, null));
             }
             case "LookupJoin" -> {
                 return new LookupJoin(source, child, child, List.of());

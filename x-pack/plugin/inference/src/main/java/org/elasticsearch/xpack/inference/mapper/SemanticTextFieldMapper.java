@@ -134,7 +134,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
     public static final NodeFeature SEMANTIC_TEXT_BIT_VECTOR_SUPPORT = new NodeFeature("semantic_text.bit_vector_support");
     public static final NodeFeature SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG = new NodeFeature("semantic_text.support_chunking_config");
-    public static final NodeFeature SEMANTIC_TEXT_SUB_FIELDS_EXCLUDE_FROM_FIELD_CAPS = new NodeFeature(
+    public static final NodeFeature SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS = new NodeFeature(
         "semantic_text.exclude_sub_fields_from_field_caps"
     );
 
@@ -1063,7 +1063,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(useLegacyFormat == false)
-                .setExcludeFromFieldCaps(true);
+                .excludeFromFieldCaps(true);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,

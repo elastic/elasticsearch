@@ -185,7 +185,7 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * @return true if fieldType is subfields of semantic_text type
+     * @return true if the field should be excluded from field caps
      */
     public boolean excludeFromFieldCaps() {
         return excludeFromFieldCaps;

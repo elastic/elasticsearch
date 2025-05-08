@@ -84,7 +84,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder setExcludeFromFieldCaps(boolean value) {
+        public Builder excludeFromFieldCaps(boolean value) {
             excludeFromFieldCaps = value;
             return this;
         }

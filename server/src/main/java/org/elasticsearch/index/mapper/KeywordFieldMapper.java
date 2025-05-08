@@ -455,12 +455,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
-
-            KeywordFieldType keywordFieldType = buildFieldType(context, fieldtype);
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
-                keywordFieldType,
+                buildFieldType(context, fieldtype),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
                 useDocValuesSkipper,

@@ -18,6 +18,9 @@ FROM books
 book_no:keyword | author:text
 2713            | William Faulkner
 2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
 // end::match-phrase-with-field-result[]
 ;
 
@@ -25,13 +28,12 @@ matchPhraseWithMultipleFunctions
 required_capability: match_phrase_function
 
 from books 
-| where match_phrase(title, "Return of the King") AND match_phrase(author, "J.R.R. Tolkien")  
+| where match_phrase(title, "Return of the King") AND match_phrase(author, "J. R. R. Tolkien")  
 | keep book_no, title;
 ignoreOrder:true
 
 book_no:keyword | title:text
 2714            | Return of the King Being the Third Part of The Lord of the Rings
-7350            | Return of the Shadow
 ;
 
 matchPhraseWithQueryExpressions
@@ -58,6 +60,9 @@ from books
 book_no:keyword | author:text
 2713            | William Faulkner
 2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
 ;
 
 matchPhraseAfterDrop
@@ -73,6 +78,9 @@ from books
 book_no:keyword | author:text
 2713            | William Faulkner
 2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
 ;
 
 matchPhraseAfterEval
@@ -88,6 +96,9 @@ from books
 book_no:keyword | author:text                                           | stars:long
 2713            | William Faulkner                                      | 2
 2883            | William Faulkner                                      | 2
+4724            | William Faulkner                                      | 2
+4977            | William Faulkner                                      | 2
+5119            | William Faulkner                                      | 2
 ;
 
 matchPhraseWithConjunction
@@ -150,7 +161,7 @@ required_capability: match_phrase_function
 required_capability: full_text_functions_disjunctions
 
 from books
-| where (match_phrase(author, "Kurt Vonnegut") and match_phrase(description, "charming")) or (match_phrase(author, "Gabriel Garcia Marquez") and match_phrase(description, "realism"))
+| where (match_phrase(author, "Edith Vonnegut") and match_phrase(description, "charming and insightful")) or (match_phrase(author, "Gabriel Garcia Marquez") and match_phrase(description, "realism"))
 | keep book_no;
 ignoreOrder:true
 
@@ -170,13 +181,12 @@ ignoreOrder:true
 
 book_no:keyword
 2464
-6970
 4814
 8956
 3950
 ;
 
-matcPhraseWithFunctionPushedToLucene
+matchPhraseWithFunctionPushedToLucene
 required_capability: match_phrase_function
 
 from hosts 
@@ -263,7 +273,7 @@ testMatchPhraseVersionField
 required_capability: match_phrase_function
 
 from apps 
-| where match_phrase(version, "2.1"::VERSION) 
+| where match_phrase(version, "2.1") 
 | keep name, version;
 
 name:keyword | version:version

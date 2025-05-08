@@ -1048,7 +1048,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 .excludeFromFieldCaps(true);
             chunksField.add(chunkTextField);
         } else {
-            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
+            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD).excludeFromFieldCaps(true));
         }
         return chunksField;
     }
@@ -1059,14 +1059,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD, true).setStored(
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(
                 useLegacyFormat == false
-            );
+            ).setExcludeFromFieldCaps(true);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
-                    true
+                    indexVersionCreated
                 );
 
                 SimilarityMeasure similarity = modelSettings.similarity();
@@ -1092,6 +1091,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
                     denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
                 }
+                denseVectorMapperBuilder.excludeFromFieldCaps(true);
 
                 yield denseVectorMapperBuilder;
             }

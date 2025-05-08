@@ -68,10 +68,11 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     public static void beforeClass() {
         SPARSE_MODEL = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         // Exclude bit vectors because semantic text does not fully support them
+        // Exclude byte vectors because the semantic text test utils do not fully support them
         // Exclude dot product because we are not producing unit length vectors
         DENSE_MODEL = TestModel.createRandomInstance(
             TaskType.TEXT_EMBEDDING,
-            List.of(DenseVectorFieldMapper.ElementType.BIT),
+            List.of(DenseVectorFieldMapper.ElementType.BIT, DenseVectorFieldMapper.ElementType.BYTE),
             List.of(SimilarityMeasure.DOT_PRODUCT)
         );
     }
@@ -153,11 +154,14 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         final QueryBuilder innerQueryBuilder = switch (fieldModel.getTaskType()) {
             case SPARSE_EMBEDDING -> {
                 List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s")).map(t -> new WeightedToken(t, 1.0f)).toList();
+
+                // Can't use SparseVectorQueryBuilder because it is in ML plugin
                 var boolQuery = QueryBuilders.boolQuery();
                 for (var weightedToken : weightedTokens) {
                     boolQuery.should(QueryBuilders.termQuery(embeddingsFieldName, weightedToken.token()).boost(weightedToken.weight()));
                 }
                 boolQuery.minimumShouldMatch(1);
+
                 yield boolQuery;
             }
             case TEXT_EMBEDDING -> {

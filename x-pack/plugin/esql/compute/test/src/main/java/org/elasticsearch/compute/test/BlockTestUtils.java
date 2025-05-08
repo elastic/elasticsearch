@@ -13,17 +13,23 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -267,5 +273,68 @@ public class BlockTestUtils {
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Convert all of the {@link Block}s in a page that contain {@link BytesRef}s into
+     * {@link OrdinalBytesRefBlock}s.
+     */
+    public static Page convertBytesRefsToOrdinals(Page page) {
+        Block[] blocks = new Block[page.getBlockCount()];
+        try {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                Block block = page.getBlock(b);
+                if (block.elementType() != ElementType.BYTES_REF) {
+                    blocks[b] = block;
+                    continue;
+                }
+                Map<BytesRef, Integer> dedupe = new HashMap<>();
+                BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+                try (
+                    IntBlock.Builder ordinals = block.blockFactory().newIntBlockBuilder(block.getPositionCount());
+                    BytesRefVector.Builder bytes = block.blockFactory().newBytesRefVectorBuilder(block.getPositionCount())
+                ) {
+                    BytesRef scratch = new BytesRef();
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        int first = block.getFirstValueIndex(p);
+                        int count = block.getValueCount(p);
+                        if (count == 0) {
+                            ordinals.appendNull();
+                            continue;
+                        }
+                        if (count == 1) {
+                            BytesRef v = bytesRefBlock.getBytesRef(first, scratch);
+                            ordinals.appendInt(dedupe(dedupe, bytes, v));
+                            continue;
+                        }
+                        int end = first + count;
+                        ordinals.beginPositionEntry();
+                        for (int i = first; i < end; i++) {
+                            BytesRef v = bytesRefBlock.getBytesRef(i, scratch);
+                            ordinals.appendInt(dedupe(dedupe, bytes, v));
+                        }
+                        ordinals.endPositionEntry();
+                    }
+                    blocks[b] = new OrdinalBytesRefBlock(ordinals.build(), bytes.build());
+                    bytesRefBlock.decRef();
+                }
+            }
+            Page p = new Page(blocks);
+            Arrays.fill(blocks, null);
+            return p;
+        } finally {
+            Releasables.close(blocks);
+        }
+    }
+
+    private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {
+        Integer current = dedupe.get(v);
+        if (current != null) {
+            return current;
+        }
+        bytes.appendBytesRef(v);
+        int o = dedupe.size();
+        dedupe.put(v, o);
+        return o;
     }
 }

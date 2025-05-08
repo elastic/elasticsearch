@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -101,5 +103,10 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             List<BytesRef> expectedValue = strings.stream().map(s -> new BytesRef(s.toUpperCase(EsqlTestUtils.TEST_CFG.locale()))).toList();
             return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(expectedValue));
         }));
+    }
+
+    @Override
+    protected void extraBlockTests(Page in, Block out) {
+        assertIsOrdIfInIsOrd(in, out);
     }
 }

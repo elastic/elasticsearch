@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -31,11 +32,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match_phrase")
-public class MatchPhraseTests extends AbstractMatchFullTextFunctionTests {
+public class MatchPhraseTests extends AbstractFunctionTestCase {
 
     public MatchPhraseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -44,6 +46,113 @@ public class MatchPhraseTests extends AbstractMatchFullTextFunctionTests {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(addFunctionNamedParams(testCaseSuppliers()));
+    }
+
+    private static List<TestCaseSupplier> testCaseSuppliers() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        addQueryAsStringTestCases(suppliers);
+        addStringTestCases(suppliers);
+        return suppliers;
+    }
+
+    public static void addQueryAsStringTestCases(List<TestCaseSupplier> suppliers) {
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.booleanCases(),
+                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ipCases(),
+                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.versionCases(""),
+                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                List.of(),
+                false
+            )
+        );
+        // Datetime
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                List.of(),
+                false
+            )
+        );
+    }
+
+    public static void addStringTestCases(List<TestCaseSupplier> suppliers) {
+        for (DataType fieldType : DataType.stringTypes()) {
+            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldType)) {
+                continue;
+            }
+            for (TestCaseSupplier.TypedDataSupplier queryDataSupplier : stringCases(fieldType)) {
+                suppliers.add(
+                    TestCaseSupplier.testCaseSupplier(
+                        queryDataSupplier,
+                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.KEYWORD),
+                        (d1, d2) -> equalTo("string"),
+                        DataType.BOOLEAN,
+                        (o1, o2) -> true
+                    )
+                );
+
+                suppliers.add(
+                    TestCaseSupplier.testCaseSupplier(
+                        queryDataSupplier,
+                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.TEXT),
+                        (d1, d2) -> equalTo("string"),
+                        DataType.BOOLEAN,
+                        (o1, o2) -> true
+                    )
+                );
+            }
+        }
     }
 
     /**

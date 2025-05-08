@@ -95,7 +95,7 @@ public class MatchPhraseQuery extends Query {
 
     @Override
     protected String innerToString() {
-        return name + ":\"" + text + "\"";
+        return name + ":" + text;
     }
 
     public Map<String, Object> options() {

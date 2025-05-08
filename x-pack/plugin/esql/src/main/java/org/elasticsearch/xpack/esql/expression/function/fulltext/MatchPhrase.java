@@ -82,7 +82,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         MatchPhrase::readFrom
     );
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, BOOLEAN, DATETIME, DATE_NANOS, IP, VERSION);
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     protected final Expression field;
 
@@ -128,7 +128,11 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
             type = { "keyword", "text", "boolean", "date", "date_nanos", "ip", "version" },
             description = "Field that the query will target."
         ) Expression field,
-        @Param(name = "query", type = { "keyword" }, description = "Value to find in the provided field.") Expression matchPhraseQuery,
+        @Param(
+            name = "query",
+            type = { "keyword", "text" },
+            description = "Value to find in the provided field."
+        ) Expression matchPhraseQuery,
         @MapParam(
             name = "options",
             params = {
@@ -206,7 +210,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword, text").and(
             isNotNullAndFoldable(query(), sourceText(), SECOND)
         );
     }
@@ -216,7 +220,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         DataType queryType = query().dataType();
 
         // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD)) {
+        if ((fieldType == queryType) || (queryType == KEYWORD) || (queryType == TEXT)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 

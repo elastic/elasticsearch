@@ -594,10 +594,9 @@ public class EsqlSession {
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         var keepCommandRefsBuilder = AttributeSet.builder();
         var keepJoinRefsBuilder = AttributeSet.builder();
-        var regexExtractRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] canRemoveAliases = new boolean[] { true };
+        boolean[] canRemoveAliases = new boolean[] { true, true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -606,7 +605,7 @@ public class EsqlSession {
                     referencesBuilder.removeIf(attr -> matchByName(attr, extracted.name(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect
-                regexExtractRefsBuilder.addAll(re.input().references());
+                referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -664,21 +663,27 @@ public class EsqlSession {
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                p.forEachExpressionDown(Alias.class, alias -> {
-                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
-                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                    if (fieldNames.contains(alias.name())) {
-                        return;
+                canRemoveAliases[1] = true;
+                p.forEachDown(plan -> {
+                    if (canRemoveAliases[1] && couldOverrideAliases(plan)) {
+                        canRemoveAliases[1] = false;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                    if (canRemoveAliases[1]) {
+                        plan.forEachExpression(Alias.class, alias -> {
+                            // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                            // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                            if (fieldNames.contains(alias.name())) {
+                                return;
+                            }
+                            referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                        });
+                    }
                 });
             }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.addAll(keepJoinRefsBuilder);
-        // Add the inputs needed by Grok/Dissect afterward to avoid Alias removal
-        referencesBuilder.addAll(regexExtractRefsBuilder);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);

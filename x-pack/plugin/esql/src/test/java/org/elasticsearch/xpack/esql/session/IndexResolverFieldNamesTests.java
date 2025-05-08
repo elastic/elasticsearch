@@ -261,16 +261,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEvalDissect() {
-        assertFieldNames(
-            """
-                from employees
-                | eval full_name = concat(first_name, " ", last_name)
-                | dissect full_name "%{a} %{b}"
-                | sort emp_no asc
-                | keep full_name, a, b
-                | limit 3""",
-            Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
-        );
+        assertFieldNames("""
+            from employees
+            | eval full_name = concat(first_name, " ", last_name)
+            | dissect full_name "%{a} %{b}"
+            | sort emp_no asc
+            | keep full_name, a, b
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testDissectExpression() {
@@ -688,16 +685,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEvalGrok() {
-        assertFieldNames(
-            """
-                from employees
-                | eval full_name = concat(first_name, " ", last_name)
-                | grok full_name "%{WORD:a} %{WORD:b}"
-                | sort emp_no asc
-                | keep full_name, a, b
-                | limit 3""",
-            Set.of("emp_no", "first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*", "emp_no.*")
-        );
+        assertFieldNames("""
+            from employees
+            | eval full_name = concat(first_name, " ", last_name)
+            | grok full_name "%{WORD:a} %{WORD:b}"
+            | sort emp_no asc
+            | keep full_name, a, b
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testGrokExpression() {
@@ -716,7 +710,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort a asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "last_name", "full_name", "last_name.*", "first_name.*", "full_name.*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
     }
 
     public void testGrokStats() {
@@ -726,7 +720,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok x "%{WORD:a} %{WORD:b}"
             | stats n = max(emp_no) by a
             | keep a, n
-            | sort a asc""", Set.of("emp_no", "gender", "x", "x.*", "gender.*", "emp_no.*"));
+            | sort a asc""", Set.of("gender", "gender.*", "emp_no", "emp_no.*"));
     }
 
     public void testNullOnePattern() {

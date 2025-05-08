@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -25,9 +26,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -39,9 +44,60 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
+        return createRandomInstance(taskType, null, null);
+    }
+
+    public static TestModel createRandomInstance(
+        TaskType taskType,
+        List<DenseVectorFieldMapper.ElementType> excludedElementTypes,
+        List<SimilarityMeasure> excludedSimilarities
+    ) {
+        // Use a max dimension count that has a reasonable probability of being compatible with BBQ
+        return createRandomInstance(taskType, excludedElementTypes, excludedSimilarities, BBQ_MIN_DIMS * 2);
+    }
+
+    public static TestModel createRandomInstance(
+        TaskType taskType,
+        List<DenseVectorFieldMapper.ElementType> excludedElementTypes,
+        List<SimilarityMeasure> excludedSimilarities,
+        int maxDimensions
+    ) {
+        List<DenseVectorFieldMapper.ElementType> supportedElementTypes = new ArrayList<>(
+            Arrays.asList(DenseVectorFieldMapper.ElementType.values())
+        );
+        if (excludedElementTypes != null) {
+            supportedElementTypes.removeAll(excludedElementTypes);
+            if (supportedElementTypes.isEmpty()) {
+                throw new IllegalArgumentException("No supported element types with excluded element types " + excludedElementTypes);
+            }
+        }
+
+        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(supportedElementTypes) : null;
+        var dimensions = taskType == TaskType.TEXT_EMBEDDING
+            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions)
+            : null;
+
+        SimilarityMeasure similarity = null;
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
+                DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
+            );
+            if (excludedSimilarities != null) {
+                supportedSimilarities.removeAll(excludedSimilarities);
+            }
+
+            if (supportedSimilarities.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "No supported similarities for combination of element type ["
+                        + elementType
+                        + "] and excluded similarities "
+                        + (excludedSimilarities == null ? List.of() : excludedSimilarities)
+                );
+            }
+
+            similarity = randomFrom(supportedSimilarities);
+        }
+
         return new TestModel(
             randomAlphaOfLength(4),
             taskType,

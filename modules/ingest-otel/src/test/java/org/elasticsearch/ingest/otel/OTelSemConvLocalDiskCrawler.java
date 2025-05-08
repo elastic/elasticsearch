@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.otel;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -41,6 +42,7 @@ public class OTelSemConvLocalDiskCrawler {
 
     private static final Logger logger = LogManager.getLogger(OTelSemConvLocalDiskCrawler.class);
 
+    @SuppressForbidden(reason = "writing the GitHub repo zip file to the test's runtime temp directory and deleting on exit")
     static Set<String> collectOTelSemConvResourceAttributes() {
         Path semConvZipFilePath = null;
         Path semConvExtractedTmpDirPath = null;

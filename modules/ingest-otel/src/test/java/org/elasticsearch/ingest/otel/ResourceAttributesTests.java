@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.otel;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,19 +17,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-@LuceneTestCase.Nightly()
 public class ResourceAttributesTests extends ESTestCase {
 
-    @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
     public void testResourceAttributes_webCrawler() {
         testCrawler(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);
     }
 
-    @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
     public void testResourceAttributes_localDiskCrawler() {
         testCrawler(OTelSemConvLocalDiskCrawler::collectOTelSemConvResourceAttributes);
     }
 
+    @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
     private static void testCrawler(Supplier<Set<String>> otelResourceAttributesSupplier) {
         Set<String> resourceAttributes = otelResourceAttributesSupplier.get();
         System.out.println("Resource Attributes: " + resourceAttributes.size());

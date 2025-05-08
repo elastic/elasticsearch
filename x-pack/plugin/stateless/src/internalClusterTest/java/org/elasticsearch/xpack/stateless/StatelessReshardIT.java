@@ -76,12 +76,58 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
+    public void testReshardTargetNumShardsIsValid() {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final int multiple2 = 2;
+        final int multiple3 = 3;
+        // Note that we can go from 1 shard to any number of shards (< 1024)
+        int startingNumShards = 1;
+        int targetNumShards = multiple2 * startingNumShards;
+        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
+
+        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
+
+        // Now lets try to go from 2 shards to 6 shards (this is not allowed)
+        startingNumShards = 2;
+        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
+        targetNumShards = multiple3 * startingNumShards;
+        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        assertThrows(
+            IllegalStateException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple3))
+                .actionGet(SAFE_AWAIT_TIMEOUT)
+        );
+        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
+
+        // Now lets try to go from 2 shards to 4 shards (this is allowed)
+        startingNumShards = 2;
+        checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
+        targetNumShards = multiple2 * startingNumShards;
+        logger.info("Starting reshard to go from " + startingNumShards + " to " + targetNumShards + "shards");
+        reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple2));
+        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
+        checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
+    }
+
     public void testReshardWillRouteDocumentsToNewShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
 
         ensureStableCluster(2);
 
+        // Note that we can go from 1 shard to any number of shards (< 1024)
         final int multiple = randomIntBetween(2, 10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());

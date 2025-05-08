@@ -103,6 +103,9 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         }
     }
 
+    // build the association for a class to a module;
+    // there are different methods for finding these depending on if the
+    // classpath entry is a jar or a directory
     private Map<String, String> buildClassesToModules() throws IOException {
         Map<String, String> classesToModules = new HashMap<>();
         for (File file : getCodeLocations().get().getFiles()) {
@@ -119,6 +122,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         return classesToModules;
     }
 
+    // find the first class and module when the class path entry is a jar
     private void extractFromJar(File file, Map<String, String> classesToModules) throws IOException {
         try (JarFile jarFile = new JarFile(file)) {
             String className = extractClassNameFromJar(jarFile);
@@ -130,11 +134,15 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         }
     }
 
+    // look through the jar to find the first unique class that isn't
+    // in META-INF (those may not be unique) and isn't module-info.class
+    // (which is also not unique) and avoid anonymous classes
     private String extractClassNameFromJar(JarFile jarFile) {
         return jarFile.stream()
             .filter(
                 je -> je.getName().startsWith("META-INF") == false
                     && je.getName().equals("module-info.class") == false
+                    && je.getName().contains("$") == false
                     && je.getName().endsWith(".class")
             )
             .findFirst()
@@ -142,9 +150,16 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             .orElse(null);
     }
 
+    // look through the jar for the module name with
+    // each step commented inline
     private String extractModuleNameFromJar(File file, JarFile jarFile) throws IOException {
         String moduleName = null;
 
+        // if the jar is multi-release, there will be a set versions
+        // under the path META-INF/versions/<version number>;
+        // each version will have its own module-info.class if this is a modular jar;
+        // look for the module name in the module-info from the latest version
+        // fewer than or equal to the current JVM version
         if (jarFile.isMultiRelease()) {
             List<Integer> versions = jarFile.stream()
                 .filter(je -> je.getName().startsWith("META-INF/versions/") && je.getName().endsWith("/module-info.class"))
@@ -172,6 +187,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             }
         }
 
+        // if the jar is *not* multi-release then first look in
+        // module-info.class from the top-level if it exists
         if (moduleName == null) {
             JarEntry moduleEntry = jarFile.getJarEntry("module-info.class");
             if (moduleEntry != null) {
@@ -181,6 +198,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             }
         }
 
+        // if the jar does *not* contain module-info.class
+        // check the manifest file for the module name
         if (moduleName == null) {
             JarEntry manifestEntry = jarFile.getJarEntry("META-INF/MANIFEST.MF");
             if (manifestEntry != null) {
@@ -194,6 +213,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             }
         }
 
+        // if the jar does not have module-info.class and no module name in the manifest
+        // default to the jar name without .jar and no versioning
         if (moduleName == null) {
             String jn = file.getName().substring(0, file.getName().length() - 4);
             Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
@@ -207,14 +228,18 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         return moduleName;
     }
 
+    // find the first class and module when the class path entry is a directory
     private void extractFromDirectory(File file, Map<String, String> classesToModules) throws IOException {
         String className = extractClassNameFromDirectory(file);
         String moduleName = extractModuleNameFromDirectory(file);
+
         if (className != null && moduleName != null) {
             classesToModules.put(className, moduleName);
         }
     }
 
+    // look through the directory to find the first unique class that isn't
+    // module-info.class (which may not be unique) and avoid anonymous classes
     private String extractClassNameFromDirectory(File file) {
         List<File> files = new ArrayList<>(List.of(file));
         while (files.isEmpty() == false) {
@@ -233,6 +258,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         return null;
     }
 
+    // look through the directory to find the module name in either module-info.class
+    // if it exists or the preset one derived from the jar task
     private String extractModuleNameFromDirectory(File file) throws IOException {
         List<File> files = new ArrayList<>(List.of(file));
         while (files.isEmpty() == false) {
@@ -250,6 +277,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         return getModuleName().isPresent() ? getModuleName().get() : null;
     }
 
+    // a helper method to extract the module name from module-info.class
+    // using an ASM ClassVisitor
     private String extractModuleNameFromModuleInfo(InputStream inputStream) throws IOException {
         String[] moduleName = new String[1];
         ClassReader cr = new ClassReader(inputStream);

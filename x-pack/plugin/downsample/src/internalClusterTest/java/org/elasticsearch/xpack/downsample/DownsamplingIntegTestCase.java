@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -244,9 +243,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
      */
     @SuppressWarnings("unchecked")
     void assertDownsampleIndexFieldsAndDimensions(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
-            .setIndices(sourceIndex, downsampleIndex)
-            .get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(sourceIndex, downsampleIndex).get();
         assertThat(getIndexResponse.indices(), arrayContaining(sourceIndex, downsampleIndex));
 
         // Retrieve field information for the metric fields
@@ -304,7 +301,6 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             .get()
             .getState()
             .getMetadata()
-            .getProject(Metadata.DEFAULT_PROJECT_ID)
             .index(sourceIndex);
         final IndicesService indicesService = internalCluster().getAnyMasterNodeInstance(IndicesService.class);
         return indicesService.createIndexMapperServiceForValidation(indexMetadata);

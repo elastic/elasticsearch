@@ -85,7 +85,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
         // Wait for downsampling to complete
         SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().getProject().index(targetIndex);
+            final var indexMetadata = clusterState.metadata().index(targetIndex);
             if (indexMetadata == null) {
                 return false;
             }

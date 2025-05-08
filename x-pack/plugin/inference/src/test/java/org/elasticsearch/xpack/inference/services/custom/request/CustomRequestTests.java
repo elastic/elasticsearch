@@ -100,7 +100,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "http://www.elastic.co",
             null,
             // escaped characters retrieved from here: https://docs.microfocus.com/OMi/10.62/Content/OMi/ExtGuide/ExtApps/URL_encoding.htm
@@ -203,7 +203,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "http://www.elastic.co",
             null,
             null,
@@ -245,7 +245,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "http://www.elastic.co",
             Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
             null,
@@ -276,7 +276,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "${url}",
             Map.of(HttpHeaders.ACCEPT, Strings.format("${task.key}")),
             null,

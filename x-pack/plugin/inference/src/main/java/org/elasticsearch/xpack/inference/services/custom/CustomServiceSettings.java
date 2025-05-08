@@ -151,12 +151,20 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer maxInputTokens,
         @Nullable DenseVectorFieldMapper.ElementType elementType
     ) implements ToXContentFragment, Writeable {
+        // This specifies float for the element type but null for all other settings
+        public static final TextEmbeddingSettings DEFAULT_FLOAT = new TextEmbeddingSettings(
+            null,
+            null,
+            null,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
 
-        public static final TextEmbeddingSettings EMPTY = new TextEmbeddingSettings(null, null, null, null);
+        // This refers to settings that are not related to the text embedding task type (all the settings should be null)
+        public static final TextEmbeddingSettings NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS = new TextEmbeddingSettings(null, null, null, null);
 
         public static TextEmbeddingSettings fromMap(Map<String, Object> map, TaskType taskType, ValidationException validationException) {
             if (taskType != TaskType.TEXT_EMBEDDING) {
-                return EMPTY;
+                return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
 
             SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -207,7 +215,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final ErrorResponseParser errorParser;
 
     public CustomServiceSettings(
-        @Nullable TextEmbeddingSettings textEmbeddingSettings,
+        TextEmbeddingSettings textEmbeddingSettings,
         String url,
         @Nullable Map<String, String> headers,
         @Nullable QueryParameters queryParameters,
@@ -216,7 +224,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable RateLimitSettings rateLimitSettings,
         ErrorResponseParser errorParser
     ) {
-        this.textEmbeddingSettings = textEmbeddingSettings == null ? TextEmbeddingSettings.EMPTY : textEmbeddingSettings;
+        this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
         this.queryParameters = Objects.requireNonNullElse(queryParameters, QueryParameters.EMPTY);

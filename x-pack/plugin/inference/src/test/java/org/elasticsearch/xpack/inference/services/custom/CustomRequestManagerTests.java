@@ -56,7 +56,7 @@ public class CustomRequestManagerTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "${url}",
             null,
             null,

@@ -141,14 +141,8 @@ public class CustomServiceTests extends AbstractServiceTests {
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-        return new HashMap<>(
+        var settingsMap = new HashMap<>(
             Map.of(
-                ServiceFields.SIMILARITY,
-                SimilarityMeasure.DOT_PRODUCT.toString(),
-                ServiceFields.DIMENSIONS,
-                1536,
-                ServiceFields.MAX_INPUT_TOKENS,
-                512,
                 CustomServiceSettings.URL,
                 "http://www.abc.com",
                 CustomServiceSettings.HEADERS,
@@ -168,6 +162,17 @@ public class CustomServiceTests extends AbstractServiceTests {
                 )
             )
         );
+
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            settingsMap.putAll(Map.of(ServiceFields.SIMILARITY,
+                SimilarityMeasure.DOT_PRODUCT.toString(),
+                ServiceFields.DIMENSIONS,
+                1536,
+                ServiceFields.MAX_INPUT_TOKENS,
+                512));
+        }
+
+        return settingsMap;
     }
 
     private static Map<String, Object> createResponseParserMap(TaskType taskType) {
@@ -229,7 +234,7 @@ public class CustomServiceTests extends AbstractServiceTests {
             CustomService.NAME,
             new CustomServiceSettings(
                 new CustomServiceSettings.TextEmbeddingSettings(
-                    SimilarityMeasure.DOT_PRODUCT,
+                    similarityMeasure,
                     123,
                     456,
                     DenseVectorFieldMapper.ElementType.FLOAT
@@ -253,7 +258,7 @@ public class CustomServiceTests extends AbstractServiceTests {
             taskType,
             CustomService.NAME,
             new CustomServiceSettings(
-                CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+                getDefaultTextEmbeddingSettings(taskType),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -265,6 +270,12 @@ public class CustomServiceTests extends AbstractServiceTests {
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
         );
+    }
+
+    private static CustomServiceSettings.TextEmbeddingSettings getDefaultTextEmbeddingSettings(TaskType taskType) {
+        return taskType == TaskType.TEXT_EMBEDDING
+            ? CustomServiceSettings.TextEmbeddingSettings.DEFAULT_FLOAT
+            : CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
     }
 
     public void testInfer_HandlesTextEmbeddingRequest_OpenAI_Format() throws IOException {

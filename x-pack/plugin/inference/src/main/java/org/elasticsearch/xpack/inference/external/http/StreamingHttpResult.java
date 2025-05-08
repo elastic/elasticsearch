@@ -31,7 +31,7 @@ public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> 
 
             @Override
             public void onNext(byte[] item) {
-                subscriber.onNext(new HttpResult(response(), item, httpRequest));
+                subscriber.onNext(new HttpResult(response(), item));
             }
 
             @Override
@@ -70,7 +70,7 @@ public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> 
 
             @Override
             public void onComplete() {
-                fullResponse.onResponse(new HttpResult(response, stream.toByteArray(), httpRequest));
+                fullResponse.onResponse(new HttpResult(response, stream.toByteArray()));
             }
         });
     }

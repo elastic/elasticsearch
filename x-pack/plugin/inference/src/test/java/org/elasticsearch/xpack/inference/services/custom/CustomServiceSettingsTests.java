@@ -200,7 +200,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             settings,
             is(
                 new CustomServiceSettings(
-                    CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+                    CustomServiceSettings.TextEmbeddingSettings.DEFAULT_FLOAT,
                     url,
                     Map.of(),
                     null,
@@ -664,7 +664,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     public void testXContent() throws IOException {
         var entity = new CustomServiceSettings(
-            CustomServiceSettings.TextEmbeddingSettings.EMPTY,
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
             "http://www.abc.com",
             Map.of("key", "value"),
             null,

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.ErrorRe
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ErrorResponseParserTests extends ESTestCase {
 
@@ -81,7 +83,7 @@ public class ErrorResponseParserTests extends ESTestCase {
             }""");
 
         var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(result);
+        var error = parser.apply(getMockRequest(), result);
         assertThat(error, is(new ErrorResponse("test_error_message")));
     }
 
@@ -98,7 +100,7 @@ public class ErrorResponseParserTests extends ESTestCase {
             """;
 
         var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockResult(responseJson));
+        var error = parser.apply(getMockRequest(), getMockResult(responseJson));
 
         assertThat(error, is(new ErrorResponse("You didn't provide an API key")));
     }
@@ -113,7 +115,7 @@ public class ErrorResponseParserTests extends ESTestCase {
             """;
 
         var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(getMockResult(responseJson));
+        var error = parser.apply(getMockRequest(), getMockResult(responseJson));
 
         assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
         assertThat(error.getErrorMessage(), is(""));
@@ -125,7 +127,7 @@ public class ErrorResponseParserTests extends ESTestCase {
             {"noerror":true}""");
 
         var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(mockResult);
+        var error = parser.apply(getMockRequest(), mockResult);
 
         assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
@@ -134,12 +136,23 @@ public class ErrorResponseParserTests extends ESTestCase {
         var result = new HttpResult(mock(HttpResponse.class), Strings.toUTF8Bytes("not a json string"));
 
         var parser = new ErrorResponseParser("$.error.message");
-        var error = parser.apply(result);
+        var error = parser.apply(getMockRequest(), result);
         assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
     private static HttpResult getMockResult(String jsonString) throws IOException {
         var response = mock(HttpResponse.class);
         return new HttpResult(response, Strings.toUTF8Bytes(XContentHelper.stripWhitespace(jsonString)));
+    }
+
+    private static Request getMockRequest() {
+        return getMockRequest("id");
+    }
+
+    private static Request getMockRequest(String inferenceId) {
+        var mockRequest = mock(Request.class);
+        when(mockRequest.getInferenceEntityId()).thenReturn(inferenceId);
+
+        return mockRequest;
     }
 }

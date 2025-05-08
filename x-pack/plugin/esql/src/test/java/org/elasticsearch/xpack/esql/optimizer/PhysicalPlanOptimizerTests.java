@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -7795,7 +7796,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testEqualsPushdownToDelegate() {
-        assumeFalse("disabled from bug", true);
         var optimized = optimizedPlan(physicalPlan("""
             FROM test
             | WHERE job == "v"
@@ -7822,6 +7822,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var limit2 = as(extract.child(), LimitExec.class);
         as(limit2.child(), FilterExec.class);
+    }
+
+    public void testNotEqualsPushdownToDelegate() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job != "v"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var extract2 = as(filter.child(), FieldExtractExec.class);
+        var query = as(extract2.child(), EsQueryExec.class);
+        assertThat(
+            query.query(),
+            equalTo(
+                new BoolQueryBuilder().filter(
+                    new SingleValueQuery(
+                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                        "job",
+                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                    ).toQueryBuilder()
+                )
+            )
+        );
     }
 
     /*

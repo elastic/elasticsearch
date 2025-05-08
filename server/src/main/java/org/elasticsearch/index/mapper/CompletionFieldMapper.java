@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -709,7 +710,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Text optimizedTextOrNull() throws IOException {
+        public XContentString optimizedTextOrNull() throws IOException {
             if (parsingObject == false) {
                 return new Text(textValue);
             }

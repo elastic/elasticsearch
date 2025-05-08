@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -117,7 +118,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public Text optimizedText() throws IOException {
+    public XContentString optimizedText() throws IOException {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }

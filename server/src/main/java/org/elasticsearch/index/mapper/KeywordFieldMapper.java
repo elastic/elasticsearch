@@ -70,6 +70,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1138,7 +1139,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return indexValue(context, new Text(value));
     }
 
-    private boolean indexValue(DocumentParserContext context, Text value) {
+    private boolean indexValue(DocumentParserContext context, XContentString value) {
         if (value == null) {
             return false;
         }

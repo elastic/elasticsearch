@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -260,12 +261,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public Text optimizedText() throws IOException {
+    public XContentString optimizedText() throws IOException {
         return new Text(text());
     }
 
     @Override
-    public final Text optimizedTextOrNull() throws IOException {
+    public final XContentString optimizedTextOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }

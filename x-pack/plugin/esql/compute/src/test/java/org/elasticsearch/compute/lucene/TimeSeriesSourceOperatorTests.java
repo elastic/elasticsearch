@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
+public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
 
     private IndexReader reader;
     private final Directory directory = newDirectory();
@@ -274,12 +274,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]");
+        return equalTo("TimeSeriesSourceOperator[maxPageSize = 1, limit = 1]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("Impl[maxPageSize=1, remainingDocs=1]");
+        return equalTo("TimeSeriesSourceOperator[maxPageSize=1, remainingDocs=1]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {

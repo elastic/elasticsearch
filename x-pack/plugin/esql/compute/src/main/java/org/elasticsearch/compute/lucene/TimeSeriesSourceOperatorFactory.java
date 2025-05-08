@@ -64,7 +64,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
 
     @Override
     public String describe() {
-        return "TimeSeriesSortedSourceOperator[maxPageSize = " + maxPageSize + ", limit = " + limit + "]";
+        return "TimeSeriesSourceOperator[maxPageSize = " + maxPageSize + ", limit = " + limit + "]";
     }
 
     public static TimeSeriesSourceOperatorFactory create(

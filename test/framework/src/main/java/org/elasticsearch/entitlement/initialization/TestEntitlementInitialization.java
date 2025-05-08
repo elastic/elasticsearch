@@ -7,13 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.initialization.DynamicInstrumentation;
-import org.elasticsearch.entitlement.initialization.EntitlementCheckerUtils;
-import org.elasticsearch.entitlement.initialization.FilesEntitlementsValidation;
-import org.elasticsearch.entitlement.initialization.HardcodedEntitlements;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
@@ -62,8 +58,8 @@ public class TestEntitlementInitialization {
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
-            null, // TestScopeResolver.createScopeResolver
-            Map.of(), // TODO: a map that always return nulls? Replace with functor
+            null, // TODO: replace with TestScopeResolver.createScopeResolver
+            Map.of(),
             ENTITLEMENTS_MODULE, // TODO: this will need to change -- encapsulate it when we extract isTriviallyAllowed
             pathLookup,
             Set.of()

@@ -27,9 +27,9 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PL
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
-public class FilesEntitlementsValidation {
+class FilesEntitlementsValidation {
 
-    public static void validate(Map<String, Policy> pluginPolicies, PathLookup pathLookup) {
+    static void validate(Map<String, Policy> pluginPolicies, PathLookup pathLookup) {
         Set<Path> readAccessForbidden = new HashSet<>();
         pathLookup.getBaseDirPaths(PLUGINS).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));
         pathLookup.getBaseDirPaths(MODULES).forEach(p -> readAccessForbidden.add(p.toAbsolutePath().normalize()));

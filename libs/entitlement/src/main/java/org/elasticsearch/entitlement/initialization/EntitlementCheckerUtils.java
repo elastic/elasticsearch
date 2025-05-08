@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-public class EntitlementCheckerUtils {
+class EntitlementCheckerUtils {
 
     /**
      * Returns the "most recent" checker class compatible with the provided runtime Java version.

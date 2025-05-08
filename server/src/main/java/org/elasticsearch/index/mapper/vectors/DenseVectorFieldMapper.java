@@ -2096,17 +2096,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexOptions indexOptions,
             Map<String, String> meta
         ) {
-            this(
-                name,
-                indexVersionCreated,
-                elementType,
-                dims,
-                indexed,
-                similarity,
-                indexOptions,
-                meta,
-                false
-            );
+            this(name, indexVersionCreated, elementType, dims, indexed, similarity, indexOptions, meta, false);
         }
 
         public DenseVectorFieldType(

@@ -526,16 +526,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             Builder builder,
             boolean isSyntheticSource
         ) {
-            this(
-                name,
-                fieldType,
-                normalizer,
-                searchAnalyzer,
-                quoteAnalyzer,
-                builder,
-                isSyntheticSource,
-                false
-            );
+            this(name, fieldType, normalizer, searchAnalyzer, quoteAnalyzer, builder, isSyntheticSource, false);
         }
 
         public KeywordFieldType(

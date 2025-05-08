@@ -459,6 +459,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.OpenAIServiceMixedIT
   method: testOpenAiCompletions
   issue: https://github.com/elastic/elasticsearch/issues/127878
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/120_profile/avg 8.14 or after}
+  issue: https://github.com/elastic/elasticsearch/issues/127879
 - class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
   method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
   issue: https://github.com/elastic/elasticsearch/issues/127787

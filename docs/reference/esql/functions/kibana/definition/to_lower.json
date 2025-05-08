@@ -10,7 +10,7 @@
           "name" : "str",
           "type" : "keyword",
           "optional" : false,
-          "description" : "String expression. If `null`, the function returns `null`."
+          "description" : "String expression. If `null`, the function returns `null`. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "str",
           "type" : "text",
           "optional" : false,
-          "description" : "String expression. If `null`, the function returns `null`."
+          "description" : "String expression. If `null`, the function returns `null`. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -30,7 +30,8 @@
     }
   ],
   "examples" : [
-    "ROW message = \"Some Text\"\n| EVAL message_lower = TO_LOWER(message)"
+    "ROW message = \"Some Text\"\n| EVAL message_lower = TO_LOWER(message)",
+    "ROW v = TO_LOWER([\"Some\", \"Text\"])"
   ],
   "preview" : false,
   "snapshot_only" : false

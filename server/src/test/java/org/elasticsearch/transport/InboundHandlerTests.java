@@ -260,10 +260,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertTrue(closeListener.isDone());
-            try {
-                closeListener.get();
-                assert false : "channel should have an exception reported";
-            } catch (Exception e) {}
+            expectThrows(Exception.class, () -> closeListener.get());
             assertNull(channel.getMessageCaptor().get());
             mockLog.assertAllExpectationsMatched();
         }

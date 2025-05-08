@@ -438,10 +438,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertNull(channel.getListenerCaptor().get());
         assertFalse(channel.isOpen());
         assertTrue(closeListener.isDone());
-        try {
-            closeListener.get();
-            assert false : "channel should have an exception reported";
-        } catch (Exception e) {}
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendHandshakeResponse() {
@@ -485,10 +482,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
         assertTrue(closeListener.isDone());
-        try {
-            closeListener.get();
-            assert false : "channel should have an exception reported";
-        } catch (Exception e) {}
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendErrorResponse() {
@@ -534,10 +528,7 @@ public class OutboundHandlerTests extends ESTestCase {
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
         assertTrue(closeListener.isDone());
-        try {
-            closeListener.get();
-            assert false : "channel should have an exception reported";
-        } catch (Exception e) {}
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     /**

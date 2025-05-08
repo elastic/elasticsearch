@@ -28,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -55,7 +54,6 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
@@ -282,7 +280,6 @@ public class Netty4Transport extends TcpTransport {
             rstOnClose,
             connectFuture
         );
-        addClosedExceptionLogger(nettyChannel);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
@@ -310,6 +307,14 @@ public class Netty4Transport extends TcpTransport {
         }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
+    private Exception exceptionFromThrowable(Throwable cause) {
+        if (cause instanceof Error) {
+            return new Exception(cause);
+        } else {
+            return (Exception) cause;
+        }
+    }
+
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         @Override
@@ -322,11 +327,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
-            if (cause instanceof Error) {
-                channel.onException(new Exception(cause));
-            } else {
-                channel.onException((Exception) cause);
-            }
+            channel.setCloseException(exceptionFromThrowable(cause));
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -347,7 +348,6 @@ public class Netty4Transport extends TcpTransport {
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
-            addClosedExceptionLogger(nettyTcpChannel);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             setupPipeline(ch, isRemoteClusterServerChannel);
             serverAcceptedChannel(nettyTcpChannel);
@@ -356,11 +356,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             Netty4TcpChannel channel = ctx.channel().attr(CHANNEL_KEY).get();
-            if (cause instanceof Error) {
-                channel.onException(new Exception(cause));
-            } else {
-                channel.onException((Exception) cause);
-            }
+            channel.setCloseException(exceptionFromThrowable(cause));
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
@@ -394,14 +390,6 @@ public class Netty4Transport extends TcpTransport {
             new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
             this::inboundMessage
         );
-    }
-
-    private static void addClosedExceptionLogger(Netty4TcpChannel channel) {
-        channel.addCloseListener(ActionListener.wrap((ignored) -> {}, (e) -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug(format("exception while closing channel: %s", channel), e);
-            }
-        }));
     }
 
     @ChannelHandler.Sharable

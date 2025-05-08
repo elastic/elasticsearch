@@ -605,10 +605,7 @@ public class TcpTransportTests extends ESTestCase {
 
             if (expectClosed) {
                 assertTrue(listener.isDone());
-                try {
-                    listener.get();
-                    assert false : "channel should have an exception reported";
-                } catch (Exception e) {}
+                expectThrows(Exception.class, () -> listener.get());
             } else {
                 assertFalse(listener.isDone());
             }

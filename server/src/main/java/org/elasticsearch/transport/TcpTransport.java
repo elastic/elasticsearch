@@ -773,7 +773,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             if (closeChannel) {
-                channel.onException(e);
+                channel.setCloseException(e);
                 CloseableChannel.closeChannel(channel);
             }
         }
@@ -1206,7 +1206,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onFailure(Exception e) {
             long closeTimeMillis = threadPool.relativeTimeInMillis();
-            logger.info(
+            logger.debug(
                 () -> format(
                     "closed transport connection [{}] to [{}] with age [{}ms], exception:",
                     connectionId,

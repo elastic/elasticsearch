@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -348,24 +349,23 @@ public class ClusterChangedEvent {
     }
 
     private static ProjectsDelta calculateProjectDelta(Metadata previousMetadata, Metadata currentMetadata) {
-        if (previousMetadata.projects().size() == 1
-            && previousMetadata.hasProject(ProjectId.DEFAULT)
-            && currentMetadata.projects().size() == 1
-            && currentMetadata.hasProject(ProjectId.DEFAULT)) {
+        if (previousMetadata == currentMetadata
+            || (previousMetadata.projects().size() == 1
+                && previousMetadata.hasProject(ProjectId.DEFAULT)
+                && currentMetadata.projects().size() == 1
+                && currentMetadata.hasProject(ProjectId.DEFAULT))) {
             return ProjectsDelta.EMPTY;
         }
 
-        final Set<ProjectId> added = new HashSet<>();
-        final Set<ProjectId> removed = new HashSet<>(previousMetadata.projects().keySet());
-        for (var currentProject : currentMetadata.projects().keySet()) {
-            if (removed.remove(currentProject) == false) {
-                added.add(currentProject);
-            }
-        }
+        final Set<ProjectId> added = Collections.unmodifiableSet(
+            Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
+        );
+        final Set<ProjectId> removed = Collections.unmodifiableSet(
+            Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
+        );
         assert added.contains(ProjectId.DEFAULT) == false;
         assert removed.contains(ProjectId.DEFAULT) == false;
-
-        return new ProjectsDelta(Collections.unmodifiableSet(added), Collections.unmodifiableSet(removed));
+        return new ProjectsDelta(added, removed);
     }
 
     public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {

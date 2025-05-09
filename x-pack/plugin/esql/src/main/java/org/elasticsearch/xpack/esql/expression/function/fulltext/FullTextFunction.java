@@ -156,9 +156,9 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         // In isolation, full text functions are pushable to source. We check if there are no disjunctions in Or conditions
-        return true;
+        return Translatable.YES;
     }
 
     @Override

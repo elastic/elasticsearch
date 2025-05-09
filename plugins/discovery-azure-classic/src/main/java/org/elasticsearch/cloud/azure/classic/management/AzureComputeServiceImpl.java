@@ -29,9 +29,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {

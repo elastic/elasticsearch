@@ -103,7 +103,7 @@ public class GceNameResolver implements CustomNameResolver {
             }
             // only one address: because we explicitly ask for only one via the GceHostnameType
             return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (URISyntaxException|IOException e) {
+        } catch (URISyntaxException | IOException e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + gceMetadataPath + "]", e);
         }
     }

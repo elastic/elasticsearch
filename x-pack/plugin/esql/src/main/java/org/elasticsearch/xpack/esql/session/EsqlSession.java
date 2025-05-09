@@ -590,9 +590,15 @@ public class EsqlSession {
         }
 
         var referencesBuilder = AttributeSet.builder();
-        // "keep" attributes are special whenever a wildcard is used in their name
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
+        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
+        // to remove if their name matches one of these wildcards.
+        //
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        var keepCommandRefsBuilder = AttributeSet.builder();
+        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        //
+        // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
+        var shadowingRefsBuilder = AttributeSet.builder();
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
@@ -617,12 +623,12 @@ public class EsqlSession {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinRefsBuilder.addAll(usingJoinType.columns());
                 }
-                if (keepCommandRefsBuilder.isEmpty()) {
+                if (shadowingRefsBuilder.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(keepCommandRefsBuilder);
+                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
                 }
             } else {
                 referencesBuilder.addAll(p.references());
@@ -634,12 +640,10 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    if (p instanceof Keep || p instanceof Drop) {
-                        keepCommandRefsBuilder.add(ua);
-                    }
+                    shadowingRefsBuilder.add(ua);
                 });
                 if (p instanceof Keep) {
-                    keepCommandRefsBuilder.addAll(p.references());
+                    shadowingRefsBuilder.addAll(p.references());
                 }
             }
 
@@ -669,7 +673,7 @@ public class EsqlSession {
                     if (fieldNames.contains(alias.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), shadowingRefsBuilder.contains(attr)));
                 });
             }
         });

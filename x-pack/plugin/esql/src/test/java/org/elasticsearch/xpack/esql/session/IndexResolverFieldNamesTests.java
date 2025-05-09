@@ -1720,6 +1720,34 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
     }
 
+    public void testDropWildcardedFields_AfterRename() {
+        assertFieldNames(
+            """
+                from employees
+                | rename first_name AS first_names, last_name AS last_names
+                | eval first_names = 1
+                | drop first_names
+                | drop *_names
+                | keep gender""",
+            Set.of("first_name", "first_name.*", "last_name", "last_name.*", "*_names", "*_names.*", "gender", "gender.*")
+        );
+    }
+
+    public void testDropWildcardFields_WithLookupJoin() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP @timestamp, message, *e*
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of()
+        );
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

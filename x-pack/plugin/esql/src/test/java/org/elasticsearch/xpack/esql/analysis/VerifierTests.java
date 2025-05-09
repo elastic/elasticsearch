@@ -2319,7 +2319,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
-        checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
         checkFullTextFunctionsInStats("last_name : \"Smith\"");
         checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
         checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");

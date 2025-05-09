@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public class BulkInferenceExecutor <IR extends InferenceServiceResults, OutputType>{
+public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputType> {
     private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
     private final ThrottledInferenceRunner throttledInferenceRunner;
 
@@ -30,7 +30,11 @@ public class BulkInferenceExecutor <IR extends InferenceServiceResults, OutputTy
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, threadPool, bulkExecutionConfig);
     }
 
-    public void execute(BulkInferenceRequestIterator requests, BulkInferenceOutputBuilder<IR, OutputType> outputBuilder, ActionListener<OutputType> listener) {
+    public void execute(
+        BulkInferenceRequestIterator requests,
+        BulkInferenceOutputBuilder<IR, OutputType> outputBuilder,
+        ActionListener<OutputType> listener
+    ) {
         try {
             listener.onResponse(doExecute(requests, outputBuilder));
         } catch (Exception e) {
@@ -38,7 +42,8 @@ public class BulkInferenceExecutor <IR extends InferenceServiceResults, OutputTy
         }
     }
 
-    public OutputType doExecute(BulkInferenceRequestIterator requests, BulkInferenceOutputBuilder<IR, OutputType> outputBuilder) throws Exception {
+    public OutputType doExecute(BulkInferenceRequestIterator requests, BulkInferenceOutputBuilder<IR, OutputType> outputBuilder)
+        throws Exception {
         final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
 
         if (requests.hasNext()) {
@@ -57,8 +62,8 @@ public class BulkInferenceExecutor <IR extends InferenceServiceResults, OutputTy
         return inferenceResponse -> {
             InferenceServiceResults results = inferenceResponse.getResults();
             if (outputBuilder.inferenceResultsClass().isInstance(results)) {
-                 outputBuilder.addInferenceResults(outputBuilder.inferenceResultsClass().cast(results));
-                 return;
+                outputBuilder.addInferenceResults(outputBuilder.inferenceResultsClass().cast(results));
+                return;
             }
 
             throw new IllegalStateException(

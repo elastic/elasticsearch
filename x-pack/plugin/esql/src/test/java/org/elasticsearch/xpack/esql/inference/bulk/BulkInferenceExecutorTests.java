@@ -89,11 +89,14 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         assertBusy(() -> {
             verify(listener).onResponse(any());
             verify(listener, never()).onFailure(any());
-            assertThat(output.get(), allOf(
-                notNullValue(),
-                hasSize(requests.size()),
-                contains(responses.stream().map(InferenceAction.Response::getResults).toArray())
-            ));
+            assertThat(
+                output.get(),
+                allOf(
+                    notNullValue(),
+                    hasSize(requests.size()),
+                    contains(responses.stream().map(InferenceAction.Response::getResults).toArray())
+                )
+            );
         });
     }
 

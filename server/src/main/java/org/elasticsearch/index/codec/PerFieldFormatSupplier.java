@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -38,7 +39,8 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private static final ES819TSDBDocValuesFormat es819TSDBDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private static final ES87TSDBDocValuesFormat es87TSDBDocValuesFormat = new ES87TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final Lucene101PostingsFormat lucene101PostingsFormat = new Lucene101PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
@@ -47,6 +49,7 @@ public class PerFieldFormatSupplier {
     private final MapperService mapperService;
 
     private final PostingsFormat defaultPostingsFormat;
+    private final DocValuesFormat tsdbDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
@@ -60,6 +63,12 @@ public class PerFieldFormatSupplier {
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;
+        }
+        if (mapperService != null
+            && mapperService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.ES819_DOC_VALUES_FORMAT)) {
+            tsdbDocValuesFormat = es87TSDBDocValuesFormat;
+        } else {
+            tsdbDocValuesFormat = es819TSDBDocValuesFormat;
         }
     }
 

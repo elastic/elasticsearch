@@ -2493,6 +2493,27 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFullTextFunctionsInStats() {
+        checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
+        checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
+        checkFullTextFunctionsInStats("last_name : \"Smith\"");
+        checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
+        checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");
+    }
+
+    private void checkFullTextFunctionsInStats(String functionInvocation) {
+
+        query("from test | stats c = max(salary) where " + functionInvocation);
+        query("from test | stats c = max(salary) where " + functionInvocation + " or length(first_name) > 10");
+        query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)");
+        query("from test metadata _score |  where " + functionInvocation + " or length(first_name) > 10 | stats c = max(_score)");
+
+        assertThat(
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation),
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

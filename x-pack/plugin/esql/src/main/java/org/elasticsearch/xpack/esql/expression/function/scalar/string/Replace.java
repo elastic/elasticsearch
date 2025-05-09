@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,8 +41,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class Replace extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
-
-    static final long MAX_RESULT_LENGTH = MB.toBytes(1);
 
     private final Expression str;
     private final Expression regex;
@@ -138,7 +137,6 @@ public class Replace extends EsqlScalarFunction {
         if (str == null) {
             return null;
         }
-
         if (regex == null || newStr == null) {
             return str;
         }
@@ -160,8 +158,8 @@ public class Replace extends EsqlScalarFunction {
         do {
             m.appendReplacement(result, newStr);
 
-            if (result.length() > MAX_RESULT_LENGTH) {
-                throw new IllegalArgumentException("Creating strings with more than [" + MAX_RESULT_LENGTH + "] bytes is not supported");
+            if (result.length() > MAX_BYTES_REF_RESULT_SIZE) {
+                throw new IllegalArgumentException("Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported");
             }
         } while (m.find());
         m.appendTail(result);

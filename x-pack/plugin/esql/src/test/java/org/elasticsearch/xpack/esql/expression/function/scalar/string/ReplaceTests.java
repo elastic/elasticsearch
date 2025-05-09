@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.PatternSyntaxException;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace.MAX_RESULT_LENGTH;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReplaceTests extends AbstractScalarFunctionTestCase {
@@ -79,6 +79,24 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Groups
+        suppliers.add(fixedCase("Full group", "Cats are awesome", ".+", "<$0>", "<Cats are awesome>"));
+        suppliers.add(fixedCase(
+            "Nested groups",
+            "A cat is great, a cat is awesome",
+            "\\b([Aa] (\\w+)) is (\\w+)\\b",
+            "$1$2",
+            "A catcat, a catcat"
+        ));
+        suppliers.add(fixedCase(
+            "Multiple groups",
+            "Cats are awesome",
+            "(\\w+) (.+)",
+            "$0 -> $1 and dogs $2",
+            "Cats are awesome -> Cats and dogs are awesome"
+        ));
+
+        // Errors
         suppliers.add(new TestCaseSupplier("syntax error", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
             String text = randomAlphaOfLength(10);
             String invalidRegex = "[";
@@ -106,7 +124,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("result too big", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
-            String textAndNewStr = randomAlphaOfLength((int) (MAX_RESULT_LENGTH / 10));
+            String textAndNewStr = randomAlphaOfLength((int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10));
             String regex = ".";
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -121,7 +139,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 .withWarning(
                     "Line 1:1: java.lang.IllegalArgumentException: "
                         + "Creating strings with more than ["
-                        + MAX_RESULT_LENGTH
+                        + ScalarFunction.MAX_BYTES_REF_RESULT_SIZE
                         + "] bytes is not supported"
                 );
         }));

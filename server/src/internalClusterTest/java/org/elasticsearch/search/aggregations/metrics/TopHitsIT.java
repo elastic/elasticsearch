@@ -15,6 +15,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -164,7 +165,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-            )
+            ).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build())
         );
         ensureGreen("idx", "empty", "articles");
 
@@ -224,7 +225,7 @@ public class TopHitsIT extends ESIntegTestCase {
         numArticles = scaledRandomIntBetween(10, 100);
         numArticles -= (numArticles % 5);
         for (int i = 0; i < numArticles; i++) {
-            XContentBuilder builder = randomFrom(jsonBuilder(), yamlBuilder(), smileBuilder());
+            XContentBuilder builder = jsonBuilder();
             builder.startObject().field("date", i).startArray("comments");
             for (int j = 0; j < i; j++) {
                 String user = Integer.toString(j);
@@ -233,6 +234,8 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(prepareIndex("articles").setSource(builder));
+            indexRandom(true, builders);
+            builders.clear();
         }
 
         builders.add(

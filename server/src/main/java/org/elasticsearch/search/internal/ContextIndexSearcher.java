@@ -153,7 +153,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
         // we offload to the executor unconditionally, including requests that don't support concurrency
-        LeafSlice[] leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+        LeafSlice[] leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, 5);
         assert leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         return leafSlices;
     }

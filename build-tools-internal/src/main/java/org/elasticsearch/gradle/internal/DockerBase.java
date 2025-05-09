@@ -14,7 +14,7 @@ package org.elasticsearch.gradle.internal;
  */
 public enum DockerBase {
     // "latest" here is intentional, since the image name specifies "9"
-    DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "Dockerfile.default"),
+    DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
@@ -37,7 +37,7 @@ public enum DockerBase {
         "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7@sha256:ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
         "-cloud-ess-fips",
         "apk",
-        "Dockerfile.ess-fips"
+        "dockerfiles/cloud_ess_fips/Dockerfile"
     );
 
     private final String image;

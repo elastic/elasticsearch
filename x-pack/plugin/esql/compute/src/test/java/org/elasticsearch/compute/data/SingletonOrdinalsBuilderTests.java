@@ -31,10 +31,12 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,6 +89,27 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
             }
             assertMap(counts, matchesMap().entry("a", count).entry("b", count).entry("c", count).entry("d", count));
         }
+    }
+
+    public void testCompactWithNulls() {
+        assertCompactToUnique(new int[] { -1, -1, -1, -1, 0, 1, 2 }, List.of(0, 1, 2));
+    }
+
+    public void testCompactNoNulls() {
+        assertCompactToUnique(new int[] { 0, 1, 2 }, List.of(0, 1, 2));
+    }
+
+    public void testCompactDups() {
+        assertCompactToUnique(new int[] { 0, 0, 0, 1, 2 }, List.of(0, 1, 2));
+    }
+
+    public void testCompactSkips() {
+        assertCompactToUnique(new int[] { 2, 7, 1000 }, List.of(2, 7, 1000));
+    }
+
+    private void assertCompactToUnique(int[] sortedOrds, List<Integer> expected) {
+        int uniqueLength = SingletonOrdinalsBuilder.compactToUnique(sortedOrds);
+        assertMap(Arrays.stream(sortedOrds).mapToObj(Integer::valueOf).limit(uniqueLength).toList(), matchesList(expected));
     }
 
     private final List<CircuitBreaker> breakers = new ArrayList<>();

@@ -11,20 +11,18 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -142,32 +140,22 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
                     n,
                     REQUEST_PRE_VOTE_ACTION_NAME,
                     preVoteRequest,
-                    new TransportResponseHandler<PreVoteResponse>() {
+                    new ActionListenerResponseHandler<>(ActionListener.assertOnce(new ActionListener<>() {
                         @Override
-                        public PreVoteResponse read(StreamInput in) throws IOException {
-                            return new PreVoteResponse(in);
-                        }
-
-                        @Override
-                        public void handleResponse(PreVoteResponse response) {
+                        public void onResponse(PreVoteResponse response) {
                             handlePreVoteResponse(response, n);
                         }
 
                         @Override
-                        public void handleException(TransportException exp) {
-                            logger.debug(() -> format("%s failed", this), exp);
-                        }
-
-                        @Override
-                        public Executor executor() {
-                            return clusterCoordinationExecutor;
+                        public void onFailure(Exception e) {
+                            logger.debug(() -> format("%s failed", this), e);
                         }
 
                         @Override
                         public String toString() {
-                            return "TransportResponseHandler{" + StatefulPreVoteCollector.this + ", node=" + n + '}';
+                            return "ResponseHandler{" + StatefulPreVoteCollector.this + ", node=" + n + '}';
                         }
-                    }
+                    }), PreVoteResponse::new, clusterCoordinationExecutor)
                 )
             );
         }

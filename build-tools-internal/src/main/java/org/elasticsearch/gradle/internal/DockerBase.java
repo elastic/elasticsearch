@@ -20,21 +20,18 @@ public enum DockerBase {
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
-    // This is usually updated via renovatebot
-    // spotless:off
     WOLFI(
         null,
         "-wolfi",
         "apk",
         "dockerfiles/wolfi/Dockerfile"
     ),
-    // spotless:on
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
     CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
 
     CLOUD_ESS_FIPS(
-        "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7@sha256:ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
+        null,
         "-cloud-ess-fips",
         "apk",
         "dockerfiles/cloud_ess_fips/Dockerfile"

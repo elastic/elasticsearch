@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.entitlement.bridge.UtilTests.MockSensitiveClass.mockSensitiveMethod;
 
-@ESTestCase.WithoutSecurityManager
 public class UtilTests extends ESTestCase {
 
     public void testCallerClass() {

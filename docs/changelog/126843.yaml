@@ -1,0 +1,89 @@
+pr: 126843
+summary: Upgrade `repository-s3` to AWS SDK v2
+area: Snapshot/Restore
+type: breaking
+issues:
+ - 120993
+highlight:
+  title: Upgrade `repository-s3` to AWS SDK v2
+  body: >-
+    In earlier versions of {es} the `repository-s3` plugin was based on the AWS
+    SDK v1. AWS will withdraw support for this SDK before the end of the life
+    of {es} {minor-version} so we have migrated this plugin to the newer AWS SDK v2.
+
+    The two SDKs are not quite compatible, so please check the breaking changes
+    documentation and test the new version thoroughly before upgrading any
+    production workloads.
+  notable: true
+breaking:
+  title: Upgrade `repository-s3` to AWS SDK v2
+  area: Cluster and node setting
+  details: >-
+    In earlier versions of {es} the `repository-s3` plugin was based on the AWS
+    SDK v1. AWS will withdraw support for this SDK before the end of the life
+    of {es} {minor-version} so we must migrate to the newer AWS SDK v2.
+
+    Unfortunately there are several differences between the two AWS SDK
+    versions which may require you to adjust your system configuration when
+    upgrading to {es} {minor-version} or later. These differences include, but
+    may not be limited to, the following items.
+
+    * AWS SDK v2 requires users to specify the region to use for signing
+      requests, or else to run in an environment in which it can determine the
+      correct region automatically. The older SDK would try to determine the
+      region based on the endpoint URL as specified with the
+      `s3.client.${CLIENT_NAME}.endpoint` setting, together with other data
+      drawn from the operating environment, and would ultimately fall back to
+      `us-east-1` if no better value could be found.
+
+    * AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+
+    * AWS SDK v2 does not support the
+      `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
+
+    * AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so
+      the `s3.client.${CLIENT_NAME}.protocol` setting is deprecated.
+
+    * AWS SDK v2 does not permit control over throttling for retries, so the
+      the `s3.client.${CLIENT_NAME}.use_throttle_retries` setting is deprecated
+      and no longer has any effect.
+
+    * AWS SDK v2 requires the use of the V4 signature algorithm, so the
+      `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no
+      longer has any effect.
+
+    * AWS SDK v2 does not support the `log-delivery-write` canned ACL.
+
+    * AWS SDK v2 counts 4xx responses differently in its metrics reporting.
+
+    * AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2
+      could use either a regional endpoint or the global
+      `https://sts.amazonaws.com` one.
+
+  impact: >-
+    If you use the `repository-s3` module, test your upgrade thoroughly before
+    upgrading any production workloads.
+
+    Adapt your configuration to the new SDK functionality. This includes, but
+    may not be limited to, the following items.
+
+    * Specify the correct signing region using the
+      `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try and
+      determine the correct region based on the endpoint URL and other data
+      drawn from the operating environment but cannot guarantee to do so
+      correctly in all cases.
+
+    * If you use IMDS to determine the availability zone of a node or to obtain
+      credentials for accessing the EC2 API, ensure that it supports the IMDSv2
+      protocol.
+
+    * If applicable, discontinue use of the
+      `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
+
+    * If applicable, specify the protocol to use to access the S3 API by
+      setting `s3.client.${CLIENT_NAME}.endpoint` to a URL which starts with
+      `http://` or `https://`.
+
+    * If applicable, discontinue use of the `log-delivery-write` canned ACL.
+
+  notable: true

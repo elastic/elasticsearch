@@ -1,0 +1,5 @@
+pr: 127975
+summary: Fix a bug in `significant_terms`
+area: Aggregations
+type: bug
+issues: []

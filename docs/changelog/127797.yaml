@@ -1,0 +1,6 @@
+pr: 127797
+summary: "Date nanos implicit casting in union types option #2"
+area: ES|QL
+type: enhancement
+issues:
+ - 110009

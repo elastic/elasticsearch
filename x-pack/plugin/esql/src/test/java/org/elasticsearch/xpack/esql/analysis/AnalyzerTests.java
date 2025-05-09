@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -110,6 +112,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
@@ -3935,6 +3938,68 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("hire_date", fa.name());
         literal = as(bucket.buckets(), Literal.class);
         assertEquals(oneYear, literal);
+    }
+
+    public void testImplicitCastingForDateAndDateNanosFields() {
+        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
+
+        // validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again
+        LogicalPlan plan = analyze("""
+            FROM tests
+            | Eval x = date_and_date_nanos::datetime, y = date_and_date_nanos, z = date_and_date_nanos::date_nanos
+            """, analyzer);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(5, projections.size());
+        // implicit casting
+        FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
+        assertEquals("date_and_date_nanos", fa.name());
+        assertEquals(DataType.DATE_NANOS, fa.dataType());
+        // long is not cast to date_nanos
+        UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class);
+        assertEquals("date_and_date_nanos_and_long", ua.name());
+        assertEquals(DataType.UNSUPPORTED, ua.dataType());
+        // explicit casting
+        ReferenceAttribute ra = as(projections.get(2), ReferenceAttribute.class);
+        assertEquals("x", ra.name());
+        assertEquals(DataType.DATETIME, ra.dataType());
+        // implicit casting
+        ra = as(projections.get(3), ReferenceAttribute.class);
+        assertEquals("y", ra.name());
+        assertEquals(DataType.DATE_NANOS, ra.dataType());
+        // explicit casting
+        ra = as(projections.get(4), ReferenceAttribute.class);
+        assertEquals("z", ra.name());
+        assertEquals(DataType.DATE_NANOS, ra.dataType());
+        Limit limit = as(project.child(), Limit.class);
+        // original Eval coded in the query
+        Eval eval = as(limit.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(3, aliases.size());
+        // explicit casting
+        Alias a = aliases.get(0);
+        assertEquals("x", a.name());
+        assertEquals(DataType.DATETIME, a.dataType());
+        assertTrue(isMultiTypeEsField(a.child()));
+        // implicit casting
+        a = aliases.get(1);
+        assertEquals("y", a.name());
+        assertEquals(DataType.DATE_NANOS, a.dataType());
+        assertTrue(a.child() instanceof FieldAttribute);
+        // explicit casting
+        a = aliases.get(2);
+        assertEquals("z", a.name());
+        assertEquals(DataType.DATE_NANOS, a.dataType());
+        assertTrue(isMultiTypeEsField(a.child()));
+        EsRelation esRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test*", esRelation.indexPattern());
+    }
+
+    private boolean isMultiTypeEsField(Expression e) {
+        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
     @Override

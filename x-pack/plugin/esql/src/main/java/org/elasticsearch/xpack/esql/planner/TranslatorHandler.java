@@ -46,7 +46,10 @@ public final class TranslatorHandler {
         }
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
-            return new SingleValueQuery(query, fa.name(), false);
+            // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
+            String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(fa);
+            String fieldName = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : fa.name();
+            return new SingleValueQuery(query, fieldName, false);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

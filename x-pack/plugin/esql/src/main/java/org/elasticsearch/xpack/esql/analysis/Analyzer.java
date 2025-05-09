@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -143,8 +144,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
@@ -158,7 +161,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // ie from test | stats c = count(*)
     public static final String NO_FIELDS_NAME = "<no-fields>";
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -169,7 +172,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveInference(),
             new ResolveLookupTables(),
-            new ResolveFunctions()
+            new ResolveFunctions(),
+            new ResolveUnionTypesInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -678,7 +682,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                              */
                             boolean dataTypesOk = joinedAttribute.dataType().equals(attr.dataType());
                             if (false == dataTypesOk) {
-                                dataTypesOk = joinedAttribute.dataType() == DataType.NULL || attr.dataType() == DataType.NULL;
+                                dataTypesOk = joinedAttribute.dataType() == NULL || attr.dataType() == NULL;
                             }
                             if (false == dataTypesOk) {
                                 dataTypesOk = joinedAttribute.dataType().equals(KEYWORD) && attr.dataType().equals(TEXT);
@@ -1344,7 +1348,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <li>date_trunc("1 minute", dateField)</li>
      * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
-     * applicable. For example, implicit casting converts:
+     * applicable, the same applies to Case, Greatest, Least. For example, implicit casting converts:
      * <ul>
      * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
      * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
@@ -1356,6 +1360,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            // do implicit casting for function arguments
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
@@ -1386,7 +1391,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression arg;
             DataType targetNumericType = null;
             boolean castNumericArgs = true;
@@ -1399,7 +1404,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
                             }
-                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                            if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
                                     childrenChanged = true;
@@ -1432,7 +1437,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
@@ -1594,7 +1599,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Collect field attributes from previous runs
             plan.forEachUp(EsRelation.class, rel -> {
                 for (Attribute attr : rel.output()) {
-                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa);
                     }
                 }
@@ -1670,11 +1675,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
-            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convertExpression.replaceChildren(
-                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
-                );
-            }
+            } else if (convert.field() instanceof FieldAttribute fa
+                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by ResolveUnionTypesInEsRelation has synthetic = false
+                && fa.field() instanceof MultiTypeEsField mtf) {
+                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                    // ResolveUnionTypesInEsRelation, it is not necessary to cast it into date_nanos and then do explicit casting.
+                    if (((Expression) convert).dataType() == mtf.getDataType()) {
+                        // The same data type between implicit(date_nanos) and explicit casting, explicit conversion is not needed
+                        return convert.field();
+                    } else {
+                        // Data type is different between implicit(date_nanos) and explicit casting, create a new MultiTypeEsField with
+                        // explicit casting type. TODO Is there an easy way to convert one MultiTypeEsField to another MultiTypeEsField?
+                        HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        Set<DataType> supportedTypes = convert.supportedTypes();
+                        Holder<Boolean> conversionSupported = new Holder<>(true);
+                        // Get the type of each field in the multi typed field and check if the explicit conversion is supported
+                        mtf.getIndexToConversionExpressions().forEach((indexName, conversionExpression) -> {
+                            AbstractConvertFunction c = (AbstractConvertFunction) conversionExpression;
+                            FieldAttribute fieldAttribute = (FieldAttribute) c.field();
+                            DataType type = fieldAttribute.dataType();
+                            if (supportedTypes.contains(type.widenSmallNumeric())) {
+                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
+                                var concreteConvert = typeSpecificConvert(convert, fa.source(), fieldAttribute.field());
+                                typeResolutions.putIfAbsent(key, concreteConvert);
+                            } else {
+                                conversionSupported.set(false);
+                            }
+                        });
+                        // If the conversions are supported, all the data types in a MultiTypeEsField can be cast to the explicit casting
+                        // data type, create a new FieldAttribute with a new MultiTypeEsField, and add it to unionFieldAttributes.
+                        if (conversionSupported.get()) {
+                            // Build the mapping between index name and conversion expressions, as a MultiTypeEsField does not store the
+                            // mapping between data types and index names,
+                            Map<String, Expression> indexToConversionExpressions = new HashMap<>();
+                            for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
+                                String indexName = entry.getKey();
+                                AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
+                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), originalConversionFunction.field().dataType());
+                                Expression newConversionFunction = typeResolutions.get(key);
+                                indexToConversionExpressions.put(indexName, newConversionFunction);
+                            }
+                            MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
+                                fa.name(),
+                                ((Expression) convert).dataType(),
+                                false,
+                                indexToConversionExpressions
+                            );
+                            return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                        }
+                    }
+                } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                    return convertExpression.replaceChildren(
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                    );
+                }
             return convertExpression;
         }
 
@@ -1698,7 +1752,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private MultiTypeEsField resolvedMultiTypeEsField(FieldAttribute fa, HashMap<TypeResolutionKey, Expression> typeResolutions) {
+        private static MultiTypeEsField resolvedMultiTypeEsField(
+            FieldAttribute fa,
+            HashMap<TypeResolutionKey, Expression> typeResolutions
+        ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
             imf.getTypesToIndices().forEach((typeName, indexNames) -> {
@@ -1711,8 +1768,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
+            return typeSpecificConvert(convert, source, field);
+        }
+
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, EsField field) {
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -1785,6 +1846,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
+        }
+    }
+
+    /**
+     * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
+     */
+    private static class ResolveUnionTypesInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        var convert = new ToDateNanos(f.source(), f);
+                        imf.types().forEach(type -> {
+                            ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(f.name(), type);
+                            var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, f.source(), type, imf);
+                            typeResolutions.put(key, concreteConvert);
+                        });
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
+                    }
+                    return f;
+                });
+            });
         }
     }
 }

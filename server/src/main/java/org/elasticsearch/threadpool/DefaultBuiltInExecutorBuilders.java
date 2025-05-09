@@ -43,7 +43,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new FixedExecutorBuilder(
                 settings,
                 ThreadPool.Names.WRITE,
-                allocatedProcessors,
+                halfProc,
                 10000,
                 new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )

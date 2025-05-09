@@ -77,16 +77,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
             {"rank": 4.0, "nested": [{"text": "foo"}, {"text": "bar"}]}"""), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
-        Request request = new Request(
-            new Script(
-                ScriptType.INLINE,
-                "painless",
-                "doc['rank'].value",
-                Map.of()
-            ),
-            "score",
-            contextSetup
-        );
+        Request request = new Request(new Script(ScriptType.INLINE, "painless", "doc['rank'].value", Map.of()), "score", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(4.0D));
     }

@@ -151,16 +151,31 @@ public class Replace extends EsqlScalarFunction {
             return strBytesRef;
         }
         String newStr = newStrBytesRef.utf8ToString();
+
+        // Count potential groups (E.g. "$1") used in the replacement
+        int constantReplacementLength = newStr.length();
+        int groupsInReplacement = 0;
+        for (int i = 0; i < newStr.length(); i++) {
+            if (newStr.charAt(i) == '$') {
+                groupsInReplacement++;
+                constantReplacementLength -= 2;
+                i++;
+            }
+        }
+
         // Initialize the buffer with an approximate size for the first replacement
         StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
         do {
-            m.appendReplacement(result, newStr);
-
-            if (result.length() > MAX_BYTES_REF_RESULT_SIZE) {
+            int matchSize = m.end() - m.start();
+            int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
+            int remainingStr = str.length() - m.end();
+            if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
                 throw new IllegalArgumentException(
                     "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
                 );
             }
+
+            m.appendReplacement(result, newStr);
         } while (m.find());
         m.appendTail(result);
         return new BytesRef(result.toString());

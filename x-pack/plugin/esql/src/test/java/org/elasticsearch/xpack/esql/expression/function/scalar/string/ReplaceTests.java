@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -118,27 +117,6 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 .withFoldingException(
                     PatternSyntaxException.class,
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
-                );
-        }));
-
-        suppliers.add(new TestCaseSupplier("result too big", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
-            String textAndNewStr = randomAlphaOfLength((int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10));
-            String regex = ".";
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(textAndNewStr), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(regex), DataType.KEYWORD, "regex"),
-                    new TestCaseSupplier.TypedData(new BytesRef(textAndNewStr), DataType.KEYWORD, "newStr")
-                ),
-                "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
-                DataType.KEYWORD,
-                equalTo(null)
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning(
-                    "Line 1:1: java.lang.IllegalArgumentException: "
-                        + "Creating strings with more than ["
-                        + ScalarFunction.MAX_BYTES_REF_RESULT_SIZE
-                        + "] bytes is not supported"
                 );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);

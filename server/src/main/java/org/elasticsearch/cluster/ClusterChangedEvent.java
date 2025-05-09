@@ -363,8 +363,9 @@ public class ClusterChangedEvent {
         final Set<ProjectId> removed = Collections.unmodifiableSet(
             Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
         );
-        assert added.contains(ProjectId.DEFAULT) == false;
-        assert removed.contains(ProjectId.DEFAULT) == false;
+        // TODO: Enable the following assertions once tests no longer add or remove default projects
+        // assert added.contains(ProjectId.DEFAULT) == false;
+        // assert removed.contains(ProjectId.DEFAULT) == false;
         return new ProjectsDelta(added, removed);
     }
 

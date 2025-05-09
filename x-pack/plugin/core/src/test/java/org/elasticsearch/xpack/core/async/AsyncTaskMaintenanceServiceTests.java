@@ -67,7 +67,7 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         final String localNodeId = randomIdentifier();
         final String alternateNodeId = randomIdentifier();
 
-        final Metadata.Builder metadataBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        final Metadata.Builder metadataBuilder = Metadata.builder();
         final GlobalRoutingTable.Builder grtBuilder = GlobalRoutingTable.builder();
 
         final ProjectId p1 = ProjectId.fromId("p1");

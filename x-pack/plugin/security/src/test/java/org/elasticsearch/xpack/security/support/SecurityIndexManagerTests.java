@@ -95,7 +95,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -316,13 +315,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicReference<IndexState> previousState = new AtomicReference<>();
         final AtomicReference<IndexState> currentState = new AtomicReference<>();
         final TriConsumer<ProjectId, IndexState, IndexState> listener = (projId, prevState, state) -> {
-            assertThat(projId, oneOf(ProjectId.DEFAULT, projectId));
-            if (projId.equals(projectId)) {
-                projectIdRef.set(projId);
-                previousState.set(prevState);
-                currentState.set(state);
-                listenerCalled.set(true);
-            }
+            projectIdRef.set(projId);
+            previousState.set(prevState);
+            currentState.set(state);
+            listenerCalled.set(true);
         };
         manager.addStateListener(listener);
 
@@ -577,11 +573,9 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(new ClusterChangedEvent("test-event", clusterState, clusterState));
         AtomicBoolean upToDateChanged = new AtomicBoolean();
         manager.addStateListener((projId, prev, current) -> {
-            assertThat(projId, oneOf(ProjectId.DEFAULT, projectId));
-            if (projId.equals(projectId)) {
-                listenerCalled.set(true);
-                upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
-            }
+            assertThat(projId, equalTo(projectId));
+            listenerCalled.set(true);
+            upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
         });
         assertThat(manager.getProject(projectId).isIndexUpToDate(), is(true));
 
@@ -785,7 +779,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // No role mappings in cluster state yet
-            metadataBuilder.getProject(projectId).putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
+            metadataBuilder.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -809,13 +803,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state with fallback name
-            metadataBuilder.getProject(projectId)
-                .putCustom(
-                    RoleMappingMetadata.TYPE,
-                    new RoleMappingMetadata(
-                        Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true))
-                    )
-                );
+            metadataBuilder.putCustom(
+                RoleMappingMetadata.TYPE,
+                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true)))
+            );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -839,11 +830,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state
-            metadataBuilder.getProject(projectId)
-                .putCustom(
-                    RoleMappingMetadata.TYPE,
-                    new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
-                );
+            metadataBuilder.putCustom(
+                RoleMappingMetadata.TYPE,
+                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
+            );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -1100,7 +1090,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String mappings,
         Map<String, SystemIndexDescriptor.MappingsVersion> compatibilityVersions
     ) {
-        final Metadata metadata = Metadata.builder(Metadata.EMPTY_METADATA)
+        final Metadata metadata = Metadata.builder()
             .put(createProjectMetadata(projectId, indexName, aliasName, format, state, mappings))
             .build();
         final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew);
@@ -1151,10 +1141,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .masterNodeId("1")
             .localNodeId("1")
             .build();
-        final Metadata metadata = Metadata.builder(Metadata.EMPTY_METADATA)
-            .put(ProjectMetadata.builder(projectId))
-            .generateClusterUuidIfNeeded()
-            .build();
+        final Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).generateClusterUuidIfNeeded().build();
         return ClusterState.builder(CLUSTER_NAME).nodes(nodes).metadata(metadata).build();
     }
 

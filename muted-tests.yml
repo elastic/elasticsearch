@@ -426,9 +426,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunctionTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/127833
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138

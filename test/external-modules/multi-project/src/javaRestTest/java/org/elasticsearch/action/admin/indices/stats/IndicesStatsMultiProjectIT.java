@@ -74,21 +74,21 @@ public class IndicesStatsMultiProjectIT extends MultiProjectRestTestCase {
         ObjectPath statsForProject1 = getAsObjectPathInProject("/_stats", "project-1");
         assertThat(statsForProject1.evaluate("_all.total.docs.count"), equalTo(numDocs1Only + numDocs1Of1And2 + numDocs1All));
         assertThat(
-            ObjectPath.<Map<String, Object>>evaluate(statsForProject1, "indices").keySet(),
+            statsForProject1.<Map<String, Object>>evaluate("indices").keySet(),
             containsInAnyOrder("my-index-project-1-only", "my-index-projects-1-and-2", "my-index-all-projects")
         );
-        assertThat(ObjectPath.evaluate(statsForProject1, "indices.my-index-project-1-only.total.docs.count"), equalTo(numDocs1Only));
-        assertThat(ObjectPath.evaluate(statsForProject1, "indices.my-index-projects-1-and-2.total.docs.count"), equalTo(numDocs1Of1And2));
-        assertThat(ObjectPath.evaluate(statsForProject1, "indices.my-index-all-projects.total.docs.count"), equalTo(numDocs1All));
+        assertThat(statsForProject1.evaluate("indices.my-index-project-1-only.total.docs.count"), equalTo(numDocs1Only));
+        assertThat(statsForProject1.evaluate("indices.my-index-projects-1-and-2.total.docs.count"), equalTo(numDocs1Of1And2));
+        assertThat(statsForProject1.evaluate("indices.my-index-all-projects.total.docs.count"), equalTo(numDocs1All));
 
         // Check indices stats for project 2.
-        Map<String, Object> statsForProject2 = getAsOrderedMapInProject("/_stats", "project-2");
+        ObjectPath statsForProject2 = getAsObjectPathInProject("/_stats", "project-2");
         assertThat(
-            ObjectPath.evaluate(statsForProject2, "_all.total.docs.count"),
+            statsForProject2.evaluate("_all.total.docs.count"),
             equalTo(numDocs2Only + numDocs2Of1And2 + numDocs2Of2AndDefault + numDocs2All)
         );
         assertThat(
-            ObjectPath.<Map<String, Object>>evaluate(statsForProject2, "indices").keySet(),
+            statsForProject2.<Map<String, Object>>evaluate("indices").keySet(),
             containsInAnyOrder(
                 "my-index-project-2-only",
                 "my-index-projects-1-and-2",
@@ -96,34 +96,31 @@ public class IndicesStatsMultiProjectIT extends MultiProjectRestTestCase {
                 "my-index-all-projects"
             )
         );
-        assertThat(ObjectPath.evaluate(statsForProject2, "indices.my-index-all-projects.total.docs.count"), equalTo(numDocs2All));
+        assertThat(statsForProject2.evaluate("indices.my-index-all-projects.total.docs.count"), equalTo(numDocs2All));
 
         // Check indices stats for default project.
-        Map<String, Object> statsForDefaultProject = getAsOrderedMap("/_stats");
+        ObjectPath statsForDefaultProject = getAsObjectPathInDefaultProject("/_stats");
         assertThat(
-            ObjectPath.evaluate(statsForDefaultProject, "_all.total.docs.count"),
+            statsForDefaultProject.evaluate("_all.total.docs.count"),
             equalTo(numDocsDefaultOnly + numDocsDefaultOf2AndDefault + numDocsDefaultAll)
         );
         assertThat(
-            ObjectPath.<Map<String, Object>>evaluate(statsForDefaultProject, "indices").keySet(),
+            statsForDefaultProject.<Map<String, Object>>evaluate("indices").keySet(),
             containsInAnyOrder("my-index-default-project-only", "my-index-projects-2-and-default", "my-index-all-projects")
         );
-        assertThat(
-            ObjectPath.evaluate(statsForDefaultProject, "indices.my-index-all-projects.total.docs.count"),
-            equalTo(numDocsDefaultAll)
-        );
+        assertThat(statsForDefaultProject.evaluate("indices.my-index-all-projects.total.docs.count"), equalTo(numDocsDefaultAll));
 
         // Check single-index stats for each project.
         assertThat(
-            ObjectPath.evaluate(getAsOrderedMapInProject("/my-index-all-projects/_stats", "project-1"), "_all.total.docs.count"),
+            getAsObjectPathInProject("/my-index-all-projects/_stats", "project-1").evaluate("_all.total.docs.count"),
             equalTo(numDocs1All)
         );
         assertThat(
-            ObjectPath.evaluate(getAsOrderedMapInProject("/my-index-all-projects/_stats", "project-2"), "_all.total.docs.count"),
+            getAsObjectPathInProject("/my-index-all-projects/_stats", "project-2").evaluate("_all.total.docs.count"),
             equalTo(numDocs2All)
         );
         assertThat(
-            ObjectPath.evaluate(getAsOrderedMap("/my-index-all-projects/_stats"), "_all.total.docs.count"),
+            getAsObjectPathInDefaultProject("/my-index-all-projects/_stats").evaluate("_all.total.docs.count"),
             equalTo(numDocsDefaultAll)
         );
 
@@ -135,10 +132,10 @@ public class IndicesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
         // Check using a wildcard gets the matching indices for that project.
-        Map<String, Object> statsWithWildcardForProject1 = getAsOrderedMapInProject("/my-index-project*/_stats", "project-1");
-        assertThat(ObjectPath.evaluate(statsWithWildcardForProject1, "_all.total.docs.count"), equalTo(numDocs1Only + numDocs1Of1And2));
+        ObjectPath statsWithWildcardForProject1 = getAsObjectPathInProject("/my-index-project*/_stats", "project-1");
+        assertThat(statsWithWildcardForProject1.evaluate("_all.total.docs.count"), equalTo(numDocs1Only + numDocs1Of1And2));
         assertThat(
-            ObjectPath.<Map<String, Object>>evaluate(statsWithWildcardForProject1, "indices").keySet(),
+            statsWithWildcardForProject1.<Map<String, Object>>evaluate("indices").keySet(),
             containsInAnyOrder("my-index-project-1-only", "my-index-projects-1-and-2")
         );
     }
@@ -159,7 +156,11 @@ public class IndicesStatsMultiProjectIT extends MultiProjectRestTestCase {
         return numDocs;
     }
 
-    private static Map<String, Object> getAsOrderedMapInProject(String endpoint, String projectId) throws IOException {
-        return responseAsOrderedMap(client().performRequest(setRequestProjectId(new Request("GET", endpoint), projectId)));
+    private static ObjectPath getAsObjectPathInProject(String endpoint, String projectId) throws IOException {
+        return new ObjectPath(responseAsOrderedMap(client().performRequest(setRequestProjectId(new Request("GET", endpoint), projectId))));
+    }
+
+    private static ObjectPath getAsObjectPathInDefaultProject(String endpoint) throws IOException {
+        return new ObjectPath(getAsMap(endpoint));
     }
 }

@@ -8,7 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.Directory;
@@ -28,15 +31,14 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SingletonOrdinalsBuilderTests extends ESTestCase {
     public void testReader() throws IOException {
@@ -87,27 +89,6 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
         }
     }
 
-    public void testCompactWithNulls() {
-        assertCompactToUnique(new int[] { -1, -1, -1, -1, 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactNoNulls() {
-        assertCompactToUnique(new int[] { 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactDups() {
-        assertCompactToUnique(new int[] { 0, 0, 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactSkips() {
-        assertCompactToUnique(new int[] { 2, 7, 1000 }, List.of(2, 7, 1000));
-    }
-
-    private void assertCompactToUnique(int[] sortedOrds, List<Integer> expected) {
-        int uniqueLength = SingletonOrdinalsBuilder.compactToUnique(sortedOrds);
-        assertMap(Arrays.stream(sortedOrds).mapToObj(Integer::valueOf).limit(uniqueLength).toList(), matchesList(expected));
-    }
-
     private final List<CircuitBreaker> breakers = new ArrayList<>();
     private final List<BlockFactory> blockFactories = new ArrayList<>();
 
@@ -147,6 +128,39 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                                 assertThat(built.isNull(p), equalTo(true));
                             }
                             assertThat(built.areAllValuesNull(), equalTo(true));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testEmitOrdinalForHighCardinality() throws IOException {
+        BlockFactory factory = breakingDriverContext().blockFactory();
+        int numOrds = between(50, 100);
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+            for (int o = 0; o < numOrds; o++) {
+                int docPerOrds = between(10, 15);
+                for (int d = 0; d < docPerOrds; d++) {
+                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", new BytesRef("value-" + o))));
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                assertThat(reader.leaves(), hasSize(1));
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    int batchSize = between(20, 60);
+                    int ord = random().nextInt(numOrds);
+                    try (
+                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);
+                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize)
+                    ) {
+                        for (int i = 0; i < batchSize; i++) {
+                            b1.appendOrd(ord);
+                            b2.appendOrd(ord);
+                        }
+                        try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
+                            assertThat(block1, equalTo(block2));
+                            assertNotNull(block1.asOrdinals());
                         }
                     }
                 }

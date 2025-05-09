@@ -66,8 +66,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
      */
     long getQueueTimeNanos() {
         if (beforeExecuteTime == -1) {
-            assert false : "beforeExecute must be called before getQueueTimeNanos";
-            return -1;
+            beforeExecuteTime = System.nanoTime();
         }
         return beforeExecuteTime - creationTimeNanos;
     }
@@ -82,13 +81,6 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
             return -1;
         }
         return Math.max(finishTimeNanos - startTimeNanos, 1);
-    }
-
-    /**
-     * Called when the task has reached the front of the queue and is about to be executed
-     */
-    public void beforeExecute() {
-        beforeExecuteTime = System.nanoTime();
     }
 
     /**

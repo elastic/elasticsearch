@@ -52,6 +52,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     private List<StorageException> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     private long currentOffset;
     private boolean closed;
+    private Long lastGeneration;
 
     // Used for testing only
     GoogleCloudStorageRetryingInputStream(OperationPurpose purpose, MeteredStorage client, BlobId blobId) throws IOException {
@@ -84,6 +85,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                         return SocketAccess.doPrivilegedIOException(() -> {
                             final var meteredGet = client.meteredObjectsGet(purpose, blobId.getBucket(), blobId.getName());
                             meteredGet.setReturnRawInputStream(true);
+                            if (lastGeneration != null) {
+                                meteredGet.setGeneration(lastGeneration);
+                            }
 
                             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                                 if (meteredGet.getRequestHeaders() != null) {
@@ -91,6 +95,12 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                                 }
                             }
                             final HttpResponse resp = meteredGet.executeMedia();
+                            // Store the generation of the first response we received, so we can detect
+                            // if the file has changed if we need to resume
+                            if (lastGeneration == null) {
+                                lastGeneration = parseGenerationHeader(resp);
+                            }
+
                             final Long contentLength = resp.getHeaders().getContentLength();
                             InputStream content = resp.getContent();
                             if (contentLength != null) {
@@ -107,9 +117,22 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             }
         } catch (StorageException storageException) {
             if (storageException.getCode() == RestStatus.NOT_FOUND.getStatus()) {
-                throw addSuppressedExceptions(
-                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + storageException.getMessage())
-                );
+                if (lastGeneration != null) {
+                    throw addSuppressedExceptions(
+                        new NoSuchFileException(
+                            "Blob object ["
+                                + blobId.getName()
+                                + "] generation ["
+                                + lastGeneration
+                                + "] unavailable on resume (contents changed, or object deleted): "
+                                + storageException.getMessage()
+                        )
+                    );
+                } else {
+                    throw addSuppressedExceptions(
+                        new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + storageException.getMessage())
+                    );
+                }
             }
             if (storageException.getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                 long currentPosition = Math.addExact(start, currentOffset);
@@ -124,6 +147,24 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             }
             throw addSuppressedExceptions(storageException);
         }
+    }
+
+    private Long parseGenerationHeader(HttpResponse response) {
+        final String generationHeader = response.getHeaders().getFirstHeaderStringValue("x-goog-generation");
+        if (generationHeader != null) {
+            try {
+                return Long.parseLong(generationHeader);
+            } catch (NumberFormatException e) {
+                final String message = "Unexpected value for x-goog-generation header: " + generationHeader;
+                logger.warn(message);
+                assert false : message;
+            }
+        } else {
+            String message = "Missing x-goog-generation header";
+            logger.warn(message);
+            assert false : message;
+        }
+        return null;
     }
 
     // Google's SDK ignores the Content-Length header when no bytes are sent, see NetHttpResponse.SizeValidatingInputStream
@@ -212,7 +253,6 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         }
     }
 
-    // TODO: check that object did not change when stream is reopened (e.g. based on etag)
     private void reopenStreamOrFail(StorageException e) throws IOException {
         if (attempt >= maxAttempts) {
             throw addSuppressedExceptions(e);

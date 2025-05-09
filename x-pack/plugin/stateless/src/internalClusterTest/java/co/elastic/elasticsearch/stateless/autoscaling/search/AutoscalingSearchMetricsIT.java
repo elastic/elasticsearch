@@ -271,10 +271,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         var indexShard = findIndexShard(resolveIndex(indexName), 0);
         assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
 
-        if (randomBoolean()) {
-            internalCluster().restartNode(masterNode);
-            ensureGreen(indexName);
-        }
+        // Restarting the master node to update shard size cache, to reflect the hollow information which is later asserted.
+        internalCluster().restartNode(masterNode);
+        ensureGreen(indexName);
         if (randomBoolean()) {
             internalCluster().restartNode(searchNode);
             ensureGreen(indexName);

@@ -171,7 +171,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 assertThat(reader.leaves(), hasSize(1));
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    int batchSize = between(20, 60);
+                    int batchSize = between(40, 100);
                     int ord = random().nextInt(numOrds);
                     try (
                         var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);

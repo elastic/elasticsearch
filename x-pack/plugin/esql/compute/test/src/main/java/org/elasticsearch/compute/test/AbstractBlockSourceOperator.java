@@ -10,7 +10,6 @@ package org.elasticsearch.compute.test;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.test.ESTestCase;
 
 /**
  * An abstract source operator. Implementations of this operator produce pages with a random
@@ -47,7 +46,7 @@ public abstract class AbstractBlockSourceOperator extends SourceOperator {
             finish();
             return null;
         }
-        int length = Math.min(ESTestCase.randomInt(maxPagePositions), remaining());
+        int length = Math.min(maxPagePositions, remaining());  // ESTestCase.randomInt(maxPagePositions)
         return createPage(currentPosition, length);
     }
 

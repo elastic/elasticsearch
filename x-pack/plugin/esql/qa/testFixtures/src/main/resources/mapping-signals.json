@@ -1,0 +1,16 @@
+{
+    "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "signal": {
+          "type": "long"
+        },
+        "env": {
+          "type": "keyword"
+        },
+        "region": {
+          "type": "keyword"
+        }
+    }
+}

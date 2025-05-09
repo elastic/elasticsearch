@@ -22,6 +22,7 @@ public class ChangePointExec extends UnaryExec {
 
     private final Attribute value;
     private final Attribute key;
+    private final List<Attribute> partition;
     private final Attribute targetType;
     private final Attribute targetPvalue;
 
@@ -32,12 +33,14 @@ public class ChangePointExec extends UnaryExec {
         PhysicalPlan child,
         Attribute value,
         Attribute key,
+        List<Attribute> partition,
         Attribute targetType,
         Attribute targetPvalue
     ) {
         super(source, child);
         this.value = value;
         this.key = key;
+        this.partition = partition;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
     }
@@ -54,12 +57,12 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends ChangePointExec> info() {
-        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, targetType, targetPvalue);
+        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, partition, targetType, targetPvalue);
     }
 
     @Override
     public ChangePointExec replaceChild(PhysicalPlan newChild) {
-        return new ChangePointExec(source(), newChild, value, key, targetType, targetPvalue);
+        return new ChangePointExec(source(), newChild, value, key, partition, targetType, targetPvalue);
     }
 
     @Override
@@ -83,6 +86,10 @@ public class ChangePointExec extends UnaryExec {
         return key;
     }
 
+    public List<Attribute> partition() {
+        return partition;
+    }
+
     public Attribute targetType() {
         return targetType;
     }
@@ -93,7 +100,7 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
+        return Objects.hash(super.hashCode(), value, key, partition, targetType, targetPvalue);
     }
 
     @Override
@@ -101,6 +108,7 @@ public class ChangePointExec extends UnaryExec {
         return super.equals(other)
             && Objects.equals(value, ((ChangePointExec) other).value)
             && Objects.equals(key, ((ChangePointExec) other).key)
+            && Objects.equals(partition, ((ChangePointExec) other).partition)
             && Objects.equals(targetType, ((ChangePointExec) other).targetType)
             && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue);
     }

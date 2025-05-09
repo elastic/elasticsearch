@@ -30,10 +30,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,9 +51,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.core.Strings.format;
@@ -82,13 +82,39 @@ public class MetadataReshardIndexService {
         this.threadPool = threadPool;
     }
 
-    public static void validateIndexName(String index, Metadata metadata, RoutingTable routingTable) {
-        if (routingTable.hasIndex(index) == false) {
-            throw new InvalidIndexNameException(index, "index does not exist");
+    public static ValidationError validateIndex(IndexAbstraction indexAbstraction, IndexMetadata indexMetadata) {
+        if (indexAbstraction == null || indexMetadata == null) {
+            return ValidationError.INDEX_NOT_FOUND;
         }
-        /* TODO: Throw an error for datastream and system indexes ?
-         * Datastream indices are autosharded using a different code path.
-         */
+        if (indexAbstraction.isSystem()) {
+            return ValidationError.SYSTEM_INDEX;
+        }
+        if (indexAbstraction.getParentDataStream() != null) {
+            return ValidationError.DATA_STREAM_INDEX;
+        }
+        if (indexMetadata.getReshardingMetadata() != null) {
+            return ValidationError.ALREADY_RESHARDING;
+        }
+
+        return null;
+    }
+
+    public enum ValidationError {
+        INDEX_NOT_FOUND,
+        SYSTEM_INDEX,
+        DATA_STREAM_INDEX,
+        ALREADY_RESHARDING;
+
+        public RuntimeException intoException(Index index) {
+            return switch (this) {
+                case INDEX_NOT_FOUND -> new IndexNotFoundException(index);
+                case SYSTEM_INDEX -> new IllegalArgumentException("resharding a system index " + index + " is not supported");
+                case DATA_STREAM_INDEX -> new IllegalArgumentException(
+                    "resharding an index " + index + " that is part of a data stream is not supported"
+                );
+                case ALREADY_RESHARDING -> new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
+            };
+        }
     }
 
     /* When we reshard an index, the target number of shards must be a multiple of the
@@ -368,16 +394,14 @@ public class MetadataReshardIndexService {
         final Index index = request.index();
         // TODO: Handle Missing (Index might not exist - need to handle for the batched case)
         final ProjectState projectState = currentState.projectState(projectId);
+        final IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
         final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
-        if (sourceMetadata == null) {
-            return currentState;
+
+        var validationError = validateIndex(indexAbstraction, sourceMetadata);
+        if (validationError != null) {
+            throw validationError.intoException(index);
         }
-        if (sourceMetadata.getReshardingMetadata() != null) {
-            throw new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
-        }
-        if (sourceMetadata.isSystem()) {
-            throw new IllegalArgumentException("resharding a system index " + index + " is not supported");
-        }
+
         final int sourceNumShards = sourceMetadata.getNumberOfShards();
         final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, request.getMultiple());
         final int targetNumShards = reshardingMetadata.shardCountAfter();

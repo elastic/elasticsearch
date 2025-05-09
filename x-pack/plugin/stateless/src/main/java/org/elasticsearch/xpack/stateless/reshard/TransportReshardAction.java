@@ -24,7 +24,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -87,6 +90,17 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
          * indexNameExpressionResolver.
          */
         assert (concreteIndices != null && concreteIndices.length == 1) : "Reshard request should contain exactly one index";
+
+        Index index = concreteIndices[0];
+
+        final ProjectMetadata projectMetadata = state.metadata().getProject(projectResolver.getProjectId());
+        final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index.getName());
+        final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
+
+        var validationError = MetadataReshardIndexService.validateIndex(indexAbstraction, indexMetadata);
+        if (validationError != null) {
+            throw validationError.intoException(index);
+        }
 
         final ReshardIndexClusterStateUpdateRequest updateRequest = new ReshardIndexClusterStateUpdateRequest(
             projectResolver.getProjectId(),

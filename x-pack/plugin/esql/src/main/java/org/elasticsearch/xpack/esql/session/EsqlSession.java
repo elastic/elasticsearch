@@ -184,7 +184,13 @@ public class EsqlSession {
                     preMapper.preMapper(
                         analyzedPlan,
                         listener.delegateFailureAndWrap(
-                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
+                            (l, p) -> {
+                                if (request.validationOnly()) {
+                                    l.onResponse(new Result(new ArrayList<>(), new ArrayList<>(), DriverCompletionInfo.EMPTY, null));
+                                } else {
+                                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l);
+                                }
+                            }
                         )
                     );
                 }

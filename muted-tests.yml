@@ -465,6 +465,9 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testRandomWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/127963
+- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
+  method: testSearchBoost
+  issue: https://github.com/elastic/elasticsearch/issues/127969
 
 # Examples:
 #

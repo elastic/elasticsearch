@@ -30,11 +30,16 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object values, TestContext testContext) {
-        var nullValue = switch (fieldMapping.get("null_value")) {
-            case String s -> convert(s, null, false);
-            case null -> null;
-            default -> throw new IllegalStateException("Unexpected null_value format");
-        };
+        var rawNullValue = fieldMapping.get("null_value");
+
+        GeoPoint nullValue;
+        if (rawNullValue == null) {
+            nullValue = null;
+        } else if (rawNullValue instanceof String s) {
+            nullValue = convert(s, null, false);
+        } else {
+            throw new IllegalStateException("Unexpected null_value format");
+        }
 
         if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
             if (values instanceof List<?> == false) {

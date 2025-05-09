@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -60,6 +62,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -90,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -143,9 +148,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -158,7 +166,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // ie from test | stats c = count(*)
     public static final String NO_FIELDS_NAME = "<no-fields>";
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
@@ -175,7 +183,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
-            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
+            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            // Must be after ResolveUnionTypes, if there is explicit casting on the union typed fields, implicit casting won't be added
+            new ImplicitCastingForUnionTypedFields()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -678,7 +688,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                              */
                             boolean dataTypesOk = joinedAttribute.dataType().equals(attr.dataType());
                             if (false == dataTypesOk) {
-                                dataTypesOk = joinedAttribute.dataType() == DataType.NULL || attr.dataType() == DataType.NULL;
+                                dataTypesOk = joinedAttribute.dataType() == NULL || attr.dataType() == NULL;
                             }
                             if (false == dataTypesOk) {
                                 dataTypesOk = joinedAttribute.dataType().equals(KEYWORD) && attr.dataType().equals(TEXT);
@@ -1344,7 +1354,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <li>date_trunc("1 minute", dateField)</li>
      * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
-     * applicable. For example, implicit casting converts:
+     * applicable, the same applies to Case, Greatest, Least. For example, implicit casting converts:
      * <ul>
      * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
      * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
@@ -1356,6 +1366,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            // do implicit casting for function arguments
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
@@ -1386,7 +1397,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression arg;
             DataType targetNumericType = null;
             boolean castNumericArgs = true;
@@ -1399,7 +1410,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
                             }
-                            if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
+                            if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
                                     childrenChanged = true;
@@ -1432,7 +1443,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
+            DataType targetDataType = NULL;
             Expression from = Literal.NULL;
 
             if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
@@ -1785,6 +1796,186 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
+        }
+    }
+
+    /**
+     * Cast union typed fields that are mixed of date and date_nanos types into date_nanos.
+     */
+    private static class ImplicitCastingForUnionTypedFields extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled() == false) {
+                return plan;
+            }
+            // This rule should be applied after ResolveUnionTypes, so that the InvalidMappedFields with explicit casting are converted into
+            // MultiTypeEsField, and don't get double cast here.
+            Map<FieldAttribute, Alias> invalidMappedFieldCasted = new HashMap<>();
+            LogicalPlan transformedPlan = plan.transformUp(LogicalPlan.class, p -> {
+                // exclude LookupJoin for now, as it doesn't support date_nanos as join key yet
+                if (p instanceof UnaryPlan == false) {
+                    return p;
+                }
+                Set<FieldAttribute> invalidMappedFields = invalidMappedFieldsInLogicalPlan(p);
+                if (invalidMappedFields.isEmpty() == false) {
+                    // If we are at a plan node that has invalid mapped fields, we need to either add an EVAL, or if that has been done
+                    // we should instead replace with the already cast field
+                    Map<FieldAttribute, Alias> newAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
+                    Map<FieldAttribute, Alias> existingAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
+                    for (FieldAttribute fa : invalidMappedFields) {
+                        if (invalidMappedFieldCasted.containsKey(fa)) {
+                            // There is already an eval plan created for the implicit cast field, just reference to it
+                            Alias alias = invalidMappedFieldCasted.get(fa);
+                            existingAliases.put(fa, alias);
+                        } else {
+                            // Create a new alias and later on add a new EVAL with this new aliases for implicit casting
+                            DataType targetType = commonDataType(fa);
+                            if (targetType != null) {
+                                Expression conversionFunction = castInvalidMappedField(targetType, fa);
+                                Alias alias = new Alias(fa.source(), fa.name(), conversionFunction);
+                                newAliases.put(fa, alias);
+                                invalidMappedFieldCasted.put(fa, alias);
+                            }
+                        }
+                    }
+                    // If there are new aliases created, create a new eval child with new aliases for the current plan。
+                    // How many children does a LogicalPlan have? Only deal with UnaryPlan and LookupJoin for now.
+                    if (newAliases.isEmpty() == false) { // create a new eval child plan
+                        UnaryPlan u = (UnaryPlan) p; // this must be a unary plan, as it is checked at the beginning of plan loop
+                        Eval eval = new Eval(u.source(), u.child(), newAliases.values().stream().toList());
+                        p = u.replaceChild(eval);
+                        // TODO Lookup join does not work on date_nanos field yet, joining on a date_nanos field does not find a match.
+                        // And lookup up join is a special case as a lookup join has two children, after date_nanos is supported as a join
+                        // key, the transformation needs to take it into account.
+                    }
+                    // If there are new or existing aliases identified, combine them into one map
+                    Map<FieldAttribute, Alias> allAliases = Maps.newHashMapWithExpectedSize(invalidMappedFields.size());
+                    allAliases.putAll(newAliases);
+                    allAliases.putAll(existingAliases);
+                    if (allAliases.isEmpty() == false) { // there is already eval plan for that union typed field, reference to the aliases
+                        p = p.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                            Alias alias = allAliases.get(fa);
+                            return alias != null ? alias.toAttribute() : fa;
+                        });
+                        // MvExpand and Stats have ReferenceAttribute referencing the FieldAttribute in the same plan.
+                        // The ReferenceAttribute need to be updated to point to the casting expression.
+                        if (p instanceof MvExpand mvExpand) {
+                            p = transformMvExpand(mvExpand);
+                        } else if (p instanceof Aggregate aggregate) {
+                            p = transformAggregate(aggregate);
+                        }
+                    }
+                }
+                return p;
+            });
+            transformedPlan = castInvalidMappedFieldInFinalOutput(transformedPlan);
+            return transformedPlan;
+        }
+
+        /**
+         * Find a common data type that the union typed field can cast to, only date and date_nanos types are supported.
+         * This method can be extended to support implicit casting for the other data types.
+         */
+        private static DataType commonDataType(FieldAttribute unionTypedField) {
+            DataType targetType = null;
+            if (unionTypedField.field() instanceof InvalidMappedField imf) {
+                for (DataType type : imf.types()) {
+                    if (isMillisOrNanos(type) == false) { // if there is field that is no date or date_nanos, don't do implicit casting
+                        return null;
+                    }
+                    if (targetType == null) { // initialize the target type to the first type
+                        targetType = type;
+                    } else if (targetType == DATE_NANOS || type == DATE_NANOS) {
+                        targetType = DATE_NANOS;
+                    }
+                }
+            }
+            return targetType;
+        }
+
+        /**
+         * Do implicit casting for date and date_nanos only.
+         */
+        private static Expression castInvalidMappedField(DataType targetType, FieldAttribute fa) {
+            Source source = fa.source();
+            return switch (targetType) {
+                case DATETIME -> new ToDatetime(source, fa); // in case we decided to use DATE as a common type instead of DATE_NANOS
+                case DATE_NANOS -> new ToDateNanos(source, fa);
+                default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
+            };
+        }
+
+        /**
+         * Return all the FieldAttribute that contain InvalidMappedField in the current plan.
+         */
+        private static Set<FieldAttribute> invalidMappedFieldsInLogicalPlan(LogicalPlan plan) {
+            Set<FieldAttribute> fas = new HashSet<>();
+            // Invalid mapped fields are legal at EsRelation level, as long as they are not used elsewhere. In the final output, if they
+            // have not been dropped, implicit cast will be added for them, so that we can return not null values, the implicit casting is
+            // deferred to when the fields are used or returned.
+            if (plan instanceof EsRelation == false) {
+                plan.forEachExpression(FieldAttribute.class, fa -> {
+                    if (fa.field() instanceof InvalidMappedField) {
+                        fas.add(fa);
+                    }
+                });
+            }
+            return fas;
+        }
+
+        /**
+         * Cast the InvalidMappedFields in the final output of the query, this is needed when these fields are not referenced in the query
+         * explicitly, so there is no chance to cast them to a common type earlier, an example of such query is from index*.
+         */
+        private static LogicalPlan castInvalidMappedFieldInFinalOutput(LogicalPlan logicalPlan) {
+            // Check the output of the query, if the top level plan is resolved, check if there is InvalidMappedField in its output,
+            // if so add a project with eval, so that a not null value can be returned for a union typed field
+            if (logicalPlan.resolved()) {
+                List<Attribute> output = logicalPlan.output();
+                Map<FieldAttribute, Alias> newAliases = Maps.newHashMapWithExpectedSize(output.size());
+                output.forEach(a -> {
+                    if (a instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField) {
+                        DataType targetType = commonDataType(fa);
+                        if (targetType != null) {
+                            Expression conversionFunction = castInvalidMappedField(targetType, fa);
+                            Alias alias = new Alias(fa.source(), fa.name(), conversionFunction);
+                            newAliases.put(fa, alias);
+                        }
+                    }
+                });
+                if (newAliases.isEmpty() == false) { // add an Eval for the union typed fields left that are not cast implicitly yet
+                    if (logicalPlan instanceof EsRelation esr) {
+                        // EsRelation does not have a child, we should not see row here, add a eval on top of it
+                        logicalPlan = new Eval(esr.source(), esr, newAliases.values().stream().toList());
+                    } else if (logicalPlan instanceof UnaryPlan unary) {
+                        // Add an Eval as the child of this plan
+                        Eval eval = new Eval(unary.source(), unary.child(), newAliases.values().stream().toList());
+                        logicalPlan = unary.replaceChild(eval);
+                    }
+                    // TODO LookupJoin is a binary plan, it does not create a new field, ideally adding an Eval on top of it should be fine,
+                    // however because the output of a LookupJoin does not include InvalidMappedFields even the LHS output has
+                    // InvalidMappedFields, it is a bug need to be addressed
+                }
+            }
+            return logicalPlan;
+        }
+
+        private static MvExpand transformMvExpand(MvExpand mvExpand) {
+            NamedExpression target = mvExpand.target();
+            return new MvExpand(mvExpand.source(), mvExpand.child(), target, target.toAttribute());
+        }
+
+        private static Aggregate transformAggregate(Aggregate aggregate) {
+            List<? extends NamedExpression> aggregates = aggregate.aggregates();
+            List<Expression> groupings = aggregate.groupings();
+            List<NamedExpression> aggregatesWithNewRefs = new ArrayList<>(aggregates.size());
+            for (int i = 0; i < aggregates.size() - groupings.size(); i++) {
+                aggregatesWithNewRefs.add(aggregates.get(i));
+            }
+            for (Expression e : groupings) { // Add groupings
+                aggregatesWithNewRefs.add(Expressions.attribute(e));
+            }
+            return aggregate.with(groupings, aggregatesWithNewRefs);
         }
     }
 }

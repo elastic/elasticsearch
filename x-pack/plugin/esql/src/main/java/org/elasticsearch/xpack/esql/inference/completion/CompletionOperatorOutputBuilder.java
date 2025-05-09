@@ -14,10 +14,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBuilder<ChatCompletionResults> {
+public class CompletionOperatorOutputBuilder implements BulkInferenceOutputBuilder<ChatCompletionResults, Page> {
     private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
@@ -29,14 +30,18 @@ public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBui
     }
 
     @Override
-    public void close() {
-        Releasables.close(outputBlockBuilder);
-        releasePageOnAnyThread(inputPage);
+    public Class<ChatCompletionResults> inferenceResultsClass() {
+        return ChatCompletionResults.class;
     }
 
     @Override
-    public void addInferenceResult(ChatCompletionResults completionResults) {
-        if (completionResults == null || completionResults.getResults().isEmpty()) {
+    public void close() {
+        Releasables.close(outputBlockBuilder);
+    }
+
+    @Override
+    public void addInferenceResults(ChatCompletionResults completionResults) {
+        if (completionResults == null) {
             outputBlockBuilder.appendNull();
         } else {
             outputBlockBuilder.beginPositionEntry();
@@ -51,12 +56,8 @@ public class CompletionOperatorOutputBuilder extends InferenceOperator.OutputBui
 
     @Override
     public Page buildOutput() {
-        if (isOutputBuilt.compareAndSet(false, true)) {
-            Block outputBlock = outputBlockBuilder.build();
-            assert outputBlock.getPositionCount() == inputPage.getPositionCount();
-            return inputPage.shallowCopy().appendBlock(outputBlock);
-        }
-
-        throw new IllegalStateException("buildOutput has already been called");
+        Block outputBlock = outputBlockBuilder.build();
+        assert outputBlock.getPositionCount() == inputPage.getPositionCount();
+        return inputPage.shallowCopy().appendBlock(outputBlock);
     }
 }

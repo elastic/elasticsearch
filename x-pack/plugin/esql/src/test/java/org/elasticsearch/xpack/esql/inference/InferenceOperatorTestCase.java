@@ -62,7 +62,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void initChannels() {
-        channelCount = between(2, 3);
+        channelCount = between(2, 10);
         elementTypes = randomElementTypes(channelCount);
     }
 

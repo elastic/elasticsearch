@@ -873,7 +873,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1065,6 +1065,16 @@ public class EsqlCapabilities {
          * Support first_over_time aggregation that gets evaluated per time-series
          */
         FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
 
         /**
          * Full text functions in STATS

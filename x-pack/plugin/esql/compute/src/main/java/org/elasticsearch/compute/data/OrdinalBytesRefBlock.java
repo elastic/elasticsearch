@@ -54,7 +54,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
      * Returns true if this ordinal block is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return ordinals.getTotalValueCount() * 2 / 3 >= bytes.getPositionCount();
+        return isDense(ordinals.getTotalValueCount(), bytes.getPositionCount());
+    }
+
+    public static boolean isDense(long totalPositions, long dictionarySize) {
+        return totalPositions >= 10 && totalPositions >= dictionarySize * 2L;
     }
 
     public IntBlock getOrdinalsBlock() {
@@ -250,5 +254,18 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BytesRefBlock that) {
+            return BytesRefBlock.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefBlock.hash(this);
     }
 }

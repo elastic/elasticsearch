@@ -1208,7 +1208,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             long closeTimeMillis = threadPool.relativeTimeInMillis();
             logger.debug(
                 () -> format(
-                    "closed transport connection [{}] to [{}] with age [{}ms], exception:",
+                    "closed transport connection [%d] to [%s] with age [%dms], exception:",
                     connectionId,
                     node,
                     closeTimeMillis - openTimeMillis

@@ -34,7 +34,9 @@ public class Netty4TcpChannel implements TcpChannel {
     private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
-    // Exception causing a close, reported to the closeContext listener
+    /**
+     * Exception causing a close, reported to the {@link #closeContext} listener
+     */
     private volatile Exception closeException = null;
 
     Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {

@@ -307,7 +307,7 @@ public class Netty4Transport extends TcpTransport {
         }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
-    private Exception exceptionFromThrowable(Throwable cause) {
+    static Exception exceptionFromThrowable(Throwable cause) {
         if (cause instanceof Error) {
             return new Exception(cause);
         } else {
@@ -399,11 +399,7 @@ public class Netty4Transport extends TcpTransport {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
-            if (cause instanceof Error) {
-                onServerException(serverChannel, new Exception(cause));
-            } else {
-                onServerException(serverChannel, (Exception) cause);
-            }
+            onServerException(serverChannel, exceptionFromThrowable(cause));
         }
     }
 }

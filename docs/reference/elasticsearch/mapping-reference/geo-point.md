@@ -231,15 +231,17 @@ PUT idx
     "index": {
       "mapping": {
         "source": {
-          "mode": "synthetic",
-          "synthetic_source_keep": "arrays"
+          "mode": "synthetic"
         }
       }
     }
   },
   "mappings": {
     "properties": {
-      "point": { "type": "geo_point" }
+      "point": {
+        "type": "geo_point",
+        "synthetic_source_keep": "arrays"
+      }
     }
   }
 }

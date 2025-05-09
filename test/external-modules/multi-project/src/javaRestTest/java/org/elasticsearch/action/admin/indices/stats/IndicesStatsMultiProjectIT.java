@@ -71,8 +71,8 @@ public class IndicesStatsMultiProjectIT extends MultiProjectRestTestCase {
         int numDocsDefaultAll = createPopulatedIndex("default", "my-index-all-projects");
 
         // Check indices stats for project 1.
-        Map<String, Object> statsForProject1 = getAsOrderedMapInProject("/_stats", "project-1");
-        assertThat(ObjectPath.evaluate(statsForProject1, "_all.total.docs.count"), equalTo(numDocs1Only + numDocs1Of1And2 + numDocs1All));
+        ObjectPath statsForProject1 = getAsObjectPathInProject("/_stats", "project-1");
+        assertThat(statsForProject1.evaluate("_all.total.docs.count"), equalTo(numDocs1Only + numDocs1Of1And2 + numDocs1All));
         assertThat(
             ObjectPath.<Map<String, Object>>evaluate(statsForProject1, "indices").keySet(),
             containsInAnyOrder("my-index-project-1-only", "my-index-projects-1-and-2", "my-index-all-projects")

@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverProfile> {
     public void testToXContent() {
         DriverProfile status = new DriverProfile(
+            "test",
             123413220000L,
             123413243214L,
             10012,
@@ -44,6 +45,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
+              "task_description" : "test",
               "start" : "1973-11-29T09:27:00.000Z",
               "start_millis" : 123413220000,
               "stop" : "1973-11-29T09:27:23.214Z",
@@ -101,6 +103,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
     @Override
     protected DriverProfile createTestInstance() {
         return new DriverProfile(
+            DriverStatusTests.randomTaskDescription(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -113,6 +116,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
 
     @Override
     protected DriverProfile mutateInstance(DriverProfile instance) throws IOException {
+        String taskDescription = instance.taskDescription();
         long startMillis = instance.startMillis();
         long stopMillis = instance.stopMillis();
         long tookNanos = instance.tookNanos();
@@ -120,17 +124,18 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         long iterations = instance.iterations();
         var operators = instance.operators();
         var sleeps = instance.sleeps();
-        switch (between(0, 6)) {
-            case 0 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
-            case 1 -> stopMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
-            case 2 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
-            case 3 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 4 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 5 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
-            case 6 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+        switch (between(0, 7)) {
+            case 0 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomTaskDescription);
+            case 1 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 2 -> stopMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 3 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
+            case 4 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 5 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 6 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
+            case 7 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverProfile(startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
+        return new DriverProfile(taskDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

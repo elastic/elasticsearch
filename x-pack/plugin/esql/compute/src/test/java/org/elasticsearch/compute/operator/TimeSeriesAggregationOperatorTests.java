@@ -304,6 +304,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 ctx,
                 sourceOperatorFactory.get(ctx),
                 CollectionUtils.concatLists(intermediateOperators, List.of(intialAgg, intermediateAgg, finalAgg)),

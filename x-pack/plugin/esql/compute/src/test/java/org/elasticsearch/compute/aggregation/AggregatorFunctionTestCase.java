@@ -111,6 +111,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple().get(driverContext)),

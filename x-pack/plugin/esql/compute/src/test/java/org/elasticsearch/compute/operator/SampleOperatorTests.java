@@ -40,7 +40,7 @@ public class SampleOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SampleOperator.Factory simple() {
+    protected SampleOperator.Factory simple(SimpleOptions options) {
         return new SampleOperator.Factory(0.5, randomInt());
     }
 

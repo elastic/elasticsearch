@@ -57,7 +57,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
 
     @Override
-    protected final Operator.OperatorFactory simple() {
+    protected final Operator.OperatorFactory simple(SimpleOptions options) {
         return simpleWithMode(AggregatorMode.SINGLE);
     }
 

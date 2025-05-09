@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple() {
+    protected LimitOperator.Factory simple(SimpleOptions options) {
         return new LimitOperator.Factory(100);
     }
 

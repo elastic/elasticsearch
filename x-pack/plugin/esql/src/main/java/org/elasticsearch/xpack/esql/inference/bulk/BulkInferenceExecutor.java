@@ -9,20 +9,20 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
-public class BulkInferenceExecutor {
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+
+public class BulkInferenceExecutor <IR extends InferenceServiceResults, OutputType>{
     private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
     private final ThrottledInferenceRunner throttledInferenceRunner;
 
@@ -30,33 +30,45 @@ public class BulkInferenceExecutor {
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, threadPool, bulkExecutionConfig);
     }
 
-    public void execute(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-        if (requests.hasNext() == false) {
-            listener.onResponse(List.of());
-            return;
-        }
-
-        final List<InferenceAction.Response> responses = new ArrayList<>();
-        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
-
+    public void execute(BulkInferenceRequestIterator requests, BulkInferenceOutputBuilder<IR, OutputType> outputBuilder, ActionListener<OutputType> listener) {
         try {
-            enqueueRequests(requests, bulkExecutionState);
-            persistsInferenceResponses(bulkExecutionState, responses::add);
+            listener.onResponse(doExecute(requests, outputBuilder));
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
 
-        if (bulkExecutionState.hasFailure() == false) {
-            try {
-                listener.onResponse(Collections.unmodifiableList(responses));
-                return;
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
+    public OutputType doExecute(BulkInferenceRequestIterator requests, BulkInferenceOutputBuilder<IR, OutputType> outputBuilder) throws Exception {
+        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
+
+        if (requests.hasNext()) {
+            enqueueRequests(requests, bulkExecutionState);
+            persistsInferenceResponses(bulkExecutionState, this.inferenceResultPersister(outputBuilder));
         }
 
-        listener.onFailure(bulkExecutionState.getFailure());
+        if (bulkExecutionState.hasFailure()) {
+            throw bulkExecutionState.getFailure();
+        }
+
+        return outputBuilder.buildOutput();
+    }
+
+    private Consumer<InferenceAction.Response> inferenceResultPersister(BulkInferenceOutputBuilder<IR, OutputType> outputBuilder) {
+        return inferenceResponse -> {
+            InferenceServiceResults results = inferenceResponse.getResults();
+            if (outputBuilder.inferenceResultsClass().isInstance(results)) {
+                 outputBuilder.addInferenceResults(outputBuilder.inferenceResultsClass().cast(results));
+                 return;
+            }
+
+            throw new IllegalStateException(
+                format(
+                    "Inference result has wrong type. Got [{}] while expecting [{}]",
+                    results.getClass().getName(),
+                    outputBuilder.inferenceResultsClass().getName()
+                )
+            );
+        };
     }
 
     private void enqueueRequests(BulkInferenceRequestIterator requests, BulkInferenceExecutionState bulkExecutionState) {
@@ -79,9 +91,14 @@ public class BulkInferenceExecutor {
             Long seqNo = bulkExecutionState.fetchProcessedSeqNo();
             retry--;
 
-            if (seqNo == null && retry < 0) {
-                throw new TimeoutException("timeout waiting for inference response");
+            if (seqNo == null) {
+                if (retry < 0) {
+                    throw new TimeoutException("timeout waiting for inference response");
+                }
+                break;
             }
+
+            retry = 30;
 
             long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
 

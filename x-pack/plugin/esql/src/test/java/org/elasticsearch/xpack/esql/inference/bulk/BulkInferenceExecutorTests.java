@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -24,6 +23,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -69,7 +69,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSuccessfulExecution() throws Exception {
         List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 50));
-        List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size(), RankedDocsResults.class);
+        List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
@@ -78,18 +78,22 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = mock(ActionListener.class);
+        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         doAnswer(invocation -> {
             output.set(invocation.getArgument(0, List.class));
             return null;
         }).when(listener).onResponse(any());
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), mockOutputBuilder(), listener);
 
         assertBusy(() -> {
             verify(listener).onResponse(any());
             verify(listener, never()).onFailure(any());
-            assertThat(output.get(), allOf(notNullValue(), hasSize(requests.size()), contains(responses.toArray())));
+            assertThat(output.get(), allOf(
+                notNullValue(),
+                hasSize(requests.size()),
+                contains(responses.stream().map(InferenceAction.Response::getResults).toArray())
+            ));
         });
     }
 
@@ -98,14 +102,14 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
-        AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = mock(ActionListener.class);
+        AtomicReference<List<RankedDocsResults>> output = new AtomicReference<>();
+        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         doAnswer(invocation -> {
             output.set(invocation.getArgument(0, List.class));
             return null;
         }).when(listener).onResponse(any());
 
-        bulkExecutor(mock(InferenceRunner.class)).execute(requestIterator, listener);
+        bulkExecutor(mock(InferenceRunner.class)).execute(requestIterator, mockOutputBuilder(), listener);
 
         assertBusy(() -> {
             verify(listener).onResponse(any());
@@ -124,14 +128,14 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             return null;
         });
 
-        ActionListener<List<InferenceAction.Response>> listener = mock(ActionListener.class);
+        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         AtomicReference<Exception> e = new AtomicReference<>();
         doAnswer(i -> {
             e.set(i.getArgument(0, Exception.class));
             return null;
         }).when(listener).onFailure(any());
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), mockOutputBuilder(), listener);
 
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
@@ -149,20 +153,20 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             if ((requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class)) % requests.size()) == 0) {
                 listener.onFailure(new RuntimeException("inference failure"));
             } else {
-                listener.onResponse(mockInferenceResponse(RankedDocsResults.class));
+                listener.onResponse(mockInferenceResponse());
             }
 
             return null;
         });
 
-        ActionListener<List<InferenceAction.Response>> listener = mock(ActionListener.class);
+        ActionListener<List<RankedDocsResults>> listener = mock(ActionListener.class);
         AtomicReference<Exception> e = new AtomicReference<>();
         doAnswer(i -> {
             e.set(i.getArgument(0, Exception.class));
             return null;
         }).when(listener).onFailure(any());
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        bulkExecutor(inferenceRunner).execute(requestIterator(requests), mockOutputBuilder(), listener);
 
         assertBusy(() -> {
             verify(listener).onFailure(any(RuntimeException.class));
@@ -171,17 +175,17 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
-        return new BulkInferenceExecutor(inferenceRunner, threadPool, randomBulkExecutionConfig());
+    private BulkInferenceExecutor<RankedDocsResults, List<RankedDocsResults>> bulkExecutor(InferenceRunner inferenceRunner) {
+        return new BulkInferenceExecutor<>(inferenceRunner, threadPool, randomBulkExecutionConfig());
     }
 
     private InferenceAction.Request mockInferenceRequest() {
         return mock(InferenceAction.Request.class);
     }
 
-    private InferenceAction.Response mockInferenceResponse(Class<? extends InferenceServiceResults> resultClass) {
+    private InferenceAction.Response mockInferenceResponse() {
         InferenceAction.Response response = mock(InferenceAction.Response.class);
-        when(response.getResults()).thenReturn(mock(resultClass));
+        when(response.getResults()).thenReturn(mock(RankedDocsResults.class));
         return response;
     }
 
@@ -201,13 +205,26 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         return Stream.generate(this::mockInferenceRequest).limit(size).toList();
     }
 
-    private List<InferenceAction.Response> randomInferenceResponseList(int size, Class<? extends InferenceServiceResults> resultClass) {
-        return Stream.generate(() -> this.mockInferenceResponse(resultClass)).limit(size).toList();
+    private List<InferenceAction.Response> randomInferenceResponseList(int size) {
+        return Stream.generate(this::mockInferenceResponse).limit(size).toList();
     }
 
     private InferenceRunner mockInferenceRunner(Answer<Void> doInferenceAnswer) {
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
         doAnswer(doInferenceAnswer).when(inferenceRunner).doInference(any(), any());
         return inferenceRunner;
+    }
+
+    @SuppressWarnings("unchecked")
+    private BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> mockOutputBuilder() {
+        List<RankedDocsResults> output = new ArrayList<>();
+        BulkInferenceOutputBuilder<RankedDocsResults, List<RankedDocsResults>> outputBuilder = mock(BulkInferenceOutputBuilder.class);
+        when(outputBuilder.buildOutput()).thenReturn(output);
+        when(outputBuilder.inferenceResultsClass()).thenReturn(RankedDocsResults.class);
+        doAnswer(invocationOnMock -> {
+            output.add(invocationOnMock.getArgument(0, RankedDocsResults.class));
+            return null;
+        }).when(outputBuilder).addInferenceResults(any());
+        return outputBuilder;
     }
 }

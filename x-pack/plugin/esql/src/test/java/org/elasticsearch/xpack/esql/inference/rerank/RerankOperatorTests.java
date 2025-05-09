@@ -137,6 +137,6 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             case BYTES_REF -> DataType.KEYWORD;
             default -> throw new AssertionError(LoggerMessageFormat.format("Unexpected element type {}", elementTypes.get(channel)));
         };
-        return new ColumnInfoImpl(randomAlphaOfLengthBetween(1, 10), dataType, List.of());
+        return new ColumnInfoImpl(randomAlphaOfLengthBetween(10, 20), dataType, List.of());
     }
 }

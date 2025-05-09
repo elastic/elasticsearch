@@ -80,26 +80,12 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     @Override
-    protected Class<RankedDocsResults> inferenceResultsClass() {
-        return RankedDocsResults.class;
-    }
-
-    @Override
     protected RerankOperatorRequestIterator requests(Page inputPage) {
         return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
     }
 
     @Override
-    protected RerankOperatorOutputBuilder outputBuilder(OnGoingInference<RankedDocsResults> onGoingInference) {
-        try {
-            return new RerankOperatorOutputBuilder(
-                blockFactory().newDoubleBlockBuilder(onGoingInference.inputPage().getPositionCount()),
-                onGoingInference.inputPage(),
-                scoreChannel
-            );
-        } catch (Exception e) {
-            releaseFetchedOnAnyThread(onGoingInference);
-            throw (e);
-        }
+    protected RerankOperatorOutputBuilder outputBuilder(Page input) {
+        return new RerankOperatorOutputBuilder(blockFactory().newDoubleBlockBuilder(input.getPositionCount()), input, scoreChannel);
     }
 }

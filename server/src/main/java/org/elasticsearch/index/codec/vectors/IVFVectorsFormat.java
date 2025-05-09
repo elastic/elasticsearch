@@ -46,7 +46,7 @@ import java.io.IOException;
  */
 public class IVFVectorsFormat extends KnnVectorsFormat {
 
-    public static final FeatureFlag IVF_FORMAT_FEATURE_FLAG = new FeatureFlag("ivf_format");
+    static final FeatureFlag IVF_FORMAT_FEATURE_FLAG = new FeatureFlag("ivf_format");
     public static final String IVF_VECTOR_COMPONENT = "IVF";
     public static final String NAME = "IVFVectorsFormat";
     // centroid ordinals -> centroid values, offsets

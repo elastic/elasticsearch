@@ -59,9 +59,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     BytesRefBlock buildOrdinal() {
-        if (minOrd > maxOrd) {
-            return buildRegularBlock();
-        }
         int valueCount = maxOrd - minOrd + 1;
         long breakerSize = ordsSize(valueCount);
         blockFactory.adjustBreaker(breakerSize);
@@ -175,7 +172,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     boolean shouldBuildOrdinalsBlock() {
         if (minOrd <= maxOrd) {
             int numOrds = maxOrd - minOrd + 1;
-            return ords.length >= 2 * numOrds && ords.length >= 32;
+            return OrdinalBytesRefBlock.isDense(ords.length, numOrds);
         } else {
             return false;
         }

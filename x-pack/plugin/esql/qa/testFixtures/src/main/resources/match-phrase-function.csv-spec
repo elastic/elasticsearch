@@ -314,9 +314,65 @@ nanos:date_nanos
 ;
 
 testMatchPhraseWithOptionsSlop
-required_capability: match_function
+required_capability: match_phrase_function
 from books 
 | where match_phrase(title, "Lord of Rings", {"slop": 5})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140
+;
+
+testMatchPhraseWithOptionsZeroTermsNone
+required_capability: match_phrase_function
+from books 
+| where match_phrase(title, "", {"zero_terms_query": "none"})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+;
+
+testMatchPhraseWithOptionsZeroTermsAll
+required_capability: match_phrase_function
+from books 
+| where match_phrase(title, "", {"zero_terms_query": "all"}) 
+| sort book_no 
+| keep book_no
+| limit 5;
+
+book_no:keyword
+1211           
+1463           
+1502           
+1937           
+1985 
+;
+
+
+testMatchPhraseWithOptionsAnalyzer
+required_capability: match_phrase_function
+from books
+| where match_phrase(title, "Lord of the Rings", {"analyzer": "standard"})
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140  
+;
+
+
+testMatchPhraseWithOptionsSlop
+required_capability: match_phrase_function
+from books 
+| where match_phrase(title, "Lord of Rings", {"slop": 3, "analyzer": "standard", "zero_terms_query": "none"})  
 | keep book_no;
 ignoreOrder:true
 

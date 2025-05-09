@@ -23,10 +23,10 @@ public enum DockerBase {
     // This is usually updated via renovatebot
     // spotless:off
     WOLFI(
-        "docker.elastic.co/wolfi/chainguard-base:latest@sha256:29150cd940cc7f69407d978d5a19c86f4d9e67cf44e4d6ded787a497e8f27c9a",
+        null,
         "-wolfi",
         "apk",
-        "Dockerfile"
+        "dockerfiles/wolfi/Dockerfile"
     ),
     // spotless:on
     // Based on WOLFI above, with more extras. We don't set a base image because

@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SampleTests
   method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
   issue: https://github.com/elastic/elasticsearch/issues/127950
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SampleTests
+  method: testGroupingAggregate {TestCase=<long unicode TEXTs>}
+  issue: https://github.com/elastic/elasticsearch/issues/127951
 
 # Examples:
 #

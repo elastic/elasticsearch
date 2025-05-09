@@ -81,20 +81,18 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
 
         // Groups
         suppliers.add(fixedCase("Full group", "Cats are awesome", ".+", "<$0>", "<Cats are awesome>"));
-        suppliers.add(fixedCase(
-            "Nested groups",
-            "A cat is great, a cat is awesome",
-            "\\b([Aa] (\\w+)) is (\\w+)\\b",
-            "$1$2",
-            "A catcat, a catcat"
-        ));
-        suppliers.add(fixedCase(
-            "Multiple groups",
-            "Cats are awesome",
-            "(\\w+) (.+)",
-            "$0 -> $1 and dogs $2",
-            "Cats are awesome -> Cats and dogs are awesome"
-        ));
+        suppliers.add(
+            fixedCase("Nested groups", "A cat is great, a cat is awesome", "\\b([Aa] (\\w+)) is (\\w+)\\b", "$1$2", "A catcat, a catcat")
+        );
+        suppliers.add(
+            fixedCase(
+                "Multiple groups",
+                "Cats are awesome",
+                "(\\w+) (.+)",
+                "$0 -> $1 and dogs $2",
+                "Cats are awesome -> Cats and dogs are awesome"
+            )
+        );
 
         // Errors
         suppliers.add(new TestCaseSupplier("syntax error", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {

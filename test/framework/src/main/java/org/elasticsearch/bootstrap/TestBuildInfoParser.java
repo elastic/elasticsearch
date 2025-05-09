@@ -25,8 +25,8 @@ import java.util.List;
 
 class TestBuildInfoParser {
 
-    private static final String NAME_KEY = "name";
-    private static final String LOCATIONS_KEY = "locations";
+    private static final String PLUGIN_TEST_BUILD_INFO_RESOURCES = "META-INF/plugin-test-build-info.json";
+    private static final String SERVER_TEST_BUILD_INFO_RESOURCE = "META-INF/server-test-build-info.json";
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("test_build_info", Builder::new);
     private static final ObjectParser<Location, Void> LOCATION_PARSER = new ObjectParser<>("location", Location::new);
@@ -72,12 +72,10 @@ class TestBuildInfoParser {
         return PARSER.parse(parser, null).build();
     }
 
-    // TODO: possibly move it to whoever is calling/using this
-    // TODO: server test build info
     static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
-        var resources = TestBuildInfoParser.class.getClassLoader().getResources("/META-INF/es-plugins/");
+        var resources = TestBuildInfoParser.class.getClassLoader().getResources(PLUGIN_TEST_BUILD_INFO_RESOURCES);
         URL resource;
         while ((resource = resources.nextElement()) != null) {
             try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
@@ -85,6 +83,18 @@ class TestBuildInfoParser {
             }
         }
         return pluginsTestBuildInfos;
+    }
+
+    static TestBuildInfo parseServerTestBuildInfo() throws IOException {
+        var xContent = XContentFactory.xContent(XContentType.JSON);
+        var resource = TestBuildInfoParser.class.getClassLoader().getResource(SERVER_TEST_BUILD_INFO_RESOURCE);
+        // No test-build-info for server: this might be a non-gradle build. Proceed without TestBuildInfo
+        if (resource == null) {
+            return null;
+        }
+        try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
+            return fromXContent(parser);
+        }
     }
 
     @SuppressForbidden(reason = "URLs from class loader")

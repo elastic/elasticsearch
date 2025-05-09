@@ -11,6 +11,8 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -20,9 +22,20 @@ import java.util.Map;
 import java.util.function.Function;
 
 record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
+
+    private static final Logger logger = LogManager.getLogger(TestScopeResolver.class);
+
     PolicyManager.PolicyScope getScope(Class<?> callerClass) {
-        var callerCodeSource = callerClass.getProtectionDomain().getCodeSource().getLocation().toString();
-        return scopeMap.getOrDefault(callerCodeSource, PolicyManager.PolicyScope.unknown(callerCodeSource));
+        var callerCodeSource = callerClass.getProtectionDomain().getCodeSource();
+        assert callerCodeSource != null;
+
+        var location = callerCodeSource.getLocation().toString();
+        var scope = scopeMap.get(location);
+        if (scope == null) {
+            logger.warn("Cannot identify a scope for class [{}], location [{}]", callerClass.getName(), location);
+            return PolicyManager.PolicyScope.unknown(location);
+        }
+        return scope;
     }
 
     static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(

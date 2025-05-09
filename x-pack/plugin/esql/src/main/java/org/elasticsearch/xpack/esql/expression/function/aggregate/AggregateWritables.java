@@ -24,6 +24,7 @@ public class AggregateWritables {
             Min.ENTRY,
             Percentile.ENTRY,
             Rate.ENTRY,
+            Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
@@ -34,6 +35,7 @@ public class AggregateWritables {
             MaxOverTime.ENTRY,
             AvgOverTime.ENTRY,
             LastOverTime.ENTRY,
+            FirstOverTime.ENTRY,
             // internal functions
             ToPartial.ENTRY,
             FromPartial.ENTRY,

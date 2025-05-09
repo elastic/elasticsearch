@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -2038,13 +2039,12 @@ public final class InternalTestCluster extends TestCluster {
             throw new AssertionError("Unable to get master name, no node found");
         }
         try {
-            ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-            final DiscoveryNode masterNode = state.nodes().getMasterNode();
-            if (masterNode == null) {
-                throw new AssertionError("Master is not stable but the method expects a stable master node");
-            }
-            return masterNode.getName();
+            final var masterNameListener = new SubscribableListener<String>();
+            return safeAwait(ClusterServiceUtils.addTemporaryStateListener(clusterService(viaNode), cs -> {
+                Optional.ofNullable(cs.nodes().getMasterNode())
+                    .ifPresent(masterNode -> masterNameListener.onResponse(masterNode.getName()));
+                return masterNameListener.isDone();
+            }).andThen(masterNameListener::addListener));
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);

@@ -1,0 +1,5 @@
+pr: 99320
+summary: Do not interrupt underlying Azure repository threads during errors
+area: Snapshot/Restore
+type: bug
+issues: []

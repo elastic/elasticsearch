@@ -281,12 +281,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     @Override
     protected HdfsBlobStore createBlobStore() {
-        // initialize our blobstore using elevated privileges.
-        SpecialPermission.check();
-        final HdfsBlobStore blobStore = AccessController.doPrivileged(
-            (PrivilegedAction<HdfsBlobStore>) () -> createBlobstore(uri, pathSetting, getMetadata().settings())
-        );
-        return blobStore;
+        return createBlobstore(uri, pathSetting, getMetadata().settings());
     }
 
     @Override

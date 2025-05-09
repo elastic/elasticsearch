@@ -160,6 +160,7 @@ Will become:
   "text": [
     "NA",
     "jumped over the lazy dog",
+    "NA",
     "the quick brown fox"
   ]
 }

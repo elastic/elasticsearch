@@ -16,11 +16,14 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -34,6 +37,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class InferenceRunnerTests extends ESTestCase {
+    private TestThreadPool threadPool;
+
+    @Before
+    public void setThreadPool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testResolveInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
         List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
@@ -100,8 +115,9 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "raw-types" })
-    private static Client mockClient() {
+    private Client mockClient() {
         Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(i -> {
             GetInferenceModelAction.Request request = i.getArgument(1, GetInferenceModelAction.Request.class);
             ActionListener<ActionResponse> listener = (ActionListener<ActionResponse>) i.getArgument(2, ActionListener.class);

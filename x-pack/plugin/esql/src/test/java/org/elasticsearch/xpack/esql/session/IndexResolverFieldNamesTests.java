@@ -1734,6 +1734,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDropWildcardFields_WithLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data

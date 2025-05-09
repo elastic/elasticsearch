@@ -465,6 +465,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/127437
+- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
+  method: testFindFewer
+  issue: https://github.com/elastic/elasticsearch/issues/128002
 
 # Examples:
 #

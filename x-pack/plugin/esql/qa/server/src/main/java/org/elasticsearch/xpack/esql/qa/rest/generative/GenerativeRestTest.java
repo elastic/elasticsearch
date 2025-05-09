@@ -50,8 +50,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // Awaiting fixes
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
-        "token recognition error at: ", // https://github.com/elastic/elasticsearch/issues/125870
-                                        // https://github.com/elastic/elasticsearch/issues/127167
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "Unknown column", // https://github.com/elastic/elasticsearch/issues/127467
         "only supports KEYWORD or TEXT values", // https://github.com/elastic/elasticsearch/issues/127468

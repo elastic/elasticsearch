@@ -35,11 +35,15 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -49,16 +53,21 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +76,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -418,6 +428,43 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
         expectThrows(IllegalArgumentException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
+    public void testReshardDataStream() throws Exception {
+        startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        var putComposableIndexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("my_data_stream_template")
+            .indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("my-data-stream*"))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
+            );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putComposableIndexTemplateRequest));
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, "my-data-stream")
+            )
+        );
+
+        // Try to reshard the data stream itself, it should fail
+        ReshardIndexRequest dataStreamRequest = new ReshardIndexRequest("my-data-stream", 2);
+        expectThrows(IndexNotFoundException.class, () -> client().execute(TransportReshardAction.TYPE, dataStreamRequest).actionGet());
+
+        // Try to reshard an index that is part of a data stream, it should fail as well
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "my-data-stream" })
+        ).actionGet();
+        var dataStreamIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex();
+
+        ReshardIndexRequest dataStreamIndexRequest = new ReshardIndexRequest(dataStreamIndex.getName(), 2);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(TransportReshardAction.TYPE, dataStreamIndexRequest).actionGet()
+        );
     }
 
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
@@ -896,6 +943,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // now we should be able to resplit
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        return plugins;
     }
 
     private static long getCurrentPrimaryTerm(Index index, int shardId) {

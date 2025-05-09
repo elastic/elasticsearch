@@ -99,7 +99,6 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        // TODO link to match-phrase-field-params
         description = """
             Use `MATCH_PHRASE` to perform a <<query-dsl-match-query-phrase,match_phrase query>> on the specified field.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
@@ -109,7 +108,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
-            All match_phrase query parameters are supported.
+            All <<query-dsl-match-query-phrase,match_phrase>> query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = {

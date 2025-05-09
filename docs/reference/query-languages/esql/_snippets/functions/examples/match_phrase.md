@@ -11,6 +11,9 @@ FROM books
 | --- | --- |
 | 2713 | William Faulkner |
 | 2883 | William Faulkner |
+| 4724 | William Faulkner |
+| 4977 | William Faulkner |
+| 5119 | William Faulkner |
 
 ```esql
 null

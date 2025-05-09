@@ -142,6 +142,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         ActionListener<BulkResponse> releasingListener
     ) {
         final ClusterState initialState = clusterService.state();
+        ProjectId projectId = projectResolver.getProjectId();
         final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
         if (blockException != null) {
             if (false == blockException.retryable()) {
@@ -171,7 +172,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 public void onTimeout(TimeValue timeout) {
                     releasingListener.onFailure(blockException);
                 }
-            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
+            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(projectId, ClusterBlockLevel.WRITE));
         } else {
             forkAndExecute(task, bulkRequest, executor, releasingListener);
         }

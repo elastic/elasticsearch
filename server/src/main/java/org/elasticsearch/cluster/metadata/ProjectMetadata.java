@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Strings;
@@ -43,6 +45,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -105,6 +109,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final Settings settings;
 
     private final IndexVersion oldestIndexVersion;
+
+    public static final ClusterBlock PROJECT_UNDER_DELETION_BLOCK = new ClusterBlock(
+        15,
+        "project is under deletion",
+        false,
+        false,
+        false,
+        RestStatus.NOT_FOUND,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
 
     @SuppressWarnings("this-escape")
     private ProjectMetadata(

@@ -219,7 +219,7 @@ of official GA features.
 
 Synthetic source may sort `geo_point` fields (first by latitude and then
 longitude) and reduces them to their stored precision. Additionally, unlike most
-types, arrays of `geo_point` fields will not store their source even when
+types, arrays of `geo_point` fields will not preserve order
 `synthetic_source_keep` is set to `arrays`. For example:
 
 $$$synthetic-source-geo-point-example$$$

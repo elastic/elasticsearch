@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -68,7 +69,8 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
     public void testRollover() throws Exception {
         ClusterState state = clusterService.state();
         registry.clusterChanged(new ClusterChangedEvent(IndexTemplateRegistryRolloverIT.class.getName(), state, state));
-        assertBusy(() -> { assertTrue(clusterService.state().metadata().getProject().templatesV2().containsKey(TEST_INDEX_TEMPLATE_ID)); });
+        final var projectId = ProjectId.DEFAULT;
+        awaitClusterState(s -> s.metadata().getProject(projectId).templatesV2().containsKey(TEST_INDEX_TEMPLATE_ID));
         String dsName = TEST_INDEX_PATTERN.replace('*', '1');
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,
@@ -80,7 +82,7 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
         assertNumberOfBackingIndices(1);
         registry.incrementVersion();
         registry.clusterChanged(new ClusterChangedEvent(IndexTemplateRegistryRolloverIT.class.getName(), clusterService.state(), state));
-        assertBusy(() -> assertTrue(getDataStream().rolloverOnWrite()));
+        awaitClusterState(s -> s.metadata().getProject(projectId).dataStreams().get(dsName).rolloverOnWrite());
         assertNumberOfBackingIndices(1);
 
         String timestampValue = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -89,7 +91,7 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
                 .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, timestampValue), XContentType.JSON)
         ).actionGet();
         assertThat(docWriteResponse.status().getStatus(), equalTo(201));
-        assertBusy(() -> assertNumberOfBackingIndices(2));
+        awaitClusterState(s -> s.metadata().getProject(projectId).dataStreams().get(dsName).getIndices().size() == 2);
     }
 
     private void assertNumberOfBackingIndices(final int expected) {

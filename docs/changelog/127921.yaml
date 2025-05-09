@@ -1,0 +1,5 @@
+pr: 127921
+summary: "[9.x] Revert \"Enable madvise by default for all builds\""
+area: Vector Search
+type: bug
+issues: []

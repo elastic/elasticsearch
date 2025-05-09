@@ -94,6 +94,24 @@ $endif$
         return new GroupingState(bigArrays);
     }
 
+$if(BytesRef)$
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+$endif$
+
     public static void combine(GroupingState state, int groupId, $type$ v) {
 $if(long)$
         state.values.add(groupId, v);
@@ -241,8 +259,8 @@ $if(long||double)$
         private final LongLongHash values;
 
 $elseif(BytesRef)$
-        private final LongLongHash values;
-        private BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
 $elseif(int||float)$
         private final LongHash values;

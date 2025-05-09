@@ -105,7 +105,11 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/130_spatial/values unsupported for geo_point", "Spatial types are now supported in VALUES aggregation")
   task.skipTest("esql/130_spatial/values unsupported for geo_point status code", "Spatial types are now supported in VALUES aggregation")
   // Expected deprecation warning to compat yaml tests:
-  task.addAllowedWarningRegex(".*rollup functionality will be removed in Elasticsearch.*")
+  task.addAllowedWarningRegex(
+    ".*rollup functionality will be removed in Elasticsearch.*",
+    // https://github.com/elastic/elasticsearch/issues/127911
+    "Index \\[\\.profiling-.*\\] name begins with a dot.* and will not be allowed in a future Elasticsearch version."
+  )
   task.skipTest("esql/40_tsdb/from doc with aggregate_metric_double", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_tsdb/stats on aggregate_metric_double", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")

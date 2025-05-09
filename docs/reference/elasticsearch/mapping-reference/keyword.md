@@ -264,7 +264,7 @@ Will become:
 
 ```console-result
 {
-  "kwd": ["bar", "foo", "NA"]
+  "kwd": ["NA", "bar", "foo"]
 }
 ```
 

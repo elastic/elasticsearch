@@ -72,12 +72,14 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return isTranslatable(field(), pushdownPredicates);
     }
 
-    protected static boolean isTranslatable(Expression field, LucenePushdownPredicates pushdownPredicates) {
-        return LucenePushdownPredicates.isPushableTextFieldAttribute(field) || pushdownPredicates.isPushableFieldAttribute(field);
+    protected static Translatable isTranslatable(Expression field, LucenePushdownPredicates pushdownPredicates) {
+        return LucenePushdownPredicates.isPushableTextFieldAttribute(field) || pushdownPredicates.isPushableFieldAttribute(field)
+            ? Translatable.YES
+            : Translatable.NO;
     }
 
     @Override

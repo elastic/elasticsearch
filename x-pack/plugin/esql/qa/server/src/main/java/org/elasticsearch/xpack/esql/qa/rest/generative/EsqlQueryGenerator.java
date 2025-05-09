@@ -163,7 +163,7 @@ public class EsqlQueryGenerator {
                 result.append(randomIdentifier());
             } else {
                 String fieldName = randomRawName(previousOutput);
-                if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
+                if (fieldName == null) {
                     fieldName = randomIdentifier();
                 }
                 result.append(fieldName);
@@ -191,7 +191,7 @@ public class EsqlQueryGenerator {
                 result.append(randomIdentifier());
             } else {
                 String fieldName = randomRawName(previousOutput);
-                if (fieldName.isEmpty()) { // it's a bug, managed later, skipping for now
+                if (fieldName == null) {
                     fieldName = randomIdentifier();
                 }
                 result.append(fieldName);
@@ -210,6 +210,9 @@ public class EsqlQueryGenerator {
                 proj.add("*");
             } else {
                 String name = randomName(previousOutput);
+                if (name == null) {
+                    continue;
+                }
                 if (name.length() > 1 && name.startsWith("`") == false && randomIntBetween(0, 100) < 10) {
                     if (randomBoolean()) {
                         name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
@@ -220,31 +223,42 @@ public class EsqlQueryGenerator {
                 proj.add(name);
             }
         }
+        if (proj.isEmpty()) {
+            return "";
+        }
         return " | keep " + proj.stream().collect(Collectors.joining(", "));
     }
 
     private static String randomName(List<Column> previousOutput) {
         String result = randomRawName(previousOutput);
-        if ((randomBoolean() && result.contains("*") == false)) {
+        if (result == null) {
+            return null;
+        }
+        if (randomBoolean() && result.contains("*") == false) {
             result = "`" + result + "`";
         }
         return result;
     }
 
+    /**
+     * Returns a field name from a list of columns.
+     * Could be null if none of the fields can be considered
+     */
     private static String randomRawName(List<Column> previousOutput) {
-        // we need to exclude <all-fields-projected>
-        // https://github.com/elastic/elasticsearch/issues/121741
-        String result = randomFrom(previousOutput.stream().filter(x -> x.name().equals("<all-fields-projected>") == false).toList()).name();
+        var list = previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).toList();
+        if (list.isEmpty()) {
+            return null;
+        }
+        String result = randomFrom(list).name();
         return result;
     }
 
+    /**
+     * Returns a field that can be used for grouping.
+     * Can return null
+     */
     private static String randomGroupableName(List<Column> previousOutput) {
-        // we need to exclude <all-fields-projected>
-        // https://github.com/elastic/elasticsearch/issues/121741
-        var candidates = previousOutput.stream()
-            .filter(EsqlQueryGenerator::groupable)
-            .filter(x -> x.name().equals("<all-fields-projected>") == false)
-            .toList();
+        var candidates = previousOutput.stream().filter(EsqlQueryGenerator::groupable).filter(EsqlQueryGenerator::fieldCanBeUsed).toList();
         if (candidates.isEmpty()) {
             return null;
         }
@@ -260,13 +274,12 @@ public class EsqlQueryGenerator {
             || col.type.equals("version");
     }
 
+    /**
+     * returns a field that can be sorted.
+     * Null if no fields are sortable.
+     */
     private static String randomSortableName(List<Column> previousOutput) {
-        // we need to exclude <all-fields-projected>
-        // https://github.com/elastic/elasticsearch/issues/121741
-        var candidates = previousOutput.stream()
-            .filter(EsqlQueryGenerator::sortable)
-            .filter(x -> x.name().equals("<all-fields-projected>") == false)
-            .toList();
+        var candidates = previousOutput.stream().filter(EsqlQueryGenerator::sortable).filter(EsqlQueryGenerator::fieldCanBeUsed).toList();
         if (candidates.isEmpty()) {
             return null;
         }
@@ -290,10 +303,18 @@ public class EsqlQueryGenerator {
         for (Column column : previousOutput) {
             nameToType.put(column.name, column.type);
         }
-        List<String> names = new ArrayList<>(previousOutput.stream().map(Column::name).collect(Collectors.toList()));
+        List<String> names = new ArrayList<>(
+            previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).map(Column::name).collect(Collectors.toList())
+        );
+        if (names.isEmpty()) {
+            return "";
+        }
         for (int i = 0; i < n; i++) {
+            if (names.isEmpty()) {
+                break;
+            }
             var name = randomFrom(names);
-            if (name.equals("<all-fields-projected>") || nameToType.get(name).endsWith("_range")) {
+            if (nameToType.get(name).endsWith("_range")) {
                 // ranges are not fully supported yet
                 continue;
             }
@@ -305,9 +326,6 @@ public class EsqlQueryGenerator {
                 names.add(newName);
             } else {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
-            }
-            if (newName.equals("<all-fields-projected>")) { // it's a bug, managed as an error later
-                continue;
             }
             nameToType.put(newName, nameToType.get(name));
             if (randomBoolean() && name.startsWith("`") == false) {
@@ -332,6 +350,9 @@ public class EsqlQueryGenerator {
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
             String name = randomRawName(previousOutput);
+            if (name == null) {
+                continue;
+            }
             if (name.length() > 1 && name.startsWith("`") == false && randomIntBetween(0, 100) < 10) {
                 if (randomBoolean()) {
                     name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
@@ -342,6 +363,9 @@ public class EsqlQueryGenerator {
                 name = "`" + name + "`";
             }
             proj.add(name);
+        }
+        if (proj.isEmpty()) {
+            return "";
         }
         return " | drop " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -363,7 +387,11 @@ public class EsqlQueryGenerator {
     }
 
     private static String mvExpand(List<Column> previousOutput) {
-        return " | mv_expand " + randomName(previousOutput);
+        String toExpand = randomName(previousOutput);
+        if (toExpand == null) {
+            return ""; // no columns to expand
+        }
+        return " | mv_expand " + toExpand;
     }
 
     private static String eval(List<Column> previousOutput) {
@@ -376,6 +404,9 @@ public class EsqlQueryGenerator {
                 name = randomIdentifier();
             } else {
                 name = randomName(previousOutput);
+                if (name == null) {
+                    name = randomIdentifier();
+                }
             }
             String expression = expression(previousOutput);
             if (i > 0) {
@@ -390,7 +421,10 @@ public class EsqlQueryGenerator {
     }
 
     private static String stats(List<Column> previousOutput) {
-        List<Column> nonNull = previousOutput.stream().filter(x -> x.type().equals("null") == false).collect(Collectors.toList());
+        List<Column> nonNull = previousOutput.stream()
+            .filter(EsqlQueryGenerator::fieldCanBeUsed)
+            .filter(x -> x.type().equals("null") == false)
+            .collect(Collectors.toList());
         if (nonNull.isEmpty()) {
             return ""; // cannot do any stats, just skip
         }
@@ -402,6 +436,9 @@ public class EsqlQueryGenerator {
                 name = randomIdentifier();
             } else {
                 name = randomName(previousOutput);
+                if (name == null) {
+                    name = randomIdentifier();
+                }
             }
             String expression = agg(nonNull);
             if (i > 0) {
@@ -433,6 +470,9 @@ public class EsqlQueryGenerator {
         }
         // all types
         name = randomName(previousOutput);
+        if (name == null) {
+            return "count(*)";
+        }
         return switch (randomIntBetween(0, 2)) {
             case 0 -> "count(*)";
             case 1 -> "count(" + name + ")";
@@ -527,6 +567,14 @@ public class EsqlQueryGenerator {
         // Let's create identifiers that are long enough to avoid collisions with reserved keywords.
         // There could be a smarter way (introspection on the lexer class?), but probably it's not worth the effort
         return randomAlphaOfLength(randomIntBetween(8, 12));
+    }
+
+    private static boolean fieldCanBeUsed(Column field) {
+        return (
+        // https://github.com/elastic/elasticsearch/issues/121741
+        field.name().equals("<all-fields-projected>")
+            // this is a known pathological case, no need to test it for now
+            || field.name().equals("<no-fields>")) == false;
     }
 
 }

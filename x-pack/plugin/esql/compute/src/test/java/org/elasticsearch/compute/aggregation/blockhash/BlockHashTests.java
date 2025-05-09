@@ -46,7 +46,6 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1330,7 +1329,8 @@ public class BlockHashTests extends BlockHashTestCase {
                 Output o2 = output2.get(i);
                 assertThat(o1.offset, equalTo(o2.offset));
                 if (o1.vector != null) {
-                    assertThat(o1.vector, either(equalTo(o2.vector)).or(equalTo(o2.block.asVector())));
+                    assertNull(o1.block);
+                    assertThat(o1.vector, equalTo(o2.vector != null ? o2.vector : o2.block.asVector()));
                 } else {
                     assertNull(o2.vector);
                     assertThat(o1.block, equalTo(o2.block));

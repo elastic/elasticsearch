@@ -208,7 +208,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
 
             assertFalse(handler.isClosed());
 
@@ -218,7 +217,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             assertEquals(requestTransmittedLength, handler.readUntilClose());
 
             assertTrue(handler.isClosed());
-            assertEquals(0, handler.stream.bufSize());
         }
     }
 
@@ -235,7 +233,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.isClosed());
 
             // terminate connection on server and wait resources are released
@@ -244,7 +241,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             handler.channel.request().getHttpChannel().close();
             assertThat(safeGet(exceptionFuture), instanceOf(ClosedChannelException.class));
             assertTrue(handler.isClosed());
-            assertBusy(() -> assertEquals(0, handler.stream.bufSize()));
         }
     }
 
@@ -260,7 +256,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.isClosed());
 
             // terminate connection on server and wait resources are released
@@ -272,7 +267,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var exception = asInstanceOf(RuntimeException.class, safeGet(exceptionFuture));
             assertEquals(ServerRequestHandler.SIMULATED_EXCEPTION_MESSAGE, exception.getMessage());
             safeAwait(handler.closedLatch);
-            assertBusy(() -> assertEquals(0, handler.stream.bufSize()));
         }
     }
 
@@ -313,7 +307,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 });
                 handler.readBytes(partSize);
             }
-            assertTrue(handler.stream.hasLast());
+            assertTrue(handler.receivedLastChunk);
         }
     }
 

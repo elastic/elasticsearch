@@ -107,8 +107,8 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(field());
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(field()) ? Translatable.YES : Translatable.NO;
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -64,8 +65,8 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
@@ -245,7 +246,9 @@ public class PlannerUtils {
                         boolean matchesField = refsBuilder.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refsBuilder.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField
+                            && refsBuilder.isEmpty()
+                            && translatable(exp, LucenePushdownPredicates.DEFAULT).finish() == TranslationAware.FinishedTranslatable.YES) {
                             matches.add(exp);
                         }
                     }

@@ -29,6 +29,10 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -105,6 +109,56 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
+    }
+
+    public void testExecuteNoPolicy() throws Exception {
+        StepKey currentStepKey1 = new StepKey("hot", "complete", "complete");
+        StepKey currentStepKey2 = new StepKey("hot", "complete", "complete");
+        ToXContentObject stepInfo = new SetStepInfoUpdateTask.ExceptionWrapper(
+            index,
+            policy,
+            new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
+        );
+        setStateToKey(currentStepKey1);
+        SetStepInfoUpdateTask task1 = new SetStepInfoUpdateTask(
+            index,
+            policy,
+            currentStepKey1,
+            new SetStepInfoUpdateTask.ExceptionWrapper(
+                index,
+                policy,
+                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
+            )
+        );
+        SetStepInfoUpdateTask task2 = new SetStepInfoUpdateTask(
+            index,
+            policy,
+            currentStepKey2,
+            new SetStepInfoUpdateTask.ExceptionWrapper(
+                index,
+                policy,
+                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
+            )
+        );
+
+        Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
+        executingTasks.add(task1);
+        executingTasks.add(task2);
+        assertEquals(executingTasks.size(), 1);
+
+        ClusterState newState = task1.execute(clusterState);
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
+        assertThat(actualKey, equalTo(currentStepKey1));
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepTime(), nullValue());
+
+        XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
+        stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
+        String expectedCauseValue = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+        assertThat(lifecycleState.stepInfo(), equalTo(expectedCauseValue));
+
     }
 
     @TestLogging(reason = "logging test", value = "logger.org.elasticsearch.xpack.ilm.SetStepInfoUpdateTask:WARN")

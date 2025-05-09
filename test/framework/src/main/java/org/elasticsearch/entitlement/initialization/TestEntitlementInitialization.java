@@ -9,24 +9,33 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.plugins.PluginDescriptor;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Test-only version of {@code EntitlementInitialization}
  */
 public class TestEntitlementInitialization {
-
-    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
 
@@ -44,10 +53,61 @@ public class TestEntitlementInitialization {
         );
     }
 
+    private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
+
+    private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {
+        Map<String, Policy> policies = new HashMap<>();
+        for (var pluginData : pluginsData) {
+            String pluginName = pluginData.pluginName();
+            var resourceName = Strings.format("META-INF/es-plugins/%s/entitlement-policy.yaml", pluginName);
+
+            var resource = TestEntitlementInitialization.class.getClassLoader().getResource(resourceName);
+            if (resource != null) {
+                try (var inputStream = getStream(resource)) {
+                    policies.put(pluginName, new PolicyParser(inputStream, pluginName, pluginData.isExternalPlugin()).parsePolicy());
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(Strings.format("Cannot read policy for plugin [%s]", pluginName), e);
+                }
+            }
+        }
+        return policies;
+    }
+
+    private static List<PluginDescriptor> parsePluginsDescriptors(List<String> pluginNames) {
+        List<PluginDescriptor> descriptors = new ArrayList<>();
+        for (var pluginName : pluginNames) {
+            var resourceName = Strings.format("META-INF/es-plugins/%s/plugin-descriptor.properties", pluginName);
+            var resource = TestEntitlementInitialization.class.getClassLoader().getResource(resourceName);
+            if (resource != null) {
+                try (var inputStream = getStream(resource)) {
+                    descriptors.add(PluginDescriptor.readInternalDescriptor(inputStream));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(Strings.format("Cannot read descriptor for plugin [%s]", pluginName), e);
+                }
+            }
+        }
+        return descriptors;
+    }
+
+    @SuppressForbidden(reason = "URLs from class loader")
+    private static InputStream getStream(URL resource) throws IOException {
+        return resource.openStream();
+    }
+
     private static PolicyManager createPolicyManager() {
 
-        // TODO: parse policies. Locate them using help from TestBuildInfo
-        Map<String, Policy> pluginPolicies = Map.of();
+        // TODO: uncomment after merging https://github.com/elastic/elasticsearch/pull/127719
+        // var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
+        // var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver = null; // TestScopeResolver.createScopeResolver(serverTestBuildInfo,
+                                                                            // pluginsTestBuildInfo);
+        List<String> pluginNames = List.of(); // = pluginsTestBuildInfo.stream().map(TestBuildInfo::componentName).toList();
+
+        var pluginDescriptors = parsePluginsDescriptors(pluginNames);
+        var pluginsData = pluginDescriptors.stream()
+            .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
+            .toList();
+        Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
 
         // TODO: create here the test pathLookup
         PathLookup pathLookup = null;
@@ -58,9 +118,9 @@ public class TestEntitlementInitialization {
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
-            null, // TODO: replace with TestScopeResolver.createScopeResolver
+            scopeResolver,
             Map.of(),
-            ENTITLEMENTS_MODULE, // TODO: this will need to change -- encapsulate it when we extract isTriviallyAllowed
+            null, // TODO: this will need to change -- encapsulate it when we extract isTriviallyAllowed
             pathLookup,
             Set.of()
         );

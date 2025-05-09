@@ -319,10 +319,11 @@ public class S3ServiceTests extends ESTestCase {
             See the breaking changes documentation for the next major version.""", clientName));
     }
 
-    private static URI getEndpointUri(Settings.Builder settings, String clientName) {
+    private URI getEndpointUri(Settings.Builder settings, String clientName) {
         return new S3Service(
             mock(Environment.class),
-            Settings.EMPTY,
+            ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of(randomIdentifier())
         ).buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))

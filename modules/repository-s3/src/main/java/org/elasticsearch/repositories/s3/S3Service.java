@@ -155,7 +155,7 @@ class S3Service extends AbstractLifecycleComponent {
                 this::buildClientReference,
                 clusterService.threadPool().generic()
             );
-            clusterService.addListener(s3PerProjectClientManager);
+            clusterService.addHighPriorityApplier(s3PerProjectClientManager);
         } else {
             s3PerProjectClientManager = null;
         }

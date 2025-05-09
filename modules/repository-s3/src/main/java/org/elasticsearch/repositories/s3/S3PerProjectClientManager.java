@@ -12,7 +12,7 @@ package org.elasticsearch.repositories.s3;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ProjectSecrets;
@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class S3PerProjectClientManager implements ClusterStateListener {
+public class S3PerProjectClientManager implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(S3PerProjectClientManager.class);
     private static final String S3_SETTING_PREFIX = "s3.";
@@ -65,7 +65,8 @@ public class S3PerProjectClientManager implements ClusterStateListener {
         return Map.copyOf(projectClientsHolders);
     }
 
-    public void clusterChanged(ClusterChangedEvent event) {
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
         final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();

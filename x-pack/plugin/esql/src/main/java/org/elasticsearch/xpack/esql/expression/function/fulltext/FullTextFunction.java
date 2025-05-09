@@ -209,11 +209,25 @@ public abstract class FullTextFunction extends Function
                 failures
             );
             checkFullTextFunctionsParents(condition, failures);
+        } else if (plan instanceof Aggregate agg) {
+            checkFullTextFunctionsInAggs(agg, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
+                failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
             });
         }
+    }
+
+    private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
+        agg.groupings().forEach(exp -> {
+            exp.forEachDown(e -> {
+                if (e instanceof FullTextFunction ftf) {
+                    failures.add(
+                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
+                    );
+                }
+            });
+        });
     }
 
     /**

@@ -21,12 +21,15 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -262,7 +265,22 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             );
         }
         checkCategorizeGrouping(failures);
+        checkMultipleScoreAggregations(failures);
+    }
 
+    private void checkMultipleScoreAggregations(Failures failures) {
+        Holder<Boolean> hasScoringAggs = new Holder<>();
+        forEachExpression(FilteredExpression.class, fe -> {
+            if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
+                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
+                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                        if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
+                            failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**

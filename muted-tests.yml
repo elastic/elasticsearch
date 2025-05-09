@@ -423,9 +423,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
-- class: org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunctionTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/127833
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
@@ -453,9 +450,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
   method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
   issue: https://github.com/elastic/elasticsearch/issues/127787
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
-  method: testTimestampFilterFromQuery
-  issue: https://github.com/elastic/elasticsearch/issues/127332
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/126359
@@ -465,6 +459,9 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testSearchBoost
   issue: https://github.com/elastic/elasticsearch/issues/127969
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test040JavaUsesTheOsProvidedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/127437
 
 # Examples:
 #

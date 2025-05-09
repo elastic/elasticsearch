@@ -11,7 +11,6 @@ package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
@@ -47,7 +46,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        jsonFactory = XContentImplUtils.configure(new JsonFactoryBuilder());
+        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder());
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

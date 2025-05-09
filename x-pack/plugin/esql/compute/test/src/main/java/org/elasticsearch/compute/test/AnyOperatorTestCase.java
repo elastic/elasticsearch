@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.matchesPattern;
 public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * @param requiresDeterministicFactory
-     *          True if the returned {@link Operator.OperatorFactory} should always return a deterministic operator.
-     *          That is, for two different calls, both operators should work in the same way.
+     *          True if the returned {@link Operator.OperatorFactory} should always generate an identical deterministic operator.
+     *          That is, for two different calls, both operators should do "exactly" the same.
      */
     protected record SimpleOptions(boolean requiresDeterministicFactory) {
         public static final SimpleOptions DEFAULT = new SimpleOptions(false);

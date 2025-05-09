@@ -90,8 +90,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     };
 
     @Override
-    protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
-        return simpleWithMode(mode, Function.identity());
+    protected final Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
+        return simpleWithMode(options, mode, Function.identity());
     }
 
     protected List<Integer> channels(AggregatorMode mode) {
@@ -99,6 +99,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     private Operator.OperatorFactory simpleWithMode(
+        SimpleOptions options,
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
@@ -109,8 +110,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             supplier = chunkGroups(emitChunkSize, supplier);
         }
 
-        if (shouldRandomizeBlocks()) {
-            return new RandomizingHashAggregationOperatorFactory(
+        if (options.requiresDeterministicFactory()) {
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
@@ -118,7 +119,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 null
             );
         } else {
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
+            return new RandomizingHashAggregationOperatorFactory(
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
@@ -400,6 +401,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public final void testAllFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(false))
         );
@@ -412,6 +414,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public final void testNoneFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))
         );
@@ -425,6 +428,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public void testSomeFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, AddGarbageRowsSourceOperator.filterFactory())
         );

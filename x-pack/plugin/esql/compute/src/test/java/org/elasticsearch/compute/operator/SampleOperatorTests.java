@@ -59,7 +59,7 @@ public class SampleOperatorTests extends OperatorTestCase {
         int totalPositionCount = 0;
 
         for (int iter = 0; iter < 10000; iter++) {
-            SampleOperator operator = simple().get(driverContext());
+            SampleOperator operator = simple(SimpleOptions.DEFAULT).get(driverContext());
             operator.addInput(new Page(blockFactory.newConstantNullBlock(20000)));
             Page output = operator.getOutput();
             // 10000 expected rows, stddev=sqrt(10000)=100, so this is 10 stddevs.

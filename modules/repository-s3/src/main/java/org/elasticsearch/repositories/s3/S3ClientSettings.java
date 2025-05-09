@@ -77,9 +77,10 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
     );
 
-    /** Formerly the protocol to use to connect to s3, now unused. V2 AWS SDK can infer the protocol from {@link #endpoint}. */
+    /** The protocol to use to connect to s3, now only used if {@link #endpoint} is not a proper URI that starts with {@code http://} or
+     * {@code https://}. */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
-    static final Setting.AffixSetting<HttpScheme> UNUSED_PROTOCOL_SETTING = Setting.affixKeySetting(
+    static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
         key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
@@ -181,6 +182,9 @@ final class S3ClientSettings {
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
+    /** The scheme (HTTP or HTTPS) for talking to the endpoint, for use only if the endpoint doesn't contain an explicit scheme */
+    final HttpScheme protocol;
+
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
 
@@ -221,6 +225,7 @@ final class S3ClientSettings {
 
     private S3ClientSettings(
         AwsCredentials credentials,
+        HttpScheme protocol,
         String endpoint,
         String proxyHost,
         int proxyPort,
@@ -235,6 +240,7 @@ final class S3ClientSettings {
         String region
     ) {
         this.credentials = credentials;
+        this.protocol = protocol;
         this.endpoint = endpoint;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
@@ -261,6 +267,7 @@ final class S3ClientSettings {
             .put(repositorySettings)
             .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
             .build();
+        final HttpScheme newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
@@ -284,7 +291,8 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
-        if (Objects.equals(endpoint, newEndpoint)
+        if (Objects.equals(protocol, newProtocol)
+            && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
@@ -299,6 +307,7 @@ final class S3ClientSettings {
         }
         return new S3ClientSettings(
             newCredentials,
+            newProtocol,
             newEndpoint,
             newProxyHost,
             newProxyPort,
@@ -405,6 +414,7 @@ final class S3ClientSettings {
         ) {
             return new S3ClientSettings(
                 S3ClientSettings.loadCredentials(settings, clientName),
+                getConfigValue(settings, clientName, PROTOCOL_SETTING),
                 getConfigValue(settings, clientName, ENDPOINT_SETTING),
                 getConfigValue(settings, clientName, PROXY_HOST_SETTING),
                 getConfigValue(settings, clientName, PROXY_PORT_SETTING),
@@ -435,6 +445,7 @@ final class S3ClientSettings {
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
             && Objects.equals(credentials, that.credentials)
+            && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
             && Objects.equals(proxyHost, that.proxyHost)
             && proxyScheme == that.proxyScheme
@@ -448,6 +459,7 @@ final class S3ClientSettings {
     public int hashCode() {
         return Objects.hash(
             credentials,
+            protocol,
             endpoint,
             proxyHost,
             proxyPort,

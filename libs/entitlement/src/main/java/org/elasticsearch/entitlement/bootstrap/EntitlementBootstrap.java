@@ -138,7 +138,7 @@ public class EntitlementBootstrap {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath);
+                vm.loadAgent(agentPath, EntitlementInitialization.class.getName());
             } finally {
                 vm.detach();
             }
@@ -154,7 +154,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    private static String findAgentJar() {
+    public static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {

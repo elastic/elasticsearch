@@ -17,6 +17,11 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,7 +30,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -33,13 +38,17 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
-public final class TimeSeriesSourceOperator extends SourceOperator {
+public final class TimeSeriesSourceOperator extends LuceneOperator {
 
     private final boolean emitDocIds;
     private final int maxPageSize;
@@ -55,6 +64,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
     private final List<ValuesSourceReaderOperator.FieldInfo> fieldsToExtracts;
     private ShardLevelFieldsReader fieldsReader;
     private DocIdCollector docCollector;
+    private long tsidsLoaded;
 
     TimeSeriesSourceOperator(
         BlockFactory blockFactory,
@@ -64,6 +74,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
         int maxPageSize,
         int limit
     ) {
+        super(blockFactory, maxPageSize, sliceQueue);
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.fieldsToExtracts = fieldsToExtract;
@@ -85,7 +96,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
             return null;
         }
@@ -97,6 +108,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
 
         Page page = null;
         Block[] blocks = new Block[(emitDocIds ? 3 : 2) + fieldsToExtracts.size()];
+        long startInNanos = System.nanoTime();
         try {
             if (iterator == null) {
                 var slice = sliceQueue.nextSlice();
@@ -130,6 +142,8 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
                 currentPagePos = 0;
             }
             if (iterator.completed()) {
+                processedShards.add(iterator.luceneSlice.shardContext().shardIdentifier());
+                processedSlices++;
                 Releasables.close(docCollector, fieldsReader);
                 iterator = null;
             }
@@ -139,6 +153,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
             if (page == null) {
                 Releasables.closeExpectNoException(blocks);
             }
+            processingNanos += System.nanoTime() - startInNanos;
         }
         return page;
     }
@@ -162,6 +177,7 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
                 }
             };
             Weight weight = luceneSlice.weight();
+            processedQueries.add(weight.getQuery());
             int maxSegmentOrd = 0;
             for (var leafReaderContext : luceneSlice.leaves()) {
                 LeafIterator leafIterator = new LeafIterator(weight, leafReaderContext.leafReaderContext());
@@ -237,6 +253,9 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
                         break;
                     }
                 }
+                if (oneTsidQueue.size() > 0) {
+                    ++tsidsLoaded;
+                }
             }
             return oneTsidQueue;
         }
@@ -304,11 +323,6 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
                 createdThread = executingThread;
             }
         }
-    }
-
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + "[" + "maxPageSize=" + maxPageSize + ", remainingDocs=" + remainingDocs + "]";
     }
 
     static class BlockLoaderFactory extends ValuesSourceReaderOperator.DelegatingBlockLoaderFactory {
@@ -569,6 +583,120 @@ public final class TimeSeriesSourceOperator extends SourceOperator {
         @Override
         public void close() {
             Releasables.close(docsBuilder, segmentsBuilder);
+        }
+    }
+
+    @Override
+    protected void describe(StringBuilder sb) {
+        sb.append("[" + "maxPageSize=").append(maxPageSize).append(", remainingDocs=").append(remainingDocs).append("]");
+    }
+
+    @Override
+    public Operator.Status status() {
+        final long valuesLoaded = rowsEmitted * (1 + fieldsToExtracts.size()); // @timestamp and other fields
+        return new Status(this, tsidsLoaded, valuesLoaded);
+    }
+
+    public static class Status extends LuceneOperator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "time_series_source",
+            Status::new
+        );
+
+        private final long tsidLoaded;
+        private final long valuesLoaded;
+
+        Status(TimeSeriesSourceOperator operator, long tsidLoaded, long valuesLoaded) {
+            super(operator);
+            this.tsidLoaded = tsidLoaded;
+            this.valuesLoaded = valuesLoaded;
+        }
+
+        Status(
+            int processedSlices,
+            Set<String> processedQueries,
+            Set<String> processedShards,
+            long processNanos,
+            int sliceIndex,
+            int totalSlices,
+            int pagesEmitted,
+            int sliceMin,
+            int sliceMax,
+            int current,
+            long rowsEmitted,
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies,
+            long tsidLoaded,
+            long valuesLoaded
+        ) {
+            super(
+                processedSlices,
+                processedQueries,
+                processedShards,
+                processNanos,
+                sliceIndex,
+                totalSlices,
+                pagesEmitted,
+                sliceMin,
+                sliceMax,
+                current,
+                rowsEmitted,
+                partitioningStrategies
+            );
+            this.tsidLoaded = tsidLoaded;
+            this.valuesLoaded = valuesLoaded;
+        }
+
+        Status(StreamInput in) throws IOException {
+            super(in);
+            this.tsidLoaded = in.readVLong();
+            this.valuesLoaded = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVLong(tsidLoaded);
+            out.writeVLong(valuesLoaded);
+        }
+
+        @Override
+        protected void toXContentFields(XContentBuilder builder, Params params) throws IOException {
+            super.toXContentFields(builder, params);
+            builder.field("tsid_loaded", tsidLoaded);
+            builder.field("values_loaded", valuesLoaded);
+        }
+
+        public long tsidLoaded() {
+            return tsidLoaded;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_TIME_SERIES_SOURCE_STATUS);
+        }
+
+        @Override
+        public long valuesLoaded() {
+            return valuesLoaded;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Status status = (Status) o;
+            return tsidLoaded == status.tsidLoaded && valuesLoaded == status.valuesLoaded;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), tsidLoaded, valuesLoaded);
         }
     }
 }

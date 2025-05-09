@@ -308,6 +308,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos = -1L; // use -1 to indicate this has not yet been set to its true value
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile long indexingTaskExecutionTimeBeforeShardStartedInNanos;
     private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
@@ -569,6 +570,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // unlikely case that getRelativeTimeInNanos() returns exactly -1, we advance by 1ns to avoid that special value.
                 startedRelativeTimeInNanos = (relativeTimeInNanos != -1L) ? relativeTimeInNanos : 0L;
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                indexingTaskExecutionTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingExecutionTimeInNanos();
                 recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
@@ -1401,6 +1403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
+            indexingTaskExecutionTimeBeforeShardStartedInNanos,
             timeSinceShardStartedInNanos,
             currentTimeInNanos,
             recentIndexingLoadAtShardStarted
@@ -2730,6 +2733,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexEventListener;
     }
 
+    /** Activate throttling for this shard. If {@link IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE}
+     * setting is set to true, throttling will pause indexing completely. Otherwise, indexing will be throttled to one thread.
+     */
     public void activateThrottling() {
         try {
             getEngine().activateThrottling();
@@ -3233,6 +3239,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void noopUpdate() {
         internalIndexingStats.noopUpdate();
+    }
+
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param tookInNanos  time it took to write the indexing buffers for this shard (in ns)
+     * @see IndexingMemoryController#writePendingIndexingBuffers()
+     */
+    public void addWriteIndexBuffersToIndexThreadsTime(long tookInNanos) {
+        internalIndexingStats.writeIndexingBuffersTime(tookInNanos);
     }
 
     public void maybeCheckIndex() {

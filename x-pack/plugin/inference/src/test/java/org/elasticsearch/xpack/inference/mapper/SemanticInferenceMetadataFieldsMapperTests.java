@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -22,25 +24,62 @@ import java.util.Collection;
 import java.util.Collections;
 
 public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTestCase {
-
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
-        return getRandomCompatibleIndexVersion(useLegacyFormat, IndexVersion.current());
-    }
-
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat, IndexVersion maxVersion) {
-        if (useLegacyFormat) {
-            if (randomBoolean()) {
-                return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
-            }
-            return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
-        } else {
-            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, maxVersion);
-        }
-    }
-
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new InferencePlugin(Settings.EMPTY));
+    }
+
+    public void testIsEnabled() {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(true))
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(false))
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(false))
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .build();
+        assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        // Test that index.mapping.semantic_text.use_legacy_format == false is ignored when the index version is too old to support the new
+        // format
+        settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.randomVersionBetween(
+                    random(),
+                    IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+                )  // 8.x version range prior to the introduction of the new format
+            )
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+    }
+
+    public void testIsEnabledByDefault() {
+        var settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+            )
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersion.current())
+            )
+            .build();
+        assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
     }
 
     @Override
@@ -61,4 +100,19 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
     public MappedFieldType getMappedFieldType() {
         return new SemanticInferenceMetadataFieldsMapper.FieldType();
     }
+
+    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+        if (useLegacyFormat) {
+            // Randomly choose an index version compatible with the legacy semantic text format
+            return IndexVersionUtils.randomVersionBetween(random(), IndexVersions.SEMANTIC_TEXT_FIELD_TYPE, IndexVersion.current());
+        } else {
+            // Randomly choose an index version compatible with the new semantic text format
+            return IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+                IndexVersion.current()
+            );
+        }
+    }
+
 }

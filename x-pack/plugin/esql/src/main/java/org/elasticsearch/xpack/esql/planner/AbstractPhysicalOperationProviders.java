@@ -95,7 +95,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -169,7 +170,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -259,7 +261,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         AggregatorMode mode,
         Layout layout,
         boolean grouping,
-        Consumer<AggFunctionSupplierContext> consumer
+        Consumer<AggFunctionSupplierContext> consumer,
+        LocalExecutionPlannerContext context
     ) {
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
@@ -319,7 +322,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
-                            layout
+                            layout,
+                            context.shardContexts()
                         );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }

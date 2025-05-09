@@ -211,6 +211,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
   task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
   task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
+  task.skipTest("esql/180_match_operator/match within eval", "Error message changed")
   task.skipTest("esql/40_unsupported_types/semantic_text declared in mapping", "The semantic text field format changed")
   task.skipTest("esql/190_lookup_join/Alias as lookup index", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/190_lookup_join/alias-repeated-alias", "LOOKUP JOIN does not support index aliases for now")

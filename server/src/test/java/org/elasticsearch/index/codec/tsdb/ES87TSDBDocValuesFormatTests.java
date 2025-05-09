@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -24,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -58,27 +56,11 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         LogConfigurator.configureESLogging();
     }
 
-    static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
-
-        TestES87TSDBDocValuesFormat() {
-            super();
-        }
-
-        TestES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
-            super(skipIndexIntervalSize);
-        }
-
-        @Override
-        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-            return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
-        }
-    }
-
     private final Codec codec = new Elasticsearch900Lucene101Codec() {
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return new TestES87TSDBDocValuesFormat();
+            return new ES87TSDBDocValuesFormat();
         }
     };
 

@@ -462,6 +462,18 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
   method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
   issue: https://github.com/elastic/elasticsearch/issues/127787
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testThrottleStats
+  issue: https://github.com/elastic/elasticsearch/issues/126359
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SampleTests
+  method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
+  issue: https://github.com/elastic/elasticsearch/issues/127950
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SampleTests
+  method: testGroupingAggregate {TestCase=<long unicode TEXTs>}
+  issue: https://github.com/elastic/elasticsearch/issues/127951
 
 # Examples:
 #

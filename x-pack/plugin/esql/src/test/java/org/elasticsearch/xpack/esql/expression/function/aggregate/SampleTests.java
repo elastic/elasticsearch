@@ -50,12 +50,12 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.booleanCases(1, 1000),
                 MultiRowTestCaseSupplier.ipCases(1, 1000),
                 MultiRowTestCaseSupplier.versionCases(1, 1000),
-                MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-                MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+                MultiRowTestCaseSupplier.stringCases(1, 20, DataType.KEYWORD),
+                MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT),
                 MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+                MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
             )
                 .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))

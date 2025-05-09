@@ -32,6 +32,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
 import java.util.function.IntPredicate;
@@ -243,8 +244,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             rawVectorsReader.search(field, target, knnCollector, acceptDocs);
             return;
         }
-        // TODO add new ivf search strategy
-        int nProbe = 10;
+        if (fieldInfo.getVectorDimension() != target.length) {
+            throw new IllegalArgumentException(
+                "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
+            );
+        }
         float percentFiltered = 1f;
         if (acceptDocs instanceof BitSet bitSet) {
             percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
@@ -257,6 +261,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             return visitedDocs.getAndSet(docId) == false;
         };
+        final int nProbe;
+        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
+            nProbe = ivfSearchStrategy.getNProbe();
+        } else {
+            // TODO calculate nProbe given the number of centroids vs. number of vectors for given `k`
+            nProbe = 10;
+        }
 
         FieldEntry entry = fields.get(fieldInfo.number);
         CentroidQueryScorer centroidQueryScorer = getCentroidScorer(

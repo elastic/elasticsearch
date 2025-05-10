@@ -104,8 +104,8 @@ public class ValueCountIT extends ESIntegTestCase {
                 assertThat(valueCount, notNullValue());
                 assertThat(valueCount.getName(), equalTo("count"));
                 assertThat(valueCount.getValue(), equalTo(10L));
-                assertThat((ValueCount) ((InternalAggregation) global).getProperty("count"), equalTo(valueCount));
-                assertThat((double) ((InternalAggregation) global).getProperty("count.value"), equalTo(10d));
+                assertThat((ValueCount) global.getProperty("count"), equalTo(valueCount));
+                assertThat((double) global.getProperty("count.value"), equalTo(10d));
                 assertThat((double) ((InternalAggregation) valueCount).getProperty("value"), equalTo(10d));
             }
         );

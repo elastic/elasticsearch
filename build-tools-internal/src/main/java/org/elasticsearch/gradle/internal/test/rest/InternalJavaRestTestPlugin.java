@@ -9,16 +9,12 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskProvider;
+import org.gradle.testing.base.TestingExtension;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
 
 /**
@@ -31,24 +27,24 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(RestTestBasePlugin.class);
+        TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+        testing.getSuites().registerBinding(JavaRestTestSuite.class, DefaultJavaRestTestSuite.class);
+        testing.getSuites().register(SOURCE_SET_NAME, JavaRestTestSuite.class, suite -> {
+            suite.useJUnit();
+            configureJavaRestSources(project, suite.getSources());
+            if (project.findProject(":test:test-clusters") != null) {
+                suite.getDependencies().getImplementation().add(suite.getDependencies().project(":test:test-clusters"));
+            }
+        });
 
-        // create source set
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
+    }
 
-        if (project.findProject(":test:test-clusters") != null) {
-            project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
-        }
-
-        // setup the javaRestTest task
-        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, javaTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
-
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
-
+    private void configureJavaRestSources(Project project, SourceSet javaTestSourceSet) {
         // setup dependencies
         setupJavaRestTestDependenciesDefaults(project, javaTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);
     }
+
 }

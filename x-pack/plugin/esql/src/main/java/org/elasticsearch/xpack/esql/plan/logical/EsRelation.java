@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -139,7 +140,10 @@ public class EsRelation extends LeafPlan {
                     source,
                     parent != null ? parent.name() : null,
                     parent != null ? parent.name() + "." + name : name,
-                    t
+                    t,
+                    Nullability.TRUE,
+                    null,
+                    false
                 );
                 list.add(f);
                 // object or nested

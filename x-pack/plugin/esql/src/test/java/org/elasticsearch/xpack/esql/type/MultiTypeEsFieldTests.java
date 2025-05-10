@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -169,6 +170,6 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, null, name, new EsField(name, dataType, Map.of(), true), Nullability.TRUE, null, false);
     }
 }

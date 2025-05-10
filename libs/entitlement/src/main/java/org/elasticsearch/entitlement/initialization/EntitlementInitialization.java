@@ -70,7 +70,7 @@ public class EntitlementInitialization {
 
         DynamicInstrumentation.initialize(
             inst,
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
             verifyBytecode
         );
     }
@@ -88,9 +88,7 @@ public class EntitlementInitialization {
             pluginPolicies,
             EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            ENTITLEMENTS_MODULE,
-            pathLookup,
-            bootstrapArgs.suppressFailureLogClasses()
+            pathLookup
         );
     }
 
@@ -115,10 +113,7 @@ public class EntitlementInitialization {
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
-        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
-            ElasticsearchEntitlementChecker.class,
-            Runtime.version().feature()
-        );
+        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class, Runtime.version().feature());
 
         Constructor<?> constructor;
         try {
@@ -131,5 +126,33 @@ public class EntitlementInitialization {
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Returns the "most recent" checker class compatible with the provided runtime Java version.
+     * For checkers, we have (optionally) version specific classes, each with a prefix (e.g. Java23).
+     * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
+     * the various mainXX source sets).
+     */
+    static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
+        String packageName = baseClass.getPackageName();
+        String baseClassName = baseClass.getSimpleName();
+
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            // All Java version from 23 onwards will be able to use che checks in the Java23EntitlementChecker interface and implementation
+            classNamePrefix = "Java23";
+        } else {
+            // For any other Java version, the basic EntitlementChecker interface and implementation contains all the supported checks
+            classNamePrefix = "";
+        }
+        final String className = packageName + "." + classNamePrefix + baseClassName;
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
+        }
+        return clazz;
     }
 }

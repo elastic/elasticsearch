@@ -136,7 +136,7 @@ public class DataStreamAutoShardingService {
     public static final Setting<WriteLoadMetric> DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC = Setting.enumSetting(
         WriteLoadMetric.class,
         "data_streams.auto_sharding.increase_shards.load_metric",
-        WriteLoadMetric.ALL_TIME,
+        WriteLoadMetric.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -147,7 +147,7 @@ public class DataStreamAutoShardingService {
     public static final Setting<WriteLoadMetric> DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC = Setting.enumSetting(
         WriteLoadMetric.class,
         "data_streams.auto_sharding.decrease_shards.load_metric",
-        WriteLoadMetric.ALL_TIME,
+        WriteLoadMetric.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

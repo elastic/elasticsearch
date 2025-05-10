@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -18,28 +19,46 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.core.security.user.UsernamesField.ELASTIC_NAME;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.USER_NOT_FOUND_MESSAGE;
 
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ActionResponse.Empty> {
 
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/xpack/security/user/change_password");
     private final Settings settings;
     private final NativeUsersStore nativeUsersStore;
+    private final Realms realms;
 
     @Inject
     public TransportChangePasswordAction(
         Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
-        NativeUsersStore nativeUsersStore
+        NativeUsersStore nativeUsersStore,
+        Realms realms
     ) {
         super(TYPE.name(), transportService, actionFilters, ChangePasswordRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
+        this.realms = realms;
     }
 
     @Override
@@ -62,6 +81,82 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             );
             return;
         }
-        nativeUsersStore.changePassword(request, listener.safeMap(v -> ActionResponse.Empty.INSTANCE));
+
+        // check if user exists in the native realm
+        nativeUsersStore.getUser(username, new ActionListener<>() {
+            @Override
+            public void onResponse(User user) {
+                if (user == null) {
+                    List<Realm> nonNativeRealms = realms.getActiveRealms()
+                        .stream()
+                        .filter(t -> NativeRealmSettings.TYPE.equalsIgnoreCase(t.type()) == false)
+                        .toList();
+                    if (nonNativeRealms.isEmpty()) {
+                        listener.onFailure(createUserNotFoundException());
+                    }
+                    CountDownLatch latch = new CountDownLatch(nonNativeRealms.size());
+                    List<Exception> realmErrors = Collections.synchronizedList(new ArrayList<>());
+                    realms.stream().forEach(realm -> {
+                        // we should check if this request is mistakenly trying to reset a user in some other realm
+                        realm.lookupUser(username, new ActionListener<>() {
+                            @Override
+                            public void onResponse(User user) {
+                                if (user != null) {
+                                    ValidationException validationException = new ValidationException();
+                                    validationException.addValidationError(
+                                        "user ["
+                                            + username
+                                            + "] is not a native user and cannot be managed via this API."
+                                            + (ELASTIC_NAME.equalsIgnoreCase(username)
+                                                ? " To update the '" + ELASTIC_NAME + "' user in a cloud deployment, use the console."
+                                                : "")
+                                    );
+                                    onFailure(validationException);
+                                } else {
+                                    onFailure(null);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (e != null) {
+                                    realmErrors.add(e);
+                                }
+                                latch.countDown();
+                            }
+                        });
+                    });
+                    try {
+                        latch.await();
+                        // combine errors across realms
+                        ValidationException validationException = new ValidationException();
+                        List<String> errors = realmErrors.stream()
+                            .map(t -> ((ValidationException) t).validationErrors())
+                            .flatMap((Function<List<String>, Stream<String>>) Collection::stream)
+                            .collect(Collectors.toList());
+                        validationException.addValidationErrors(errors);
+                        listener.onFailure(validationException);
+                    } catch (InterruptedException e) {
+                        logger.info("Interrupted while waiting for user lookups across realms", e);
+                        listener.onFailure(e);
+                    }
+                } else {
+                    // safe to proceed
+                    nativeUsersStore.changePassword(request, listener.safeMap(v -> ActionResponse.Empty.INSTANCE));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+
+    }
+
+    private static ValidationException createUserNotFoundException() {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationError(USER_NOT_FOUND_MESSAGE);
+        return validationException;
     }
 }

@@ -338,6 +338,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName, "clone snapshot");
+                ensureNotReadOnly(currentState, repositoryName);
                 final SnapshotsInProgress snapshots = SnapshotsInProgress.get(currentState);
                 ensureSnapshotNameNotRunning(snapshots, repositoryName, snapshotName);
                 validate(repositoryName, snapshotName, currentState);
@@ -430,6 +431,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         .map(RepositoryCleanupInProgress.Entry::repository)
                         .collect(Collectors.toSet())
             );
+        }
+    }
+
+    public static void ensureNotReadOnly(final ClusterState currentState, final String repositoryName) {
+        final var repositoryMetadata = RepositoriesMetadata.get(currentState).repository(repositoryName);
+        if (RepositoriesService.isReadOnly(repositoryMetadata.settings())) {
+            throw new RepositoryException(repositoryMetadata.name(), "repository is readonly");
         }
     }
 
@@ -2165,6 +2173,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     snapshotIds.stream().findFirst().get().getName(),
                     "delete snapshot"
                 );
+
+                ensureNotReadOnly(currentState, repositoryName);
 
                 final SnapshotDeletionsInProgress deletionsInProgress = SnapshotDeletionsInProgress.get(currentState);
 
@@ -4075,11 +4085,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
+                        final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
+                        if (RepositoriesService.isReadOnly(repoMeta.settings())) {
+                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            continue;
+                        }
+
                         registeredPolicySnapshots.addIfSnapshotIsSLMInitiated(
                             task.createSnapshotRequest.userMetadata(),
                             task.snapshot.getSnapshotId()
                         );
-                        final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
                         } else {

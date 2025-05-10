@@ -46,7 +46,7 @@ public final class TranslatorHandler {
         }
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
-            return new SingleValueQuery(query, fa.name(), false);
+            return new SingleValueQuery(query, fa.fieldName(), false);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

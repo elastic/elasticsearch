@@ -247,6 +247,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
+        private boolean excludeFromFieldCaps = false;
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
@@ -361,23 +362,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder excludeFromFieldCaps(boolean value) {
+            this.excludeFromFieldCaps = value;
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldType(
+                context.buildFullName(leafName()),
+                indexVersionCreated,
+                elementType.getValue(),
+                dims.getValue(),
+                indexed.getValue(),
+                similarity.getValue(),
+                indexOptions.getValue(),
+                meta.getValue(),
+                excludeFromFieldCaps
+            );
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
             return new DenseVectorFieldMapper(
                 leafName(),
-                new DenseVectorFieldType(
-                    context.buildFullName(leafName()),
-                    indexVersionCreated,
-                    elementType.getValue(),
-                    dims.getValue(),
-                    indexed.getValue(),
-                    similarity.getValue(),
-                    indexOptions.getValue(),
-                    meta.getValue()
-                ),
+                denseVectorFieldType,
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated
@@ -2149,7 +2157,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexOptions indexOptions,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
+            this(name, indexVersionCreated, elementType, dims, indexed, similarity, indexOptions, meta, false);
+        }
+
+        public DenseVectorFieldType(
+            String name,
+            IndexVersion indexVersionCreated,
+            ElementType elementType,
+            Integer dims,
+            boolean indexed,
+            VectorSimilarity similarity,
+            IndexOptions indexOptions,
+            Map<String, String> meta,
+            boolean excludeFromFieldCaps
+        ) {
+            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta, excludeFromFieldCaps);
             this.elementType = elementType;
             this.dims = dims;
             this.indexed = indexed;

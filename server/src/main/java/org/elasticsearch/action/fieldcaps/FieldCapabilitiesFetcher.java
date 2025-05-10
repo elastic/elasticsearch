@@ -173,7 +173,8 @@ class FieldCapabilitiesFetcher {
             MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
-                && (filter == null || filter.test(ft))) {
+                && (filter == null || filter.test(ft))
+                && ft.excludeFromFieldCaps() == false) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

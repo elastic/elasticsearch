@@ -118,35 +118,24 @@ public final class TransportLogger {
         if (message.isPing()) {
             sb.append(" [ping]").append(' ').append(event).append(": ").append(6).append('B');
         } else {
-            boolean success = false;
             Header header = message.getHeader();
             int networkMessageSize = header.getNetworkMessageSize();
             int messageLengthWithHeader = HEADER_SIZE + networkMessageSize;
-            StreamInput streamInput = message.openOrGetStreamInput();
-            try {
-                final long requestId = header.getRequestId();
-                final boolean isRequest = header.isRequest();
-                final String type = isRequest ? "request" : "response";
-                final String version = header.getVersion().toString();
-                sb.append(" [length: ").append(messageLengthWithHeader);
-                sb.append(", request id: ").append(requestId);
-                sb.append(", type: ").append(type);
-                sb.append(", version: ").append(version);
+            final long requestId = header.getRequestId();
+            final boolean isRequest = header.isRequest();
+            final String type = isRequest ? "request" : "response";
+            final String version = header.getVersion().toString();
+            sb.append(" [length: ").append(messageLengthWithHeader);
+            sb.append(", request id: ").append(requestId);
+            sb.append(", type: ").append(type);
+            sb.append(", version: ").append(version);
 
-                // TODO: Maybe Fix for BWC
-                if (header.needsToReadVariableHeader() == false && isRequest) {
-                    sb.append(", action: ").append(header.getActionName());
-                }
-                sb.append(']');
-                sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
-                success = true;
-            } finally {
-                if (success) {
-                    IOUtils.close(streamInput);
-                } else {
-                    IOUtils.closeWhileHandlingException(streamInput);
-                }
+            // TODO: Maybe Fix for BWC
+            if (header.needsToReadVariableHeader() == false && isRequest) {
+                sb.append(", action: ").append(header.getActionName());
             }
+            sb.append(']');
+            sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
         }
         return sb.toString();
     }

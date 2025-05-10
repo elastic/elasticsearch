@@ -1481,13 +1481,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                     searchRequest,
                     shardIterators,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    false,
+                    searchService
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(
@@ -1567,7 +1567,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchService.batchQueryPhase()
+                        searchService
                     );
                 }
                 success = true;

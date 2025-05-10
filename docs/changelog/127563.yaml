@@ -1,0 +1,6 @@
+pr: 127563
+summary: "ESQL: Avoid regex extract attributes removal"
+area: ES|QL
+type: bug
+issues:
+  - 127468

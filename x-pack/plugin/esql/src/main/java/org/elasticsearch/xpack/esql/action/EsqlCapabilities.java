@@ -370,6 +370,11 @@ public class EsqlCapabilities {
         GROK_DISSECT_MASKING,
 
         /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+        /**
          * Support for quoting index sources in double quotes.
          */
         DOUBLE_QUOTES_SOURCE_ENCLOSING,

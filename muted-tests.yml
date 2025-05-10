@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/124055
 
 # Examples:
 #

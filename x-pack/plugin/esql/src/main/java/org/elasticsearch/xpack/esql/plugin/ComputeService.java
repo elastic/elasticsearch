@@ -118,7 +118,14 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.clusterService = clusterService;
-        this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
+        this.dataNodeComputeHandler = new DataNodeComputeHandler(
+            this,
+            clusterService,
+            searchService,
+            transportService,
+            exchangeService,
+            esqlExecutor
+        );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,

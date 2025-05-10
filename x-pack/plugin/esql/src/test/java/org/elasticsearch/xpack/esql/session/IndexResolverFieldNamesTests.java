@@ -1341,7 +1341,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     */
     public void testAvoidGrokAttributesRemoval() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         Set<String> fieldNames = fieldNames("""
             from message_types
             | eval type = 1
@@ -1351,6 +1355,44 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | stats x = max(b)
             | keep x""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("message", "x", "type", "x.*", "message.*", "type.*")));
+    }
+
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     */
+    public void testAvoidGrokAttributesRemoval2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            FROM sample_data, employees
+            | EVAL client_ip = client_ip::keyword
+            | RENAME languages AS language_code
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | EVAL type = 1::keyword
+            | EVAL type = 2
+            | LOOKUP JOIN message_types_lookup ON message
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DISSECT type "%{type_as_text}"
+            | KEEP message
+            | WHERE message IS NOT NULL
+            | SORT message DESC
+            | LIMIT 1""", Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "message",
+                    "type",
+                    "languages",
+                    "client_ip",
+                    "language_code",
+                    "language_code.*",
+                    "client_ip.*",
+                    "message.*",
+                    "type.*",
+                    "languages.*"
+                )
+            )
+        );
     }
 
     public void testEnrichOnDefaultField() {

@@ -45,10 +45,12 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
     private final boolean stream;
 
     public UnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
-        Objects.requireNonNull(unifiedChatInput);
+        this(Objects.requireNonNull(unifiedChatInput).getRequest(), Objects.requireNonNull(unifiedChatInput).stream());
+    }
 
-        this.unifiedRequest = unifiedChatInput.getRequest();
-        this.stream = unifiedChatInput.stream();
+    public UnifiedChatCompletionRequestEntity(UnifiedCompletionRequest unifiedRequest, boolean stream) {
+        this.unifiedRequest = Objects.requireNonNull(unifiedRequest);
+        this.stream = stream;
     }
 
     @Override

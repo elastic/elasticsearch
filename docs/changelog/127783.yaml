@@ -1,0 +1,5 @@
+pr: 127783
+summary: Default endpoint allocations are now configurable
+area: Machine Learning
+type: enhancement
+issues: []

@@ -169,7 +169,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource);
-            this.originalName = isSyntheticSource ? name() + "._original" : null;
+            this.originalName = isSyntheticSource ? name + "._original" : null;
         }
 
         public MatchOnlyTextFieldType(String name) {

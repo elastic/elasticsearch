@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
+
 public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
 
     public void testJsonLiteral() {
@@ -179,6 +181,73 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("function", toolCall.type());
         } catch (IOException e) {
             fail();
+        }
+    }
+
+    public void testJsonNullFunctionName() throws IOException {
+        String json = """
+            {
+                "object": "chat.completion.chunk",
+                "id": "",
+                "created": 1746800254,
+                "model": "/repository",
+                "system_fingerprint": "3.2.3-sha-a1f3ebe",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a",
+                                    "type": "function",
+                                    "function": {
+                                        "name": null,
+                                        "arguments": " \\\""
+                                    }
+                                }
+                            ]
+                        },
+                        "logprobs": null,
+                        "finish_reason": null
+                    }
+                ],
+                "usage": null
+            }
+            """;
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
+                .parse(parser);
+
+            // Assertions to verify the parsed object
+            assertThat(chunk.id(), is(""));
+            assertThat(chunk.model(), is("/repository"));
+            assertThat(chunk.object(), is("chat.completion.chunk"));
+            assertNull(chunk.usage());
+
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
+            assertThat(choices.size(), is(1));
+
+            // First choice assertions
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice firstChoice = choices.get(0);
+            assertNull(firstChoice.delta().content());
+            assertNull(firstChoice.delta().refusal());
+            assertThat(firstChoice.delta().role(), is("assistant"));
+            assertNull(firstChoice.finishReason());
+            assertThat(firstChoice.index(), is(0));
+
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = firstChoice.delta()
+                .toolCalls();
+            assertThat(toolCalls.size(), is(1));
+
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
+            assertThat(toolCall.index(), is(0));
+            assertThat(toolCall.id(), is("8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a"));
+            assertThat(toolCall.type(), is("function"));
+            assertNull(toolCall.function().name());
+            assertThat(toolCall.function().arguments(), is(" \""));
         }
     }
 

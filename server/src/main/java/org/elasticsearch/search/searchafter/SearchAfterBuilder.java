@@ -154,8 +154,11 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         try {
             switch (sortType) {
                 case DOC, INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
+                    if (value instanceof Number valueNumber) {
+                        if (valueNumber.longValue() > Integer.MAX_VALUE) {
+                            valueNumber = Integer.MAX_VALUE;
+                        }
+                        return (valueNumber).intValue();
                     }
                     return Integer.parseInt(value.toString());
 

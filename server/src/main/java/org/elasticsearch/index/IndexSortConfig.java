@@ -289,7 +289,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            sortFields[i] = fieldData.sortField(sortSpec.missingValue, mode, null, reverse);
+            sortFields[i] = fieldData.sortField(this.indexCreatedVersion, sortSpec.missingValue, mode, null, reverse);
             validateIndexSortField(sortFields[i]);
         }
         return new Sort(sortFields);

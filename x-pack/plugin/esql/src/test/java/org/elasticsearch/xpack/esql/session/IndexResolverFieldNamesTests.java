@@ -1346,6 +1346,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
       */
     public void testAvoidGrokAttributesRemoval() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         Set<String> fieldNames = fieldNames("""
             from message_types
             | eval type = 1

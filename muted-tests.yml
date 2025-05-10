@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testFindFewer
   issue: https://github.com/elastic/elasticsearch/issues/128002
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
+  method: testTaskCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/128009
 
 # Examples:
 #

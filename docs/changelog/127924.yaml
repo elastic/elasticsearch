@@ -1,0 +1,5 @@
+pr: 127924
+summary: Limit Replace function memory usage
+area: ES|QL
+type: enhancement
+issues: []

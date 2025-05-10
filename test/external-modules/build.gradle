@@ -15,4 +15,8 @@ subprojects {
     licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
     noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
   }
+
+  tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
+    it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  }
 }

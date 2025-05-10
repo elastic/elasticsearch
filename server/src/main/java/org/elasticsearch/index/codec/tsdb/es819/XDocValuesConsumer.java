@@ -699,7 +699,7 @@ public abstract class XDocValuesConsumer extends DocValuesConsumer {
                 int docID;
                 while ((docID = dv.nextDoc()) != NO_MORE_DOCS) {
                     if (liveDocs.get(docID)) {
-                        for (int i = 0; i < dv.docValueCount(); i++) {
+                        for (int i = 0, dvc = dv.docValueCount(); i < dvc; i++) {
                             bitset.set(dv.nextOrd());
                         }
                     }

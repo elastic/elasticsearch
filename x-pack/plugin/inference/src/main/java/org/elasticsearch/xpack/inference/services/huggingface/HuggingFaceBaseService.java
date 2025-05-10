@@ -57,6 +57,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
@@ -65,7 +66,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 );
             }
 
-            var model = createModel(
+            var modelBuilder = new HuggingFaceModelInput.Builder(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
@@ -75,8 +76,13 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 ConfigurationParseContext.REQUEST
             );
 
+            var model = createModel(
+                TaskType.RERANK.equals(taskType) ? modelBuilder.withTaskSettings(taskSettingsMap).build() : modelBuilder.build()
+            );
+
             throwIfNotEmptyMap(config, name());
             throwIfNotEmptyMap(serviceSettingsMap, name());
+            throwIfNotEmptyMap(taskSettingsMap, name());
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -92,6 +98,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -99,7 +106,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModel(
+        var modelBuilder = new HuggingFaceModelInput.Builder(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -108,18 +115,23 @@ public abstract class HuggingFaceBaseService extends SenderService {
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
             ConfigurationParseContext.PERSISTENT
         );
+
+        return createModel(
+            TaskType.RERANK.equals(taskType) ? modelBuilder.withTaskSettings(taskSettingsMap).build() : modelBuilder.build()
+        );
     }
 
     @Override
     public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModel(
+        var modelBuilder = new HuggingFaceModelInput.Builder(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -128,17 +140,13 @@ public abstract class HuggingFaceBaseService extends SenderService {
             parsePersistedConfigErrorMsg(inferenceEntityId, name()),
             ConfigurationParseContext.PERSISTENT
         );
+
+        return createModel(
+            TaskType.RERANK.equals(taskType) ? modelBuilder.withTaskSettings(taskSettingsMap).build() : modelBuilder.build()
+        );
     }
 
-    protected abstract HuggingFaceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage,
-        ConfigurationParseContext context
-    );
+    protected abstract HuggingFaceModel createModel(HuggingFaceModelInput input);
 
     @Override
     public void doInfer(

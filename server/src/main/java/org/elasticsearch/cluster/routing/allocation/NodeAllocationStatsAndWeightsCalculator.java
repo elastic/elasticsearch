@@ -58,6 +58,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
+        Runnable ensureNotCancelled,
         @Nullable DesiredBalance desiredBalance
     ) {
         if (metadata.hasAnyIndices()) {
@@ -78,6 +79,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
             long forecastedDiskUsage = 0;
             long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
+                ensureNotCancelled.run();
                 if (shardRouting.relocating()) {
                     // Skip the shard if it is moving off this node. The node running recovery will count it.
                     continue;

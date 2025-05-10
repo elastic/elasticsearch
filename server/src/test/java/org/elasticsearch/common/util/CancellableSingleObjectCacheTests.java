@@ -101,8 +101,35 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.completeNextRefresh("foo", 1);
         assertThat(future2.result(), equalTo(1));
 
-        // ... and the original listener is also completed successfully
-        assertThat(future1.result(), sameInstance(future2.result()));
+        // We expect the first listener to have been completed with a cancellation exception when detected in the ensureNotCancelled() call.
+        assertTrue(future1.isDone());
+        expectThrows(ExecutionException.class, TaskCancelledException.class, future1::result);
+    }
+
+    public void testBothListenersReceiveTaskCancelledExceptionWhenBothSupersededAndNewTasksAreCancelled() {
+        final TestCache testCache = new TestCache();
+
+        // This computation is superseded and then cancelled.
+        final AtomicBoolean isCancelled = new AtomicBoolean();
+        final TestFuture future1 = new TestFuture();
+        testCache.get("foo", isCancelled::get, future1);
+        testCache.assertPendingRefreshes(1);
+
+        // A second get() call that supersedes the original refresh and starts another one, but will be cancelled as well.
+        final TestFuture future2 = new TestFuture();
+        testCache.get("bar", isCancelled::get, future2);
+        testCache.assertPendingRefreshes(2);
+
+        testCache.assertNextRefreshCancelled();
+        assertFalse(future1.isDone());
+        testCache.assertPendingRefreshes(1);
+        assertFalse(future2.isDone());
+
+        isCancelled.set(true);
+        // This next refresh should also fail with a cancellation exception.
+        testCache.completeNextRefresh("bar", 1);
+        expectThrows(ExecutionException.class, TaskCancelledException.class, future1::result);
+        expectThrows(ExecutionException.class, TaskCancelledException.class, future2::result);
     }
 
     public void testListenerCompletedWithCancellationExceptionIfRefreshCancelled() throws ExecutionException {

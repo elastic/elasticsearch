@@ -26,13 +26,17 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -46,6 +50,8 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
+
+    public static final NodeFeature REINDEX_SUPPORT_FROM_FIELDS = new NodeFeature("reindex.support_from_fields");
 
     public ClientScrollableHitSource(
         Logger logger,
@@ -153,13 +159,44 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
+    public static BytesReference generateSource(SearchHit hit) {
+        Map<String, DocumentField> fields = hit.getDocumentFields();
+        if (fields.isEmpty()) {
+            return hit.hasSource() ? hit.getSourceRef() : null;
+        }
+
+        Source sourceObj = Source.fromBytes(hit.getSourceRef());
+        Map<String, Object> sourceAsMap = new LinkedHashMap<>(sourceObj.source());
+        boolean changeSource = false;
+        for (DocumentField field : fields.values()) {
+            if (false == sourceAsMap.containsKey(field.getName())) {
+                if (field.getValues() == null || field.getValues().isEmpty()) {
+                    continue;
+                }
+
+                if (field.getValues().size() == 1) {
+                    sourceAsMap.put(field.getName(), field.getValue());
+                    changeSource = true;
+                } else {
+                    sourceAsMap.put(field.getName(), field.getValues());
+                    changeSource = true;
+                }
+            }
+        }
+        if (changeSource) {
+            return Source.fromMap(sourceAsMap, sourceObj.sourceContentType()).internalSourceRef();
+        } else {
+            return hit.hasSource() ? hit.getSourceRef() : null;
+        }
+    }
+
     private static class ClientHit implements Hit {
         private final SearchHit delegate;
         private final BytesReference source;
 
         ClientHit(SearchHit delegate) {
             this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
-            source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
+            this.source = generateSource(delegate);
         }
 
         @Override

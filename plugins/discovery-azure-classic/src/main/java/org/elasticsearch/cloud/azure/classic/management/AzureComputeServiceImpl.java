@@ -29,9 +29,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
@@ -94,11 +91,8 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent implemen
     public HostedServiceGetDetailedResponse getServiceDetails() {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<HostedServiceGetDetailedResponse>) () -> client.getHostedServicesOperations()
-                    .getDetailed(serviceName)
-            );
-        } catch (PrivilegedActionException e) {
+            return client.getHostedServicesOperations().getDetailed(serviceName);
+        } catch (Exception e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }

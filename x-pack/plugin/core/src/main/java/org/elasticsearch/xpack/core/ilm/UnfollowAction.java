@@ -53,17 +53,12 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey openFollowerIndex = new StepKey(phase, NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
-        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(
-            preUnfollowKey,
-            indexingComplete,
-            nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata followerIndex = clusterState.metadata().getProject().index(index);
-                Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
-                // if the index has no CCR metadata we'll skip the unfollow action completely
-                return customIndexMetadata == null;
-            }
-        );
+        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(preUnfollowKey, indexingComplete, nextStepKey, (index, project) -> {
+            IndexMetadata followerIndex = project.index(index);
+            Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
+            // if the index has no CCR metadata we'll skip the unfollow action completely
+            return customIndexMetadata == null;
+        });
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);

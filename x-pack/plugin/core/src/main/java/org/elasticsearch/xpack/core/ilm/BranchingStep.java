@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
@@ -29,7 +30,7 @@ public class BranchingStep extends ClusterStateActionStep {
 
     private final StepKey nextStepKeyOnFalse;
     private final StepKey nextStepKeyOnTrue;
-    private final BiPredicate<Index, ClusterState> predicate;
+    private final BiPredicate<Index, ProjectMetadata> predicate;
     private final SetOnce<Boolean> predicateValue;
 
     /**
@@ -41,7 +42,12 @@ public class BranchingStep extends ClusterStateActionStep {
      * @param nextStepKeyOnTrue  the key of the step to run if predicate returns true
      * @param predicate          the condition to check when deciding which step to run next
      */
-    public BranchingStep(StepKey key, StepKey nextStepKeyOnFalse, StepKey nextStepKeyOnTrue, BiPredicate<Index, ClusterState> predicate) {
+    public BranchingStep(
+        StepKey key,
+        StepKey nextStepKeyOnFalse,
+        StepKey nextStepKeyOnTrue,
+        BiPredicate<Index, ProjectMetadata> predicate
+    ) {
         // super.nextStepKey is set to null since it is not used by this step
         super(key, null);
         this.nextStepKeyOnFalse = nextStepKeyOnFalse;
@@ -63,7 +69,7 @@ public class BranchingStep extends ClusterStateActionStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
-        predicateValue.set(predicate.test(index, clusterState));
+        predicateValue.set(predicate.test(index, clusterState.metadata().getProject()));
         return clusterState;
     }
 
@@ -98,7 +104,7 @@ public class BranchingStep extends ClusterStateActionStep {
         return nextStepKeyOnTrue;
     }
 
-    public final BiPredicate<Index, ClusterState> getPredicate() {
+    public final BiPredicate<Index, ProjectMetadata> getPredicate() {
         return predicate;
     }
 

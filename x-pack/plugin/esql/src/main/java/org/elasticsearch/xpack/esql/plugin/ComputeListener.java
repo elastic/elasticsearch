@@ -24,18 +24,28 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 final class ComputeListener implements Releasable {
     private final DriverCompletionInfo.AtomicAccumulator completionInfoAccumulator = new DriverCompletionInfo.AtomicAccumulator();
-    private final EsqlRefCountingListener refs;
-    private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
+    private final ResponseHeadersCollector responseHeaders;
+    private final ActionListener<Void> delegate;
+    private final EsqlRefCountingListener refs;
 
     ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
-        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
+        this.delegate = ActionListener.notifyOnce(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             delegate.onResponse(completionInfoAccumulator.finish());
         }));
+        // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
+        this.refs = new EsqlRefCountingListener(this.delegate);
+    }
+
+    /**
+     * This listener allows to complete the computation early without waiting for all dependencies.
+     * This discards waiting for slow data node responses if results set already populated (for example if we reached the limit).
+     */
+    void completeImmediately() {
+        delegate.onResponse(null);
     }
 
     /**
@@ -56,14 +66,14 @@ final class ComputeListener implements Releasable {
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {
-        final ActionListener<Void> delegate = acquireAvoid();
+        final ActionListener<Void> listener = acquireAvoid();
         return ActionListener.wrap(info -> {
             responseHeaders.collect();
             completionInfoAccumulator.accumulate(info);
-            delegate.onResponse(null);
+            listener.onResponse(null);
         }, e -> {
             responseHeaders.collect();
-            delegate.onFailure(e);
+            listener.onFailure(e);
         });
     }
 

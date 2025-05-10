@@ -26,6 +26,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 1. See [Function score](#score-functions) for a list of supported functions.
 
@@ -58,6 +59,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 1. Boost for the whole query.
 2. See [Function score](#score-functions) for a list of supported functions.
@@ -153,6 +155,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 ::::{important}
 In {{es}}, all document scores are positive 32-bit floating point numbers.
@@ -189,6 +192,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 Note that unlike the `custom_score` query, the score of the query is multiplied with the result of the script scoring. If you wish to inhibit this, set `"boost_mode": "replace"`
 
@@ -200,6 +204,7 @@ The `weight` score allows you to multiply the score by the provided `weight`. Th
 ```js
 "weight" : number
 ```
+% NOTCONSOLE
 
 
 ## Random [function-random]
@@ -226,6 +231,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 
 ## Field Value factor [function-field-value-factor]
@@ -249,6 +255,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 Which will translate into the following formula for scoring:
 
@@ -308,6 +315,7 @@ To use distance scoring on a query that has numerical fields, the user has to de
     }
 }
 ```
+% NOTCONSOLE
 
 1. The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
 2. The specified field must be a numeric, date, or geopoint field.
@@ -332,6 +340,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 1. The date format of the origin depends on the [`format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md) defined in your mapping. If you do not define the origin, the current time is used.
 2. The `offset` and `decay` parameters are optional.
@@ -425,6 +434,7 @@ Example:
         "multi_value_mode": "avg"
     }
 ```
+% NOTCONSOLE
 
 
 
@@ -450,6 +460,7 @@ The function for `price` in this case would be
     }
 }
 ```
+% NOTCONSOLE
 
 1. This decay function could also be `linear` or `exp`.
 
@@ -464,6 +475,7 @@ and for `location`:
     }
 }
 ```
+% NOTCONSOLE
 
 1. This decay function could also be `linear` or `exp`.
 

@@ -34,6 +34,8 @@ POST _search
   }
 }
 ```
+% TEST[setup:messages]
+% TEST[s/^/PUT my-index-000001/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The following suggest response example includes the suggestion response for `my-suggest-1` and `my-suggest-2`. Each suggestion part contains entries. Each entry is effectively a token from the suggest text and contains the suggestion entry text, the original start offset and length in the suggest text and if found an arbitrary number of options.
 
@@ -64,6 +66,10 @@ The following suggest response example includes the suggestion response for `my-
   }
 }
 ```
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"hits": …​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
+% TESTRESPONSE[s/"my-suggest-2": \.\.\./"my-suggest-2": "$body.suggest.my-suggest-2"/]
 
 Each options array contains an option object that includes the suggested text, its document frequency and score compared to the suggest entry text. The meaning of the score depends on the used suggester. The term suggester's score is based on the edit distance.
 
@@ -216,6 +222,7 @@ POST test/_doc?refresh=true
 POST test/_doc?refresh=true
 {"title": "nobel prize"}
 ```
+% TESTSETUP
 
 Once you have the analyzers and mappings set up you can use the `phrase` suggester in the same spot you'd use the `term` suggester:
 
@@ -267,6 +274,9 @@ The response contains suggestions scored by the most likely spelling correction 
   }
 }
 ```
+% TESTRESPONSE[s/"_shards": …​/"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"hits": …​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
 $$$_basic_phrase_suggest_api_parameters$$$
 Basic phrase suggest API parameters include:
@@ -507,6 +517,7 @@ PUT music/_doc/1?refresh
   }
 }
 ```
+% TEST
 
 The supported parameters include:
 
@@ -543,6 +554,7 @@ PUT music/_doc/1?refresh
   ]
 }
 ```
+% TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify a weight with suggestion(s) in the shorthand form.
 
@@ -552,6 +564,7 @@ PUT music/_doc/1?refresh
   "suggest" : [ "Nevermind", "Nirvana" ]
 }
 ```
+% TEST[continued]
 
 
 ### Querying [querying]
@@ -571,6 +584,7 @@ POST music/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 1. Prefix used to search for suggestions
 2. Type of suggestions
@@ -607,6 +621,8 @@ It returns this response:
   }
 }
 ```
+% TESTRESPONSE[s/"hits": …​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 ::::{important} 
 `_source` metadata field must be enabled, which is the default behavior, to enable returning `_source` with suggestions.
@@ -629,6 +645,7 @@ POST music/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Filter the source to return only the `suggest` field
 2. Name of the field to search for suggestions in
@@ -673,6 +690,7 @@ Which should look like:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
 
 The supported parameters for a basic completion suggester query include:
 
@@ -850,6 +868,7 @@ PUT place_path_category
   }
 }
 ```
+% TESTSETUP
 
 1. Defines a `category` context named *place_type* where the categories must be sent with the suggestions.
 2. Defines a `geo` context named *location* where the categories must be sent with the suggestions.
@@ -918,6 +937,7 @@ POST place/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 ::::{note} 
 If multiple categories or category contexts are set on the query they are merged as a disjunction. This means that suggestions match if they contain at least one of the provided context values.
@@ -945,6 +965,7 @@ POST place/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 1. The context query filter suggestions associated with categories *cafe* and *restaurants* and boosts the suggestions associated with *restaurants* by a factor of `2`
 
@@ -1030,6 +1051,7 @@ POST place/_search
   }
 }
 ```
+% TEST[continued]
 
 ::::{note} 
 When a location with a lower precision at query time is specified, all suggestions that fall within the area will be considered.
@@ -1069,6 +1091,7 @@ POST place/_search?pretty
   }
 }
 ```
+% TEST[continued]
 
 1. The context query filters for suggestions that fall under the geo location represented by a geohash of *(43.662, -79.380)* with a precision of *2* and boosts suggestions that fall under the geohash representation of *(43.6624803, -79.3863353)* with a default precision of *6* by a factor of `2`
 
@@ -1119,6 +1142,7 @@ POST _search?typed_keys
   }
 }
 ```
+% TEST[setup:messages]
 
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and `phrase#my-second-suggester`, reflecting the types of each suggestion:
 
@@ -1168,6 +1192,9 @@ In the response, the suggester names will be changed to respectively `term#my-fi
   ...
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
+% TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
+% TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]
 
 1. The name `my-first-suggester` now contains the `term` prefix.
 2. The name `my-second-suggester` now contains the `phrase` prefix.

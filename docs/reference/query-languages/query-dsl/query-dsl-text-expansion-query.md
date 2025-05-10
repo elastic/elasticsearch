@@ -38,6 +38,7 @@ GET _search
    }
 }
 ```
+% TEST[skip: TBD]
 
 
 ## Top level parameters for `text_expansion` [text-expansion-query-params]
@@ -91,6 +92,7 @@ GET my-index/_search
    }
 }
 ```
+% TEST[skip: TBD]
 
 Multiple `text_expansion` queries can be combined with each other or other query types. This can be achieved by wrapping them in [boolean query clauses](/reference/query-languages/query-dsl/query-dsl-bool-query.md) and using linear boosting:
 
@@ -133,6 +135,7 @@ GET my-index/_search
   }
 }
 ```
+% TEST[skip: TBD]
 
 This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers.md#standard-retriever).
 
@@ -186,6 +189,7 @@ GET my-index/_search
   }
 }
 ```
+% TEST[skip: TBD]
 
 
 ## Example ELSER query with pruning configuration and rescore [text-expansion-query-with-pruning-config-and-rescore-example]
@@ -230,6 +234,7 @@ GET my-index/_search
    }
 }
 ```
+% TEST[skip: TBD]
 
 ::::{note}
 Depending on your data, the text expansion query may be faster with `track_total_hits: false`.

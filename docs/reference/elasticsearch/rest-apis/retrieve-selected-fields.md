@@ -58,6 +58,8 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
+% TEST[setup:my_index]
+% TEST[s/_search/_search\?filter_path=hits/]
 
 1. Both full field names and wildcard patterns are accepted.
 2. Use the `format` parameter to apply a custom format for the field’s values.
@@ -107,6 +109,8 @@ The response includes values as a flat list in the `fields` section for each hit
   }
 }
 ```
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 
 #### Retrieve nested fields [search-fields-nested]
@@ -193,6 +197,9 @@ The response will group `first` and `last` name instead of returning them as a f
   }
 }
 ```
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 Nested fields will be grouped by their nested paths, no matter the pattern used to retrieve them. For example, if you query only for the `user.first` field from the previous example:
 
@@ -203,6 +210,7 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
+% TEST[continued]
 
 The response returns only the user’s first name, but still maintains the structure of the nested `user` array:
 
@@ -239,6 +247,9 @@ The response returns only the user’s first name, but still maintains the struc
   }
 }
 ```
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 However, when the `fields` pattern targets the nested `user` field directly, no values will be returned because the pattern doesn’t match any leaf fields.
 
@@ -321,6 +332,9 @@ The response will contain field results under the  `session_data.object.*` path,
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 ::::
 
@@ -403,6 +417,9 @@ The response will contain ignored field values under the  `ignored_field_values`
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 ::::
 
@@ -522,6 +539,7 @@ GET my-index-000001/_search
   ]
 }
 ```
+% TEST[setup:my_index]
 
 1. Both full field names and wildcard patterns are accepted.
 2. Using object notation, you can pass a `format` parameter to apply a custom format for the field’s doc values. [Date fields](/reference/elasticsearch/mapping-reference/date.md) support a [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md). [Numeric fields](/reference/elasticsearch/mapping-reference/number.md) support a [DecimalFormat pattern](https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.md). Other field datatypes do not support the `format` parameter.
@@ -629,6 +647,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 Script fields can work on fields that are not stored (`price` in the above case), and allow to return custom values to be returned (the evaluated value of the script).
 
@@ -647,6 +666,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 Note the `_source` keyword here to navigate the json-like model.
 

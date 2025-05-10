@@ -30,6 +30,7 @@ GET /ip_addresses/_search
   }
 }
 ```
+% TEST[setup:iprange]
 
 Response:
 
@@ -55,6 +56,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 IP ranges can also be defined as CIDR masks:
 
@@ -77,6 +79,7 @@ GET /ip_addresses/_search
   }
 }
 ```
+% TEST[setup:iprange]
 
 Response:
 
@@ -104,6 +107,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ## Keyed Response [_keyed_response_3]
 
@@ -129,6 +133,7 @@ GET /ip_addresses/_search
   }
 }
 ```
+% TEST[setup:iprange]
 
 Response:
 
@@ -152,6 +157,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
 
@@ -175,6 +181,7 @@ GET /ip_addresses/_search
   }
 }
 ```
+% TEST[setup:iprange]
 
 Response:
 
@@ -198,5 +205,6 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

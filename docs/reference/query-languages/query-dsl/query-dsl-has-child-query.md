@@ -38,6 +38,7 @@ PUT /my-index-000001
   }
 }
 ```
+% TESTSETUP
 
 
 ### Example query [has-child-query-ex-query]

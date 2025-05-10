@@ -104,6 +104,7 @@ Use this bearer token to authenticate with your {{es}} cluster.
 ```shell
 curl -H "Authorization: Bearer AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" http://localhost:9200/_cluster/health
 ```
+% NOTCONSOLE
 
 ::::{note}
 If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` in the request URL.

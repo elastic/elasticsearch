@@ -1341,6 +1341,10 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
     }
 
+    /**
+     * Fix alias removal in regex extraction with JOIN
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
+      */
     public void testAvoidGrokAttributesRemoval() {
         Set<String> fieldNames = fieldNames("""
             from message_types

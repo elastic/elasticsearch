@@ -662,17 +662,17 @@ public class EsqlSession {
                 // also remove other down-the-tree references to the extracted fields from "grok" and "dissect"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                p.forEachExpressionDown(NamedExpression.class, expression -> {
-                    if ((expression instanceof Alias || expression instanceof ReferenceAttribute) == false) {
+                p.forEachExpressionDown(NamedExpression.class, ne -> {
+                    if ((ne instanceof Alias || ne instanceof ReferenceAttribute) == false) {
                         return;
                     }
                     // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
                     // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                    if (fieldNames.contains(expression.name())) {
+                    if (fieldNames.contains(ne.name())) {
                         return;
                     }
                     referencesBuilder.removeIf(
-                        attr -> matchByName(attr, expression.name(), (expression instanceof Alias) && keepCommandRefsBuilder.contains(attr))
+                        attr -> matchByName(attr, ne.name(), keepCommandRefsBuilder.contains(attr))
                     );
                 });
             }

@@ -1653,6 +1653,7 @@ event_duration:long
 
 
 joinMaskingRegex
+// https://github.com/elastic/elasticsearch/issues/127467
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
@@ -1682,6 +1683,7 @@ ratings:long
 ;
 
 joinMaskingDissect
+// https://github.com/elastic/elasticsearch/issues/127467
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
 from sample_data
@@ -1700,6 +1702,7 @@ count:long
 
 
 joinMaskingGrok
+// https://github.com/elastic/elasticsearch/issues/127467
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
 from sample_data

@@ -540,12 +540,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
+        assert 1 <= numShards && numShards <= 10;
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "SnapshotShutdownProgressTracker running number of snapshots",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots running [" + numShards + "].*"
+                ".+Number shard snapshots running \\[" + (numShards < 10 ? "[1-" + numShards + "]" : "([1-9]|10)") + "].+"
             )
         );
 

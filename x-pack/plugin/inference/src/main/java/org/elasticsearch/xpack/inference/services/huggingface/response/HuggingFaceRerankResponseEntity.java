@@ -7,32 +7,66 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.response;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.services.huggingface.request.rerank.HuggingFaceRerankRequest;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
-public class HuggingFaceRerankResponseEntity extends ErrorResponse {
-    private static final Logger logger = LogManager.getLogger(HuggingFaceRerankResponseEntity.class);
+public class HuggingFaceRerankResponseEntity {
 
-    public static InferenceServiceResults fromResponse(HuggingFaceRerankRequest request, HttpResult response) throws IOException {
+    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Hugging Face rerank response";
+    private static final String INVALID_ID_FIELD_FORMAT_TEMPLATE = "Expected numeric value for record ID field in Hugging Face rerank ";
+
+    /**
+     * Parses the Hugging Face rerank response.
+
+     * For a request like:
+     *
+     * <pre>
+     *     <code>
+     *         {
+     *              "input": ["luke", "like", "leia", "chewy","r2d2", "star", "wars"],
+     *              "query": "star wars main character",
+     *              "return_documents": true,
+     *              "top_n": 1
+     *          }
+     *     </code>
+     * </pre>
+
+     * The response would look like:
+
+     * <pre>
+     *     <code>
+     *         {
+     *              "rerank": [
+     *                  {
+     *                       "index": 5,
+     *                       "relevance_score": -0.06920313,
+     *                       "text": "star"
+     *                   }
+     *               ]
+     *          }
+     *     </code>
+     * </pre>
+     */
+
+    public static RankedDocsResults fromResponse(HuggingFaceRerankRequest request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -40,84 +74,57 @@ public class HuggingFaceRerankResponseEntity extends ErrorResponse {
 
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_ARRAY, token, jsonParser);
-            token = jsonParser.currentToken();
-            if (token == XContentParser.Token.START_ARRAY) {
-                var rankedDocs = parseList(jsonParser, HuggingFaceRerankResponseEntity::parseRankedDocObject);
-                var rankedDocsByRelevanceStream = rankedDocs.stream()
-                    .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed());
-                var rankedDocStreamTopN = request.getTopN() == null
-                    ? rankedDocsByRelevanceStream
-                    : rankedDocsByRelevanceStream.limit(request.getTopN());
-                return new RankedDocsResults(rankedDocStreamTopN.toList());
-            } else {
-                throwUnknownToken(token, jsonParser);
-            }
 
-            throw new IllegalStateException("Reached an invalid state while parsing the HuggingFace response");
+            var rankedDocs = doParse(jsonParser);
+            var rankedDocsByRelevanceStream = rankedDocs.stream()
+                .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed());
+            var rankedDocStreamTopN = request.getTopN() == null
+                ? rankedDocsByRelevanceStream
+                : rankedDocsByRelevanceStream.limit(request.getTopN());
+            return new RankedDocsResults(rankedDocStreamTopN.toList());
         }
     }
 
-    private static RankedDocsResults.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        int index = -1;
-        float relevanceScore = -1;
-        String documentText = null;
-        parser.nextToken();
-        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                switch (parser.currentName()) {
-                    case "index":
-                        parser.nextToken(); // move to VALUE_NUMBER
-                        index = parser.intValue();
-                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
-                        break;
-                    case "score":
-                        parser.nextToken(); // move to VALUE_NUMBER
-                        relevanceScore = parser.floatValue();
-                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
-                        break;
-                    case "relevance_score":
-                        parser.nextToken(); // move to VALUE_NUMBER
-                        relevanceScore = parser.floatValue();
-                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
-                        break;
-                    case "text":
-                        parser.nextToken(); // move to VALUE_NUMBER
-                        documentText = parser.text();
-                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
-                        break;
-                    case "document":
-                        parser.nextToken(); // move to START_OBJECT; document text is wrapped in an object
-                        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-                        do {
-                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME && parser.currentName().equals("text")) {
-                                parser.nextToken(); // move to VALUE_STRING
-                                documentText = parser.text();
-                            }
-                        } while (parser.nextToken() != XContentParser.Token.END_OBJECT);
-                        parser.nextToken();// move past END_OBJECT
-                        // parser should now be at the next FIELD_NAME or END_OBJECT
-                        break;
-                    default:
-                        throwUnknownField(parser.currentName(), parser);
-                }
-            } else {
-                parser.nextToken();
+    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
+        return parseList(parser, (listParser, index) -> {
+            var parsedRankedDoc = HuggingFaceRerankResponseEntity.RankedDocEntry.parse(parser);
+
+            if (parsedRankedDoc.id == null) {
+                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDocEntry.ID.getPreferredName()));
             }
-        }
 
-        if (index == -1) {
-            logger.warn("Failed to find required field [index] in HuggingFace rerank response");
-        }
-        if (relevanceScore == -1) {
-            logger.warn("Failed to find required field [relevance_score] in HuggingFace rerank response");
-        }
-        // documentText may or may not be present depending on the request parameter
+            if (parsedRankedDoc.score == null) {
+                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDocEntry.SCORE.getPreferredName()));
+            }
 
-        return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
+            try {
+                return new RankedDocsResults.RankedDoc(parsedRankedDoc.id, parsedRankedDoc.score, parsedRankedDoc.text);
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException(format(INVALID_ID_FIELD_FORMAT_TEMPLATE, parsedRankedDoc.id));
+            }
+        });
     }
 
-    private HuggingFaceRerankResponseEntity(String errorMessage) {
-        super(errorMessage);
+    private record RankedDocEntry(@Nullable Integer id, @Nullable Float score, @Nullable String text) {
+
+        private static final ParseField TEXT = new ParseField("text");
+        private static final ParseField SCORE = new ParseField("score");
+        private static final ParseField ID = new ParseField("index");
+        private static final ConstructingObjectParser<HuggingFaceRerankResponseEntity.RankedDocEntry, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "hugging_face_rerank_response",
+                true,
+                args -> new HuggingFaceRerankResponseEntity.RankedDocEntry((int) args[0], (float) args[1], (String) args[2])
+            );
+
+        static {
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), ID);
+            PARSER.declareFloat(ConstructingObjectParser.constructorArg(), SCORE);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEXT);
+        }
+
+        public static RankedDocEntry parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
     }
 }

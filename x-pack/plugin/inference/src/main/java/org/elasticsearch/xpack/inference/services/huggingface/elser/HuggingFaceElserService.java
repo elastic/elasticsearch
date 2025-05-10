@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelInput;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelParameters;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -67,17 +67,17 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    protected HuggingFaceModel createModel(HuggingFaceModelInput input) {
-        return switch (input.getTaskType()) {
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
+        return switch (input.taskType()) {
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                input.getInferenceEntityId(),
-                input.getTaskType(),
+                input.inferenceEntityId(),
+                input.taskType(),
                 NAME,
-                input.getServiceSettings(),
-                input.getSecretSettings(),
-                input.getContext()
+                input.serviceSettings(),
+                input.secretSettings(),
+                input.context()
             );
-            default -> throw new ElasticsearchStatusException(input.getFailureMessage(), RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(input.failureMessage(), RestStatus.BAD_REQUEST);
         };
     }
 

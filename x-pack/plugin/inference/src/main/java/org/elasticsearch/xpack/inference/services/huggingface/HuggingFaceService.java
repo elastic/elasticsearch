@@ -60,35 +60,35 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     }
 
     @Override
-    protected HuggingFaceModel createModel(HuggingFaceModelInput input) {
-        return switch (input.getTaskType()) {
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
+        return switch (input.taskType()) {
             case RERANK -> new HuggingFaceRerankModel(
-                input.getInferenceEntityId(),
-                input.getTaskType(),
+                input.inferenceEntityId(),
+                input.taskType(),
                 NAME,
-                input.getServiceSettings(),
-                input.getTaskSettings(),
-                input.getSecretSettings(),
-                input.getContext()
+                input.serviceSettings(),
+                input.taskSettings(),
+                input.secretSettings(),
+                input.context()
             );
             case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
-                input.getInferenceEntityId(),
-                input.getTaskType(),
+                input.inferenceEntityId(),
+                input.taskType(),
                 NAME,
-                input.getServiceSettings(),
-                input.getChunkingSettings(),
-                input.getSecretSettings(),
-                input.getContext()
+                input.serviceSettings(),
+                input.chunkingSettings(),
+                input.secretSettings(),
+                input.context()
             );
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                input.getInferenceEntityId(),
-                input.getTaskType(),
+                input.inferenceEntityId(),
+                input.taskType(),
                 NAME,
-                input.getServiceSettings(),
-                input.getSecretSettings(),
-                input.getContext()
+                input.serviceSettings(),
+                input.secretSettings(),
+                input.context()
             );
-            default -> throw new ElasticsearchStatusException(input.getFailureMessage(), RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(input.failureMessage(), RestStatus.BAD_REQUEST);
         };
     }
 

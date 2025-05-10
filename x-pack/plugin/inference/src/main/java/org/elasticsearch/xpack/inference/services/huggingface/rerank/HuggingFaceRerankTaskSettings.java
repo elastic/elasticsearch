@@ -118,7 +118,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
     }
 
     @Override

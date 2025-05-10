@@ -12,13 +12,11 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
-import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -34,9 +32,7 @@ public class HuggingFaceRerankRequest implements Request {
     private final List<String> input;
     private final Boolean returnDocuments;
     private final Integer topN;
-    private final TaskSettings taskSettings;
     private final HuggingFaceRerankModel model;
-    private final String inferenceEntityId;
 
     public HuggingFaceRerankRequest(
         String query,
@@ -52,9 +48,7 @@ public class HuggingFaceRerankRequest implements Request {
         this.query = Objects.requireNonNull(query);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
-        taskSettings = model.getTaskSettings();
         this.model = model;
-        inferenceEntityId = model.getInferenceEntityId();
     }
 
     @Override
@@ -68,7 +62,7 @@ public class HuggingFaceRerankRequest implements Request {
                     input,
                     returnDocuments,
                     topN != null ? topN : model.getTaskSettings().getTopNDocumentsOnly(),
-                    (HuggingFaceRerankTaskSettings) taskSettings,
+                    model.getTaskSettings(),
                     model.getServiceSettings().modelId()
                 )
             ).getBytes(StandardCharsets.UTF_8)
@@ -87,7 +81,7 @@ public class HuggingFaceRerankRequest implements Request {
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override
@@ -101,11 +95,13 @@ public class HuggingFaceRerankRequest implements Request {
 
     @Override
     public Request truncate() {
+        // Not applicable for rerank, only used in text embedding requests
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
+        // Not applicable for rerank, only used in text embedding requests
         return null;
     }
 }

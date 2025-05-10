@@ -81,7 +81,7 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
 
     @Override
     public Integer getTokenLimit() {
-        return getServiceSettings().maxInputTokens();
+        throw new UnsupportedOperationException("Token Limit for rerank is sent in request and not retrieved from the model");
     }
 
     @Override

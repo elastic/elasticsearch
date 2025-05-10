@@ -37,10 +37,15 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
         "Failed to send Hugging Face %s request from inference entity id [%s]";
-    static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler(
-        "hugging face rerank",
-        (request, response) -> HuggingFaceRerankResponseEntity.fromResponse((HuggingFaceRerankRequest) request, response)
-    );
+    private static final String INVALID_REQUEST_TYPE_MESSAGE = "Invalid request type: expected HuggingFace %s request but got %s";
+    static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler("hugging face rerank", (request, response) -> {
+        var errorMessage = format(INVALID_REQUEST_TYPE_MESSAGE, "RERANK", request != null ? request.getClass().getName() : "null");
+
+        if ((request instanceof HuggingFaceRerankRequest) == false) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return HuggingFaceRerankResponseEntity.fromResponse((HuggingFaceRerankRequest) request, response);
+    });
 
     public HuggingFaceActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
@@ -96,11 +101,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(
-            "Failed to send Hugging Face %s request from inference entity id [%s]",
-            "ELSER",
-            model.getInferenceEntityId()
-        );
+        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "ELSER", model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 }

@@ -26,7 +26,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
@@ -37,7 +36,6 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     public static final String NAME = "hugging_face_rerank_service_settings";
     public static final String URL = "url";
-    private static final int RERANK_TOKEN_LIMIT = 512;
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
@@ -73,12 +71,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     public HuggingFaceRerankServiceSettings(StreamInput in) throws IOException {
         uri = createUri(in.readString());
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -89,10 +82,6 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     @Override
     public URI uri() {
         return uri;
-    }
-
-    public int maxInputTokens() {
-        return RERANK_TOKEN_LIMIT;
     }
 
     // model is not defined in the service settings.
@@ -114,7 +103,6 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(URL, uri.toString());
-        builder.field(MAX_INPUT_TOKENS, RERANK_TOKEN_LIMIT);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -127,16 +115,13 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

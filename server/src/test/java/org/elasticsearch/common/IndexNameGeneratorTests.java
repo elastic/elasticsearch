@@ -74,88 +74,94 @@ public class IndexNameGeneratorTests extends ESTestCase {
         }
     }
 
-    public void testValidateGeneratedIndexName() {
-        {
-            String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
-            assertThat(validateGeneratedIndexName(generatedIndexName, createState(generatedIndexName, false, false, false)), nullValue());
-        }
-
-        {
-            // index name is validated (invalid chars etc)
-            String generatedIndexName = generateValidIndexName("_prefix-", randomAlphaOfLengthBetween(5, 150));
-            assertThat(
-                validateGeneratedIndexName(generatedIndexName, createState(generatedIndexName, false, false, false)).validationErrors(),
-                containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not start with '_', '-', or '+'")
-            );
-        }
-
-        {
-            // index name is validated (invalid chars etc)
-            String generatedIndexName = generateValidIndexName("shrink-", "shrink-indexName-random###");
-            assertThat(
-                validateGeneratedIndexName(generatedIndexName, createState(generatedIndexName, false, false, false)).validationErrors(),
-                containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not contain '#'")
-            );
-        }
-
-        {
-            // generated index already exists as a standalone index
-            String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
-            ActionRequestValidationException validationException = validateGeneratedIndexName(
-                generatedIndexName,
-                createState(generatedIndexName, true, false, false)
-            );
-            assertThat(validationException, notNullValue());
-            assertThat(
-                validationException.validationErrors(),
-                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
-            );
-        }
-
-        {
-            // generated index name already exists as an index (cluster state routing table is also populated)
-            String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
-            ActionRequestValidationException validationException = validateGeneratedIndexName(
-                generatedIndexName,
-                createState(generatedIndexName, true, true, false)
-            );
-            assertThat(validationException, notNullValue());
-            assertThat(
-                validationException.validationErrors(),
-                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
-            );
-        }
-
-        {
-            // generated index name already exists as an index but only in routing table
-            String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
-            ActionRequestValidationException validationException = validateGeneratedIndexName(
-                generatedIndexName,
-                createState(generatedIndexName, false, true, false)
-            );
-            assertThat(validationException, notNullValue());
-            assertThat(
-                validationException.validationErrors(),
-                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
-            );
-        }
-
-        {
-            // generated index name already exists as an alias to another index
-            String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
-            ActionRequestValidationException validationException = validateGeneratedIndexName(
-                generatedIndexName,
-                createState(generatedIndexName, true, false, true)
-            );
-            assertThat(validationException, notNullValue());
-            assertThat(
-                validationException.validationErrors(),
-                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists as alias")
-            );
-        }
+    public void testValidateGeneratedIndexName_valid() {
+        String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
+        assertThat(
+            validateGeneratedIndexName(generatedIndexName, createProjectState(generatedIndexName, false, false, false)),
+            nullValue()
+        );
     }
 
-    private ProjectState createState(String generatedName, boolean addIndexToMetadata, boolean addIndexToRoutingTable, boolean addAlias) {
+    public void testValidateGeneratedIndexName_invalidChars() {
+        // index name is validated (invalid chars etc)
+        String generatedIndexName = generateValidIndexName("_prefix-", randomAlphaOfLengthBetween(5, 150));
+        assertThat(
+            validateGeneratedIndexName(generatedIndexName, createProjectState(generatedIndexName, false, false, false)).validationErrors(),
+            containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not start with '_', '-', or '+'")
+        );
+    }
+
+    public void testValidateGeneratedIndexName_invalidPound() {
+        // index name is validated (invalid chars etc)
+        String generatedIndexName = generateValidIndexName("shrink-", "shrink-indexName-random###");
+        assertThat(
+            validateGeneratedIndexName(generatedIndexName, createProjectState(generatedIndexName, false, false, false)).validationErrors(),
+            containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not contain '#'")
+        );
+    }
+
+    public void testValidateGeneratedIndexName_alreadyExistsAsIndex() {
+        // generated index already exists as a standalone index
+        String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
+        ActionRequestValidationException validationException = validateGeneratedIndexName(
+            generatedIndexName,
+            createProjectState(generatedIndexName, true, false, false)
+        );
+        assertThat(validationException, notNullValue());
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
+        );
+    }
+
+    public void testValidateGeneratedIndexName_alreadyExistsAlsoRoutingTable() {
+        // generated index name already exists as an index (cluster state routing table is also populated)
+        String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
+        ActionRequestValidationException validationException = validateGeneratedIndexName(
+            generatedIndexName,
+            createProjectState(generatedIndexName, true, true, false)
+        );
+        assertThat(validationException, notNullValue());
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
+        );
+    }
+
+    public void testValidateGeneratedIndexName_alreadyExistsOnlyRoutingTable() {
+        // generated index name already exists as an index but only in routing table
+        String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
+        ActionRequestValidationException validationException = validateGeneratedIndexName(
+            generatedIndexName,
+            createProjectState(generatedIndexName, false, true, false)
+        );
+        assertThat(validationException, notNullValue());
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
+        );
+    }
+
+    public void testValidateGeneratedIndexName_alreadyExistsAsAlias() {
+        // generated index name already exists as an alias to another index
+        String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
+        ActionRequestValidationException validationException = validateGeneratedIndexName(
+            generatedIndexName,
+            createProjectState(generatedIndexName, true, false, true)
+        );
+        assertThat(validationException, notNullValue());
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists as alias")
+        );
+    }
+
+    private ProjectState createProjectState(
+        String generatedName,
+        boolean addIndexToMetadata,
+        boolean addIndexToRoutingTable,
+        boolean addAlias
+    ) {
         final var indexName = addAlias ? randomAlphaOfLengthBetween(10, 30) : generatedName;
         final var indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()))

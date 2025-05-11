@@ -75,7 +75,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return IsNull.isTranslatable(field(), pushdownPredicates);
     }
 

@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -304,20 +305,39 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     threadPool.getThreadContext()
                 );
             }
+            final var notifiedCancellation = new AtomicBoolean(false);
+            if (task instanceof CancellableTask cancellableTask) {
+                cancellableTask.addListener(() -> {
+                    if (notifiedCancellation.compareAndSet(false, true) == false) {
+                        return;
+                    }
+                    listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                    logger.trace("task [{}] was cancelled, notifying listener", task.getId());
+                });
+            }
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
+                    if (notifiedCancellation.compareAndSet(false, true) == false) {
+                        return;
+                    }
                     logger.trace("retrying with cluster state version [{}]", state.version());
                     doStart(state);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
+                    if (notifiedCancellation.compareAndSet(false, true) == false) {
+                        return;
+                    }
                     listener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
+                    if (notifiedCancellation.compareAndSet(false, true) == false) {
+                        return;
+                    }
                     logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                 }

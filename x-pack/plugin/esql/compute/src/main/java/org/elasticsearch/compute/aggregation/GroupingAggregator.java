@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,6 +44,16 @@ public class GroupingAggregator implements Releasable {
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
+                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                }
+
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
                     throw new IllegalStateException("Intermediate group id must not have nulls");
                 }
 

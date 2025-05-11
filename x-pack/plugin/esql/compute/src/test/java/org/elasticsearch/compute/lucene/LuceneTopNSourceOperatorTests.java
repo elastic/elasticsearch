@@ -63,7 +63,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.Factory simple() {
+    protected LuceneTopNSourceOperator.Factory simple(SimpleOptions options) {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 

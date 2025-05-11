@@ -62,7 +62,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -229,7 +228,7 @@ class S3Service extends AbstractLifecycleComponent {
     // proxy for testing
     S3Client buildClient(final S3ClientSettings clientSettings, SdkHttpClient httpClient) {
         final S3ClientBuilder s3clientBuilder = buildClientBuilder(clientSettings, httpClient);
-        return SocketAccess.doPrivileged(s3clientBuilder::build);
+        return s3clientBuilder.build();
     }
 
     protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings, SdkHttpClient httpClient) {
@@ -257,14 +256,18 @@ class S3Service extends AbstractLifecycleComponent {
             String endpoint = clientSettings.endpoint;
             if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
                 // The SDK does not know how to interpret endpoints without a scheme prefix and will error. Therefore, when the scheme is
-                // absent, we'll supply HTTPS as a default to avoid errors.
+                // absent, we'll look at the deprecated .protocol setting
                 // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
-                endpoint = "https://" + endpoint;
+                endpoint = switch (clientSettings.protocol) {
+                    case HTTP -> "http://" + endpoint;
+                    case HTTPS -> "https://" + endpoint;
+                };
                 LOGGER.warn(
                     """
-                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should use 'https://'; \
+                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should be [{}]; \
                         to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
                     clientSettings.endpoint,
+                    endpoint,
                     S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
                 );
             }
@@ -418,20 +421,18 @@ class S3Service extends AbstractLifecycleComponent {
         if (credentials == null) {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
-                return new PrivilegedAwsCredentialsProvider(
-                    // Wrap the credential providers in ErrorLoggingCredentialsProvider so that we get log info if/when the STS
-                    // (in CustomWebIdentityTokenCredentialsProvider) is unavailable to the ES server, before falling back to a standard
-                    // credential provider.
-                    AwsCredentialsProviderChain.builder()
-                        // If credentials are refreshed, we want to look around for different forms of credentials again.
-                        .reuseLastProviderEnabled(false)
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
-                        .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
-                        .build()
-                );
+                // Wrap the credential providers in ErrorLoggingCredentialsProvider so that we get log info if/when the STS
+                // (in CustomWebIdentityTokenCredentialsProvider) is unavailable to the ES server, before falling back to a standard
+                // credential provider.
+                return AwsCredentialsProviderChain.builder()
+                    // If credentials are refreshed, we want to look around for different forms of credentials again.
+                    .reuseLastProviderEnabled(false)
+                    .addCredentialsProvider(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER))
+                    .addCredentialsProvider(new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER))
+                    .build();
             } else {
                 logger.debug("Using DefaultCredentialsProvider for credentials");
-                return new PrivilegedAwsCredentialsProvider(DefaultCredentialsProvider.create());
+                return DefaultCredentialsProvider.create();
             }
         } else {
             logger.debug("Using basic key/secret credentials");
@@ -465,46 +466,6 @@ class S3Service extends AbstractLifecycleComponent {
     public void doClose() throws IOException {
         releaseCachedClients();
         webIdentityTokenCredentialsProvider.close();
-    }
-
-    /**
-     * Wraps calls with {@link SocketAccess#doPrivileged(PrivilegedAction)} where needed.
-     */
-    static class PrivilegedAwsCredentialsProvider implements AwsCredentialsProvider {
-        private final AwsCredentialsProvider delegate;
-
-        private PrivilegedAwsCredentialsProvider(AwsCredentialsProvider delegate) {
-            this.delegate = delegate;
-        }
-
-        AwsCredentialsProvider getCredentialsProvider() {
-            return delegate;
-        }
-
-        @Override
-        public AwsCredentials resolveCredentials() {
-            return delegate.resolveCredentials();
-        }
-
-        @Override
-        public Class<AwsCredentialsIdentity> identityType() {
-            return delegate.identityType();
-        }
-
-        @Override
-        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(request));
-        }
-
-        @Override
-        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer));
-        }
-
-        @Override
-        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            return SocketAccess.doPrivileged(delegate::resolveIdentity);
-        }
     }
 
     /**
@@ -630,7 +591,7 @@ class S3Service extends AbstractLifecycleComponent {
                 public void onFileChanged(Path file) {
                     if (file.equals(webIdentityTokenFileSymlink)) {
                         LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                        SocketAccess.doPrivilegedVoid(credentialsProvider::resolveCredentials);
+                        credentialsProvider.resolveCredentials();
                     }
                 }
             });
@@ -672,19 +633,19 @@ class S3Service extends AbstractLifecycleComponent {
         @Override
         public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return SocketAccess.doPrivileged(() -> credentialsProvider.resolveIdentity(request));
+            return credentialsProvider.resolveIdentity(request);
         }
 
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return SocketAccess.doPrivileged(() -> credentialsProvider.resolveIdentity(consumer));
+            return credentialsProvider.resolveIdentity(consumer);
         }
 
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return SocketAccess.doPrivileged(credentialsProvider::resolveIdentity);
+            return credentialsProvider.resolveIdentity();
         }
     }
 
@@ -733,17 +694,17 @@ class S3Service extends AbstractLifecycleComponent {
 
         @Override
         public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(request).handle(this::resultHandler));
+            return delegate.resolveIdentity(request).handle(this::resultHandler);
         }
 
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer).handle(this::resultHandler));
+            return delegate.resolveIdentity(consumer).handle(this::resultHandler);
         }
 
         @Override
         public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity().handle(this::resultHandler));
+            return delegate.resolveIdentity().handle(this::resultHandler);
         }
 
         @Override

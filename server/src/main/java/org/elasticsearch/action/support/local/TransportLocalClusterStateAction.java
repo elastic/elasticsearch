@@ -27,9 +27,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -104,20 +106,40 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
             logger,
             clusterService.threadPool().getThreadContext()
         );
+        // We track whether we already notified the listener of cancellation, to avoid invoking the listener twice.
+        final var notifiedCancellation = new AtomicBoolean(false);
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.addListener(() -> {
+                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                    return;
+                }
+                listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                logger.trace("task [{}] was cancelled, notifying listener", task.getId());
+            });
+        }
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
+                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                    return;
+                }
                 logger.trace("retrying with cluster state version [{}]", state.version());
                 innerDoExecute(task, request, listener, state);
             }
 
             @Override
             public void onClusterServiceClose() {
+                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                    return;
+                }
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
             }
 
             @Override
             public void onTimeout(TimeValue timeout) {
+                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                    return;
+                }
                 logger.debug(
                     () -> format("timed out while waiting for cluster to unblock in [%s] (timeout [%s])", actionName, timeout),
                     exception

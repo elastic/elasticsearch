@@ -1310,6 +1310,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));
         assertFalse(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.exists(indexSettings));
         assertFalse(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.exists(indexSettings));
+        assertFalse(LifecycleSettings.LIFECYCLE_SKIP_SETTING.exists(indexSettings));
     }
 
     public static void assertClusterStateOnNextStep(

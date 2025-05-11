@@ -74,7 +74,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+            randomBoolean()
         );
     }
 
@@ -101,7 +102,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+                randomBoolean()
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -135,7 +137,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
-            null
+            null,
+            false
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
         Long now = 1_000_000L;
@@ -196,9 +199,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         BytesReference stepInfo = instance.getStepInfo();
         BytesReference previousStepInfo = instance.getPreviousStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
+        boolean skip = instance.getSkip();
 
         if (managed) {
-            switch (between(0, 15)) {
+            switch (between(0, 16)) {
                 case 0 -> index += randomAlphaOfLengthBetween(1, 5);
                 case 1 -> policy += randomAlphaOfLengthBetween(1, 5);
                 case 2 -> {
@@ -257,6 +261,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 case 13 -> repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
                 case 14 -> snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
                 case 15 -> shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 16 -> skip = skip == false;
                 default -> throw new AssertionError("Illegal randomisation branch");
             }
 
@@ -279,7 +284,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 shrinkIndexName,
                 stepInfo,
                 previousStepInfo,
-                phaseExecutionInfo
+                phaseExecutionInfo,
+                skip
             );
         } else {
             return switch (between(0, 1)) {

@@ -247,6 +247,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         if (isScroll) {
             validationException = addValidationError("cannot specify [" + getName() + "] and [scroll]", validationException);
         }
+        if (rankWindowSize < 0) {
+            validationException = addValidationError(
+                "[" + getRankWindowSizeField().getPreferredName() +
+                    "] parameter cannot be negative, found [" + rankWindowSize + "]",
+                validationException
+            );
+        }
+
         for (RetrieverSource innerRetriever : innerRetrievers) {
             validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
             if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundChild) {

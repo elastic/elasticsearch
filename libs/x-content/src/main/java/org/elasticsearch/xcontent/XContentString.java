@@ -7,6 +7,23 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.securesm {
-    exports org.elasticsearch.secure_sm;
+package org.elasticsearch.xcontent;
+
+import java.nio.ByteBuffer;
+
+public interface XContentString {
+    /**
+     * Returns a {@link String} view of the data.
+     */
+    String string();
+
+    /**
+     * Returns a UTF8-encoded {@link ByteBuffer} view of the data.
+     */
+    ByteBuffer bytes();
+
+    /**
+     * Returns the number of characters in the represented string.
+     */
+    int stringLength();
 }

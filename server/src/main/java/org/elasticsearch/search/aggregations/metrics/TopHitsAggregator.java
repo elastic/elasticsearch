@@ -252,19 +252,7 @@ class TopHitsAggregator extends MetricsAggregator {
     ) {
         Map<String, InnerHitSubContext> forkedInnerHits = new HashMap<>();
         for (Map.Entry<String, InnerHitSubContext> entry : originalInnerHits.entrySet()) {
-            var originalContext = entry.getValue();
-            var forkedContext = new InnerHitSubContext(originalContext) {
-                @Override
-                public SearchExecutionContext getSearchExecutionContext() {
-                    return searchExecutionContext;
-                }
-
-                // Delegate top docs to the original InnerHitSubContext, it does not need to be changed
-                @Override
-                public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
-                    return originalContext.topDocs(hit);
-                }
-            };
+            var forkedContext = entry.getValue().copyWithSearchExecutionContext(searchExecutionContext);
             forkedInnerHits.put(entry.getKey(), forkedContext);
         }
 

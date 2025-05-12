@@ -651,7 +651,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
          * Close the channel when there are no more requests in flight.
          */
         public void setCloseWhenIdle() {
-            assert closeWhenIdle = false : "setCloseWhenIdle() already called";
+            assert closeWhenIdle == false : "setCloseWhenIdle() already called";
             closeWhenIdle = true;
             refCounted.decRef();
         }

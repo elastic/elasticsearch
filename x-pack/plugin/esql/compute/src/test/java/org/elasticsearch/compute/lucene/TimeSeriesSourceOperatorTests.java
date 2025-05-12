@@ -28,12 +28,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -41,6 +44,7 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -67,7 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
+public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
 
     private IndexReader reader;
     private final Directory directory = newDirectory();
@@ -106,6 +110,66 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 offset++;
             }
         }
+    }
+
+    public void testStatus() {
+        int numTimeSeries = between(1, 5);
+        int numSamplesPerTS = between(1, 10);
+        long timestampStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
+        int maxPageSize = 128;
+        DriverContext driverContext = driverContext();
+        Driver driver = createDriver(
+            driverContext,
+            1024,
+            maxPageSize,
+            true,
+            numTimeSeries,
+            numSamplesPerTS,
+            timestampStart,
+            Page::releaseBlocks
+        );
+        OperatorTestCase.runDriver(driver);
+        DriverStatus driverStatus = driver.status();
+        var status = (TimeSeriesSourceOperator.Status) driverStatus.completedOperators().get(0).status();
+        assertThat(status.tsidLoaded(), equalTo((long) numTimeSeries));
+        assertThat(status.rowsEmitted(), equalTo((long) numTimeSeries * numSamplesPerTS));
+        assertThat(status.documentsFound(), equalTo((long) numTimeSeries * numSamplesPerTS));
+        assertThat(status.valuesLoaded(), equalTo((long) numTimeSeries * numSamplesPerTS * 3));
+
+        String expected = String.format(
+            Locale.ROOT,
+            """
+                {
+                  "processed_slices" : 1,
+                  "processed_queries" : [
+                    "*:*"
+                  ],
+                  "processed_shards" : [
+                    "test"
+                  ],
+                  "process_nanos" : %d,
+                  "process_time" : "%s",
+                  "slice_index" : 0,
+                  "total_slices" : 1,
+                  "pages_emitted" : 1,
+                  "slice_min" : 0,
+                  "slice_max" : 0,
+                  "current" : 0,
+                  "rows_emitted" : %s,
+                  "partitioning_strategies" : {
+                    "test" : "SHARD"
+                  },
+                  "tsid_loaded" : %d,
+                  "values_loaded" : %d
+                }
+                """,
+            status.processNanos(),
+            TimeValue.timeValueNanos(status.processNanos()),
+            status.rowsEmitted(),
+            status.tsidLoaded(),
+            status.valuesLoaded()
+        );
+        assertThat(Strings.toString(status, true, true).trim(), equalTo(expected.trim()));
     }
 
     public void testLimit() {
@@ -239,7 +303,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             try (var reader = writer.getReader()) {
                 var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
                 Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
-                var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                var timeSeriesFactory = TimeSeriesSourceOperatorFactory.create(
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
                     1,
@@ -264,7 +328,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return createTimeSeriesSourceOperator(directory, r -> this.reader = r, randomBoolean(), List.of(), 1, 1, false, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
@@ -274,16 +338,38 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]");
+        return equalTo("TimeSeriesSourceOperator[maxPageSize = 1, limit = 1]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("Impl[maxPageSize=1, remainingDocs=1]");
+        return equalTo("TimeSeriesSourceOperator[shards = [test], maxPageSize = 1[maxPageSize=1, remainingDocs=1]]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {
         var ctx = driverContext();
+        List<Page> results = new ArrayList<>();
+        OperatorTestCase.runDriver(
+            createDriver(ctx, limit, maxPageSize, forceMerge, numTimeSeries, numSamplesPerTS, timestampStart, results::add)
+        );
+        OperatorTestCase.assertDriverContext(ctx);
+        for (Page result : results) {
+            assertThat(result.getPositionCount(), lessThanOrEqualTo(maxPageSize));
+            assertThat(result.getPositionCount(), lessThanOrEqualTo(limit));
+        }
+        return results;
+    }
+
+    Driver createDriver(
+        DriverContext driverContext,
+        int limit,
+        int maxPageSize,
+        boolean forceMerge,
+        int numTimeSeries,
+        int numSamplesPerTS,
+        long timestampStart,
+        Consumer<Page> consumer
+    ) {
         var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         var timeSeriesFactory = createTimeSeriesSourceOperator(
@@ -307,24 +393,19 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 return numTimeSeries * numSamplesPerTS;
             }
         );
-
-        List<Page> results = new ArrayList<>();
-        OperatorTestCase.runDriver(
-            TestDriverFactory.create(ctx, timeSeriesFactory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add))
+        return TestDriverFactory.create(
+            driverContext,
+            timeSeriesFactory.get(driverContext),
+            List.of(),
+            new TestResultPageSinkOperator(consumer)
         );
-        OperatorTestCase.assertDriverContext(ctx);
-        for (Page result : results) {
-            assertThat(result.getPositionCount(), lessThanOrEqualTo(maxPageSize));
-            assertThat(result.getPositionCount(), lessThanOrEqualTo(limit));
-        }
-        return results;
     }
 
     public record ExtractField(MappedFieldType ft, ElementType elementType) {
 
     }
 
-    public static TimeSeriesSortedSourceOperatorFactory createTimeSeriesSourceOperator(
+    public static TimeSeriesSourceOperatorFactory createTimeSeriesSourceOperator(
         Directory directory,
         Consumer<IndexReader> readerConsumer,
         boolean emitDocIds,
@@ -370,7 +451,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             )
             .toList();
 
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
+        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {

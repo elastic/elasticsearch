@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,10 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Multi-project integration tests for the parts of the _nodes/stats and _info APIs which return project-scoped stats.
+ */
 public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
 
     private static final String PASSWORD = "hunter2";
@@ -77,11 +78,7 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         }
     }
 
-    // WARNING: The total count in the ingest stats is not reset as part of tear-down, so we need to accumulate the expected value across
-    // test methods using mutable static state.
-    private static int expectedTotalCountForIngestStats = 0;
-
-    public void testIndicesStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
+    public void testIndicesStats() throws IOException {
         // Create two projects. We will use the default project as the third project in this test.
         createProject("project-1");
         createProject("project-2");
@@ -149,96 +146,95 @@ public class NodesStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(ObjectPath.evaluate(index1ShardStats.getFirst(), "0.docs.count"), equalTo(numDocs1Only));
     }
 
-    public void testIngestStats_returnsStatsFromAllProjectsWithProjectIdPrefix() throws IOException {
+    // Warning: Some ingest stats are not reset as part of test tear-down. This only works because we do all the ingest tests in one method.
+    public void testIngestStats() throws IOException {
+        // Create two projects. We will use the default project as the third project in this test.
         createProject("project-1");
         createProject("project-2");
-        createProject("project-3");
+
         // Create and run data through a number of indices.
         // Some of the pipeline names are used only in one project, some in two projects, some in all three.
         int numDocs1Only = createAndUsePipeline("project-1", "my-pipeline-project-1-only");
         int numDocs2Only = createAndUsePipeline("project-2", "my-pipeline-project-2-only");
-        int numDocs3Only = createAndUsePipeline("project-3", "my-pipeline-project-3-only");
+        int numDocsDefaultOnly = createAndUsePipeline("default", "my-pipeline-default-project-only");
         int numDocs1Of1And2 = createAndUsePipeline("project-1", "my-pipeline-projects-1-and-2");
         int numDocs2Of1And2 = createAndUsePipeline("project-2", "my-pipeline-projects-1-and-2");
-        int numDocs2Of2And3 = createAndUsePipeline("project-2", "my-pipeline-projects-2-and-3");
-        int numDocs3Of2And3 = createAndUsePipeline("project-3", "my-pipeline-projects-2-and-3");
+        int numDocs2Of2AndDefault = createAndUsePipeline("project-2", "my-pipeline-projects-2-and-default");
+        int numDocsDefaultOf2AndDefault = createAndUsePipeline("default", "my-pipeline-projects-2-and-default");
         int numDocs1All = createAndUsePipeline("project-1", "my-pipeline-all-projects");
         int numDocs2All = createAndUsePipeline("project-2", "my-pipeline-all-projects");
-        int numDocs3All = createAndUsePipeline("project-3", "my-pipeline-all-projects");
+        int numDocsDefaultAll = createAndUsePipeline("default", "my-pipeline-all-projects");
 
-        // Get ingest stats...
-        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
-        // ...assert that the total count is correct (see warning at expectedTotalCountForIngestStats definition above)...
-        expectedTotalCountForIngestStats += numDocs1Only + numDocs2Only + numDocs3Only + numDocs1Of1And2 + numDocs2Of1And2 + numDocs2Of2And3
-            + numDocs3Of2And3 + numDocs1All + numDocs2All + numDocs3All;
-        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(expectedTotalCountForIngestStats));
+        // Get ingest stats from _nodes/stats and from _info...
+        Map<String, Object> ingestNodesStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
+        Map<String, Object> ingestInfo = ObjectPath.evaluate(getAsMap("/_info/ingest"), "ingest");
+        // ...assert that the total counts are correct...
+        int expectedTotalCount = numDocs1Only + numDocs2Only + numDocsDefaultOnly + numDocs1Of1And2 + numDocs2Of1And2
+            + numDocs2Of2AndDefault + numDocsDefaultOf2AndDefault + numDocs1All + numDocs2All + numDocsDefaultAll;
+        assertThat(ObjectPath.evaluate(ingestNodesStats, "total.count"), equalTo(expectedTotalCount));
+        assertThat(ObjectPath.evaluate(ingestInfo, "total.count"), equalTo(expectedTotalCount));
         // ...assert that all the pipelines are present, prefixed by their project IDs...
-        Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
-        assertThat(
-            pipelineStats.keySet(),
-            containsInAnyOrder(
-                "project-1/my-pipeline-project-1-only",
-                "project-2/my-pipeline-project-2-only",
-                "project-3/my-pipeline-project-3-only",
-                "project-1/my-pipeline-projects-1-and-2",
-                "project-2/my-pipeline-projects-1-and-2",
-                "project-2/my-pipeline-projects-2-and-3",
-                "project-3/my-pipeline-projects-2-and-3",
-                "project-1/my-pipeline-all-projects",
-                "project-2/my-pipeline-all-projects",
-                "project-3/my-pipeline-all-projects"
-            )
+        Set<String> expectedPipelines = Set.of(
+            "project-1/my-pipeline-project-1-only",
+            "project-2/my-pipeline-project-2-only",
+            "default/my-pipeline-default-project-only",
+            "project-1/my-pipeline-projects-1-and-2",
+            "project-2/my-pipeline-projects-1-and-2",
+            "project-2/my-pipeline-projects-2-and-default",
+            "default/my-pipeline-projects-2-and-default",
+            "project-1/my-pipeline-all-projects",
+            "project-2/my-pipeline-all-projects",
+            "default/my-pipeline-all-projects"
         );
+        Map<String, Object> pipelineNodesStats = ObjectPath.evaluate(ingestNodesStats, "pipelines");
+        assertThat(pipelineNodesStats.keySet(), equalTo(expectedPipelines));
+        Map<String, Object> pipelineInfo = ObjectPath.evaluate(ingestInfo, "pipelines");
+        assertThat(pipelineInfo.keySet(), equalTo(expectedPipelines));
         // ...assert that the pipeline doc counts are for some of the pipelines correct...
-        assertThat(ObjectPath.evaluate(pipelineStats, "project-1/my-pipeline-project-1-only.count"), equalTo(numDocs1Only));
-        assertThat(ObjectPath.evaluate(pipelineStats, "project-2/my-pipeline-projects-2-and-3.count"), equalTo(numDocs2Of2And3));
-        assertThat(ObjectPath.evaluate(pipelineStats, "project-3/my-pipeline-all-projects.count"), equalTo(numDocs3All));
+        assertThat(ObjectPath.evaluate(pipelineNodesStats, "project-1/my-pipeline-project-1-only.count"), equalTo(numDocs1Only));
+        assertThat(
+            ObjectPath.evaluate(pipelineNodesStats, "project-2/my-pipeline-projects-2-and-default.count"),
+            equalTo(numDocs2Of2AndDefault)
+        );
+        assertThat(ObjectPath.evaluate(pipelineNodesStats, "default/my-pipeline-all-projects.count"), equalTo(numDocsDefaultAll));
+        assertThat(ObjectPath.evaluate(pipelineInfo, "project-1/my-pipeline-project-1-only.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(pipelineInfo, "project-2/my-pipeline-projects-2-and-default.count"), equalTo(numDocs2Of2AndDefault));
+        assertThat(ObjectPath.evaluate(pipelineInfo, "default/my-pipeline-all-projects.count"), equalTo(numDocsDefaultAll));
         // ...and that the processors are correct with the correct counts:
         // (the counts for the lowercase processors should be halved because it has an if condition which triggers half the time)
-        Map<String, Object> processorStatsPipeline1Only = extractMergedProcessorStats(
-            pipelineStats,
+        Map<String, Object> processorNodesStatsPipeline1Only = extractMergedProcessorStats(
+            pipelineNodesStats,
             "project-1/my-pipeline-project-1-only"
         );
-        assertThat(ObjectPath.evaluate(processorStatsPipeline1Only, "set.stats.count"), equalTo(numDocs1Only));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline1Only, "lowercase.stats.count"), equalTo(numDocs1Only / 2));
-        Map<String, Object> processorStatsPipeline2Of2And3 = extractMergedProcessorStats(
-            pipelineStats,
-            "project-2/my-pipeline-projects-2-and-3"
+        assertThat(ObjectPath.evaluate(processorNodesStatsPipeline1Only, "set.stats.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(processorNodesStatsPipeline1Only, "lowercase.stats.count"), equalTo(numDocs1Only / 2));
+        Map<String, Object> processorInfoPipeline1Only = extractMergedProcessorStats(pipelineInfo, "project-1/my-pipeline-project-1-only");
+        assertThat(ObjectPath.evaluate(processorInfoPipeline1Only, "set.stats.count"), equalTo(numDocs1Only));
+        assertThat(ObjectPath.evaluate(processorInfoPipeline1Only, "lowercase.stats.count"), equalTo(numDocs1Only / 2));
+        Map<String, Object> processorNodesStatsPipeline2Of2AndDefault = extractMergedProcessorStats(
+            pipelineNodesStats,
+            "project-2/my-pipeline-projects-2-and-default"
         );
-        assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "set.stats.count"), equalTo(numDocs2Of2And3));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline2Of2And3, "lowercase.stats.count"), equalTo(numDocs2Of2And3 / 2));
-        Map<String, Object> processorStatsPipeline3All = extractMergedProcessorStats(pipelineStats, "project-3/my-pipeline-all-projects");
-        assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "set.stats.count"), equalTo(numDocs3All));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline3All, "lowercase.stats.count"), equalTo(numDocs3All / 2));
-    }
-
-    public void testIngestStats_omitsProjectIdPrefixForDefaultProject() throws IOException {
-        int numDocs1 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-1");
-        int numDocs2 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-2");
-        int numDocs3 = createAndUsePipeline(Metadata.DEFAULT_PROJECT_ID.id(), "my-pipeline-3");
-
-        // Get ingest stats...
-        Map<String, Object> ingestStats = ObjectPath.evaluate(getAsMap("/_nodes/stats/ingest"), "nodes." + findNodeId() + ".ingest");
-        // ...assert that the total count is correct (see warning at expectedTotalCountForIngestStats definition above)...
-        expectedTotalCountForIngestStats += numDocs1 + numDocs2 + numDocs3;
-        assertThat(ObjectPath.evaluate(ingestStats, "total.count"), equalTo(expectedTotalCountForIngestStats));
-        // ...and that the pipelines are correct with the correct counts...
-        Map<String, Object> pipelineStats = ObjectPath.evaluate(ingestStats, "pipelines");
-        assertThat(pipelineStats.keySet(), containsInAnyOrder("my-pipeline-1", "my-pipeline-2", "my-pipeline-3"));
-        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-1.count"), equalTo(numDocs1));
-        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-2.count"), equalTo(numDocs2));
-        assertThat(ObjectPath.evaluate(pipelineStats, "my-pipeline-3.count"), equalTo(numDocs3));
-        // ...and that the processors are correct with the correct counts:
-        // (the counts for the lowercase processors should be halved because it has an if condition which triggers half the time)
-        Map<String, Object> processorStatsPipeline1 = extractMergedProcessorStats(pipelineStats, "my-pipeline-1");
-        assertThat(ObjectPath.evaluate(processorStatsPipeline1, "set.stats.count"), equalTo(numDocs1));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline1, "lowercase.stats.count"), equalTo(numDocs1 / 2));
-        Map<String, Object> processorStatsPipeline2 = extractMergedProcessorStats(pipelineStats, "my-pipeline-2");
-        assertThat(ObjectPath.evaluate(processorStatsPipeline2, "set.stats.count"), equalTo(numDocs2));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline2, "lowercase.stats.count"), equalTo(numDocs2 / 2));
-        Map<String, Object> processorStatsPipeline3 = extractMergedProcessorStats(pipelineStats, "my-pipeline-3");
-        assertThat(ObjectPath.evaluate(processorStatsPipeline3, "set.stats.count"), equalTo(numDocs3));
-        assertThat(ObjectPath.evaluate(processorStatsPipeline3, "lowercase.stats.count"), equalTo(numDocs3 / 2));
+        assertThat(ObjectPath.evaluate(processorNodesStatsPipeline2Of2AndDefault, "set.stats.count"), equalTo(numDocs2Of2AndDefault));
+        assertThat(
+            ObjectPath.evaluate(processorNodesStatsPipeline2Of2AndDefault, "lowercase.stats.count"),
+            equalTo(numDocs2Of2AndDefault / 2)
+        );
+        Map<String, Object> processorInfoPipeline2Of2AndDefault = extractMergedProcessorStats(
+            pipelineInfo,
+            "project-2/my-pipeline-projects-2-and-default"
+        );
+        assertThat(ObjectPath.evaluate(processorInfoPipeline2Of2AndDefault, "set.stats.count"), equalTo(numDocs2Of2AndDefault));
+        assertThat(ObjectPath.evaluate(processorInfoPipeline2Of2AndDefault, "lowercase.stats.count"), equalTo(numDocs2Of2AndDefault / 2));
+        Map<String, Object> processorNodesStatsPipelineDefaultAll = extractMergedProcessorStats(
+            pipelineNodesStats,
+            "default/my-pipeline-all-projects"
+        );
+        assertThat(ObjectPath.evaluate(processorNodesStatsPipelineDefaultAll, "set.stats.count"), equalTo(numDocsDefaultAll));
+        assertThat(ObjectPath.evaluate(processorNodesStatsPipelineDefaultAll, "lowercase.stats.count"), equalTo(numDocsDefaultAll / 2));
+        Map<String, Object> processorInfoPipelineDefaultAll = extractMergedProcessorStats(pipelineInfo, "default/my-pipeline-all-projects");
+        assertThat(ObjectPath.evaluate(processorInfoPipelineDefaultAll, "set.stats.count"), equalTo(numDocsDefaultAll));
+        assertThat(ObjectPath.evaluate(processorInfoPipelineDefaultAll, "lowercase.stats.count"), equalTo(numDocsDefaultAll / 2));
     }
 
     private int createPopulatedIndex(String projectId, String indexName) throws IOException {

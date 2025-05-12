@@ -694,7 +694,7 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            Map<Index, ProjectId> projectsByIndex = randomBoolean() ? Map.of(indexTest, randomUniqueProjectId()) : null;
+            Map<Index, ProjectId> projectsByIndex = Map.of(indexTest, randomUniqueProjectId());
             nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;

@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
@@ -146,9 +147,9 @@ public record IngestStats(
                 pipelineStat -> Iterators.concat(
 
                     Iterators.single((builder, params) -> {
-                        String key = pipelineStat.projectId().equals(Metadata.DEFAULT_PROJECT_ID)
-                            ? pipelineStat.pipelineId()
-                            : pipelineStat.projectId() + "/" + pipelineStat.pipelineId();
+                        String key = outerParams.paramAsBoolean(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, false)
+                            ? pipelineStat.projectId() + "/" + pipelineStat.pipelineId()
+                            : pipelineStat.pipelineId();
                         builder.startObject(key);
                         pipelineStat.stats().toXContent(builder, params);
                         pipelineStat.byteStats().toXContent(builder, params);

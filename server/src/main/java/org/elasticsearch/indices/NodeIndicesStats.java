@@ -12,6 +12,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NodeStatsLevel;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -69,7 +70,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
     private final Map<Index, CommonStats> statsByIndex;
-    private final @Nullable Map<Index, ProjectId> projectsByIndex;
+    private final Map<Index, ProjectId> projectsByIndex;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -100,16 +101,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
     }
 
-    /**
-     * Constructs an instance. If the {@code projectsByIndex} argument is non-null, the project-to-index map will be stored, and the
-     * project IDs will be prepended to the index names when converting this instance to XContent. This is appropriate for multi-project
-     * clusters. If the argument is null, no project IDs will be prepended. This is appropriate for single-project clusters.
-     */
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, CommonStats> statsByIndex,
         Map<Index, List<IndexShardStats>> statsByShard,
-        @Nullable Map<Index, ProjectId> projectsByIndex,
+        Map<Index, ProjectId> projectsByIndex,
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
@@ -131,7 +127,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         for (CommonStats indexStats : statsByIndex.values()) {
             stats.add(indexStats);
         }
-        this.projectsByIndex = projectsByIndex;
+        this.projectsByIndex = requireNonNull(projectsByIndex);
     }
 
     @Nullable
@@ -287,7 +283,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                 case INDICES -> ChunkedToXContentHelper.object(
                     Fields.INDICES,
                     Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
-                        builder.startObject(xContentKey(entry.getKey()));
+                        builder.startObject(xContentKey(entry.getKey(), outerParams));
                         entry.getValue().toXContent(builder, outerParams);
                         return builder.endObject();
                     })
@@ -298,7 +294,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                     Iterators.flatMap(
                         statsByShard.entrySet().iterator(),
                         entry -> ChunkedToXContentHelper.array(
-                            xContentKey(entry.getKey()),
+                            xContentKey(entry.getKey(), outerParams),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
                                 indexShardStats -> Iterators.concat(
@@ -318,17 +314,18 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         );
     }
 
-    private String xContentKey(Index index) {
-        if (projectsByIndex == null) {
-            return index.getName();
-        }
-        ProjectId projectId = projectsByIndex.get(index);
-        if (projectId == null) {
-            // This can happen if the stats were captured after the IndexService was created but before the state was updated.
-            // The best we can do is handle it gracefully.
-            return "<unknown>/" + index.getName();
+    private String xContentKey(Index index, ToXContent.Params outerParams) {
+        if (outerParams.paramAsBoolean(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, false)) {
+            ProjectId projectId = projectsByIndex.get(index);
+            if (projectId == null) {
+                // This can happen if the stats were captured after the IndexService was created but before the state was updated.
+                // The best we can do is handle it gracefully.
+                return "<unknown>/" + index.getName();
+            } else {
+                return projectId + "/" + index.getName();
+            }
         } else {
-            return projectId + "/" + index.getName();
+            return index.getName();
         }
     }
 

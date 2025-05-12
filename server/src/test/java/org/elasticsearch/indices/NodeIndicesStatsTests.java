@@ -48,9 +48,9 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final Map<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
         final List<IndexShardStats> emptyList = List.of();
         statsByShards.put(index, emptyList);
-        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, null, true);
+        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, Collections.emptyMap(), true);
         assertThat(stats.getShardStats(index), sameInstance(emptyList));
-        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, null, false);
+        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, Collections.emptyMap(), false);
         assertThat(stats.getShardStats(index), nullValue());
     }
 

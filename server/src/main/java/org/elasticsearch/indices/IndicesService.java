@@ -487,7 +487,7 @@ public class IndicesService extends AbstractLifecycleComponent
             commonStats,
             statsByIndex(this, flags),
             statsByShard(this, flags),
-            projectResolver.supportsMultipleProjects() ? projectsByIndex() : null,
+            projectsByIndex(),
             includeShardsStats
         );
     }

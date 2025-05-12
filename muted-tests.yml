@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
-- class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
-  method: testVisitGeoPointsWrapping
-  issue: https://github.com/elastic/elasticsearch/issues/123425
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368
@@ -465,6 +462,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/127437
+- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
+  method: testFindFewer
+  issue: https://github.com/elastic/elasticsearch/issues/128002
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
+  method: testTaskCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/128009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/124055
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test041AmazonCaCertsAreInTheKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128007
 
 # Examples:
 #

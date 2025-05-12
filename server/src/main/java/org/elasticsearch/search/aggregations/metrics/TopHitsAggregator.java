@@ -226,9 +226,9 @@ class TopHitsAggregator extends MetricsAggregator {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-        // InnerHitsContext innerHitsContext = new InnerHitsContext(
-        // getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-        // );
+        InnerHitsContext innerHitsContext = new InnerHitsContext(
+            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
+        );
 
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
@@ -236,10 +236,10 @@ class TopHitsAggregator extends MetricsAggregator {
                 return searchExecutionContext;
             }
 
-            // @Override
-            // public InnerHitsContext innerHits() {
-            // return innerHitsContext;
-            // }
+            @Override
+            public InnerHitsContext innerHits() {
+                return innerHitsContext;
+            }
         };
 
         fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);

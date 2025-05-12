@@ -168,7 +168,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-            ).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build())
+            )
         );
         ensureGreen("idx", "empty", "articles");
 

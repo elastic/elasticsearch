@@ -20,7 +20,9 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +33,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -225,7 +228,7 @@ public class TopHitsIT extends ESIntegTestCase {
         numArticles = scaledRandomIntBetween(10, 100);
         numArticles -= (numArticles % 5);
         for (int i = 0; i < numArticles; i++) {
-            XContentBuilder builder = jsonBuilder();
+            XContentBuilder builder = randomFrom(jsonBuilder(), yamlBuilder(), smileBuilder());
             builder.startObject().field("date", i).startArray("comments");
             for (int j = 0; j < i; j++) {
                 String user = Integer.toString(j);
@@ -234,8 +237,9 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(prepareIndex("articles").setSource(builder));
-            indexRandom(true, builders);
-            builders.clear();
+            // Index frequently to force multiple segments
+            // indexRandom(true, builders);
+            // builders.clear();
         }
 
         builders.add(
@@ -984,6 +988,22 @@ public class TopHitsIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testTopHitsOnInnerHits() {
+        QueryBuilder qb = nestedQuery("comments", matchQuery("comments.message", "text"), ScoreMode.Avg).innerHit(new InnerHitBuilder());
+        AggregationBuilder ab = topHits("top-comments").size(3);
+
+        assertNoFailuresAndResponse(prepareSearch("articles").setQuery(qb).addAggregation(ab), response -> {
+            TopHits topHits = response.getAggregations().get("top-comments");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(3));
+
+            SearchHit searchHit = hits.getAt(0);
+            SearchHits innerHits = searchHit.getInnerHits().get("comments");
+            assertThat(innerHits.getHits().length, equalTo(3));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getField().toString(), equalTo("comments"));
+        });
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {

@@ -78,12 +78,10 @@ public class RestClusterInfoAction extends BaseRestHandler {
     static final Set<Metric> AVAILABLE_TARGETS = RESPONSE_MAPPER.keySet();
     static final Set<String> AVAILABLE_TARGET_NAMES = AVAILABLE_TARGETS.stream().map(Metric::metricName).collect(toUnmodifiableSet());
 
-    private final ToXContent.Params xContentParams;
+    private final ProjectIdResolver projectIdResolver;
 
     public RestClusterInfoAction(ProjectIdResolver projectIdResolver) {
-        this.xContentParams = new ToXContent.MapParams(
-            Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects()))
-        );
+        this.projectIdResolver = projectIdResolver;
     }
 
     @Override
@@ -146,12 +144,18 @@ public class RestClusterInfoAction extends BaseRestHandler {
                                 Iterators.flatMap(chunkedResponses, chunk -> chunk.toXContentChunked(outerParams)),
                                 ChunkedToXContentHelper.endObject()
                             ),
-                            xContentParams,
+                            xContentParams(),
                             channel
                         ),
                         null
                     );
                 }
             });
+    }
+
+    private ToXContent.MapParams xContentParams() {
+        return new ToXContent.MapParams(
+            Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects()))
+        );
     }
 }

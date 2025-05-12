@@ -44,7 +44,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("dense_vector_off_heap_stats");
 
-    private final Map<String, String> xContentParams;
+    private final ProjectIdResolver projectIdResolver;
 
     @Override
     public List<Route> routes() {
@@ -69,10 +69,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     public RestNodesStatsAction(ProjectIdResolver projectIdResolver) {
-        this.xContentParams = Map.of(
-            NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY,
-            Boolean.toString(projectIdResolver.supportsMultipleProjects())
-        );
+        this.projectIdResolver = projectIdResolver;
     }
 
     @Override
@@ -191,10 +188,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .nodesStats(
-                nodesStatsRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel, new ToXContent.DelegatingMapParams(xContentParams, request))
-            );
+            .nodesStats(nodesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel, xContentParamsForRequest(request)));
+    }
+
+    private ToXContent.DelegatingMapParams xContentParamsForRequest(RestRequest request) {
+        return new ToXContent.DelegatingMapParams(
+            Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects())),
+            request
+        );
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

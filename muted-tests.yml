@@ -477,6 +477,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/128024
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/128030
 
 # Examples:
 #

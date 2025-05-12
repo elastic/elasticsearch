@@ -44,7 +44,7 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
     * The corresponding OpenTelemetry attribute is defined in
       [Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/model)
       within a group that is defined as `type: enitity`.
-* All other fields, except from `@timestamp` are moved to the `attributes` map.
+* All other fields, except for `@timestamp`, are moved to the `attributes` map.
 * All non-array entries of the `attributes` and `resource.attributes` maps are flattened. Flattening means that nested objects are merged into their parent object, and the keys are concatenated with a dot. See examples below.
 
 ## Examples

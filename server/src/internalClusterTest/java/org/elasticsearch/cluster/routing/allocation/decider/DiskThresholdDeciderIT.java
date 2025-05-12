@@ -283,6 +283,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         final var useableSpaceShardSizes = shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace);
         final var tinyNodeShardId = tinyNodeShardIds.isEmpty() == false
             ? tinyNodeShardIds.iterator().next()
+            // shardSizes only contains the sizes from the original index, not the copy, so we map the copied shard back to the original idx
             : new ShardId(useableSpaceShardSizes.iterator().next().getIndex(), tinyNodeShardIdsCopy.iterator().next().id());
         assertThat(tinyNodeShardId, in(useableSpaceShardSizes));
     }

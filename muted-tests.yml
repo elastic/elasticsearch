@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
-- class: org.elasticsearch.geometry.utils.SpatialEnvelopeVisitorTests
-  method: testVisitGeoPointsWrapping
-  issue: https://github.com/elastic/elasticsearch/issues/123425
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368
@@ -450,9 +447,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/120_profile/avg 8.14 or after}
   issue: https://github.com/elastic/elasticsearch/issues/127879
-- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
-  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
-  issue: https://github.com/elastic/elasticsearch/issues/127787
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/126359
@@ -468,6 +462,27 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testFindFewer
   issue: https://github.com/elastic/elasticsearch/issues/128002
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
+  method: testTaskCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/128009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/124055
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test041AmazonCaCertsAreInTheKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128007
+- class: org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/128024
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/128030
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/128031
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test042KeystorePermissionsAreCorrect
+  issue: https://github.com/elastic/elasticsearch/issues/128019
 
 # Examples:
 #

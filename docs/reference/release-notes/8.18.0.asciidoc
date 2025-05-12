@@ -19,6 +19,9 @@ Search::
 TLS::
 * Drop `TLS_RSA` cipher support for JDK 24 {es-pull}123600[#123600]
 
+ES|QL::
+* Limit the scope of the skip_unavailable setting for remote clusters {es-pull}120236[#120236]
+
 [[bug-8.18.0]]
 [float]
 === Bug fixes

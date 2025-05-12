@@ -43,7 +43,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +51,6 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
@@ -140,10 +138,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
         // execution of privileged code
-        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
-            eventLoopThreadsFromSettings(settings),
-            new PrivilegedExecutor(eventLoopExecutor)
-        );
+        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings), eventLoopExecutor);
 
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
@@ -210,24 +205,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             builder.endpoint(secondaryUri);
         }
 
-        BlobServiceClient blobServiceClient = SocketAccess.doPrivilegedException(builder::buildClient);
-        BlobServiceAsyncClient asyncClient = SocketAccess.doPrivilegedException(builder::buildAsyncClient);
+        BlobServiceClient blobServiceClient = builder.buildClient();
+        BlobServiceAsyncClient asyncClient = builder.buildAsyncClient();
         return new AzureBlobServiceClient(blobServiceClient, asyncClient, settings.getMaxRetries(), byteBufAllocator);
     }
 
     @Override
     protected void doStart() {
-        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName) {
-            @Override
-            protected Runnable decorateRunnable(Runnable command) {
-                return () -> SocketAccess.doPrivilegedVoidException(command::run);
-            }
-
-            @Override
-            protected <V> Callable<V> decorateCallable(Callable<V> callable) {
-                return () -> SocketAccess.doPrivilegedException(callable::call);
-            }
-        };
+        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
 
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.

@@ -237,9 +237,6 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(prepareIndex("articles").setSource(builder));
-            // Index frequently to force multiple segments
-            // indexRandom(true, builders);
-            // builders.clear();
         }
 
         builders.add(

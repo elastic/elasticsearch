@@ -1,5 +1,5 @@
 pr: 127563
-summary: "ESQL: Avoid regex extract attributes removal"
+summary: "ESQL: Avoid unintended attribute removal"
 area: ES|QL
 type: bug
 issues:

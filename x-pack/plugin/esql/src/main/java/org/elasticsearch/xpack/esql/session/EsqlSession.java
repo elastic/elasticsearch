@@ -664,12 +664,13 @@ public class EsqlSession {
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
                 canRemoveAliases[1] = true;
-                p.forEachDown(plan -> {
-                    if (canRemoveAliases[1] && couldOverrideAliases(plan)) {
+                // go down each plan and remove aliases until we meet a plan that can override aliases
+                p.forEachDown(c -> {
+                    if (canRemoveAliases[1] && couldOverrideAliases(c)) {
                         canRemoveAliases[1] = false;
                     }
                     if (canRemoveAliases[1]) {
-                        plan.forEachExpression(Alias.class, alias -> {
+                        c.forEachExpression(Alias.class, alias -> {
                             // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
                             // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
                             if (fieldNames.contains(alias.name())) {

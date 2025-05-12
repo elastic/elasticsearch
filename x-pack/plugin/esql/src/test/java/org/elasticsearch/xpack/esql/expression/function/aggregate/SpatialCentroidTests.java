@@ -23,13 +23,15 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 @FunctionName("st_centroid_agg")
 public class SpatialCentroidTests extends AbstractAggregationTestCase {
@@ -75,16 +77,58 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
                 count++;
             }
 
-            var expected = new BytesRef(
-                WellKnownBinary.toWKB(new Point(xSum.value() / count, ySum.value() / count), ByteOrder.LITTLE_ENDIAN)
-            );
+            var expectedX = xSum.value() / count;
+            var expectedY = ySum.value() / count;
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "SpatialCentroid[field=Attribute[channel=0]]",
                 fieldTypedData.type(),
-                equalTo(expected)
+                centroidMatches(expectedX, expectedY, 1e-14)
             );
         });
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private static Matcher<BytesRef> centroidMatches(double x, double y, double error) {
+        return new TestCentroidMatcher(x, y, error);
+    }
+
+    private static class TestCentroidMatcher extends BaseMatcher<BytesRef> {
+        private final double x;
+        private final double y;
+        private final Matcher<Double> mx;
+        private final Matcher<Double> my;
+
+        private TestCentroidMatcher(double x, double y, double error) {
+            this.x = x;
+            this.y = y;
+            this.mx = closeTo(x, error);
+            this.my = closeTo(y, error);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            if (item instanceof BytesRef wkb) {
+                var point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                return mx.matches(point.getX()) && my.matches(point.getY());
+            }
+            return false;
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            if (item instanceof BytesRef wkb) {
+                var point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                description.appendText("was ").appendValue(point);
+            } else {
+                description.appendText("was ").appendValue(item);
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendValue("    POINT (" + x + " " + y + ")");
+        }
     }
 }

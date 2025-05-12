@@ -18,7 +18,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.ClosedWatchServiceException;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -243,7 +242,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         .collect(Collectors.toSet());
                     for (var changedPath : changedPaths) {
                         // If a symlinked dir changed in the settings dir, it could be linked to other symlinks, so reprocess all files
-                        if (Files.isDirectory(changedPath) && Files.isSymbolicLink(changedPath)) {
+                        if (filesIsDirectory(changedPath) && filesIsSymbolicLink(changedPath)) {
                             reprocessAllChangedFilesInSettingsDir();
                             break;
                         } else if (fileChanged(changedPath)) {
@@ -384,6 +383,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     protected abstract boolean filesExists(Path path);
 
     protected abstract boolean filesIsDirectory(Path path);
+
+    protected abstract boolean filesIsSymbolicLink(Path path);
 
     protected abstract <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException;
 

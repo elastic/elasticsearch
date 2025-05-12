@@ -24,23 +24,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.isGuaranteedNull;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.INNER;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * The rule matches a plan pattern having a Join on top of a Project and/or Eval. It then checks if the join's performed on a field which
- * is aliased to null (in type or value); if that's the case, it prunes the join, replacing it with an Eval  - returning aliases to null
+ * is aliased to null (in type or value); if that's the case, it prunes the join, replacing it with an Eval - returning aliases to null
  * for all the fields added in by the right side of the Join - plus a Project on top of it.
  * The rule can apply on the coordinator already, but it's more likely to be effective on the data nodes, where null aliasing is inserted
  * due to locally missing fields. This rule relies on that behavior -- see {@link ReplaceMissingFieldWithNull}.
  */
-public class PruneJoinOnNullMatchingField extends OptimizerRules.OptimizerRule<Join> {
+public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.OptimizerRule<Join> {
 
     @Override
     protected LogicalPlan rule(Join join) {
         LogicalPlan plan = join;
-        var joinType = join.config().type();
-        if (joinType == INNER || joinType == LEFT) { // other types will have different replacement logic
+        if (join.config().type() == LEFT) { // other types will have different replacement logic
             AttributeMap.Builder<Expression> attributeMapBuilder = AttributeMap.builder();
             loop: for (var child = join.left();; child = ((UnaryPlan) child).child()) { // cast is safe as both plans are UnaryPlans
                 switch (child) {
@@ -68,7 +66,8 @@ public class PruneJoinOnNullMatchingField extends OptimizerRules.OptimizerRule<J
 
     private static LogicalPlan replaceJoin(Join join) {
         var joinRightOutput = join.rightOutputFields();
-        if (joinRightOutput.isEmpty()) { // can be empty when the join key is null and the other right side entries pruned (by an agg)
+        // can be empty when the join key is null and the rest of the right side entries pruned (such as by an agg)
+        if (joinRightOutput.isEmpty()) {
             return join.left();
         }
         List<Alias> aliases = new ArrayList<>(joinRightOutput.size());

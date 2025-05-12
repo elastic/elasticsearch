@@ -65,7 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneJoinOnNullMatchingField;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -203,7 +203,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineOrderBy(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
-            new PruneJoinOnNullMatchingField()
+            new PruneLeftJoinOnNullMatchingField()
         );
     }
 

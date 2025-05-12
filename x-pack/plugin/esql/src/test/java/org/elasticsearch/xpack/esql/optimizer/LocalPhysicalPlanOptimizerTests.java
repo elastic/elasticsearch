@@ -1453,6 +1453,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         agg = as(exchange.child(), AggregateExec.class);
         var extract = as(agg.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("languages"));
+        var literal = as(alias.child(), Literal.class);
+        assertNull(literal.value());
         var source = as(eval.child(), EsQueryExec.class);
         assertThat(source.indexPattern(), is("test"));
         assertThat(source.indexMode(), is(IndexMode.STANDARD));

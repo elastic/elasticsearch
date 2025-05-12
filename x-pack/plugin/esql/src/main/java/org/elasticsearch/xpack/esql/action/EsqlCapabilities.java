@@ -1080,7 +1080,12 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE aggregation function
          */
-        AGG_SAMPLE;
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

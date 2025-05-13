@@ -213,13 +213,17 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
+        // start monitoring the available disk space, and update the available budget for running merge tasks
+        // note that this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
+        // available disk space, so merges will be blocked for shards on data paths with no available disk space, as long as there is
+        // one data path that has enough disk space to run merges for the shards that it stores
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
                 nodeEnvironment.dataPaths(),
                 threadPool,
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
                 INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
                 INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateAvailableBudget(availableDiskSpaceByteSize.getBytes())
+                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -230,8 +234,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
         );
         clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-                this.availableDiskSpacePeriodicMonitor::setCheckInterval
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setCheckInterval
         );
     }
 
@@ -400,8 +404,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             this.updateConsumer = updateConsumer;
             this.closed = false;
             reschedule();
-            // early monitor run in the constructor
-            run();
         }
 
         public void setCheckInterval(TimeValue checkInterval) {
@@ -526,14 +528,14 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
         }
 
-        void updateAvailableBudget(long availableBudget) {
+        void updateBudget(long availableBudget) {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
                 this.availableBudget = availableBudget;
-                // update the per-element budget
+                // update the per-element budget (these are all the elements that are using any budget)
                 unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
-                // update available budget given the per-element budget
+                // available budget is decreased by the used per-element budget (for all dequeued elements that are still in use)
                 this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
                 elementAvailable.signalAll();
             } finally {
@@ -555,6 +557,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             private ElementWithReleasableBudget(E element, long budget) {
                 this.element = element;
                 assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
+                // the taken element holds up some budget
                 var prev = unreleasedBudgetPerElement.put(element, budget);
                 assert prev == null;
                 availableBudget -= budget;
@@ -567,6 +570,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 lock.lock();
                 try {
                     assert unreleasedBudgetPerElement.containsKey(element);
+                    // when the taken element is not used anymore, the budget it hold is released
                     availableBudget += unreleasedBudgetPerElement.remove(element);
                     elementAvailable.signalAll();
                 } finally {
@@ -574,7 +578,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 }
             }
 
-            public E element() {
+            E element() {
                 return element;
             }
         }

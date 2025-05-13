@@ -480,7 +480,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     )
     public void testSnapshotShutdownProgressTracker() throws Exception {
         final var repoName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 9);
         createRepository(repoName, "mock");
 
         // Create another index on another node which will be blocked (remain in state INIT) throughout.
@@ -540,12 +540,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
+        // At least one shard reached the MockRepository's blocking code when waitForBlock was called. However, there's no guarantee that
+        // the other shards got that far before the shutdown flag was put in place, in which case the other shards may be paused instead.
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "SnapshotShutdownProgressTracker running number of snapshots",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots running [" + numShards + "].*"
+                ".+Number shard snapshots running \\[[1-" + numShards + "]].+"
             )
         );
 

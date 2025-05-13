@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.Directory;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
@@ -47,8 +47,8 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
                         .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
                         .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
                 );
-            Provider<Directory> directory = project.getLayout().getBuildDirectory().dir("generated-build-info");
-            task.getOutputDirectory().set(directory);
+            Provider<RegularFile> directory = project.getLayout().getBuildDirectory().file("generated-build.info/test-build-info.json");
+            task.getOutputFile().set(directory);
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {

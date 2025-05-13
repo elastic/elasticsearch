@@ -288,6 +288,5 @@ tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g
 tasks.named("generateTestBuildInfo").configure {
   t -> {
     t.getComponentName().set("server")
-    t.getOutputFileName().set("server-test-build-info.json")
   }
 }

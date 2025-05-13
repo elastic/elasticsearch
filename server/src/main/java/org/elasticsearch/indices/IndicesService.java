@@ -316,10 +316,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-                threadPool,
-                settings,
-                clusterService.getClusterSettings(),
-                nodeEnv
+            threadPool,
+            settings,
+            clusterService.getClusterSettings(),
+            nodeEnv
         );
         this.projectResolver = builder.projectResolver;
         this.client = builder.client;

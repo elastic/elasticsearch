@@ -218,12 +218,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         // available disk space, so merges will be blocked for shards on data paths with no available disk space, as long as there is
         // one data path that has enough disk space to run merges for the shards that it stores
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
-                nodeEnvironment.dataPaths(),
-                threadPool,
-                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
-                (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
+            nodeEnvironment.dataPaths(),
+            threadPool,
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -471,9 +471,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
 
         private static ByteSizeValue getFreeBytesThreshold(
-                ByteSizeValue total,
-                RelativeByteSizeValue watermark,
-                ByteSizeValue maxHeadroom
+            ByteSizeValue total,
+            RelativeByteSizeValue watermark,
+            ByteSizeValue maxHeadroom
         ) {
             // If bytes are given, they can be readily returned as free bytes.
             // If percentages are given, we need to calculate the free bytes.

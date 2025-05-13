@@ -99,7 +99,7 @@ The new score can be restricted to not exceed a certain limit by setting the `ma
 The newly computed score is combined with the score of the query. The parameter `boost_mode` defines how:
 
 `multiply`
-:   query score and function score is multiplied (default)
+:   query score and function score are multiplied (default)
 
 `replace`
 :   only function score is used, the query score is ignored

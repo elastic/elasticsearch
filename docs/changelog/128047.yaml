@@ -2,4 +2,5 @@ pr: 128047
 summary: Add missing entitlement to `repository-azure`
 area: Snapshot/Restore
 type: bug
-issues: []
+issues:
+ - 128046

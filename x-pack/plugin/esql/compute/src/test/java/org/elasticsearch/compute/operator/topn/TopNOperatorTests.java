@@ -130,7 +130,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple() {
+    protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),

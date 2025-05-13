@@ -885,13 +885,11 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {
         var builtServiceSettings = new HashMap<>();
-        var builtTaskSettings = new HashMap<>();
         builtServiceSettings.putAll(serviceSettings);
         builtServiceSettings.putAll(secretSettings);
 
         Map<String, Object> map = new HashMap<>();
         map.put(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings);
-        map.put(ModelConfigurations.TASK_SETTINGS, builtTaskSettings);
 
         return map;
     }

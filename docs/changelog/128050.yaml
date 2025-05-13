@@ -1,0 +1,6 @@
+pr: 128050
+summary: Fix an authorization error when attempting to update `logsdb.prior_logs_usage`
+  cluster setting
+area: Logs
+type: bug
+issues: []

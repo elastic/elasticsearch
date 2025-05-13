@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -739,12 +740,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(
                 threadPool,
-                randomBoolean()
-                    ? settings
-                    : Settings.builder()
-                        .put(settings)
-                        .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                        .build(),
+                settings,
+                ClusterSettings.createBuiltInClusterSettings(settings),
                 nodeEnvironment
             );
         assertNotNull(threadPoolMergeExecutorService);

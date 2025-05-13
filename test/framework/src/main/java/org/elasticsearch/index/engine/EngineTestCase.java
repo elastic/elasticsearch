@@ -61,6 +61,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -249,7 +250,8 @@ public abstract class EngineTestCase extends ESTestCase {
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             defaultSettings.getNodeSettings(),
-            mock(NodeEnvironment.class)
+            ClusterSettings.createBuiltInClusterSettings(defaultSettings.getNodeSettings()),
+            newNodeEnvironment(defaultSettings.getNodeSettings())
         );
 
         store = createStore();

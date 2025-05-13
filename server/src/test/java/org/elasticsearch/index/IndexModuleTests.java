@@ -203,6 +203,7 @@ public class IndexModuleTests extends ESTestCase {
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             settings,
+            clusterService.getClusterSettings(),
             nodeEnvironment
         );
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();

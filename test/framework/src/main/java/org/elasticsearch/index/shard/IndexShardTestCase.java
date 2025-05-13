@@ -116,7 +116,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,

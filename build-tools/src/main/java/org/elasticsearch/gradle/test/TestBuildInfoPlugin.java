@@ -13,6 +13,8 @@ import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -39,14 +41,15 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         var testBuildInfoTask = project.getTasks().register("generateTestBuildInfo", GenerateTestBuildInfoTask.class, task -> {
+            FileCollection codeLocations = project.getConfigurations().getByName("runtimeClasspath");
+            Configuration compileOnly = project.getConfigurations()
+                .findByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+            if (compileOnly != null) {
+                codeLocations = codeLocations.minus(compileOnly);
+            }
             var sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            task.getCodeLocations()
-                .set(
-                    project.getConfigurations()
-                        .getByName("runtimeClasspath")
-                        .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
-                        .plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs())
-                );
+            codeLocations = codeLocations.plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs());
+            task.getCodeLocations().set(codeLocations);
             Provider<RegularFile> directory = project.getLayout().getBuildDirectory().file("generated-build.info/test-build-info.json");
             task.getOutputFile().set(directory);
         });

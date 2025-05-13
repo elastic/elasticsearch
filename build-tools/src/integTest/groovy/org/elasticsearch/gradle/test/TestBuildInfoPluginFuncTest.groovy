@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.test
 
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
@@ -20,16 +21,19 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
         """
 
         buildFile << """
+        import org.elasticsearch.gradle.plugin.GenerateTestBuildInfoTask;
+
         plugins {
-            id 'elasticsearch.test-build-info'
             id 'java'
+            id 'elasticsearch.test-build-info'
         }
 
         repositories {
             mavenCentral()
         }
 
-        dependencies {
+        tasks.withType(GenerateTestBuildInfoTask.class) {
+            componentName = 'example-component'
         }
         """
 
@@ -37,6 +41,6 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
         def result = gradleRunner('generateTestBuildInfo').build()
 
         then:
-        result.task(":test").outcome == TaskOutcome.SUCCESS
+        result.task(":generateTestBuildInfo").outcome == TaskOutcome.SUCCESS
     }
 }

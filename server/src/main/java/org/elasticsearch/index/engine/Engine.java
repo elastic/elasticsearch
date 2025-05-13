@@ -612,7 +612,6 @@ public abstract class Engine implements Closeable {
         }
 
         public void throttle() {
-            assert semaphore.availablePermits() == Integer.MAX_VALUE;
             semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
         }
 

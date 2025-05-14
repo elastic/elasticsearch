@@ -44,6 +44,26 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testAlternativeWhereMatch() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL s1 = chicken_score(match(content, "brown"))
+            | WHERE s1 > 0
+            | WHERE match(content, "fox")
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(
+                List.of(1, 1.4274532794952393),
+                List.of(6, 1.1248724460601807))
+            );
+        }
+    }
+
     public void testSimpleChickenScoreWhereMatch() {
         var query = """
             FROM test METADATA _score

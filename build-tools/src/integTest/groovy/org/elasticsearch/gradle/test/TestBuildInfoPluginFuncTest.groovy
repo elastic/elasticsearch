@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.test
 
+import com.fasterxml.jackson.databind.ObjectMapper
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
@@ -39,8 +40,24 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
 
         when:
         def result = gradleRunner('generateTestBuildInfo').build()
+        def task = result.task(":generateTestBuildInfo")
+
 
         then:
-        result.task(":generateTestBuildInfo").outcome == TaskOutcome.SUCCESS
+        task.outcome == TaskOutcome.SUCCESS
+
+        def output = file("build/generated-build.info/test-build-info.json")
+        output.exists() == true
+
+        def location = Map.of(
+            "module", "com.example",
+            "representativeClass", "com/example/Example.class"
+        )
+        def expectedOutput = Map.of(
+            "component", "example-component",
+            "locations", List.of(location)
+        )
+        expectedOutput == new ObjectMapper().readValue(output, Map.class)
+
     }
 }

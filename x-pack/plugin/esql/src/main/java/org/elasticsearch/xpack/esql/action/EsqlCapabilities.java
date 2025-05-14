@@ -1066,7 +1066,20 @@ public class EsqlCapabilities {
          */
         FIRST_OVER_TIME(Build.current().isSnapshot()),
 
-        ;
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

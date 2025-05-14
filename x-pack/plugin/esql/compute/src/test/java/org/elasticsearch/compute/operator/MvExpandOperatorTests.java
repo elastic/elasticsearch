@@ -49,7 +49,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new MvExpandOperator.Factory(0, randomIntBetween(1, 1000));
     }
 

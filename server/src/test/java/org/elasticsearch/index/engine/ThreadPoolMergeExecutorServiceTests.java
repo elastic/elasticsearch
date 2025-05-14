@@ -738,11 +738,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         NodeEnvironment nodeEnvironment
     ) {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                threadPool,
-                ClusterSettings.createBuiltInClusterSettings(settings),
-                nodeEnvironment
-            );
+            .maybeCreateThreadPoolMergeExecutorService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings), nodeEnvironment);
         assertNotNull(threadPoolMergeExecutorService);
         assertTrue(threadPoolMergeExecutorService.allDone());
         return threadPoolMergeExecutorService;

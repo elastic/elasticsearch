@@ -18,6 +18,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -104,7 +105,8 @@ public class FollowingEngineTests extends ESTestCase {
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             settings,
-            mock(NodeEnvironment.class)
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            newNodeEnvironment(settings)
         );
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);

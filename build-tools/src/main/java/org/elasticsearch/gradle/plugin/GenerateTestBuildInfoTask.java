@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -84,11 +85,25 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * The output of this task is a JSON file formatted according to this record
+     * The output of this task is a JSON file formatted according to this record.
+     * @param component the entitlements <em>component</em> name of the artifact we're describing
+     * @param locations a {@link Location} for each code directory/jar in this artifact
      */
     record OutputFileContents(String component, List<Location> locations) {}
 
-    record Location(String representativeClass, String module) {}
+    /**
+     * Our analog of a single {@link CodeSource#getLocation()}.
+     * All classes in any single <em>location</em> (a directory or jar)
+     * are considered to be part of the same Java module for entitlements purposes.
+     * Since tests run without Java modules, and entitlements are all predicated on modules,
+     * this info lets us determine what the module <em>would have been</em>
+     * so we can look up the appropriate entitlements.
+     *
+     * @param module              the name of the Java module corresponding to this {@code Location}.
+     * @param representativeClass an example of any <code>.class</code> file within this {@code Location}
+     *                            whose name will be unique within its {@link ClassLoader} at run time.
+     */
+    record Location(String module, String representativeClass) {}
 
     /**
      * Build the list of {@link Location}s for all {@link #getCodeLocations() code locations}.
@@ -120,7 +135,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
             if (className.isPresent()) {
                 String moduleName = extractModuleNameFromJar(file, jarFile);
-                locations.add(new Location(className.get(), moduleName));
+                locations.add(new Location(moduleName, className.get()));
             }
         }
     }
@@ -166,7 +181,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             versions = new ArrayList<>(versions);
             versions.sort(Integer::compareTo);
             versions = versions.reversed();
-            int major = Runtime.version().version().get(0);
+            int major = Runtime.version().feature();
             StringBuilder path = new StringBuilder("META-INF/versions/");
             for (int version : versions) {
                 if (version <= major) {
@@ -234,7 +249,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         String moduleName = extractModuleNameFromDirectory(dir);
 
         if (className != null && moduleName != null) {
-            locations.add(new Location(className, moduleName));
+            locations.add(new Location(moduleName, className));
         }
     }
 

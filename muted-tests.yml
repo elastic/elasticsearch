@@ -458,3 +458,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/127188
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/128077

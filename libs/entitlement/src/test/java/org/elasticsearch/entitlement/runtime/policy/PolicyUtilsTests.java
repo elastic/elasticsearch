@@ -171,7 +171,7 @@ public class PolicyUtilsTests extends ESTestCase {
         );
 
         assertThrows(
-            PolicyParserException.class,
+            IllegalStateException.class,
             () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
         );
     }

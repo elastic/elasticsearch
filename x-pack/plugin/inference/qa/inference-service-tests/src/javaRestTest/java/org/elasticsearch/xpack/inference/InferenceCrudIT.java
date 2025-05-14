@@ -53,9 +53,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         for (int i = 0; i < 4; i++) {
             putModel("te_model_" + i, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
+        for (int i = 0; i < 3; i++) {
+            putModel("re-model-" + i, mockRerankServiceModelConfig(), TaskType.RERANK);
+        }
 
         var getAllModels = getAllModels();
-        int numModels = 12;
+        int numModels = 15;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -70,6 +73,13 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
+        }
+
+        var getRerankModels = getModels("_all", TaskType.RERANK);
+        int numRerankModels = 4;
+        assertThat(getRerankModels, hasSize(numRerankModels));
+        for (var denseModel : getRerankModels) {
+            assertEquals("rerank", denseModel.get("task_type"));
         }
         String oldApiKey;
         {
@@ -99,6 +109,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         for (int i = 0; i < 4; i++) {
             deleteModel("te_model_" + i, TaskType.TEXT_EMBEDDING);
+        }
+        for (int i = 0; i < 3; i++) {
+            deleteModel("re-model-" + i, TaskType.RERANK);
         }
     }
 

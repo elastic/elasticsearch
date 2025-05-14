@@ -171,6 +171,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
+    static String mockRerankServiceModelConfig() {
+        return """
+            {
+              "service": "test_reranking_service",
+              "service_settings": {
+                 "model_id": "my_model",
+                 "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """;
+    }
+
     static void deleteModel(String modelId) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId);
         var response = client().performRequest(request);

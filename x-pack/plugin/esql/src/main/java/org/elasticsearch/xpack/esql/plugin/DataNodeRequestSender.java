@@ -203,7 +203,8 @@ abstract class DataNodeRequestSender {
                         }
                     }
                     for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                            && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
                             shardFailures.compute(
                                 shardId,
                                 (k, v) -> new ShardFailure(

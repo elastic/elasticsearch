@@ -34,6 +34,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -92,6 +93,7 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private NodeEnvironment nodeEnvironment;
     private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
@@ -105,11 +107,11 @@ public class RefreshListenersTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        nodeEnvironment = newNodeEnvironment(settings);
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            settings,
             ClusterSettings.createBuiltInClusterSettings(settings),
-            newNodeEnvironment(settings)
+            nodeEnvironment
         );
         listeners = new RefreshListeners(
             () -> maxListeners,
@@ -184,8 +186,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
-        IOUtils.close(engine, store);
-        terminate(threadPool);
+        IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }
 
     public void testBeforeRefresh() throws Exception {

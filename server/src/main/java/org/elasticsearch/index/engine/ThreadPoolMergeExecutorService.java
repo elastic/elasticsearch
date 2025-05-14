@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -190,12 +189,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
-        Settings settings,
         ClusterSettings clusterSettings,
         NodeEnvironment nodeEnvironment
     ) {
-        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
-            return new ThreadPoolMergeExecutorService(threadPool, settings, clusterSettings, nodeEnvironment);
+        if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
+            return new ThreadPoolMergeExecutorService(threadPool, clusterSettings, nodeEnvironment);
         } else {
             return null;
         }
@@ -203,7 +201,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     private ThreadPoolMergeExecutorService(
         ThreadPool threadPool,
-        Settings settings,
         ClusterSettings clusterSettings,
         NodeEnvironment nodeEnvironment
     ) {
@@ -220,9 +217,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
             nodeEnvironment.dataPaths(),
             threadPool,
-            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
-            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
-            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
+            clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
+            clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
             (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
         clusterSettings.addSettingsUpdateConsumer(

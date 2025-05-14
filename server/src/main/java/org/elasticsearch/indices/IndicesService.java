@@ -317,7 +317,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.clusterService = builder.clusterService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            settings,
             clusterService.getClusterSettings(),
             nodeEnv
         );

@@ -740,7 +740,6 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(
                 threadPool,
-                settings,
                 ClusterSettings.createBuiltInClusterSettings(settings),
                 nodeEnvironment
             );

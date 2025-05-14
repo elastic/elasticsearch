@@ -162,6 +162,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -7684,6 +7685,23 @@ public class InternalEngineTests extends EngineTestCase {
             );
             assertThat(exc.getMessage(), containsString("unavailable"));
         }
+    }
+
+    public void testPauseLockCanBeThrottledConcurrently() throws Exception {
+        int allowThreads = randomIntBetween(2, 8);
+        var pauseLock = new Engine.PauseLock(allowThreads);
+        var executor = Executors.newFixedThreadPool(allowThreads);
+        var barrier = new CyclicBarrier(allowThreads);
+        for (int i = 0; i < allowThreads; i++) {
+            executor.submit(() -> {
+                safeAwait(barrier);
+                pauseLock.throttle();
+                pauseLock.unthrottle();
+            });
+        }
+
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
     }
 
     private static void assertCommitGenerations(Map<IndexCommit, Engine.IndexCommitRef> commits, List<Long> expectedGenerations) {

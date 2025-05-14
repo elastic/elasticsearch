@@ -36,8 +36,9 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/match.md
 :::
 
-:::{include} ../_snippets/functions/layout/match_phrase.md
-:::
+% MATCH_PHRASE is currently hidden
+% :::{include} ../_snippets/functions/layout/match_phrase.md
+% :::
 
 :::{include} ../_snippets/functions/layout/qstr.md
 :::

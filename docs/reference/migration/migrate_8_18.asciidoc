@@ -81,6 +81,20 @@ Before this change, in case of shard failures, EQL queries always returned an er
 EQL queries that would previously fail due to shard failures, will now succeed and return partial results. The previous defaults can be restored by setting `xpack.eql.default_allow_partial_results` cluster setting to `false` or setting with `allow_partial_search_results` to `false` in the query request.
 ====
 
+[discrete]
+[[breaking_818_esql_changes]]
+==== ES|QL changes
+
+[[limit_scope_skip_unavailable_setting_remote_clusters]]
+.Limit the scope of the skip_unavailable setting for remote clusters
+[%collapsible]
+====
+*Details* +
+Before this change, ES|QL would honor the skip_unavailable setting for nonmatching indices errors at planning time, meaning that when a query with a concrete (non-wildcarded) index was issued to a cluster where skip_unavailable=true, the index would be skipped, allowing the query to proceed on any other specified clusters rather than returning an error.
+
+*Impact* +
+Remote clusters, regardless of their skip_unavailable setting, will now use the same logic as the local cluster for index expression analysis at plan time. As a result, any missing concrete index in your index expression will return an error rather than partial results.
+====
 
 [discrete]
 [[deprecated-8.18]]

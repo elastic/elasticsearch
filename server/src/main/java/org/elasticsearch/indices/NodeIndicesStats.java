@@ -94,10 +94,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            boolean hasProjectsByIndex = in.readBoolean();
-            projectsByIndex = hasProjectsByIndex ? in.readMap(Index::new, ProjectId::readFrom) : null;
+            projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
         } else {
-            projectsByIndex = null;
+            // Older nodes do not include the index-to-project map, so we leave it empty. This means all indices will be treated as if the
+            // project is unknown. This does not matter as the map is only used in multi-project clusters which will not have old nodes.
+            projectsByIndex = Map.of();
         }
     }
 
@@ -243,10 +244,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             out.writeMap(statsByIndex);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
-            out.writeBoolean(projectsByIndex != null);
-            if (projectsByIndex != null) {
-                out.writeMap(projectsByIndex);
-            }
+            out.writeMap(projectsByIndex);
         }
     }
 
@@ -258,7 +256,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.equals(that.stats)
             && statsByShard.equals(that.statsByShard)
             && statsByIndex.equals(that.statsByIndex)
-            && Objects.equals(projectsByIndex, that.projectsByIndex);
+            && projectsByIndex.equals(that.projectsByIndex);
     }
 
     @Override

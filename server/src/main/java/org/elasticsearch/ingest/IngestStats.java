@@ -79,7 +79,7 @@ public record IngestStats(
         for (var i = 0; i < size; i++) {
             ProjectId projectId = in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)
                 ? ProjectId.readFrom(in)
-                // We will not have older nodes in a multi-project cluster, so we can assume that everything is in the default cluster.
+                // We will not have older nodes in a multi-project cluster, so we can assume that everything is in the default project.
                 : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);

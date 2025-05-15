@@ -319,8 +319,8 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             ProjectId projectId = projectsByIndex.get(index);
             if (projectId == null) {
                 // This can happen if the stats were captured after the IndexService was created but before the state was updated.
-                // The best we can do is handle it gracefully.
-                return "<unknown>/" + index.getName();
+                // The best we can do is handle it gracefully. We include the UUID as well as the name to ensure it is unambiguous.
+                return "<unknown>/" + index.getName() + "/" + index.getUUID();
             } else {
                 return projectId + "/" + index.getName();
             }

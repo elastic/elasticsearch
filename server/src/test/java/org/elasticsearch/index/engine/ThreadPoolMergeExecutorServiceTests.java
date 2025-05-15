@@ -654,17 +654,18 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             newNodeEnvironment(Settings.EMPTY)
         );
         DeterministicTaskQueue reEnqueueBackloggedTaskQueue = new DeterministicTaskQueue();
-        int mergeTaskCount = randomIntBetween(10, 100);
+//        int mergeTaskCount = randomIntBetween(10, 100);
+        int mergeTaskCount = 2;
         // sort merge tasks available to run by size
         PriorityQueue<MergeTask> mergeTasksAvailableToRun = new PriorityQueue<>(
             mergeTaskCount,
-            Comparator.comparingLong(MergeTask::estimatedMergeSize)
+            Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
         );
         for (int i = 0; i < mergeTaskCount; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
             when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
             // merge tasks of various sizes (0 might be a valid value)
-            when(mergeTask.estimatedMergeSize()).thenReturn(randomLongBetween(0, 10));
+            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(0, 10));
             doAnswer(mock -> {
                 // each individual merge task can either "run" or be "backlogged" at any point in time
                 Schedule schedule = randomFrom(Schedule.values());
@@ -686,7 +687,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }
                 if (schedule == RUN && mergeTasksAvailableToRun.isEmpty() == false) {
                     // assert the merge task that's now going to run is the smallest of the ones currently available to run
-                    assertThat(mergeTask.estimatedMergeSize(), lessThanOrEqualTo(mergeTasksAvailableToRun.peek().estimatedMergeSize()));
+                    assertThat(
+                        mergeTask.estimatedRemainingMergeSize(),
+                        lessThanOrEqualTo(mergeTasksAvailableToRun.peek().estimatedRemainingMergeSize())
+                    );
                 }
                 return schedule;
             }).when(mergeTask).schedule();

@@ -272,6 +272,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
+        assert mergeTask.isRunning() == false;
         enqueueMergeTask(mergeTask);
     }
 

@@ -55,7 +55,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
-        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+        Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
     );
     private final Map<MergePolicy.OneMerge, MergeTask> runningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
@@ -228,6 +228,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
         } else {
+            assert mergeTask.isRunning() == false;
             backloggedMergeTasks.add(mergeTask);
             return Schedule.BACKLOG;
         }
@@ -351,7 +352,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         public boolean isRunning() {
-            return mergeStartTimeNS.get() > 0L;
+            boolean isRunning = mergeStartTimeNS.get() > 0L;
+            assert isRunning != false || rateLimiter.getTotalBytesWritten() == 0L;
+            return isRunning;
         }
 
         /**
@@ -456,14 +459,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
         }
 
-        long estimatedMergeSize() {
+        long estimatedRemainingMergeSize() {
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
-            return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
-        }
-
-        long estimatedRemainingMergeSize() {
-            return Math.max(0L, estimatedMergeSize() - rateLimiter.getTotalBytesWritten());
+            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
         }
 
         public long getMergeMemoryEstimateBytes() {

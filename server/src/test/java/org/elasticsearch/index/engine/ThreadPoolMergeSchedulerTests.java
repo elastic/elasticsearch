@@ -142,7 +142,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             merge -> 0
         );
         // sort backlogged merges by size
-        PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(16, Comparator.comparingLong(MergeTask::estimatedMergeSize));
+        PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
+            16,
+            Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
+        );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(2, 10);
         for (int i = 0; i < mergeCount; i++) {

@@ -110,7 +110,7 @@ public class PolicyUtils {
                         version
                     );
                 }
-            } catch (IOException | RuntimeException e) {
+            } catch (Exception e) {
                 throw new IllegalStateException("Unable to parse policy patch for layer [" + layerName + "]", e);
             }
         }

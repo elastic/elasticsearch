@@ -185,10 +185,14 @@ public class Docker {
             try {
                 // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
-
+                String detectCommand =
+                    "for pid in $(ps -eo pid,comm | grep java | awk '\\''{print $1}'\\''); do cmdline=$(tr \"\\0\" \" \" < /proc/$pid/cmdline 2>/dev/null); [[ $cmdline == *org.elasticsearch.bootstrap.Elasticsearch* ]] && echo \"PID $pid: $cmdline\"; done | wc -l";
                 // The length of the command exceeds what we can use for COLUMNS so we use a pipe to detect the process we're looking for
-                psOutput = dockerShell.run("bash -c 'ps -ax | grep org.elasticsearch.bootstrap.Elasticsearch | grep -v grep | wc -l'")
-                    .stdout();
+                psOutput = dockerShell.run("bash -c '" + detectCommand + "'").stdout();
+                // System.out.println("psOutput = " + psOutput);
+                // psOutput = dockerShell.run(
+                // "bash -c 'COLUMNS=4000 ps w | grep org.elasticsearch.bootstrap.Elasticsearch | grep -v grep | wc -l'"
+                // ).stdout();
                 if (psOutput.contains("1")) {
                     isElasticsearchRunning = true;
                     break;

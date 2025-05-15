@@ -186,10 +186,10 @@ public class Docker {
                 // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
-                // Set COLUMNS so that `ps` doesn't truncate its output
-                psOutput = dockerShell.run("bash -c 'COLUMNS=1000 jdk/bin/jps -ml'").stdout();
-
-                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
+                // The length of the command exceeds what we can use for COLUMNS so we use a pipe to detect the process we're looking for
+                psOutput = dockerShell.run("bash -c 'ps -ax | grep org.elasticsearch.bootstrap.Elasticsearch | grep -v grep | wc -l'")
+                    .stdout();
+                if (psOutput.contains("1")) {
                     isElasticsearchRunning = true;
                     break;
                 }

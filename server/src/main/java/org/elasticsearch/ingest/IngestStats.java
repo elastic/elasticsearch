@@ -79,6 +79,7 @@ public record IngestStats(
         for (var i = 0; i < size; i++) {
             ProjectId projectId = in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)
                 ? ProjectId.readFrom(in)
+                // We will not have older nodes in a multi-project cluster, so we can assume that everything is in the default cluster.
                 : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
@@ -106,7 +107,6 @@ public record IngestStats(
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
-            // TODO: This now behaves differently to NodeIndicesStats. Once we've agreed an approach, we should make them consistent.
             if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
                 pipelineStat.projectId().writeTo(out);
             }

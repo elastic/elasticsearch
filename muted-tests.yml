@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.PercentileIntGroupingAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunner
   issue: https://github.com/elastic/elasticsearch/issues/128092
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test042KeystorePermissionsAreCorrect
+  issue: https://github.com/elastic/elasticsearch/issues/128018
 
 # Examples:
 #

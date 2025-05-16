@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -22,12 +24,21 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 
 import java.io.IOException;
 import java.util.List;
 
 public class ChickenScore extends Function implements EvaluatorMapper {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "chicken_score",
+        ChickenScore::readFrom
+    );
+
+    private static final String NAME = "chicken_score";
 
     @FunctionInfo(
         returnType = "double",
@@ -63,7 +74,7 @@ public class ChickenScore extends Function implements EvaluatorMapper {
 
     @Override
     public String getWriteableName() {
-        return "chicken_score";
+        return NAME;
     }
 
     @Override
@@ -79,6 +90,12 @@ public class ChickenScore extends Function implements EvaluatorMapper {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(this.children());
+    }
+
+    private static Expression readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression query = in.readNamedWriteable(Expression.class);
+        return new ChickenScore(source, query);
     }
 
     private record ChickenScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)

@@ -123,6 +123,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -2909,7 +2910,7 @@ public class InternalEngine extends Engine {
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, () -> false);
         }
 
         @Override

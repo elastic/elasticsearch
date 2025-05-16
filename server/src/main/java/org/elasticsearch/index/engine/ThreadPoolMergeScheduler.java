@@ -41,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     public static final Setting<Boolean> USE_THREAD_POOL_MERGE_SCHEDULER_SETTING = Setting.boolSetting(
@@ -66,13 +67,24 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
+    // if true, scheduled merges will be aborted
+    private final BooleanSupplier shouldSkipMerge;
 
+    /**
+     * Creates a thread-pool-based merge scheduler that runs merges in a thread pool.
+     *
+     * @param shardId the shard id associated with this merge scheduler
+     * @param indexSettings used to obtain the {@link MergeSchedulerConfig}
+     * @param threadPoolMergeExecutorService the executor service used to execute merge tasks from this scheduler
+     * @param mergeMemoryEstimateProvider provides an estimate for how much memory a merge will take
+     * @param shouldSkipMerge if true, scheduled merges will be skipped i.e. aborted by the executor
+     */
     public ThreadPoolMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-        MergeMemoryEstimateProvider mergeMemoryEstimateProvider
-    ) {
+        MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
+        BooleanSupplier shouldSkipMerge) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
@@ -84,6 +96,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         );
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mergeMemoryEstimateProvider = mergeMemoryEstimateProvider;
+        this.shouldSkipMerge = shouldSkipMerge;
     }
 
     @Override
@@ -147,6 +160,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     protected void afterMerge(OnGoingMerge merge) {}
 
     /**
+     * A callback allowing for custom logic when a merge is queued.
+     */
+    protected void mergeQueued(OnGoingMerge merge) {}
+
+    /**
+     * A callback allowing for custom logic after a merge is executed or aborted.
+     */
+    protected void mergeExecutedOrAborted(OnGoingMerge merge) {}
+
+    /**
      * A callback that's invoked when indexing should throttle down indexing in order to let merging to catch up.
      */
     protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
@@ -168,6 +191,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         try {
             MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+            mergeQueued(mergeTask.onGoingMerge);
             return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         } finally {
             checkMergeTaskThrottling();
@@ -223,6 +247,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
+        } else if (shouldSkipMerge.getAsBoolean()) {
+            if (verbose()) {
+                message(String.format(Locale.ROOT, "skipping merge task %s", mergeTask));
+            }
+            return Schedule.ABORT;
         } else if (runningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
@@ -243,8 +272,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         maybeSignalAllMergesDoneAfterClose();
     }
 
-    private void mergeTaskDone() {
+    private void mergeTaskDone(OnGoingMerge merge) {
         doneMergeTaskCount.incrementAndGet();
+        mergeExecutedOrAborted(merge);
         checkMergeTaskThrottling();
     }
 
@@ -408,7 +438,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 try {
                     mergeTaskFinishedRunning(this);
                 } finally {
-                    mergeTaskDone();
+                    mergeTaskDone(onGoingMerge);
                 }
                 try {
                     // kick-off any follow-up merge
@@ -452,7 +482,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s end abort", this));
                 }
-                mergeTaskDone();
+                mergeTaskDone(onGoingMerge);
             }
         }
 

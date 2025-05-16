@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.action;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -38,7 +39,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
         "Failed to send Hugging Face %s request from inference entity id [%s]";
     private static final String INVALID_REQUEST_TYPE_MESSAGE = "Invalid request type: expected HuggingFace %s request but got %s";
-    static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler("hugging face rerank", (request, response) -> {
+    private static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler("hugging face rerank", (request, response) -> {
         var errorMessage = format(INVALID_REQUEST_TYPE_MESSAGE, "RERANK", request != null ? request.getClass().getName() : "null");
 
         if ((request instanceof HuggingFaceRerankRequest) == false) {
@@ -68,7 +69,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             ),
             QueryAndDocsInputs.class
         );
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "RERANK", model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
@@ -84,11 +85,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(
-            "Failed to send Hugging Face %s request from inference entity id [%s]",
-            "text embeddings",
-            model.getInferenceEntityId()
-        );
+        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
@@ -101,7 +98,11 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, "ELSER", model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.SPARSE_EMBEDDING, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
+    }
+
+    public static String buildErrorMessage(TaskType requestType, String inferenceId) {
+        return format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, requestType.toString(), inferenceId);
     }
 }

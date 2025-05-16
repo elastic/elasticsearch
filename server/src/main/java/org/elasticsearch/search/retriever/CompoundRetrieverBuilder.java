@@ -249,8 +249,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         if (rankWindowSize < 0) {
             validationException = addValidationError(
-                "[" + getRankWindowSizeField().getPreferredName() +
-                    "] parameter cannot be negative, found [" + rankWindowSize + "]",
+                "[" + getRankWindowSizeField().getPreferredName() + "] parameter cannot be negative, found [" + rankWindowSize + "]",
                 validationException
             );
         }

@@ -143,8 +143,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         asInstanceOf(LastHttpContent.class, channel.readInbound()).release();
     }
 
-    public void testWithFlowControlAndAggregator() {
-        channel.pipeline().addFirst(new FlowControlHandler());
+    public void testWithAggregator() {
         channel.pipeline().addLast(new Netty4HttpAggregator(8192, (req) -> true, new HttpRequestDecoder()));
 
         channel.writeInbound(newHttpRequest());

@@ -18,6 +18,7 @@ import java.io.IOException;
  *
  * @deprecated Use {@link ActionRequest} with a specific {@link ActionResponse} type.
  */
+@Deprecated
 public abstract class LegacyActionRequest extends ActionRequest {
     public LegacyActionRequest() {
         super();

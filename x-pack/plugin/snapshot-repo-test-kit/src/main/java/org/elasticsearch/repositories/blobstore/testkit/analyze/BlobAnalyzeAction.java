@@ -13,9 +13,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -68,12 +68,12 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
 /**
  * Action which instructs a node to write a blob to the blob store and verify that it can be read correctly by other nodes. The other nodes
  * may read the whole blob or just a range; we verify the data that is read by checksum using {@link GetBlobChecksumAction}.
- *
+ * <p>
  * The other nodes may optionally be instructed to attempt their read just before the write completes (which may indicate that the blob is
  * not found but must not yield partial data), and may optionally overwrite the blob while the reads are ongoing (which may yield either
  * version of the blob, but again must not yield partial data). Usually, however, we write once and only read after the write completes, and
  * in this case we insist that the read succeeds.
- *
+ * <p>
  * The writer may also attempt to copy the blob, either just before the write completes (which may fail with not found)
  * or after (which should not fail). The writer may overwrite the source while the copy is in progress. If a copy is attempted,
  * readers will read the copy instead of the original. As above, if the copy succeeds, then readers should see a complete copy.
@@ -166,11 +166,10 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *      |                                    |                                        |
  *
  * </pre>
- *
- *
+ * <p>
+ * <p>
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
- *
  */
 class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
 
@@ -218,10 +217,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobAnalyzeAction.Request request;
+        private final Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobAnalyzeAction.Response> listener;
+        private final ActionListener<Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
@@ -239,10 +238,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobAnalyzeAction.Request request,
+            Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobAnalyzeAction.Response> listener
+            ActionListener<Response> listener
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -724,7 +723,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;

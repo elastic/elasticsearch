@@ -78,7 +78,12 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
             if (buffer.size() > 0) {
                 final var message = buffer.pollFirst();
                 if (message instanceof HttpRequest httpRequest) {
-                    validate(ctx, httpRequest);
+                    if (httpRequest.decoderResult().isFailure()) {
+                        ctx.fireChannelRead(message); // pass-through for decoding failures
+                        ctx.fireChannelReadComplete(); // downstream will have to call read() again when it's ready
+                    } else {
+                        validate(ctx, httpRequest);
+                    }
                 } else {
                     assert message instanceof HttpContent;
                     assert state == State.PASSING : state; // DROPPING releases any buffered chunks up-front

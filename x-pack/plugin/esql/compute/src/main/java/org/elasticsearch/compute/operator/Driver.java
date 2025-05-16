@@ -53,6 +53,13 @@ public class Driver implements Releasable, Describable {
     private final String sessionId;
 
     /**
+     * Description of the task this driver is running. This description should be
+     * short and meaningful as a grouping identifier. We use the phase of the
+     * query right now: "data", "node_reduce", "final".
+     */
+    private final String taskDescription;
+
+    /**
      * The wall clock time when this driver was created in milliseconds since epoch.
      * Compared to {@link #startNanos} this is less accurate and is measured by a
      * timer that can go backwards. This is only useful for presenting times to a
@@ -96,6 +103,10 @@ public class Driver implements Releasable, Describable {
     /**
      * Creates a new driver with a chain of operators.
      * @param sessionId session Id
+     * @param taskDescription Description of the task this driver is running. This
+     *                        description should be short and meaningful as a grouping
+     *                        identifier. We use the phase of the query right now:
+     *                        "data", "node_reduce", "final".
      * @param driverContext the driver context
      * @param source source operator
      * @param intermediateOperators  the chain of operators to execute
@@ -105,6 +116,7 @@ public class Driver implements Releasable, Describable {
      */
     public Driver(
         String sessionId,
+        String taskDescription,
         long startTime,
         long startNanos,
         DriverContext driverContext,
@@ -116,6 +128,7 @@ public class Driver implements Releasable, Describable {
         Releasable releasable
     ) {
         this.sessionId = sessionId;
+        this.taskDescription = taskDescription;
         this.startTime = startTime;
         this.startNanos = startNanos;
         this.driverContext = driverContext;
@@ -129,6 +142,7 @@ public class Driver implements Releasable, Describable {
         this.status = new AtomicReference<>(
             new DriverStatus(
                 sessionId,
+                taskDescription,
                 startTime,
                 System.currentTimeMillis(),
                 0,
@@ -150,6 +164,7 @@ public class Driver implements Releasable, Describable {
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(
+        String taskDescription,
         DriverContext driverContext,
         SourceOperator source,
         List<Operator> intermediateOperators,
@@ -158,6 +173,7 @@ public class Driver implements Releasable, Describable {
     ) {
         this(
             "unset",
+            taskDescription,
             System.currentTimeMillis(),
             System.nanoTime(),
             driverContext,
@@ -497,6 +513,7 @@ public class Driver implements Releasable, Describable {
             throw new IllegalStateException("can only get profile from finished driver");
         }
         return new DriverProfile(
+            status.taskDescription(),
             status.started(),
             status.lastUpdated(),
             finishNanos - startNanos,
@@ -543,6 +560,7 @@ public class Driver implements Releasable, Describable {
 
             return new DriverStatus(
                 sessionId,
+                taskDescription,
                 startTime,
                 now,
                 prev.cpuNanos() + extraCpuNanos,

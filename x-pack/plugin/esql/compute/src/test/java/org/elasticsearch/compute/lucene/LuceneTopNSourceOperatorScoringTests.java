@@ -127,7 +127,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            new Driver("test", ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
         );
         OperatorTestCase.assertDriverContext(ctx);
 

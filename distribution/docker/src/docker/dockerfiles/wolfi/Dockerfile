@@ -132,6 +132,35 @@ RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security
 
 EXPOSE 9200 9300
 
+
+LABEL org.label-schema.build-date="${build_date}" \\
+  org.label-schema.license="${license}" \\
+  org.label-schema.name="Elasticsearch" \\
+  org.label-schema.schema-version="1.0" \\
+  org.label-schema.url="https://www.elastic.co/products/elasticsearch" \\
+  org.label-schema.usage="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \\
+  org.label-schema.vcs-ref="${git_revision}" \\
+  org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \\
+  org.label-schema.vendor="Elastic" \\
+  org.label-schema.version="${version}" \\
+  org.opencontainers.image.created="${build_date}" \\
+  org.opencontainers.image.documentation="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \\
+  org.opencontainers.image.licenses="${license}" \\
+  org.opencontainers.image.revision="${git_revision}" \\
+  org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \\
+  org.opencontainers.image.title="Elasticsearch" \\
+  org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
+  org.opencontainers.image.vendor="Elastic" \\
+  org.opencontainers.image.version="${version}"
+
+LABEL name="Elasticsearch" \\
+  maintainer="infra@elastic.co" \\
+  vendor="Elastic" \\
+  version="${version}" \\
+  release="1" \\
+  summary="Elasticsearch" \\
+  description="You know, for search."
+
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It

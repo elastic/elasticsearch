@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/127689
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testSnapshotShutdownProgressTracker
-  issue: https://github.com/elastic/elasticsearch/issues/127690
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
@@ -447,24 +444,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/120_profile/avg 8.14 or after}
   issue: https://github.com/elastic/elasticsearch/issues/127879
-- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
-  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
-  issue: https://github.com/elastic/elasticsearch/issues/127787
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/126359
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testRandomWithFilter
-  issue: https://github.com/elastic/elasticsearch/issues/127963
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testSearchBoost
-  issue: https://github.com/elastic/elasticsearch/issues/127969
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/127437
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testFindFewer
-  issue: https://github.com/elastic/elasticsearch/issues/128002
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009
@@ -477,6 +462,21 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/128024
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/128030
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/128031
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test042KeystorePermissionsAreCorrect
+  issue: https://github.com/elastic/elasticsearch/issues/128019
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
+  issue: https://github.com/elastic/elasticsearch/issues/128044
+- class: org.elasticsearch.compute.aggregation.PercentileIntGroupingAggregatorFunctionTests
+  method: testManyInitialManyPartialFinalRunner
+  issue: https://github.com/elastic/elasticsearch/issues/128092
 
 # Examples:
 #

@@ -28,9 +28,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -158,11 +155,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
 
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return url.openStream();
     }
 
     @Override

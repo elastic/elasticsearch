@@ -269,41 +269,47 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     // options. We also remember the originally supplied arguments in order to make tests happy.
     private final transient List<Expression> fields;
     private final transient List<Expression> fieldsOriginal;
+    private final transient List<Expression> fieldsAndQuery;
     private final transient Expression options;
     private final transient Expression optionsOriginal;
 
-    private static List<Expression> initChildren(Expression query, List<Expression> fields, Expression options) {
-        Stream<Expression> fieldsAndQuery = Stream.concat(Stream.of(query), fields.stream());
-        return (options == null ? fieldsAndQuery : Stream.concat(fieldsAndQuery, Stream.of(options))).toList();
+    private static List<Expression> initChildren(List<Expression> fieldsAndQuery, Expression options) {
+        return (options == null ? fieldsAndQuery.stream() : Stream.concat(fieldsAndQuery.stream(), Stream.of(options))).toList();
     }
 
-    private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
-        super(source, query, initChildren(query, fields, options), queryBuilder);
-        this.fieldsOriginal = fields;
+    private MultiMatch(Source source, Expression field, List<Expression> fieldsAndQuery, Expression options, QueryBuilder queryBuilder) {
+        super(
+            source,
+            fieldsAndQuery.getLast(),
+            initChildren(Stream.concat(Stream.of(field), fieldsAndQuery.stream()).toList(), options),
+            queryBuilder
+        );
+        this.fieldsAndQuery = Stream.concat(Stream.of(field), fieldsAndQuery.subList(0, fieldsAndQuery.size()).stream()).toList();
+        this.fieldsOriginal = Stream.concat(Stream.of(field), fieldsAndQuery.subList(0, fieldsAndQuery.size() - 1).stream()).toList();
         this.optionsOriginal = options;
 
         if (options == null || options instanceof MapExpression) {
-            this.fields = fields;
+            this.fields = fieldsOriginal;
             this.options = options;
         } else {
-            this.fields = Stream.concat(fields.stream(), Stream.of(options)).toList();
+            this.fields = Stream.concat(fieldsOriginal.stream(), Stream.of(options)).toList();
             this.options = null;
         }
     }
 
     private static MultiMatch readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        Expression query = in.readNamedWriteable(Expression.class);
-        List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
+        Expression firstField = in.readNamedWriteable(Expression.class);
+        List<Expression> fieldsAndQuery = in.readNamedWriteableCollectionAsList(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new MultiMatch(source, query, fields, null, queryBuilder);
+        return new MultiMatch(source, firstField, fieldsAndQuery, null, queryBuilder);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(query());
-        out.writeNamedWriteableCollection(fields);
+        out.writeNamedWriteable(fieldsAndQuery.getFirst());
+        out.writeNamedWriteableCollection(fieldsAndQuery.subList(1, fieldsAndQuery.size() - 1));
         out.writeOptionalNamedWriteable(queryBuilder());
     }
 
@@ -331,7 +337,13 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     protected NodeInfo<? extends Expression> info() {
         // Specifically create new instance with original arguments.
-        return NodeInfo.create(this, MultiMatch::new, query(), fieldsOriginal, optionsOriginal);
+        return NodeInfo.create(
+            this,
+            MultiMatch::new,
+            fieldsAndQuery.getFirst(),
+            fieldsAndQuery.subList(1, fieldsAndQuery.size()),
+            optionsOriginal
+        );
     }
 
     @Override
@@ -349,7 +361,13 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         // Specifically create new instance with original arguments.
-        return new MultiMatch(source(), query(), fieldsOriginal, optionsOriginal, queryBuilder);
+        return new MultiMatch(
+            source(),
+            fieldsAndQuery.getFirst(),
+            fieldsAndQuery.subList(1, fieldsAndQuery.size()),
+            optionsOriginal,
+            queryBuilder
+        );
     }
 
     public List<Expression> fields() {

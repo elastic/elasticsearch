@@ -109,6 +109,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public void tryDiscard() {
+        delegate.tryDiscard();
+    }
+
+    @Override
     public void close() throws IOException {
         delegate.close();
     }

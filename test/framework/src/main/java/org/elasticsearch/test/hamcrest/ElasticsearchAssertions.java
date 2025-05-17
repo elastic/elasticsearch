@@ -381,6 +381,13 @@ public class ElasticsearchAssertions {
         }
     }
 
+    public static void assertHitSize(SearchResponse countResponse, int expectedHitsSize) {
+        final int hitSize = countResponse.getHits().getHits().length;
+        if (hitSize != expectedHitsSize) {
+            fail("Hit size is " + hitSize + " but " + expectedHitsSize + " was expected. " + formatShardStatus(countResponse));
+        }
+    }
+
     public static void assertHitCountAndNoFailures(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
         assertNoFailuresAndResponse(searchRequestBuilder, response -> assertHitCount(response, expectedHitCount));
     }

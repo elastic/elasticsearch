@@ -208,6 +208,22 @@ public abstract class QueryList {
     }
 
     /**
+     * Returns a list of term queries for the given field and the input block of
+     * {@code date_nanos} field values.
+     */
+    public static QueryList dateNanosTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
+        return new TermQueryList(
+            field,
+            searchExecutionContext,
+            block,
+            null,
+            field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
+                ? offset -> rangeFieldType.dateTimeFormatter().formatNanos(block.getLong(offset))
+                : block::getLong
+        );
+    }
+
+    /**
      * Returns a list of geo_shape queries for the given field and the input block.
      */
     public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {

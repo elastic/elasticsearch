@@ -16,8 +16,6 @@ import org.gradle.api.Task;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
-import java.util.stream.Collectors;
-
 import javax.inject.Inject;
 
 public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
@@ -33,18 +31,10 @@ public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         return project.getTasks().register(FILEPERMISSIONS_TASK_NAME, FilePermissionsTask.class, t -> {
-            t.getSources()
-                .addAll(
-                    providerFactory.provider(
-                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
-                    )
-                );
-            t.dependsOn(
-                GradleUtils.getJavaSourceSets(project)
-                    .stream()
-                    .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
-                    .collect(Collectors.toList())
-            );
+            GradleUtils.getJavaSourceSets(project).configureEach(sourceSet -> {
+                t.getSources().add(sourceSet.getAllSource());
+                t.dependsOn(sourceSet.getProcessResourcesTaskName());
+            });
         });
     }
 }

@@ -30,7 +30,7 @@ esplugin {
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
 configurations {
-  [testCompileClasspath, testRuntimeClasspath, internalClusterTestCompileClasspath, internalClusterTestRuntimeClasspath].each {
+  [testCompileClasspath, testRuntimeClasspath].each {
     it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty4'
   }
 }
@@ -237,3 +237,4 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/netty-signatures.txt')
 }
+

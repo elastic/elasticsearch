@@ -647,7 +647,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert ThreadPool.assertCurrentThreadPool(
             Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
             Stateless.SHARD_WRITE_THREAD_POOL,
-            Stateless.PREWARM_THREAD_POOL
+            Stateless.PREWARM_THREAD_POOL,
+            Stateless.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {

@@ -315,6 +315,8 @@ public class Stateless extends Plugin
         + "_thread_pool";
     public static final String PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME;
     public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
+    public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
+    public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
     public static final String MERGE_THREAD_POOL = "stateless.merge";
     public static final String MERGE_THREAD_POOL_SETTING = "stateless." + MERGE_THREAD_POOL + "_thread_pool";
 
@@ -831,6 +833,8 @@ public class Stateless extends Plugin
         final int fillVirtualBatchedCompoundCommitCacheCoreThreads;
         final int fillVirtualBatchedCompoundCommitCacheMaxThreads;
         final int prewarmMaxThreads = Math.min(processors * 4, 32);
+        final int uploadPrewarmCoreThreads;
+        final int uploadPrewarmMaxThreads;
         final int mergeCoreThreads;
         final int mergeMaxThreads;
 
@@ -846,6 +850,13 @@ public class Stateless extends Plugin
             getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
             fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
             fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
+            // These threads are used for prewarming the shared blob cache on upload, and are separate from the prewarm thread pool
+            // in order to avoid any deadlocks between the two (e.g., when two fillgaps compete). Since they are used to prewarm on upload,
+            // we use the same amount of max threads as the shard write pool.
+            // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
+            // threads around to reduce churn and re-use the existing buffers more
+            uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
+            uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
             mergeCoreThreads = 1;
             mergeMaxThreads = processors;
         } else {
@@ -862,6 +873,8 @@ public class Stateless extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             fillVirtualBatchedCompoundCommitCacheCoreThreads = Math.max(processors / 2, 2);
             fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
+            uploadPrewarmCoreThreads = 0;
+            uploadPrewarmMaxThreads = 1;
             mergeCoreThreads = 0;
             mergeMaxThreads = 1;
         }
@@ -925,6 +938,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 PREWARM_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                UPLOAD_PREWARM_THREAD_POOL,
+                uploadPrewarmCoreThreads,
+                uploadPrewarmMaxThreads,
+                TimeValue.timeValueMinutes(5),
+                true,
+                UPLOAD_PREWARM_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 MERGE_THREAD_POOL,

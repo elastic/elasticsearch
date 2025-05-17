@@ -202,6 +202,7 @@ public class SharedBlobCacheWarmingService {
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
+    private final Executor uploadPrewarmFetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
@@ -216,6 +217,7 @@ public class SharedBlobCacheWarmingService {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.fetchExecutor = threadPool.executor(Stateless.PREWARM_THREAD_POOL);
+        this.uploadPrewarmFetchExecutor = threadPool.executor(Stateless.UPLOAD_PREWARM_THREAD_POOL);
 
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
@@ -298,7 +300,7 @@ public class SharedBlobCacheWarmingService {
                     }
                 }
             ),
-            fetchExecutor,
+            uploadPrewarmFetchExecutor,
             listener.map(b -> null)
         );
     }
@@ -434,6 +436,7 @@ public class SharedBlobCacheWarmingService {
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
             Stateless.PREWARM_THREAD_POOL,
+            Stateless.UPLOAD_PREWARM_THREAD_POOL,
             Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);

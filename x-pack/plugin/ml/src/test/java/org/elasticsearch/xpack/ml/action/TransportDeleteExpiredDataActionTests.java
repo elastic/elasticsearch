@@ -10,8 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,6 +47,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     private ThreadPool threadPool;
     private TransportDeleteExpiredDataAction transportDeleteExpiredDataAction;
     private AnomalyDetectionAuditor auditor;
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     /**
      * A data remover that only checks for timeouts.
@@ -65,6 +68,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(
             threadPool,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            indexNameExpressionResolver,
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             client,

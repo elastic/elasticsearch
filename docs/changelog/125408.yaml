@@ -1,0 +1,6 @@
+pr: 125408
+summary: Prevent `UnusuedStatsRemover` from failing when deleting documents in read-only
+  indices
+area: Machine Learning
+type: bug
+issues: []

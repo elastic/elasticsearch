@@ -596,7 +596,7 @@ public class EsqlSession {
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] canRemoveAliases = new boolean[] { true };
+        boolean[] canRemoveAliases = new boolean[] { true, true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -663,13 +663,22 @@ public class EsqlSession {
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                p.forEachExpressionDown(Alias.class, alias -> {
-                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
-                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                    if (fieldNames.contains(alias.name())) {
-                        return;
+                canRemoveAliases[1] = true;
+                // go down each plan and remove aliases until we meet a plan that can override aliases
+                p.forEachDown(c -> {
+                    if (canRemoveAliases[1] && couldOverrideAliases(c)) {
+                        canRemoveAliases[1] = false;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                    if (canRemoveAliases[1]) {
+                        c.forEachExpression(Alias.class, alias -> {
+                            // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                            // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                            if (fieldNames.contains(alias.name())) {
+                                return;
+                            }
+                            referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                        });
+                    }
                 });
             }
         });

@@ -234,6 +234,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
+        // MP TODO: Huzzah! I can inject the namespace validator into the MappingParserContext here !!!
         this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
@@ -245,7 +246,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexAnalyzers,
             indexSettings,
             idFieldMapper,
-            bitSetProducer
+            bitSetProducer,
+            mapperRegistry.getNamespaceValidator()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

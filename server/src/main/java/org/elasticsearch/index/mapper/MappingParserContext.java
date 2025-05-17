@@ -42,6 +42,7 @@ public class MappingParserContext {
     private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
     private long mappingObjectDepth = 0;
 
     public MappingParserContext(
@@ -55,7 +56,8 @@ public class MappingParserContext {
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
         IdFieldMapper idFieldMapper,
-        Function<Query, BitSetProducer> bitSetProducer
+        Function<Query, BitSetProducer> bitSetProducer,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -69,6 +71,41 @@ public class MappingParserContext {
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
+        this.namespaceValidator = namespaceValidator;
+    }
+
+    // MP TODO: only used by tests, so remove this after tests are updated?
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer
+    ) {
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {

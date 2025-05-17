@@ -530,7 +530,7 @@ required_capability: agg_values
 mvAppend
 required_capability: fn_mv_append
 
-FROM employees
+    FROM employees
 | WHERE emp_no == 10008 OR emp_no == 10021
 | EVAL d = mv_append(salary_change, salary_change),
        i = mv_append(salary_change.int, salary_change.int),
@@ -591,4 +591,43 @@ s:double | emp_no:integer | salary:integer  | salary_change:double
 -1.0     | 10002          | 56371           | [-7.23, 11.17]
 -1.0     | 10004          | 36174           | [-0.35, 1.13, 3.65, 13.48]
 -1.0     | 10005          | 63528           | [-2.14, 13.07]
+;
+
+scalb
+required_capability: fn_scalb
+
+row x = 3.0, y = 10 | eval z = scalb(x, y);
+
+x:double | y:integer | z:double
+3.0      | 10        | 3072.0
+;
+
+scalbWithNonFoldableArgs
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(mv_min(salary_change), emp_no / 1000)
+| keep s
+| limit 3;
+
+s:double
+1218.56 
+-7403.52
+13127.68
+;
+
+scalbWithEvalAndSort
+required_capability: fn_scalb
+from employees
+| eval s = scalb(mv_min(salary_change), 5)
+| where scalb(mv_max(salary_change), 5) > 100
+| keep s, emp_no, salary, salary_change
+| sort s, emp_no
+| limit 3;
+
+s:double | emp_no:integer | salary:integer  | salary_change:double
+-313.92  | 10065          | 50249          | [-9.81, -1.47, 14.44]   
+-296.96  | 10042          | 30404          | [-9.28, 9.42]           
+-295.36  | 10091          | 38645          | [-9.23, 5.19, 5.85, 7.5]
+
 ;

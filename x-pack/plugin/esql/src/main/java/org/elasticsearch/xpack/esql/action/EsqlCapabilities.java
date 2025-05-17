@@ -214,6 +214,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Support for function {@code SCALB}.
+         */
+        FN_SCALB,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,

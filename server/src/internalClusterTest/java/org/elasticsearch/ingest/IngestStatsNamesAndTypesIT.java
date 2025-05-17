@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -109,7 +110,10 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             assertThat(pipelineStat.pipelineId(), equalTo("pipeline1"));
             assertThat(pipelineStat.stats().ingestCount(), equalTo(1L));
 
-            List<IngestStats.ProcessorStat> processorStats = stats.getIngestStats().processorStats().get("pipeline1");
+            List<IngestStats.ProcessorStat> processorStats = stats.getIngestStats()
+                .processorStats()
+                .get(ProjectId.DEFAULT)
+                .get("pipeline1");
             assertThat(processorStats.size(), equalTo(4));
 
             IngestStats.ProcessorStat setA = processorStats.get(0);

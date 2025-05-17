@@ -52,6 +52,8 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
  */
 public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
+    public static final String MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY = "multi_project_enabled_node_stats";
+
     private final long timestamp;
 
     @Nullable

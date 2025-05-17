@@ -846,7 +846,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesCapabilitiesAction());
-        registerHandler.accept(new RestNodesStatsAction());
+        registerHandler.accept(new RestNodesStatsAction(projectIdResolver));
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
@@ -981,7 +981,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
-        registerHandler.accept(new RestClusterInfoAction());
+        registerHandler.accept(new RestClusterInfoAction(projectIdResolver));
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction(projectIdResolver));
         registerHandler.accept(new RestSegmentsAction());

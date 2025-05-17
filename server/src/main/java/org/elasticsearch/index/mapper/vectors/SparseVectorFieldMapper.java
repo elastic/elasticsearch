@@ -73,6 +73,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private boolean excludeFromFieldCaps = false;
 
         public Builder(String name) {
             super(name);
@@ -83,6 +84,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder excludeFromFieldCaps(boolean value) {
+            excludeFromFieldCaps = value;
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { stored, meta };
@@ -90,11 +96,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
-            return new SparseVectorFieldMapper(
-                leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
-                builderParams(this, context)
+            SparseVectorFieldType sparseVectorFieldType = new SparseVectorFieldType(
+                context.buildFullName(leafName()),
+                stored.getValue(),
+                meta.getValue(),
+                excludeFromFieldCaps
             );
+            return new SparseVectorFieldMapper(leafName(), sparseVectorFieldType, builderParams(this, context));
         }
     }
 
@@ -111,7 +119,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final class SparseVectorFieldType extends MappedFieldType {
 
         public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this(name, isStored, meta, false);
+        }
+
+        public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta, boolean excludeFromFieldCaps) {
+            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, excludeFromFieldCaps);
         }
 
         @Override

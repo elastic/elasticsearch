@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -446,7 +447,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(
+            Source.synthetic(name),
+            null,
+            name,
+            new EsField(name, type, Map.of(), true),
+            Nullability.TRUE,
+            null,
+            false
+        );
     }
 
     /**
@@ -455,7 +464,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public static Expression deepCopyOfField(String name, DataType type) {
         return new DeepCopy(
             Source.synthetic(name),
-            new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true))
+            new FieldAttribute(Source.synthetic(name), null, name, new EsField(name, type, Map.of(), true), Nullability.TRUE, null, false)
         );
     }
 

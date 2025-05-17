@@ -505,7 +505,10 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         private static void addFieldAttribute(Map<String, FieldAttribute> fields, String name, DataType type) {
-            fields.put(name, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true)));
+            fields.put(
+                name,
+                new FieldAttribute(Source.EMPTY, null, name, new EsField(name, type, new HashMap<>(), true), Nullability.TRUE, null, false)
+            );
         }
 
         static TestPhysicalPlanBuilder from(String index) {

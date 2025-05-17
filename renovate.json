@@ -18,8 +18,7 @@
     "9.0",
     "8.19",
     "8.18",
-    "8.17",
-    "7.17"
+    "8.17"
   ],
   "packageRules": [
     {
@@ -30,23 +29,9 @@
         "docker"
       ],
       "matchPackageNames": [
-        "/^docker.elastic.co/wolfi/chainguard-base$/"
+        "/^docker.elastic.co/wolfi/chainguard-base$/",
+        "/^docker.elastic.co/wolfi/chainguard-base-fips$/"
       ]
-    }
-  ],
-  "customManagers": [
-    {
-      "description": "Extract Wolfi images from elasticsearch DockerBase configuration",
-      "customType": "regex",
-      "fileMatch": [
-        "build\\-tools\\-internal\\/src\\/main\\/java\\/org\\/elasticsearch\\/gradle\\/internal\\/DockerBase\\.java$"
-      ],
-      "matchStrings": [
-        "\\s*\"?(?<depName>[^\\s:@\"]+)(?::(?<currentValue>[-a-zA-Z0-9.]+))?(?:@(?<currentDigest>sha256:[a-zA-Z0-9]+))?\"?"
-      ],
-      "currentValueTemplate": "{{#if currentValue}}{{{currentValue}}}{{else}}latest{{/if}}",
-      "autoReplaceStringTemplate": "{{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}\"",
-      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -24,19 +24,27 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM ${base_image} AS builder
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:29150cd940cc7f69407d978d5a19c86f4d9e67cf44e4d6ded787a497e8f27c9a AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+# For wolfi we pick it from the blessed wolfi package registry.
+#
+# The tini GitHub page gives instructions for verifying the binary using
+# gpg, but the keyservers are slow to return the key and this can fail the
+# build. Instead, we check the binary against the published checksum.
+
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
+
 
 # Fetch the appropriate Elasticsearch distribution for this architecture.
 # Keep this command on one line - it is replaced with a `COPY` during local builds.
 # It uses the `arch` shell command to fetch the correct distro for the build machine,
-# which is needed for Docker Hub builds.
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\${arch}.tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
@@ -64,38 +72,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-# Add plugins infrastructure
-RUN mkdir -p /opt/plugins/archive
-RUN chmod -R 0555 /opt/plugins
-
-RUN mkdir -p /fips/libs
-COPY fips/libs/*.jar /fips/libs/
-
-COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN set -eux ; \\
-    for beat in filebeat metricbeat ; do \\
-      if [ ! -s /tmp/\$beat-${version}.tar.gz ]; then \\
-        echo "/tmp/\$beat-${version}.tar.gz is empty - cannot uncompress" 2>&1 ; \\
-        exit 1 ; \\
-      fi ; \\
-      if ! tar tf /tmp/\$beat-${version}.tar.gz >/dev/null; then \\
-        echo "/tmp/\$beat-${version}.tar.gz is corrupt - cannot uncompress" 2>&1 ; \\
-        exit 1 ; \\
-      fi ; \\
-      mkdir -p /opt/\$beat ; \\
-      tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
-    done
-
-COPY plugins/*.zip /opt/plugins/archive/
-
-RUN chown 1000:1000 /opt/plugins/archive/*
-RUN chmod 0444 /opt/plugins/archive/*
-
-COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
-COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
-
-WORKDIR /usr/share/elasticsearch/config
-
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
@@ -103,7 +79,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM ${base_image}
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:29150cd940cc7f69407d978d5a19c86f4d9e67cf44e4d6ded787a497e8f27c9a
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -117,6 +93,9 @@ RUN <%= retry.loop(package_manager,
 # Set Bash as the default shell for future commands
 SHELL ["/bin/bash", "-c"]
 
+# Optionally set Bash as the default shell in the container at runtime
+CMD ["/bin/bash"]
+
 RUN groupadd -g 1000 elasticsearch && \
     adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
     adduser elasticsearch root && \
@@ -127,10 +106,7 @@ ENV ELASTIC_CONTAINER=true
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
-COPY --from=builder --chown=0:0 /opt /opt
 
-ENV ES_PLUGIN_ARCHIVE_DIR=/opt/plugins/archive
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 ENV SHELL=/bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -154,29 +130,8 @@ RUN chmod g=u /etc/passwd && \\
 
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
-# Convert cacerts (PKCS12) to BCFKS format using POSIX-compatible shell syntax
-RUN printf "\\n" | jdk/bin/keytool -importkeystore \
-  -srckeystore /usr/share/elasticsearch/jdk/lib/security/cacerts \
-  -srcstoretype PKCS12 \
-  -destkeystore config/cacerts.bcfks \
-  -deststorepass passwordcacert \
-  -deststoretype BCFKS \
-  -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.5.jar \
-  -destprovidername BCFIPS
-
-
-## Add fips specific JVM options
-RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
--Djavax.net.ssl.keyStoreType=BCFKS
--Dorg.bouncycastle.fips.approved_only=true
--Djava.security.properties=config/fips_java.security
--Djava.security.policy=config/fips_java.policy
--Djavax.net.ssl.trustStore=config/cacerts.bcfks
--Djavax.net.ssl.trustStorePassword=passwordcacert
-EOF
-
 EXPOSE 9200 9300
+
 
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\
@@ -208,13 +163,11 @@ LABEL name="Elasticsearch" \\
 
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
-# Generate a stub command that will be overwritten at runtime
-RUN mkdir /app && \\
-    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
-    chmod 0555 /app/elasticsearch.sh
-
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/app/elasticsearch.sh"]
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the entrypoint we provide, while correctly forwarding signals.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+# Dummy overridable parameter parsed by entrypoint
+CMD ["eswrapper"]
 
 USER 1000:0
 

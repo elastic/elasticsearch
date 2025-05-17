@@ -12,10 +12,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +41,7 @@ public class SageMakerSchemas {
         /*
          * Add new model API to the register call.
          */
-        schemas = register(new OpenAiTextEmbeddingPayload());
+        schemas = register(new OpenAiTextEmbeddingPayload(), new OpenAiCompletionPayload());
 
         streamSchemas = schemas.entrySet()
             .stream()
@@ -88,7 +90,16 @@ public class SageMakerSchemas {
                 )
             ),
             schemas.values().stream().flatMap(SageMakerSchema::namedWriteables)
-        ).toList();
+        )
+            // Dedupe based on Entry name, we allow Payloads to declare the same Entry but the Registry does not handle duplicates
+            .collect(
+                () -> new HashMap<String, NamedWriteableRegistry.Entry>(),
+                (map, entry) -> map.putIfAbsent(entry.name, entry),
+                Map::putAll
+            )
+            .values()
+            .stream()
+            .toList();
     }
 
     public SageMakerSchema schemaFor(SageMakerModel model) throws ElasticsearchStatusException {

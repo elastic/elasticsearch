@@ -13,26 +13,26 @@ import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
 import java.util.Map;
 
-public class SageMakerOpenAiTaskSettingsTests extends InferenceSettingsTestCase<OpenAiTextEmbeddingPayload.ApiTaskSettings> {
+public class SageMakerOpenAiTaskSettingsTests extends InferenceSettingsTestCase<SageMakerOpenAiTaskSettings> {
     @Override
-    protected OpenAiTextEmbeddingPayload.ApiTaskSettings fromMutableMap(Map<String, Object> mutableMap) {
+    protected SageMakerOpenAiTaskSettings fromMutableMap(Map<String, Object> mutableMap) {
         var validationException = new ValidationException();
-        var settings = OpenAiTextEmbeddingPayload.ApiTaskSettings.fromMap(mutableMap, validationException);
+        var settings = SageMakerOpenAiTaskSettings.fromMap(mutableMap, validationException);
         validationException.throwIfValidationErrorsExist();
         return settings;
     }
 
     @Override
-    protected Writeable.Reader<OpenAiTextEmbeddingPayload.ApiTaskSettings> instanceReader() {
-        return OpenAiTextEmbeddingPayload.ApiTaskSettings::new;
+    protected Writeable.Reader<SageMakerOpenAiTaskSettings> instanceReader() {
+        return SageMakerOpenAiTaskSettings::new;
     }
 
     @Override
-    protected OpenAiTextEmbeddingPayload.ApiTaskSettings createTestInstance() {
+    protected SageMakerOpenAiTaskSettings createTestInstance() {
         return randomApiTaskSettings();
     }
 
-    static OpenAiTextEmbeddingPayload.ApiTaskSettings randomApiTaskSettings() {
-        return new OpenAiTextEmbeddingPayload.ApiTaskSettings(randomOptionalString());
+    static SageMakerOpenAiTaskSettings randomApiTaskSettings() {
+        return new SageMakerOpenAiTaskSettings(randomOptionalString());
     }
 }

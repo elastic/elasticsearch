@@ -11,6 +11,7 @@ import software.amazon.awssdk.core.SdkBytes;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -88,27 +89,33 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
     }
 
     public final void testWithUnknownApiServiceSettings() {
-        SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(mock());
-        when(model.apiTaskSettings()).thenReturn(randomApiTaskSettings());
-        when(model.api()).thenReturn("serviceApi");
-        when(model.getTaskType()).thenReturn(TaskType.ANY);
+        // skip the test if we don't have SageMakerStoredServiceSchema for this payload
+        if (randomApiServiceSettings() != SageMakerStoredServiceSchema.NO_OP) {
+            SageMakerModel model = mock();
+            when(model.apiServiceSettings()).thenReturn(mock());
+            when(model.apiTaskSettings()).thenReturn(randomApiTaskSettings());
+            when(model.api()).thenReturn("serviceApi");
+            when(model.getTaskType()).thenReturn(TaskType.ANY);
 
-        var e = assertThrows(IllegalArgumentException.class, () -> payload.requestBytes(model, randomRequest()));
+            var e = assertThrows(IllegalArgumentException.class, () -> payload.requestBytes(model, randomRequest()));
 
-        assertThat(e.getMessage(), startsWith("Unsupported SageMaker settings for api [serviceApi] and task type [any]:"));
+            assertThat(e.getMessage(), startsWith("Unsupported SageMaker settings for api [serviceApi] and task type [any]:"));
+        }
     }
 
     public final void testWithUnknownApiTaskSettings() {
-        SageMakerModel model = mock();
-        when(model.apiServiceSettings()).thenReturn(randomApiServiceSettings());
-        when(model.apiTaskSettings()).thenReturn(mock());
-        when(model.api()).thenReturn("taskApi");
-        when(model.getTaskType()).thenReturn(TaskType.ANY);
+        // skip the test if we don't have SageMakerStoredTaskSchema for this payload
+        if (randomApiTaskSettings() != SageMakerStoredTaskSchema.NO_OP) {
+            SageMakerModel model = mock();
+            when(model.apiServiceSettings()).thenReturn(randomApiServiceSettings());
+            when(model.apiTaskSettings()).thenReturn(mock());
+            when(model.api()).thenReturn("taskApi");
+            when(model.getTaskType()).thenReturn(TaskType.ANY);
 
-        var e = assertThrows(IllegalArgumentException.class, () -> payload.requestBytes(model, randomRequest()));
+            var e = assertThrows(IllegalArgumentException.class, () -> payload.requestBytes(model, randomRequest()));
 
-        assertThat(e.getMessage(), startsWith("Unsupported SageMaker settings for api [taskApi] and task type [any]:"));
+            assertThat(e.getMessage(), startsWith("Unsupported SageMaker settings for api [taskApi] and task type [any]:"));
+        }
     }
 
     public final void testUpdate() throws IOException {
@@ -131,12 +138,6 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
             });
             assertTrue("Map should be empty now that we verified all updated keys and all initial keys", updatedSettings.isEmpty());
         }
-        if (payload instanceof SageMakerStoredTaskSchema taskSchema) {
-            var otherTaskSettings = randomValueOtherThan(randomApiTaskSettings(), this::randomApiTaskSettings);
-            var otherTaskSettingsAsMap = toMap(otherTaskSettings);
-
-            taskSchema.updatedTaskSettings(otherTaskSettingsAsMap);
-        }
     }
 
     protected static SageMakerInferenceRequest randomRequest() {
@@ -152,5 +153,9 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
 
     protected static void assertSdkBytes(SdkBytes sdkBytes, String expectedValue) {
         assertThat(sdkBytes.asUtf8String(), equalTo(expectedValue));
+    }
+
+    protected static void assertJsonSdkBytes(SdkBytes sdkBytes, String expectedValue) throws IOException {
+        assertThat(sdkBytes.asUtf8String(), equalTo(XContentHelper.stripWhitespace(expectedValue)));
     }
 }

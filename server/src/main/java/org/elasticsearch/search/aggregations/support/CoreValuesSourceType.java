@@ -19,6 +19,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.lucene.queries.TimestampQuery;
+import org.elasticsearch.lucene.util.DocValuesSkipperUtils;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
@@ -315,18 +318,31 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
                     }
+
+                    if (dft.hasDocValuesSkipper()) {
+                        Long min = DocValuesSkipperUtils.getMinValue(context.searcher().getIndexReader(), fieldContext.field());
+                        if (min != null) {
+                            long max = DocValuesSkipperUtils.getMaxValue(context.searcher().getIndexReader(), fieldContext.field());
+                            range[0] = min;
+                            range[1] = max;
+                        }
+                    }
+
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
                     boolean isMultiValue = false;
-                    for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().isIndexed()) {
-                            PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
-                            if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
-                                isMultiValue = true;
-                            }
-                        } else if (fieldContext.fieldType().hasDocValues()) {
-                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
-                                isMultiValue = true;
+                    // The @timestamp field is always a single valued.
+                    if (DataStream.TIMESTAMP_FIELD_NAME.equals(indexFieldData.getFieldName()) == false) {
+                        for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
+                            if (fieldContext.fieldType().isIndexed()) {
+                                PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
+                                if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
+                                    isMultiValue = true;
+                                }
+                            } else if (fieldContext.fieldType().hasDocValues()) {
+                                if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                                    isMultiValue = true;
+                                }
                             }
                         }
                     }
@@ -355,6 +371,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                 if (query instanceof PointRangeQuery prq) {
                                     range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
                                     range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
+                                } else if (query instanceof TimestampQuery timestampQuery) {
+                                    range[0] = Math.max(range[0], timestampQuery.getMinTimestamp());
+                                    range[1] = Math.min(range[1], timestampQuery.getMaxTimestamp());
                                 }
                             };
                         });

@@ -29,12 +29,21 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
     public OpenAiUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponse::fromResponse);
+    }
+
+    public OpenAiUnifiedChatCompletionResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
+        super(requestType, parseFunction, errorParseFunction);
     }
 
     @Override
@@ -59,7 +68,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                 : new UnifiedChatCompletionException(
                     restStatus,
                     errorMessage,
-                    errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
+                    createErrorType(errorResponse),
                     restStatus.name().toLowerCase(Locale.ROOT)
                 );
         } else {
@@ -67,7 +76,11 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         }
     }
 
-    private static Exception buildMidStreamError(Request request, String message, Exception e) {
+    protected static String createErrorType(ErrorResponse errorResponse) {
+        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
+    }
+
+    protected Exception buildMidStreamError(Request request, String message, Exception e) {
         var errorResponse = OpenAiErrorResponse.fromString(message);
         if (errorResponse instanceof OpenAiErrorResponse oer) {
             return new UnifiedChatCompletionException(
@@ -88,7 +101,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
                 format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
+                createErrorType(errorResponse),
                 "stream_error"
             );
         }

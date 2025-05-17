@@ -972,14 +972,14 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of(),
             StringMatcher.of(dataStreamName, backingIndex.getName(), concreteIndex.getName(), alias.getName())
         );
-        assertThat(predicate.test(dataStream), is(false));
+        assertThat(predicate.test(dataStream, IndexComponentSelector.DATA), is(false));
         // test authorization for a missing resource with the datastream's name
         assertThat(predicate.test(dataStream.getName(), null, IndexComponentSelector.DATA), is(true));
-        assertThat(predicate.test(backingIndex), is(false));
+        assertThat(predicate.test(backingIndex, IndexComponentSelector.DATA), is(false));
         // test authorization for a missing resource with the backing index's name
         assertThat(predicate.test(backingIndex.getName(), null, IndexComponentSelector.DATA), is(true));
-        assertThat(predicate.test(concreteIndex), is(true));
-        assertThat(predicate.test(alias), is(true));
+        assertThat(predicate.test(concreteIndex, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(alias, IndexComponentSelector.DATA), is(true));
     }
 
     public void testResourceAuthorizedPredicateAnd() {
@@ -1011,14 +1011,14 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
         IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
         IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
-        assertThat(predicate.test(dataStreamA), is(false));
-        assertThat(predicate.test(dataStreamB), is(false));
-        assertThat(predicate.test(dataStreamC), is(true));
-        assertThat(predicate.test(dataStreamD), is(false));
-        assertThat(predicate.test(concreteIndexA), is(true));
-        assertThat(predicate.test(concreteIndexB), is(true));
-        assertThat(predicate.test(concreteIndexC), is(true));
-        assertThat(predicate.test(concreteIndexD), is(true));
+        assertThat(predicate.test(dataStreamA, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamB, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamC, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(dataStreamD, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(concreteIndexA, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexB, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexC, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexD, IndexComponentSelector.DATA), is(true));
     }
 
     public void testResourceAuthorizedPredicateAndWithFailures() {
@@ -1061,12 +1061,12 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexAbstraction concreteIndexE = concreteIndexAbstraction("e");
         IndexAbstraction concreteIndexF = concreteIndexAbstraction("f");
         IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
-        assertThat(predicate.test(dataStreamA), is(false));
-        assertThat(predicate.test(dataStreamB), is(false));
-        assertThat(predicate.test(dataStreamC), is(true));
-        assertThat(predicate.test(dataStreamD), is(false));
-        assertThat(predicate.test(dataStreamE), is(false));
-        assertThat(predicate.test(dataStreamF), is(false));
+        assertThat(predicate.test(dataStreamA, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamB, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamC, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(dataStreamD, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamE, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(dataStreamF, IndexComponentSelector.DATA), is(false));
 
         assertThat(predicate.test(dataStreamA, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(dataStreamB, IndexComponentSelector.FAILURES), is(false));
@@ -1075,12 +1075,12 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(predicate.test(dataStreamE, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(dataStreamF, IndexComponentSelector.FAILURES), is(true));
 
-        assertThat(predicate.test(concreteIndexA), is(true));
-        assertThat(predicate.test(concreteIndexB), is(true));
-        assertThat(predicate.test(concreteIndexC), is(true));
-        assertThat(predicate.test(concreteIndexD), is(true));
-        assertThat(predicate.test(concreteIndexE), is(false));
-        assertThat(predicate.test(concreteIndexF), is(false));
+        assertThat(predicate.test(concreteIndexA, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexB, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexC, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexD, IndexComponentSelector.DATA), is(true));
+        assertThat(predicate.test(concreteIndexE, IndexComponentSelector.DATA), is(false));
+        assertThat(predicate.test(concreteIndexF, IndexComponentSelector.DATA), is(false));
 
         assertThat(predicate.test(concreteIndexA, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(concreteIndexB, IndexComponentSelector.FAILURES), is(false));

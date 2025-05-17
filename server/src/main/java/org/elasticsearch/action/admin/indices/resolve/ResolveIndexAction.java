@@ -10,11 +10,11 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -75,7 +75,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
@@ -517,12 +517,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         /**
          * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
          *
-         * @param localIndices   The names and wildcard expressions to resolve
-         * @param projectState   Project state
-         * @param resolver       Resolver instance for matching names
-         * @param indices        List containing any matching indices
-         * @param aliases        List containing any matching aliases
-         * @param dataStreams    List containing any matching data streams
+         * @param localIndices The names and wildcard expressions to resolve
+         * @param projectState Project state
+         * @param resolver     Resolver instance for matching names
+         * @param indices      List containing any matching indices
+         * @param aliases      List containing any matching aliases
+         * @param dataStreams  List containing any matching data streams
          */
         static void resolveIndices(
             @Nullable OriginalIndices localIndices,

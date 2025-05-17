@@ -6,30 +6,25 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+package org.elasticsearch.action;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class GetScriptContextRequest extends LegacyActionRequest {
-    public GetScriptContextRequest() {
+/**
+ * An action request with an unspecified response type.
+ *
+ * @deprecated Use {@link ActionRequest} with a specific {@link ActionResponse} type.
+ */
+@Deprecated
+public abstract class LegacyActionRequest extends ActionRequest {
+    public LegacyActionRequest() {
         super();
     }
 
-    GetScriptContextRequest(StreamInput in) throws IOException {
+    public LegacyActionRequest(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public String toString() {
-        return "get script context";
     }
 }

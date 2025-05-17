@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +33,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField REQUESTS_PER_SECOND = new ParseField("requests_per_second");
         public static final ParseField TIMEOUT = new ParseField("timeout");
@@ -103,6 +103,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         /**
          * Not serialized, the expanded job Ids should only be used
          * on the executing node.
+         *
          * @return The expanded Ids in the case where {@code jobId} is not `_all`
          * otherwise null.
          */

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
@@ -21,7 +21,7 @@ import java.util.Objects;
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
-public abstract class BaseInferenceActionRequest extends ActionRequest {
+public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     private boolean hasBeenRerouted;
 

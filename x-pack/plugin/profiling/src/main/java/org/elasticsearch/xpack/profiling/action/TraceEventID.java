@@ -7,4 +7,4 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-record TraceEventID(String executableName, String threadName, String hostID, String stacktraceID) {}
+record TraceEventID(String executableName, String threadName, String hostID, String stacktraceID, double samplingFrequency) {}

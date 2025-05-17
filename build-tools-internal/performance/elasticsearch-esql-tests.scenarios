@@ -1,0 +1,118 @@
+default-scenarios = ["TEST_ESQL_ABI_CHANGE_TAPI", TEST_ESQL_ABI_CHANGE_TAPI_MAIN, "TEST_ESQL_ABI_CHANGE_TAPI_CC", "TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT", "TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN", "TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN"]
+
+TEST_ESQL_ABI_CHANGE_TAPI {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["-I", ".ci/init.gradle"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+    git-checkout = {
+        cleanup = "@testGitCommit@"
+        build = "@testGitCommit@"
+    }
+    warm-ups = 3
+    iterations = 10
+}
+
+TEST_ESQL_ABI_CHANGE_TAPI_CC {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["--configuration-cache", "-I", ".ci/init.gradle"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+
+    git-checkout = {
+        cleanup = "@testGitCommit@"
+        build = "@testGitCommit@"
+    }
+    warm-ups = 3
+    iterations = 10
+}
+
+TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["--configuration-cache"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+
+    git-checkout = {
+        cleanup = "@testGitCommit@"
+        build = "@testGitCommit@"
+    }
+    warm-ups = 3
+    iterations = 10
+}
+
+TEST_ESQL_ABI_CHANGE_TAPI_MAIN {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["-I", ".ci/init.gradle"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+    git-checkout = {
+        cleanup = "main"
+        build = "main"
+    }
+    warm-ups = 3
+    iterations = 10
+}
+
+TEST_ESQL_ABI_CHANGE_TAPI_CC_MAIN {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["--configuration-cache", "-I", ".ci/init.gradle"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+
+    git-checkout = {
+        cleanup = "main"
+        build = "main"
+    }
+    warm-ups = 3
+    iterations = 10
+}
+
+TEST_ESQL_ABI_CHANGE_TAPI_CC_NOINIT_MAIN {
+    apply-abi-change-to = "x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/action/ColumnInfoImpl.java"
+    tasks = [":x-pack:plugin:esql:test", "--tests", "org.elasticsearch.gradle.benchmarking.BenchmarkingTests"]
+    gradle-args = ["--configuration-cache"]
+    run-using = tooling-api // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    copy-file = {
+        source = "build-tools-internal/performance/test-files/BenchmarkingTests.java"
+        target = "x-pack/plugin/esql/src/test/java/org/elasticsearch/gradle/benchmarking/BenchmarkingTests.java"
+        schedule = SCENARIO
+    }
+    git-checkout = {
+        cleanup = "main"
+        build = "main"
+    }
+    warm-ups = 3
+    iterations = 10
+}

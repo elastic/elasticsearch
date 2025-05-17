@@ -16,7 +16,7 @@ import java.util.List;
 
 public class RetrySettings {
 
-    static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "xpack.inference.http.retry.initial_delay",
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope,
@@ -30,7 +30,7 @@ public class RetrySettings {
         Setting.Property.Dynamic
     );
 
-    static final Setting<TimeValue> RETRY_TIMEOUT_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> RETRY_TIMEOUT_SETTING = Setting.timeSetting(
         "xpack.inference.http.retry.timeout",
         TimeValue.timeValueSeconds(30),
         Setting.Property.NodeScope,
@@ -106,7 +106,7 @@ public class RetrySettings {
         );
     }
 
-    TimeValue getInitialDelay() {
+    public TimeValue getInitialDelay() {
         return initialDelay;
     }
 
@@ -114,7 +114,7 @@ public class RetrySettings {
         return maxDelayBound;
     }
 
-    TimeValue getTimeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 

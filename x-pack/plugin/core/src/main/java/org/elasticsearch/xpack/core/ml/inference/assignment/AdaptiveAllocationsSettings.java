@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,6 +22,24 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class AdaptiveAllocationsSettings implements ToXContentObject, Writeable {
+
+    public static final Setting<Integer> DEFAULT_MIN_ALLOCATIONS = Setting.intSetting(
+        "xpack.ml.models.default_allocations.min",
+        0,
+        0,
+        32,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> DEFAULT_MAX_ALLOCATIONS = Setting.intSetting(
+        "xpack.ml.models.default_allocations.max",
+        32,
+        1,
+        32,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public static final AdaptiveAllocationsSettings RESET_PLACEHOLDER = new AdaptiveAllocationsSettings(false, -1, -1);
 

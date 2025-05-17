@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
@@ -179,6 +180,7 @@ public final class IndexModule {
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -200,7 +202,8 @@ public final class IndexModule {
         final SlowLogFieldProvider slowLogFieldProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
-        final IndexingStatsSettings indexingStatsSettings
+        final IndexingStatsSettings indexingStatsSettings,
+        final SearchStatsSettings searchStatsSettings
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -216,6 +219,7 @@ public final class IndexModule {
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
     }
 
     /**
@@ -552,7 +556,8 @@ public final class IndexModule {
                 indexCommitListener.get(),
                 mapperMetrics,
                 queryRewriteInterceptor,
-                indexingStatsSettings
+                indexingStatsSettings,
+                searchStatsSettings
             );
             success = true;
             return indexService;

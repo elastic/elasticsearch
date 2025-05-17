@@ -26,6 +26,7 @@ A `frequent_item_sets` aggregation looks like this in isolation:
   ]
 }
 ```
+% NOTCONSOLE
 
 |     |     |     |     |
 | --- | --- | --- | --- |
@@ -104,12 +105,14 @@ POST /kibana_sample_data_ecommerce/_async_search
    }
 }
 ```
+% TEST[skip:setup kibana sample data]
 
 The response of the API call above contains an identifier (`id`) of the async search request. You can use the identifier to retrieve the search results:
 
 ```console
 GET /_async_search/<id>
 ```
+% TEST[skip:setup kibana sample data]
 
 The API returns a response similar to the following one:
 
@@ -162,6 +165,7 @@ The API returns a response similar to the following one:
   }
 }
 ```
+% TEST[skip:setup kibana sample data]
 
 1. The array of returned item sets.
 2. The `key` object contains one item set. In this case, it consists of two values of the `category.keyword` field and one value of the `geoip.city_name`.
@@ -199,6 +203,7 @@ POST /kibana_sample_data_ecommerce/_async_search
   }
 }
 ```
+% TEST[skip:setup kibana sample data]
 
 The result will only show item sets that created from documents matching the filter, namely purchases in Europe. Using `filter`, the calculated `support` still takes all purchases into acount. That’s different than specifying a query at the top-level, in which case `support` gets calculated only from purchases in Europe.
 
@@ -244,6 +249,7 @@ GET kibana_sample_data_ecommerce/_search
   }
 }
 ```
+% TEST[skip:setup kibana sample data]
 
 The API returns a response similar to the following one:
 
@@ -305,6 +311,7 @@ The API returns a response similar to the following one:
     }
   }
 ```
+% TEST[skip:setup kibana sample data]
 
 The response shows the categories that customers purchase from most frequently together, the location of the customers who tend to buy items from these categories, and the most frequent price ranges of these purchases.
 

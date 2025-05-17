@@ -65,6 +65,7 @@ PUT /my_geoshapes/_doc/1
   }
 }
 ```
+% TESTSETUP
 
 Use a `geo_distance` filter to match `geo_point` values within a specified distance of another geopoint:
 

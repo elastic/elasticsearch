@@ -25,6 +25,7 @@ return score
 # result(q) is the result set of q
 # rank( result(q), d ) is d's rank within the result(q) starting from 1
 ```
+% NOTCONSOLE
 
 ## Reciprocal rank fusion API [rrf-api]
 
@@ -88,6 +89,7 @@ GET example-index/_search
     }
 }
 ```
+% TEST[skip:example fragment]
 
 In the above example, we execute the `knn` and `standard` retrievers independently of each other. Then we use the `rrf` retriever to combine the results.
 
@@ -163,6 +165,7 @@ GET example-index/_search
     }
 }
 ```
+% TEST[skip:example fragment]
 
 In the above example, we execute each of the two `standard` retrievers independently of each other. Then we use the `rrf` retriever to combine the results.
 
@@ -242,6 +245,7 @@ PUT example-index/_doc/5
 
 POST example-index/_refresh
 ```
+% TEST
 
 We now execute a search using an `rrf` retriever with a `standard` retriever specifying a BM25 query, a `knn` retriever specifying a kNN search, and a terms aggregation.
 
@@ -283,6 +287,7 @@ GET example-index/_search
     }
 }
 ```
+% TEST[continued]
 
 And we receive the response with ranked `hits` and the terms aggregation result. We have both the ranker’s `score` and the `_rank` option to show our top-ranked documents.
 
@@ -356,6 +361,7 @@ And we receive the response with ranked `hits` and the terms aggregation result.
     }
 }
 ```
+% TESTRESPONSE[s/: \.\.\./: $body.$_path/]
 
 Let’s break down how these hits were ranked. We start by running the `standard` retriever specifying a query and the `knn` retriever specifying a kNN search separately to collect what their individual hits are.
 
@@ -404,6 +410,7 @@ First, we look at the hits for the query from the `standard` retriever.
     }
 ]
 ```
+% TEST[skip:example fragment]
 
 1. rank 1, `_id` 4
 2. rank 2, `_id` 3
@@ -456,6 +463,7 @@ Note that our first hit doesn’t have a value for the `vector` field. Now, we l
     }
 ]
 ```
+% TEST[skip:example fragment]
 
 1. rank 1, `_id` 3
 2. rank 2, `_id` 2
@@ -473,6 +481,7 @@ _id: 3 = 1.0/(1+2) + 1.0/(1+1) = 0.8333
 _id: 4 = 1.0/(1+1)             = 0.5000
 _id: 5 =             1.0/(1+4) = 0.2000
 ```
+% NOTCONSOLE
 
 We rank the documents based on the RRF formula with a `rank_window_size` of `5` truncating the bottom `2` docs in our RRF result set with a `size` of `3`. We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and `_id: 4` as `_rank: 3`. This ranking matches the result set from the original RRF search as expected.
 
@@ -530,6 +539,7 @@ In addition to individual query scoring details, we can make use of the `explain
     ]
 }
 ```
+% NOTCONSOLE
 
 1. the final RRF score for document with `_id=3`
 2. a description on how this score was computed based on the ranks of this document in each individual query
@@ -580,6 +590,7 @@ GET example-index/_search
     }
 }
 ```
+% NOTCONSOLE
 
 1. Here we specify a `_name` for the `knn` retriever
 
@@ -623,6 +634,7 @@ The response would now include the named query in the explanation:
     ]
 }
 ```
+% NOTCONSOLE
 
 1. Instead of the anonymous `at index n` , we now have a reference to the named query `my_knn_query`.
 
@@ -647,6 +659,7 @@ _id: |  3        |  3         |
 _id: |  4        |  1         |
 _id: |           |  2         |
 ```
+% NOTCONSOLE
 
 For `rank_window_size=5` we would get to see all documents from both `queryA` and `queryB`. Assuming a `rank_constant=1`, the `rrf` scores would be:
 
@@ -658,6 +671,7 @@ _id: 3 =  1.0/(1+3)  + 1.0/(1+3)      = 0.5
 _id: 4 =  1.0/(1+4)  + 1.0/(1+2)      = 0.533
 _id: 5 =    0        + 1.0/(1+1)      = 0.5
 ```
+% NOTCONSOLE
 
 So the final ranked result set would be [`1`, `4`, `2`, `3`, `5`] and we would paginate over that, since `rank_window_size == len(results)`. In this scenario, we would have:
 
@@ -675,6 +689,7 @@ _id: 2 =  1.0/(1+2)  + 0              = 0.33
 _id: 4 =    0        + 1.0/(1+2)      = 0.33
 _id: 5 =    0        + 1.0/(1+1)      = 0.5
 ```
+% NOTCONSOLE
 
 The final ranked result set would be [`1`, `5`, `2`, `4`], and we would be able to paginate on the top `rank_window_size` results, i.e. [`1`, `5`]. So for the same params as above, we would now have:
 
@@ -700,6 +715,7 @@ For example, consider the following document set:
     "_id": 4, "termA": "foo", "termB": "bar"
 }
 ```
+% NOTCONSOLE
 
 Perform a term aggregation on the `termA` field using an `rrf` retriever:
 
@@ -738,6 +754,7 @@ Perform a term aggregation on the `termA` field using an `rrf` retriever:
     }
 }
 ```
+% NOTCONSOLE
 
 The aggregation results will include **all** matching documents, regardless of `rank_window_size`.
 
@@ -747,6 +764,7 @@ The aggregation results will include **all** matching documents, regardless of `
     "aardvark": 1
 }
 ```
+% NOTCONSOLE
 
 
 ## Highlighting in RRF [_highlighting_in_rrf]

@@ -27,6 +27,7 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+% TEST[s/^/PUT my-index-000001\n/]
 
 ::::{note}
 Norms will not be removed instantly, but will be removed as old segments are merged into new segments as you continue indexing new documents. Any score computation on a field that has had norms removed might return inconsistent results since some documents won’t have norms anymore while other documents might still have norms.

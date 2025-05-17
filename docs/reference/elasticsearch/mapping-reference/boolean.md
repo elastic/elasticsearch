@@ -43,6 +43,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 1. Indexing a document with `"true"`, which is interpreted as `true`.
 2. Searching for documents with a JSON `true`.
@@ -82,6 +83,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations,hits.hits/]
 
 ## Parameters for `boolean` fields [boolean-params]
 
@@ -160,6 +162,7 @@ PUT idx/_doc/1
   "bool": [true, false, true, false]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -168,5 +171,6 @@ Will become:
   "bool": [false, false, true, true]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 

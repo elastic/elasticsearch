@@ -39,6 +39,7 @@ PUT my-index-000001/_doc/2
   "number_two": "foo" <2>
 }
 ```
+% TEST[catch:bad_request]
 
 1. This document will have the `text` field indexed, but not the `number_one` field.
 2. This document will be rejected because `number_two` does not allow malformed values.

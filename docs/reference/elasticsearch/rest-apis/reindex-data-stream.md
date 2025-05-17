@@ -81,6 +81,7 @@ POST _migration/reindex
     "mode": "upgrade"
 }
 ```
+% TEST[setup:my_data_stream]
 
 As this task runs in the background this API will return immediately. The task will do the following.
 
@@ -104,6 +105,7 @@ While the reindex data stream task is running, we can inspect the current status
 ```console
 GET /_migration/reindex/my-data-stream/_status
 ```
+% TEST[continued]
 
 For the above example, the following would be a possible status:
 
@@ -125,6 +127,7 @@ For the above example, the following would be a possible status:
   "errors": []
 }
 ```
+% TEST[skip:specific value is part of explanation]
 
 This output means that the first backing index, `.ds-my-data-stream-2025.01.23-000001`, is currently being processed, and none of the backing indices have yet completed. Notice that `total_indices_in_data_stream` has a value of `4`, because after the rollover, there are 4 indices in the data stream. But the new write index has an 8.x version, and thus doesn’t need to be reindexed, so `total_indices_requiring_upgrade` is only 3.
 
@@ -152,6 +155,7 @@ Continuing with the above example, assume the reindexing task has not yet comple
   "errors": []
 }
 ```
+% TEST[skip:specific value is part of explanation]
 
 Let’s assume the task has been running for a long time. By default, we throttle how many requests the reindex operation can execute per second. This keeps the reindex process from consuming too many resources. But the default value of `1000` request per second will not be correct for all use cases. The [`migrate.data_stream_reindex_max_request_per_second` setting](#migrate_data_stream_reindex_max_request_per_second-setting) can be used to increase or decrease the number of requests per second, or to remove the throttle entirely.
 
@@ -162,6 +166,7 @@ But in the above status, `.ds-my-data-stream-2025.01.23-000002` has values of 10
 ```console
 POST /_migration/reindex/my-data-stream/_cancel
 ```
+% TEST[skip:task will not be present]
 
 Now we can use the [update cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to increase the throttle:
 
@@ -173,6 +178,7 @@ PUT /_cluster/settings
   }
 }
 ```
+% TEST[continued]
 
 The [original reindex command](#reindex-data-stream-start) can now be used to restart reindexing. Because the first backing index, `.ds-my-data-stream-2025.01.23-000001`, has already been reindexed and thus is already version 8.x, it will be skipped. The task will start by reindexing `.ds-my-data-stream-2025.01.23-000002` again from the beginning.
 
@@ -190,6 +196,7 @@ Later, once all the backing indices have finished, the [reindex status API](http
   "errors": []
 }
 ```
+% TEST[skip:specific value is part of explanation]
 
 Notice that the value of `total_indices_requiring_upgrade` is `2`, unlike the previous status, which had a value of `3`. This is because `.ds-my-data-stream-2025.01.23-000001` was upgraded before the task cancellation. After the restart, the API sees that it does not need to be upgraded, thus does not include it in `total_indices_requiring_upgrade` or `successes`, despite the fact that it upgraded successfully.
 
@@ -200,6 +207,7 @@ We can now check the data stream to verify that indices were upgraded:
 ```console
 GET _data_stream/my-data-stream?filter_path=data_streams.indices.index_name
 ```
+% TEST[continued]
 
 which returns:
 
@@ -225,6 +233,7 @@ which returns:
   ]
 }
 ```
+% TEST[skip:did not actually run reindex]
 
 Index `.ds-my-data-stream-2025.01.23-000004` is the write index and didn’t need to be upgraded because it was created with version 8.x. The other three backing indices are now prefixed with `.migrated` because they have been upgraded.
 
@@ -233,6 +242,7 @@ We can now check the indices and verify that they have version 8.x:
 ```console
 GET .migrated-ds-my-data-stream-2025.01.23-000001?human&filter_path=*.settings.index.version.created_string
 ```
+% TEST[skip:migrated index does not exist]
 
 which returns:
 
@@ -249,6 +259,7 @@ which returns:
   }
 }
 ```
+% TEST[skip:migrated index does not exist]
 
 
 ### Handling Failures [reindex-data-stream-handling-failure]
@@ -272,5 +283,6 @@ Since the reindex data stream API runs in the background, failure information ca
   ]
 }
 ```
+% TEST[skip:result just part of explanation]
 
 Once the issue has been fixed, the failed reindex task can be re-run. First, the failed run’s status must be cleared using the [reindex cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex). Then the [original reindex command](#reindex-data-stream-start) can be called to pick up where it left off.

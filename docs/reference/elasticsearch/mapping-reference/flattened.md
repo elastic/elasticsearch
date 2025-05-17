@@ -50,6 +50,7 @@ POST bug_reports/_doc/1
   }
 }
 ```
+% TESTSETUP
 
 During indexing, tokens are created for each leaf value in the JSON object. The values are indexed as string keywords, without analysis or special handling for numbers or dates.
 
@@ -126,6 +127,9 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 ```console-result
 {
@@ -154,6 +158,9 @@ POST my-index-000001/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 You can also use a [Painless script](docs-content://explore-analyze/scripting/modules-scripting-painless.md) to retrieve values from sub-fields of flattened fields. Instead of including `doc['<field_name>'].value` in your Painless script, use `doc['<field_name>.<sub-field_name>'].value`. For example, if you have a flattened field called `label` with a `release` sub-field, your Painless script would be `doc['labels.release'].value`.
 
@@ -186,6 +193,7 @@ POST /my-index-000001/_bulk?refresh
 {"index":{}}
 {"title":"Not urgent","labels":{"priority":"low","release":["v1.2.0"],"timestamp":{"created":1541458026,"closed":1541457010}}}
 ```
+% TEST[continued]
 
 Because `labels` is a `flattened` field type, the entire object is mapped as a single field. To retrieve values from this sub-field in a Painless script, use the `doc['<field_name>.<sub-field_name>'].value` format.
 
@@ -272,6 +280,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -282,6 +291,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Synthetic source always uses nested objects instead of array of objects. For example:
 
@@ -316,6 +326,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 
@@ -329,6 +340,7 @@ Will become (note the nested objects instead of the "flattened" array):
     }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Synthetic source always uses single-valued fields for one-element arrays. For example:
 
@@ -359,6 +371,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 
@@ -369,3 +382,4 @@ Will become (note the nested objects instead of the "flattened" array):
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]

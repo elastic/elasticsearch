@@ -34,6 +34,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 And the following may be the response:
 
@@ -68,6 +69,7 @@ And the following may be the response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ## Minimum document count [_minimum_document_count]
 
@@ -89,6 +91,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -119,6 +122,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 $$$search-aggregations-bucket-histogram-aggregation-extended-bounds$$$
 By default the `histogram` returns all the buckets within the range of the data itself, that is, the documents with the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when requesting empty buckets, this causes a confusion, specifically, when the data is also filtered.
@@ -155,6 +159,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 When aggregating ranges, buckets are based on the values of the returned documents. This means the response may include buckets outside of a query’s range. For example, if your query looks for values greater than 100, and you have a range covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it’s best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the aggregation buckets those documents without regard to how they were selected. See [note on bucketing range fields](/reference/aggregations/search-aggregations-bucket-range-field-note.md) for more information and an example.
 
@@ -185,6 +190,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 In this example even though the range specified in the query is up to 500, the histogram will only have 2 buckets starting at 100 and 150. All other buckets will be omitted even if documents that should go to this buckets are present in the results.
 
@@ -221,6 +227,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -255,6 +262,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Missing value [_missing_value_2]
@@ -277,6 +285,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 1. Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.
 
@@ -367,6 +376,7 @@ The `histogram` aggregation will sum the counts of each interval computed based 
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{important}
 Histogram aggregation is a bucket aggregation, which partitions documents into buckets rather than calculating metrics over fields like metrics aggregations do. Each bucket represents a collection of documents which sub-aggregations can run on. On the other hand, a histogram field is a pre-aggregated field representing multiple values inside a single field: buckets of numerical data and a count of items/documents for each bucket. This mismatch between the histogram aggregations expected input (expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation to only the doc counts for each bucket.

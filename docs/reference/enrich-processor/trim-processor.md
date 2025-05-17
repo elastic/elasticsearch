@@ -34,4 +34,5 @@ $$$trim-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

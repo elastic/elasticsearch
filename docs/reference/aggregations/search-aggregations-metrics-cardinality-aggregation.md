@@ -23,6 +23,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -36,6 +37,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ## Precision control [_precision_control]
 
@@ -54,6 +56,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 1. The `precision_threshold` options allows to trade memory for accuracy, and defines a unique count below which counts are expected to be close to accurate. Above this value, counts might become a bit more fuzzy. The maximum supported value is 40000, thresholds above this number will have the same effect as a threshold of 40000. The default value is `3000`.
 
@@ -115,6 +118,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
+% TEST[s/size=0/size=0&filter_path=aggregations/]
 
 
 ## Missing value [_missing_value_8]
@@ -134,6 +139,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 1. Documents without a value in the `tag` field will fall into the same bucket as documents that have the value `N/A`.
 

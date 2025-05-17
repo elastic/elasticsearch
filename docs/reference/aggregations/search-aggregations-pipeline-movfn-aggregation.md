@@ -22,6 +22,7 @@ A `moving_fn` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 $$$moving-fn-params$$$
 
@@ -61,6 +62,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-month intervals
 2. A `sum` metric is used to calculate the sum of a field. This could be any numeric metric (sum, min, max, etc)
@@ -118,6 +120,9 @@ An example response from the above aggregation may look like:
    }
 }
 ```
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ## Custom user scripting [_custom_user_scripting]
@@ -152,6 +157,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ## shift parameter [shift-parameter]
@@ -217,6 +223,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ### min Function [_min_function]
@@ -255,6 +262,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ### sum Function [_sum_function]
@@ -293,6 +301,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ### stdDev Function [_stddev_function]
@@ -332,6 +341,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 The `avg` parameter must be provided to the standard deviation function because different styles of averages can be computed on the window (simple, linearly weighted, etc). The various moving averages that are detailed below can be used to calculate the average for the standard deviation function.
 
@@ -374,6 +384,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 
@@ -415,6 +426,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ## ewma Function [_ewma_function]
@@ -456,6 +468,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 
 ## holt Function [_holt_function]
@@ -502,6 +515,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 In practice, the `alpha` value behaves very similarly in `holtMovAvg` as `ewmaMovAvg`: small values produce more smoothing and more lag, while larger values produce closer tracking and less lag. The value of `beta` is often difficult to see. Small values emphasize long-term trends (such as a constant linear trend in the whole series), while larger values emphasize short-term trends.
 
@@ -553,6 +567,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 ::::{warning}
 Multiplicative Holt-Winters works by dividing each data point by the seasonal value. This is problematic if any of your data is zero, or if there are gaps in the data (since this results in a divid-by-zero). To combat this, the `mult` Holt-Winters pads all values by a very small amount (1*10-10) so that all values are non-zero. This affects the result, but only minimally. If your data is non-zero, or you prefer to see `NaN` when zero’s are encountered, you can disable this behavior with `pad: false`

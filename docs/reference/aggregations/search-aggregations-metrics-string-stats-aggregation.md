@@ -27,6 +27,7 @@ POST /my-index-000001/_search?size=0
   }
 }
 ```
+% TEST[setup:messages]
 
 The above aggregation computes the string statistics for the `message` field in all documents. The aggregation type is `string_stats` and the `field` parameter defines the field of the documents the stats will be computed on. The above will return the following:
 
@@ -45,6 +46,7 @@ The above aggregation computes the string statistics for the `message` field in 
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`message_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -65,6 +67,7 @@ POST /my-index-000001/_search?size=0
   }
 }
 ```
+% TEST[setup:messages]
 
 1. Set the `show_distribution` parameter to `true`, so that probability distribution for all characters is returned in the results.
 
@@ -109,6 +112,7 @@ POST /my-index-000001/_search?size=0
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The `distribution` object shows the probability of each character appearing in all terms. The characters are sorted by descending probability.
 
@@ -136,6 +140,8 @@ POST /my-index-000001/_search
   }
 }
 ```
+% TEST[setup:messages]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 
 ## Missing value [_missing_value_16]
@@ -155,6 +161,7 @@ POST /my-index-000001/_search?size=0
   }
 }
 ```
+% TEST[setup:messages]
 
 1. Documents without a value in the `message` field will be treated as documents that have the value `[empty message]`.
 

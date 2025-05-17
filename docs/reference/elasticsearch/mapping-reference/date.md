@@ -32,6 +32,7 @@ Date formats can be customised, but if no `format` is specified then it uses the
 ```js
     "strict_date_optional_time||epoch_millis"
 ```
+% NOTCONSOLE
 
 This means that it will accept dates with optional timestamps, which conform to the formats supported by [`strict_date_optional_time`](/reference/elasticsearch/mapping-reference/mapping-date-format.md#strict-date-time) or milliseconds-since-the-epoch.
 
@@ -163,6 +164,7 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 Which will reply with a date like:
 
@@ -218,6 +220,7 @@ PUT idx/_doc/1
   "date": ["2015-01-01T12:10:30Z", "2014-01-01T12:10:30Z"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -226,5 +229,6 @@ Will become:
   "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 

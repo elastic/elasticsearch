@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,12 +20,10 @@ import java.util.List;
 public class EsqlListQueriesResponse extends ActionResponse implements ToXContentObject {
     private final List<Query> queries;
 
-    public record Query(TaskId taskId, long startTimeMillis, long runningTimeNanos, String query) implements ToXContentFragment {
+    public record Query(AsyncExecutionId id, long startTimeMillis, long runningTimeNanos, String query) implements ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(taskId.toString());
-            builder.field("id", taskId.getId());
-            builder.field("node", taskId.getNodeId());
+            builder.startObject(id.getEncoded());
             builder.field("start_time_millis", startTimeMillis);
             builder.field("running_time_nanos", runningTimeNanos);
             builder.field("query", query);

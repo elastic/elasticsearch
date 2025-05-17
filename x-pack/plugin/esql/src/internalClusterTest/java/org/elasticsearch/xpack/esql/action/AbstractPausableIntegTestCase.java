@@ -30,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTestCase {
 
     protected static final Semaphore scriptPermits = new Semaphore(0);
+    // Incremented onWait. Can be used to check if the onWait process has been reached.
+    protected static final Semaphore scriptWaits = new Semaphore(0);
 
     protected int pageSize = -1;
 
@@ -98,6 +100,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
     public static class PausableFieldPlugin extends AbstractPauseFieldPlugin {
         @Override
         protected boolean onWait() throws InterruptedException {
+            scriptWaits.release();
             return scriptPermits.tryAcquire(1, TimeUnit.MINUTES);
         }
     }

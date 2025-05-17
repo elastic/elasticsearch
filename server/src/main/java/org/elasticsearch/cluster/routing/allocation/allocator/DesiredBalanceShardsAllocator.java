@@ -400,6 +400,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             routingAllocation.metadata(),
             routingAllocation.routingNodes(),
             routingAllocation.clusterInfo(),
+            () -> {},
             desiredBalance
         );
         Map<DiscoveryNode, NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights =

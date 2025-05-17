@@ -12,12 +12,12 @@ package org.elasticsearch.join.aggregations;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalParentTests extends InternalSingleBucketAggregationTestCase<InternalParent> {
+public class InternalParentTests extends SingleBucketAggregationTestCase<InternalParent> {
 
     @Override
     protected SearchPlugin registerPlugin() {

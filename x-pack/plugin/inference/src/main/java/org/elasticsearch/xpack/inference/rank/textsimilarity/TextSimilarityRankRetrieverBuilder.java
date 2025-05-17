@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,7 +50,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
-            String inferenceId = args[1] == null ? DEFAULT_RERANK_ID : (String) args[1];
+            String inferenceId = (String) args[1];
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
@@ -104,11 +105,17 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         int rankWindowSize,
         boolean failuresAllowed
     ) {
-        super(List.of(new RetrieverSource(retrieverBuilder, null)), rankWindowSize);
-        this.inferenceId = inferenceId;
-        this.inferenceText = inferenceText;
-        this.field = field;
-        this.failuresAllowed = failuresAllowed;
+        this(
+            List.of(new RetrieverSource(retrieverBuilder, null)),
+            inferenceId,
+            inferenceText,
+            field,
+            rankWindowSize,
+            null,
+            failuresAllowed,
+            null,
+            new ArrayList<>()
+        );
     }
 
     public TextSimilarityRankRetrieverBuilder(
@@ -124,9 +131,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     ) {
         super(retrieverSource, rankWindowSize);
         if (retrieverSource.size() != 1) {
-            throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
+            throw new IllegalArgumentException(
+                "[" + TextSimilarityRankBuilder.NAME + "] retriever should have exactly one inner retriever"
+            );
         }
-        this.inferenceId = inferenceId;
+        this.inferenceId = inferenceId == null ? DEFAULT_RERANK_ID : inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.minScore = minScore;

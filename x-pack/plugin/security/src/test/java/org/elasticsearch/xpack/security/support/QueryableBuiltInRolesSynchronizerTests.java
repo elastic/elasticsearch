@@ -330,8 +330,8 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
         synchronizer.clusterChanged(event(currentClusterState, previousClusterState));
 
-        verify(previousClusterState, times(1)).metadata();
-        verify(currentClusterState, times(1)).metadata();
+        verify(previousClusterState, times(2)).metadata();
+        verify(currentClusterState, times(2)).metadata();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
     }
 

@@ -6802,6 +6802,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    /**
+     * Expects
+     *
+     * EsqlProject[[languages{f}#16, emp_no{f}#13, languages{f}#16 AS language_code, $$language_name$temp_name$28{f}#29 AS langua
+     * ge_name]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#26]]
+     *     |_Limit[1000[INTEGER],true]
+     *     | \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#24]]
+     *     |   |_Limit[1000[INTEGER],false]
+     *     |   | \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_d..]
+     *     |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#24]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, $$language_name$temp_name$28{f}#29]
+     */
+    public void testMultipleLookupProject() {
+        // TODO a test case where pushing down past the RENAME would shadow
+        // analogous to
+        // Project[[x{f}#1, y{f}#2 as z, $$y{r}#3 as y]]
+        // \_Eval[[2 * x{f}#1 as $$y]]
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        String query = """
+            FROM test
+            | KEEP languages, emp_no
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name AS foo
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DROP foo
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // TODO: here
+        assert false;
+    }
+
     //
     //
     //

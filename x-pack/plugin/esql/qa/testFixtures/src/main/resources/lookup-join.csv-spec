@@ -144,6 +144,31 @@ emp_no:integer | language_code:integer | language_name:keyword
 10030          |0                      | null
 ;
 
+multipleLookupsAndProjects
+required_capability: join_lookup_v12
+required_capability: join_lookup_enable_pushdown_past_project
+# TODO: this test, but with a lookup index that has multiple matches per row to show the first LOOKUP's effect, too.
+# TODO: tests like this that will look up the exact subfield of a text field
+
+FROM employees
+| KEEP languages, emp_no
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS foo
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP foo
+| SORT emp_no
+| LIMIT 5
+;
+
+languages:integer | emp_no:integer | language_code:integer | language_name:keyword
+2                 | 10001          | 2                     | French
+5                 | 10002          | 5                     | null
+4                 | 10003          | 4                     | German
+5                 | 10004          | 5                     | null
+1                 | 10005          | 1                     | English
+;
+
 ###########################################################################
 # multiple match behavior with languages_lookup_non_unique_key index
 ###########################################################################

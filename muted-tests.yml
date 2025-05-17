@@ -480,6 +480,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test122CanUseDockerLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128110
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test041AmazonCaCertsAreInTheKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128006
 
 # Examples:
 #

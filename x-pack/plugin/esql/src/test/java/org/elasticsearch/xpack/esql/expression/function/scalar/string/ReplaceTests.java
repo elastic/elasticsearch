@@ -78,6 +78,22 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Groups
+        suppliers.add(fixedCase("Full group", "Cats are awesome", ".+", "<$0>", "<Cats are awesome>"));
+        suppliers.add(
+            fixedCase("Nested groups", "A cat is great, a cat is awesome", "\\b([Aa] (\\w+)) is (\\w+)\\b", "$1$2", "A catcat, a catcat")
+        );
+        suppliers.add(
+            fixedCase(
+                "Multiple groups",
+                "Cats are awesome",
+                "(\\w+) (.+)",
+                "$0 -> $1 and dogs $2",
+                "Cats are awesome -> Cats and dogs are awesome"
+            )
+        );
+
+        // Errors
         suppliers.add(new TestCaseSupplier("syntax error", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
             String text = randomAlphaOfLength(10);
             String invalidRegex = "[";
@@ -85,7 +101,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "regex"),
                     new TestCaseSupplier.TypedData(new BytesRef(newStr), DataType.KEYWORD, "newStr")
                 ),
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",

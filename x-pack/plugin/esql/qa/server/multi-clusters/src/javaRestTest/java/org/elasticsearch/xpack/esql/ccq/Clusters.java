@@ -70,7 +70,7 @@ public class Clusters {
     public static org.elasticsearch.Version bwcVersion() {
         org.elasticsearch.Version local = localClusterVersion();
         org.elasticsearch.Version remote = remoteClusterVersion();
-        return local.onOrAfter(remote) ? local : remote;
+        return local.before(remote) ? local : remote;
     }
 
     private static Version distributionVersion(String key) {

@@ -170,6 +170,7 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
                         result.setContent(content);
                         result.setContentLength(contentLength);
                         result.setContentType("application/octet-stream");
+                        result.addHeader("x-goog-generation", String.valueOf(randomIntBetween(0, Integer.MAX_VALUE)));
                         result.setStatusCode(RestStatus.OK.getStatus());
                         return result;
                     }

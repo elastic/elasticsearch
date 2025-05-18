@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -139,12 +138,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -215,7 +210,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Stream.of(
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -485,6 +480,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.CCS_VERSION_CHECK_SETTING,
         SearchService.CCS_COLLECT_TELEMETRY,
         SearchService.BATCHED_QUERY_PHASE,
+        SearchService.PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE,
         MultiBucketConsumerService.MAX_BUCKET_SETTING,
         SearchService.LOW_LEVEL_CANCELLATION_SETTING,
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
@@ -530,6 +526,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
         IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
         IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+        IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE,
         ResourceWatcherService.ENABLED,
         ResourceWatcherService.RELOAD_INTERVAL_HIGH,
         ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
@@ -635,9 +632,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
+        DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null,
+        DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
         IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING
-    ).filter(Objects::nonNull).collect(toSet());
+    );
 }

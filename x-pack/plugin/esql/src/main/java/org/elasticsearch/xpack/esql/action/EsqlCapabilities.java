@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -386,6 +385,12 @@ public class EsqlCapabilities {
         UNION_TYPES_AGG_CAST,
 
         /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES,
+
+        /**
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
@@ -412,6 +417,18 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
+         * Support for removing empty attribute in merging output.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
+         */
+        REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
 
         /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
@@ -843,7 +860,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT(Build.current().isSnapshot()),
+        CHANGE_POINT,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
@@ -856,7 +873,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -905,6 +922,11 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
@@ -935,9 +957,15 @@ public class EsqlCapabilities {
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
+
+        /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+        INDEX_COMPONENT_SELECTORS,
 
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
@@ -953,6 +981,12 @@ public class EsqlCapabilities {
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
          */
         FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
+         * Support for filter in converted null.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/125832"> ESQL: Fix `NULL` handling in `IN` clause #125832 </a>
+         */
+        FILTER_IN_CONVERTED_NULL,
 
         /**
          * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
@@ -972,9 +1006,14 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support STATS/EVAL/DISSECT in Fork branches
+         * Support streaming of sub plan results
          */
-        FORK_V2(Build.current().isSnapshot()),
+        FORK_V3(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
 
         /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?
@@ -984,7 +1023,63 @@ public class EsqlCapabilities {
         /**
          * Support avg_over_time aggregation that gets evaluated per time-series
          */
-        AVG_OVER_TIME(Build.current().isSnapshot());
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Support last_over_time aggregation that gets evaluated per time-series
+         */
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
+         */
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

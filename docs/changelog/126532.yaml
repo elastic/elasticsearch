@@ -1,0 +1,6 @@
+pr: 126532
+summary: TO_IP can handle leading zeros
+area: ES|QL
+type: bug
+issues:
+ - 125460

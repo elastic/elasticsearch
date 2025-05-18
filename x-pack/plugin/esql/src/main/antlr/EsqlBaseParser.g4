@@ -55,15 +55,16 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
+    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -86,6 +87,14 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
+    ;
+
 fromCommand
     : FROM indexPatternAndMetadataFields
     ;
@@ -100,7 +109,7 @@ indexPatternAndMetadataFields:
 
 indexPattern
     : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
+    | indexString (CAST_OP selectorString)?
     ;
 
 clusterString
@@ -257,7 +266,7 @@ inlinestatsCommand
     ;
 
 changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
 insistCommand
@@ -295,9 +304,13 @@ rrfCommand
    ;
 
 rerankCommand
-    : DEV_RERANK queryText=constant ON fields WITH inferenceId=identifierOrParameter
+    : DEV_RERANK queryText=constant ON rerankFields WITH inferenceId=identifierOrParameter
     ;
 
 completionCommand
     : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    ;
+
+sampleCommand
+    : DEV_SAMPLE probability=decimalValue seed=integerValue?
     ;

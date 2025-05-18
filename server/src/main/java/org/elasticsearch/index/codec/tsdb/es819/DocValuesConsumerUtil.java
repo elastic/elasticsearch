@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 
 /**
@@ -19,9 +20,9 @@ import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
  */
 class DocValuesConsumerUtil {
 
-    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1);
+    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, -1, -1);
 
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
+    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
 
     static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo fieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
@@ -37,11 +38,21 @@ class DocValuesConsumerUtil {
 
         long sumNumValues = 0;
         int sumNumDocsWithField = 0;
+        int minLength = Integer.MAX_VALUE;
+        int maxLength = 0;
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+            if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
+                docValuesProducer = filterDocValuesProducer.getIn();
+            }
+
             if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {
                 var wrapped = perFieldReader.getDocValuesProducer(fieldInfo);
+                if (wrapped == null) {
+                    continue;
+                }
+
                 if (wrapped instanceof ES819TSDBDocValuesProducer tsdbDocValuesProducer) {
                     switch (fieldInfo.getDocValuesType()) {
                         case NUMERIC -> {
@@ -77,6 +88,14 @@ class DocValuesConsumerUtil {
                                 }
                             }
                         }
+                        case BINARY -> {
+                            var entry = tsdbDocValuesProducer.binaries.get(fieldInfo.number);
+                            if (entry != null) {
+                                sumNumDocsWithField += entry.numDocsWithField;
+                                minLength = Math.min(minLength, entry.minLength);
+                                maxLength = Math.max(maxLength, entry.maxLength);
+                            }
+                        }
                         default -> throw new IllegalStateException("unexpected doc values producer type: " + fieldInfo.getDocValuesType());
                     }
                 } else {
@@ -87,7 +106,7 @@ class DocValuesConsumerUtil {
             }
         }
 
-        return new MergeStats(true, sumNumValues, sumNumDocsWithField);
+        return new MergeStats(true, sumNumValues, sumNumDocsWithField, minLength, maxLength);
     }
 
 }

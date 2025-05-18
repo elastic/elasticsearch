@@ -158,7 +158,7 @@ public class VersionLookupTests extends ESTestCase {
     public void testLoadTimestampRangeWithDeleteTombstone() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
-        writer.addDocument(ParsedDocument.deleteTombstone("_id").docs().get(0));
+        writer.addDocument(ParsedDocument.deleteTombstone(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values()), "_id").docs().get(0));
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);

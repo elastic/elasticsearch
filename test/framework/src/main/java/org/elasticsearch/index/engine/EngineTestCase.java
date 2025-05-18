@@ -173,6 +173,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
+    protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -200,6 +201,7 @@ public abstract class EngineTestCase extends ESTestCase {
             )
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), seqNoIndexOptions)
             .build();
     }
 
@@ -451,7 +453,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);

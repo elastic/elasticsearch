@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -829,6 +830,23 @@ public final class IndexSettings {
         }
     }
 
+    public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
+        SeqNoFieldMapper.SeqNoIndexOptions.class,
+        settings -> {
+            final IndexMode indexMode = IndexSettings.MODE.get(settings);
+            if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
+                && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)) {
+                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
+            } else {
+                return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
+            }
+        },
+        "index.seq_no.index_options",
+        value -> {},
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -933,6 +951,7 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     private final IndexRouting indexRouting;
+    private final SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions;
 
     /**
      * The default mode for storing source, for all mappers not overriding this setting.
@@ -1099,6 +1118,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1836,5 +1856,9 @@ public final class IndexSettings {
 
     private void setHnswFilterHeuristic(DenseVectorFieldMapper.FilterHeuristic heuristic) {
         this.hnswFilterHeuristic = heuristic;
+    }
+
+    public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
+        return seqNoIndexOptions;
     }
 }

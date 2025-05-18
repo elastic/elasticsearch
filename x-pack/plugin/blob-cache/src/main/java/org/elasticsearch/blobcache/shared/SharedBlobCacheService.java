@@ -500,6 +500,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ActionListener<Void> listener
     ) {
         int finalRegion = getEndingRegion(length);
+        // TODO freeRegionCount uses freeRegions.size() which is is NOT a constant-time operation. Can we do better?
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
             listener.onResponse(null);
@@ -571,7 +572,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -619,7 +620,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);

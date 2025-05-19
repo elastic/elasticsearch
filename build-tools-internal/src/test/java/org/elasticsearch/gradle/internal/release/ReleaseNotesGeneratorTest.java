@@ -13,14 +13,13 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.gradle.internal.release.GenerateReleaseNotesTask.getSortedBundlesWithUniqueChangelogs;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -47,17 +46,17 @@ public class ReleaseNotesGeneratorTest {
 
     @Test
     public void generateFile_index_noHighlights_rendersCorrectMarkup() throws Exception {
-        Set<ChangelogEntry> entries = getEntries();
-        entries = entries.stream().filter(e -> e.getHighlight() == null).collect(Collectors.toSet());
+        var bundles = getBundles();
+        bundles = bundles.stream().filter(b -> false == b.version().equals("9.1.0")).toList();
 
-        testTemplate("index.md", "index.no-highlights.md", entries);
+        testTemplate("index.md", "index.no-highlights.md", bundles);
     }
 
     @Test
     public void generateFile_index_noChanges_rendersCorrectMarkup() throws Exception {
-        Set<ChangelogEntry> entries = new HashSet<>();
+        var bundles = new ArrayList<ChangelogBundle>();
 
-        testTemplate("index.md", "index.no-changes.md", entries);
+        testTemplate("index.md", "index.no-changes.md", bundles);
     }
 
     @Test
@@ -78,33 +77,48 @@ public class ReleaseNotesGeneratorTest {
         testTemplate(templateFilename, outputFilename, null);
     }
 
-    public void testTemplate(String templateFilename, String outputFilename, Set<ChangelogEntry> entries) throws Exception {
+    public void testTemplate(String templateFilename, String outputFilename, List<ChangelogBundle> bundles) throws Exception {
         // given:
         final String template = getResource("/templates/" + templateFilename);
         final String expectedOutput = getResource("/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest." + outputFilename);
 
-        if (entries == null) {
-            entries = getEntries();
+        if (bundles == null) {
+            bundles = getBundles();
         }
 
+        bundles = getSortedBundlesWithUniqueChangelogs(bundles);
+
         // when:
-        final String actualOutput = ReleaseNotesGenerator.generateFile(template, QualifiedVersion.of("8.2.0-SNAPSHOT"), entries);
+        final String actualOutput = ReleaseNotesGenerator.generateFile(template, bundles);
+
+        Files.write(Path.of("/Users/bseeders/output.txt"), actualOutput.getBytes());
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));
     }
 
-    private Set<ChangelogEntry> getEntries() {
-        final Set<ChangelogEntry> entries = new HashSet<>();
+    private List<ChangelogBundle> getBundles() {
+        List<ChangelogBundle> bundles = new ArrayList<>();
+
         for (int i = 0; i < CHANGE_TYPES.size(); i++) {
-            entries.addAll(buildEntries(i, 2));
+            bundles.add(
+                new ChangelogBundle(
+                    "9.0." + i,
+                    i != CHANGE_TYPES.size() - 1,
+                    "2025-05-16T00:00:" + String.format("%d", 10 + i),
+                    buildEntries(i, 2)
+                )
+            );
         }
 
-        entries.add(makeHighlightsEntry(5001, false));
-        entries.add(makeHighlightsEntry(5000, true));
-        entries.add(makeHighlightsEntry(5002, true));
+        final List<ChangelogEntry> entries = new ArrayList<>();
+        entries.add(makeHighlightsEntry(51, false));
+        entries.add(makeHighlightsEntry(50, true));
+        entries.add(makeHighlightsEntry(52, true));
 
-        return entries;
+        bundles.add(new ChangelogBundle("9.1.0", false, "2025-05-17T00:00:00", entries));
+
+        return bundles;
     }
 
     private List<ChangelogEntry> buildEntries(int seed, int count) {

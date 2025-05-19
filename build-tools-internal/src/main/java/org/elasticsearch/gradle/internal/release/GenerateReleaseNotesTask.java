@@ -31,6 +31,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -93,22 +94,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         LOGGER.info("Finding changelog bundles...");
 
-        List<ChangelogBundle> bundles = this.changelogBundleDirectory.getAsFileTree()
+        List<ChangelogBundle> allBundles = this.changelogBundleDirectory.getAsFileTree()
             .getFiles()
             .stream()
             .map(ChangelogBundle::parse)
-            .sorted(Comparator.comparing(ChangelogBundle::released).reversed().thenComparing(ChangelogBundle::generated).reversed())
             .toList();
 
-        // Ensure that each changelog/PR only shows up once, in its earliest release
-        var uniquePrs = new HashSet<Integer>();
-        for (int i = bundles.size() - 1; i >= 0; i--) {
-            var bundle = bundles.get(i);
-            if (!bundle.released()) {
-                bundle.changelogs().removeAll(bundle.changelogs().stream().filter(c -> uniquePrs.contains(c.getPr())).toList());
-            }
-            uniquePrs.addAll(bundle.changelogs().stream().map(ChangelogEntry::getPr).toList());
-        }
+        var bundles = getSortedBundlesWithUniqueChangelogs(allBundles);
 
         LOGGER.info("Generating release notes...");
         ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), bundles);
@@ -116,37 +108,28 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         ReleaseNotesGenerator.update(this.deprecationsTemplate.get().getAsFile(), this.deprecationsFile.get().getAsFile(), bundles);
     }
 
-    /**
-     * Find all tags in the major series for the supplied version
-     * @param gitWrapper used to call `git`
-     * @param currentVersion the version to base the query upon
-     * @return all versions in the series
-     */
     @VisibleForTesting
-    static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
-        QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
-        final String pattern = "v" + qualifiedVersion.major() + ".*";
-        // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
-        Set<QualifiedVersion> versions = Stream.concat(
-            gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)),
-            Stream.of(qualifiedVersion)
-        ).collect(toSet());
+    static List<ChangelogBundle> getSortedBundlesWithUniqueChangelogs(List<ChangelogBundle> bundles) {
+        List<ChangelogBundle> sorted = bundles.stream()
+            // .map(ChangelogBundle::copy)
+            .sorted(Comparator.comparing(ChangelogBundle::released).reversed().thenComparing(ChangelogBundle::generated))
+            .toList();
 
-        // If this is a new minor ensure we include the previous minor, which may not have been released
-        if (qualifiedVersion.minor() > 0 && qualifiedVersion.revision() == 0) {
-            QualifiedVersion previousMinor = new QualifiedVersion(qualifiedVersion.major(), qualifiedVersion.minor() - 1, 0, null);
-            versions.add(previousMinor);
+        // Ensure that each changelog/PR only shows up once, in its earliest release
+        var uniquePrs = new HashSet<Integer>();
+        List<ChangelogBundle> modifiedBundles = new ArrayList<>();
+        for (int i = sorted.size() - 1; i >= 0; i--) {
+            var bundle = sorted.get(i);
+            if (bundle.released() == false) {
+                List<ChangelogEntry> entries = bundle.changelogs().stream().filter(c -> false == uniquePrs.contains(c.getPr())).toList();
+                modifiedBundles.add(bundle.withChangelogs(entries));
+            } else {
+                modifiedBundles.add(bundle);
+            }
+            uniquePrs.addAll(bundle.changelogs().stream().map(ChangelogEntry::getPr).toList());
         }
 
-        return versions;
-    }
-
-    /**
-     * Convert set of QualifiedVersion to MinorVersion by deleting all but the major and minor components.
-     */
-    @VisibleForTesting
-    static Set<MinorVersion> getMinorVersions(Set<QualifiedVersion> versions) {
-        return versions.stream().map(MinorVersion::of).collect(toSet());
+        return modifiedBundles;
     }
 
     /**

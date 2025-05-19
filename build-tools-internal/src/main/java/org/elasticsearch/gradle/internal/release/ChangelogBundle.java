@@ -40,4 +40,13 @@ public record ChangelogBundle(String version, boolean released, String generated
             throw new UncheckedIOException(e);
         }
     }
+
+    public static ChangelogBundle copy(ChangelogBundle bundle) {
+        List<ChangelogEntry> changelogs = bundle.changelogs().stream().toList();
+        return new ChangelogBundle(bundle.version(), bundle.released(), bundle.generated(), changelogs);
+    }
+
+    public ChangelogBundle withChangelogs(List<ChangelogEntry> changelogs) {
+        return new ChangelogBundle(version, released, generated, changelogs);
+    }
 }

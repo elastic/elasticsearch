@@ -218,7 +218,9 @@ of official GA features.
 
 
 Synthetic source may sort `geo_point` fields (first by latitude and then
-longitude) and reduces them to their stored precision. For example:
+longitude) and reduces them to their stored precision. Additionally, unlike most
+types, arrays of `geo_point` fields will not preserve order if
+`synthetic_source_keep` is set to `arrays`. For example:
 
 $$$synthetic-source-geo-point-example$$$
 
@@ -236,15 +238,18 @@ PUT idx
   },
   "mappings": {
     "properties": {
-      "point": { "type": "geo_point" }
+      "point": {
+        "type": "geo_point",
+        "synthetic_source_keep": "arrays"
+      }
     }
   }
 }
 PUT idx/_doc/1
 {
   "point": [
-    {"lat":-90, "lon":-80},
-    {"lat":10, "lon":30}
+    {"lat":10, "lon":30},
+    {"lat":-90, "lon":-80}
   ]
 }
 ```

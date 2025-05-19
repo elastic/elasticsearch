@@ -175,6 +175,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
+                "single",
                 LOCAL_CLUSTER,
                 List.of(),
                 configuration,
@@ -250,6 +251,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
+                            "final",
                             LOCAL_CLUSTER,
                             List.of(),
                             configuration,
@@ -420,7 +422,7 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.foldCtx(), plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.taskDescription(), context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }

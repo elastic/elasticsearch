@@ -216,6 +216,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             operators.add(createOperator(blockFactory, shards));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring()).get(driverContext),
                 operators,

@@ -304,6 +304,7 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:1",
+                "test",
                 0,
                 0,
                 dc,
@@ -322,6 +323,7 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:2",
+                "test",
                 0,
                 0,
                 dc,

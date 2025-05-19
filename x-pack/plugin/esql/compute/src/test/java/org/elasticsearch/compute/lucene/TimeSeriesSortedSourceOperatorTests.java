@@ -174,6 +174,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
@@ -248,6 +249,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 List<Page> results = new ArrayList<>();
                 OperatorTestCase.runDriver(
                     new Driver(
+                        "test",
                         driverContext,
                         timeSeriesFactory.get(driverContext),
                         List.of(),
@@ -306,6 +308,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(

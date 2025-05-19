@@ -50,9 +50,9 @@ public abstract class Assertion implements ExecutableSection {
     }
 
     protected final Object getActualValue(ClientYamlTestExecutionContext executionContext) throws IOException {
-        if (executionContext.stash().containsStashedValue(field)) {
-            return executionContext.stash().getValue(field);
-        }
+//        if (executionContext.stash().containsStashedValue(field)) {
+//            return executionContext.stash().getValue(field);
+//        }
         return executionContext.response(field);
     }
 

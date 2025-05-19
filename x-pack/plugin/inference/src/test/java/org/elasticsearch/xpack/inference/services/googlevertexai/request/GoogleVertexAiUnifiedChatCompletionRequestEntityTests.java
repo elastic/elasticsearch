@@ -411,7 +411,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testError_UnsupportedRole() throws IOException {
-        var unsupportedRole = "system";
+        var unsupportedRole = "assistant";
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Test"),
             unsupportedRole,
@@ -427,7 +427,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var statusException = assertThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
 
         assertEquals(RestStatus.BAD_REQUEST, statusException.status());
-        assertThat(statusException.toString(), containsString("Role [system] not supported by Google VertexAI ChatCompletion"));
+        assertThat(statusException.toString(), containsString("Role [assistant] not supported by Google VertexAI ChatCompletion"));
     }
 
     public void testError_UnsupportedContentObjectType() throws IOException {
@@ -459,7 +459,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "parts": [
                             { "text": "some text" },
                             { "functionCall" : {
-                                "id": "call_62136354",
                                 "name": "get_delivery_date",
                                 "args": {
                                     "order_id" : "order_12345"
@@ -552,7 +551,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "role": "model",
                         "parts": [
                             { "functionCall" : {
-                                "id": "call_62136354",
                                 "name": "get_delivery_date",
                                 "args": {
                                     "order_id" : "order_12345"
@@ -607,7 +605,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "role": "model",
                         "parts": [
                             { "functionCall" : {
-                                "id" : "call_62136354",
                                 "name": "get_delivery_date",
                                 "args": {
                                     "order_id" : "order_12345"
@@ -700,6 +697,125 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         var request = new UnifiedCompletionRequest(
             List.of(
+                new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    "user",
+                    null,
+                    null
+                )
+            ),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new UnifiedCompletionRequest.ToolChoiceString("auto"),
+            null,
+            null
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        assertJsonEquals(jsonString, requestJson);
+    }
+
+    public void testBuildSystemMessage_MultipleParts() throws IOException {
+        String requestJson = """
+            {
+                "systemInstruction": {
+                        "parts": [
+                            { "text": "instruction text" },
+                            { "text": "instruction text2" }
+                        ]
+                    },
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "some text" }
+                        ]
+                    }
+                ]
+            }
+            """;
+
+        var request = new UnifiedCompletionRequest(
+            List.of(
+                new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentObjects(
+                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text", "text"))
+                    ),
+                    "system",
+                    null,
+                    null
+                ),
+                new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentObjects(
+                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text2", "text"))
+                    ),
+                    "system",
+                    null,
+                    null
+                ),
+                new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    "user",
+                    null,
+                    null
+                )
+            ),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new UnifiedCompletionRequest.ToolChoiceString("auto"),
+            null,
+            null
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        assertJsonEquals(jsonString, requestJson);
+    }
+
+    public void testBuildSystemMessageMul() throws IOException {
+        String requestJson = """
+            {
+                "systemInstruction": {
+                        "parts": [
+                            { "text": "instruction text" }
+                        ]
+                    },
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "some text" }
+                        ]
+                    }
+                ]
+            }
+            """;
+
+        var request = new UnifiedCompletionRequest(
+            List.of(
+                new UnifiedCompletionRequest.Message(
+                    new UnifiedCompletionRequest.ContentObjects(
+                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text", "text"))
+                    ),
+                    "system",
+                    null,
+                    null
+                ),
                 new UnifiedCompletionRequest.Message(
                     new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
                     "user",

@@ -52,13 +52,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String FUNCTION_CALL = "functionCall";
     private static final String FUNCTION_CALL_NAME = "name";
     private static final String FUNCTION_CALL_ARGS = "args";
-    private static final String FUNCTION_CALL_ID = "id";
 
     private final UnifiedChatInput unifiedChatInput;
 
     private static final String USER_ROLE = "user";
     private static final String MODEL_ROLE = "model";
+    private static final String ASSISTANT_ROLE = "assistant";
+    private static final String SYSTEM_ROLE = "system";
     private static final String STOP_SEQUENCES = "stopSequences";
+
+    private static final String SYSTEM_INSTRUCTION = "systemInstruction";
 
     public GoogleVertexAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
@@ -67,9 +70,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
         var messageRoleLowered = messageRole.toLowerCase();
 
-        if (messageRoleLowered.equals(USER_ROLE) || messageRoleLowered.equals(MODEL_ROLE)) {
-            return messageRoleLowered;
-        }
 
         var errorMessage = format(
             "Role [%s] not supported by Google VertexAI ChatCompletion. Supported roles: [%s, %s]",
@@ -121,11 +121,55 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         }
     }
 
+    private void buildSystemInstruction(XContentBuilder builder) throws IOException {
+        var messages = unifiedChatInput.getRequest().messages();
+        var systemMessages = messages.stream().filter(message -> message.role().equalsIgnoreCase(SYSTEM_ROLE)).toList();
+
+        if (systemMessages.isEmpty()) {
+            return;
+        }
+
+        builder.startObject(SYSTEM_INSTRUCTION);
+        builder.startArray(PARTS);
+        for (var systemMessage : systemMessages) {
+            switch (systemMessage.content()) {
+                case UnifiedCompletionRequest.ContentString contentString -> {
+                    if (contentString.content().isEmpty()) {
+                        var errorMessage = "System message cannot be empty for Google Vertex AI";
+                        throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                    }
+                    builder.startObject();
+                    builder.field(TEXT, contentString.content());
+                    builder.endObject();
+                }
+                case UnifiedCompletionRequest.ContentObjects contentObjects -> {
+                    for (var contentObject : contentObjects.contentObjects()) {
+                        builder.startObject();
+                        builder.field(TEXT, contentObject.text());
+                        builder.endObject();
+                    }
+                }
+                default -> {
+                    var errorMessage = "Only text system instructions are supported for Vertex AI";
+                    throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                }
+            }
+        }
+        builder.endArray();
+        builder.endObject();
+
+    }
+
     private void buildContents(XContentBuilder builder) throws IOException {
         var messages = unifiedChatInput.getRequest().messages();
 
         builder.startArray(CONTENTS);
         for (UnifiedCompletionRequest.Message message : messages) {
+            if (message.role().equalsIgnoreCase(SYSTEM_ROLE)) {
+                // System messages are built in another method
+                continue;
+            }
+
             builder.startObject();
             builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(message.role()));
             builder.startArray(PARTS);
@@ -153,7 +197,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     builder.startObject();
                     builder.startObject(FUNCTION_CALL);
                     builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
-                    builder.field(FUNCTION_CALL_ID, toolCall.id());
                     builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
                     builder.endObject();
                     builder.endObject();
@@ -297,6 +340,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         buildGenerationConfig(builder);
         buildTools(builder);
         buildToolConfig(builder);
+        buildSystemInstruction(builder);
 
         builder.endObject();
         return builder;

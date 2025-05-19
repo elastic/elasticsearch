@@ -6,8 +6,8 @@ The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string)
 Or use [ST_GEOHEX_TO_GEOSHAPE](#esql-st_geohex_to_geoshape) to convert either the long or string `geohex` to a
 POLYGON geo_shape.
 
-These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
-and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation).
+These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
+and the [`geohex_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation).
 
 ```esql
 FROM airports

@@ -98,8 +98,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             The result is long encoded. Use [ST_GEOHASH_TO_STRING](#esql-st_geohash_to_string) to convert the result to a string.
             Or use [ST_GEOHASH_TO_GEOSHAPE](#esql-st_geohash_to_geoshape) to convert either the long or string `geohash` to a
 
-            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
-            and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).""",
+            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
+            and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
     )
     public StGeohash(

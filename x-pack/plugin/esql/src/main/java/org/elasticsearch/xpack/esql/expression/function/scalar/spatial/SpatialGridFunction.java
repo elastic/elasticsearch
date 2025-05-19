@@ -33,9 +33,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -97,7 +97,7 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
             return resolution;
         }
 
-        resolution = isWholeNumber(parameter(), sourceText(), SECOND);
+        resolution = isType(parameter, t -> t.equals(INTEGER), sourceText(), SECOND, INTEGER.typeName());
         if (resolution.unresolved()) {
             return resolution;
         }

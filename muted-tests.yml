@@ -453,9 +453,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testSearchBoost
   issue: https://github.com/elastic/elasticsearch/issues/127969
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test040JavaUsesTheOsProvidedKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/127437
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testFindFewer
   issue: https://github.com/elastic/elasticsearch/issues/128002
@@ -465,21 +462,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test041AmazonCaCertsAreInTheKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/128007
 - class: org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/128024
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/128030
+- class: org.elasticsearch.compute.aggregation.PercentileIntGroupingAggregatorFunctionTests
+  method: testManyInitialManyPartialFinalRunner
+  issue: https://github.com/elastic/elasticsearch/issues/128092
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test042KeystorePermissionsAreCorrect
+  issue: https://github.com/elastic/elasticsearch/issues/128018
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/128031
 - class: org.elasticsearch.packaging.test.DockerTests
-  method: test042KeystorePermissionsAreCorrect
-  issue: https://github.com/elastic/elasticsearch/issues/128019
+  method: test122CanUseDockerLoggingConfig
+  issue: https://github.com/elastic/elasticsearch/issues/128110
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test041AmazonCaCertsAreInTheKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128006
 
 # Examples:
 #

@@ -1210,7 +1210,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         // Disable the handlers, do a refresh, and wait until the old commits are deleted.
         enableChecks.set(false);
-        assertThat(client().admin().indices().prepareRefresh(indexName).execute().get().getFailedShards(), equalTo(0));
+        // In #3749 we introduced a change where unpromotable shard commit registrations would pessimistically acquire a reference
+        // of all blobs instead of the recovery commit (to help transferring open PITs between search nodes). That,
+        // in addition to the changes introduced in #2734 where new commit notifications for non uploaded commits are not taken into account
+        // for blob removals, makes necessary to upload a new blob in order to release one of the blobs that was not used by the recovery
+        // commit but was held anyway.
+        indexDocs(indexName, randomIntBetween(10, 20));
+        flush(indexName);
         assertBusy(() -> {
             var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));

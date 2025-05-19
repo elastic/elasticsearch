@@ -672,7 +672,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         throw new AlreadyClosedException(message);
     }
 
-    // used by tests
+    /**
+     * NOTE: Method is package private mostly to allow checking the number of fee regions in tests.
+     * However, it is also used by {@link SharedBlobCacheService#maybeFetchFullEntry} but we should try
+     * to move away from that because calling "size" on a ConcurrentLinkedQueue is not a constant time operation.
+     */
     int freeRegionCount() {
         return freeRegions.size();
     }

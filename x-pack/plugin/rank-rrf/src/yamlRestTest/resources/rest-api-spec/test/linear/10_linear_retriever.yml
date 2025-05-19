@@ -1101,3 +1101,4 @@ setup:
                 }
               ]
               rank_window_size: -10
+  - match: { status: 400 }

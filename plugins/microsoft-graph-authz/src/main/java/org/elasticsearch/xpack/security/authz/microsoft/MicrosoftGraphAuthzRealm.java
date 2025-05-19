@@ -163,7 +163,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
             var json = JSONObjectUtils.parse(response);
             nextPage = (String) json.get("@odata.nextLink");
-            for (var groupData: (List<?>) json.get("value")) {
+            for (var groupData : (List<?>) json.get("value")) {
                 final var properties = (Map<?, ?>) groupData;
                 groups.add((String) properties.get("id"));
             }

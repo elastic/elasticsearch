@@ -74,7 +74,7 @@ public class Stash implements ToXContentFragment {
         if (stashKey.startsWith("$")) {
             return true;
         }
-        return EXTENDED_KEY.matcher(stashKey).find();
+        return EXTENDED_KEY.matcher(stashKey).matches();
     }
 
     /**

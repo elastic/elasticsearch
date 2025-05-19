@@ -46,9 +46,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
-    '^test/ingest/15_info_ingest/*', // uses cluster info API
-    '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
-    '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
     '^migration/*/*',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',
@@ -77,10 +74,6 @@ tasks.named("yamlRestTest").configure {
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
-
-    // The indices-level node stats prepend the project ID to the index name in multi-project, so the matches fail
-    // This functionality is tested in NodesStatsMultiProjectIT
-    '^nodes.stats/11_indices_metrics/indices mappings exact count test for indices level',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

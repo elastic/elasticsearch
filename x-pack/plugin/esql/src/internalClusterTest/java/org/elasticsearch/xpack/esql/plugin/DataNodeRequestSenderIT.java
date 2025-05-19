@@ -62,7 +62,7 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                         throw e;
                     }
                 }
-            }, "testSearchWhileRelocating");
+            }, "testSearchWhileRelocating-" + i);
         }
         for (Thread thread : threads) {
             thread.start();

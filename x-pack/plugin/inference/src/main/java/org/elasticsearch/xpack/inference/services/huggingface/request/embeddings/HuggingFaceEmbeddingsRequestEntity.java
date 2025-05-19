@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.huggingface.request;
+package org.elasticsearch.xpack.inference.services.huggingface.request.embeddings;
 
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -14,11 +14,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record HuggingFaceInferenceRequestEntity(List<String> inputs) implements ToXContentObject {
+/**
+ * This class represents the request entity for Hugging Face embeddings.
+ * It contains a list of input strings that will be used to generate embeddings.
+ */
+public record HuggingFaceEmbeddingsRequestEntity(List<String> inputs) implements ToXContentObject {
 
     private static final String INPUTS_FIELD = "inputs";
 
-    public HuggingFaceInferenceRequestEntity {
+    public HuggingFaceEmbeddingsRequestEntity {
         Objects.requireNonNull(inputs);
     }
 

@@ -360,6 +360,7 @@ This returns:
           "index_name": ".ds-my-data-stream-2023.07.26-000001", <1>
           "index_uuid": "ltOJGmqgTVm4T-Buoe7Acg",
           "prefer_ilm": true,
+          "index_mode": "time_series",
           "managed_by": "Unmanaged"
         }
       ],
@@ -373,6 +374,7 @@ This returns:
       "allow_custom_routing": false,
       "replicated": false,
       "rollover_on_write": false,
+      "index_mode": "time_series",
       "time_series": {
         "temporal_ranges": [
           {

@@ -84,7 +84,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         IndexSettings indexSettings,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
-        BooleanSupplier shouldSkipMerge) {
+        BooleanSupplier shouldSkipMerge
+    ) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);

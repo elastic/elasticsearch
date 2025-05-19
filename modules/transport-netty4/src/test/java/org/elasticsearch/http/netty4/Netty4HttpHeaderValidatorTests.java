@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayDeque;
@@ -40,6 +41,9 @@ import static org.hamcrest.Matchers.instanceOf;
 public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     private EmbeddedChannel channel;
     private BlockingQueue<ValidationRequest> validatorRequestQueue;
+    private HttpValidator httpValidator = (httpRequest, channel, listener) -> validatorRequestQueue.add(
+        new ValidationRequest(httpRequest, channel, listener)
+    );
 
     @Override
     public void setUp() throws Exception {
@@ -47,7 +51,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         validatorRequestQueue = new LinkedBlockingQueue<>();
         channel = new EmbeddedChannel(
             new Netty4HttpHeaderValidator(
-                (httpRequest, channel, listener) -> validatorRequestQueue.add(new ValidationRequest(httpRequest, channel, listener)),
+                (httpRequest, channel, listener) -> httpValidator.validate(httpRequest, channel, listener),
                 new ThreadContext(Settings.EMPTY)
             )
         );
@@ -311,6 +315,14 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         }
         assertSame(nextRequest, channel.readInbound());
         assertFalse(channel.hasPendingTasks());
+    }
+
+    public void testInlineValidationDoesNotFork() {
+        httpValidator = (httpRequest, channel, listener) -> listener.onResponse(null);
+        final var httpRequest = newHttpRequest();
+        channel.writeInbound(httpRequest);
+        assertFalse(channel.hasPendingTasks());
+        assertSame(httpRequest, channel.readInbound());
     }
 
     record ValidationRequest(HttpRequest request, Channel channel, ActionListener<Void> listener) {}

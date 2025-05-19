@@ -61,9 +61,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             clientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
+        assertThat(credentialsProvider, instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testSupportsWebIdentityTokenCredentials() {
@@ -80,10 +78,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AwsCredentialsProviderChain.class));
-        AwsCredentials resolvedCredentials = privilegedAWSCredentialsProvider.resolveCredentials();
+        assertThat(credentialsProvider, instanceOf(AwsCredentialsProviderChain.class));
+        AwsCredentials resolvedCredentials = credentialsProvider.resolveCredentials();
         assertEquals("sts_access_key_id", resolvedCredentials.accessKeyId());
         assertEquals("sts_secret_key", resolvedCredentials.secretAccessKey());
     }
@@ -122,9 +118,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             defaultClientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) defaultCredentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
+        assertThat(defaultCredentialsProvider, instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testBasicAccessKeyAndSecretKeyCredentials() {

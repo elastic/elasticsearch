@@ -1,0 +1,6 @@
+pr: 126397
+summary: "ESQL: Preserve single aggregate when all attributes are pruned"
+area: ES|QL
+type: bug
+issues:
+ - 126392

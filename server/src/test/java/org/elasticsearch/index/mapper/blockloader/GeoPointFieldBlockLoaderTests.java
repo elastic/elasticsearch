@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +29,7 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var extractedFieldValues = (ExtractedFieldValues) value;
-        var values = extractedFieldValues.values();
-
+    protected Object expected(Map<String, Object> fieldMapping, Object values, TestContext testContext) {
         var rawNullValue = fieldMapping.get("null_value");
 
         GeoPoint nullValue;
@@ -80,9 +76,6 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (syntheticSourceKeep.equals("all")) {
             return exactValuesFromSource(values, nullValue, false);
         }
-        if (syntheticSourceKeep.equals("arrays") && extractedFieldValues.documentHasObjectArrays()) {
-            return exactValuesFromSource(values, nullValue, false);
-        }
 
         // synthetic source and doc_values are present
         if (hasDocValues(fieldMapping, true)) {
@@ -115,61 +108,6 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             .map(this::toWKB)
             .toList();
         return maybeFoldList(resultList);
-    }
-
-    private record ExtractedFieldValues(Object values, boolean documentHasObjectArrays) {}
-
-    @Override
-    protected Object getFieldValue(Map<String, Object> document, String fieldName) {
-        var extracted = new ArrayList<>();
-        var documentHasObjectArrays = processLevel(document, fieldName, extracted, false);
-
-        if (extracted.size() == 1) {
-            return new ExtractedFieldValues(extracted.get(0), documentHasObjectArrays);
-        }
-
-        return new ExtractedFieldValues(extracted, documentHasObjectArrays);
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean processLevel(Map<String, Object> level, String field, ArrayList<Object> extracted, boolean documentHasObjectArrays) {
-        if (field.contains(".") == false) {
-            var value = level.get(field);
-            processLeafLevel(value, extracted);
-            return documentHasObjectArrays;
-        }
-
-        var nameInLevel = field.split("\\.")[0];
-        var entry = level.get(nameInLevel);
-        if (entry instanceof Map<?, ?> m) {
-            return processLevel((Map<String, Object>) m, field.substring(field.indexOf('.') + 1), extracted, documentHasObjectArrays);
-        }
-        if (entry instanceof List<?> l) {
-            for (var object : l) {
-                processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), extracted, true);
-            }
-            return true;
-        }
-
-        assert false : "unexpected document structure";
-        return false;
-    }
-
-    private void processLeafLevel(Object value, ArrayList<Object> extracted) {
-        if (value instanceof List<?> l) {
-            if (l.size() > 0 && l.get(0) instanceof Double) {
-                // this must be a single point in array form
-                // we'll put it into a different form here to make our lives a bit easier while implementing `expected`
-                extracted.add(Map.of("type", "point", "coordinates", l));
-            } else {
-                // this is actually an array of points but there could still be points in array form inside
-                for (var arrayValue : l) {
-                    processLeafLevel(arrayValue, extracted);
-                }
-            }
-        } else {
-            extracted.add(value);
-        }
     }
 
     @SuppressWarnings("unchecked")

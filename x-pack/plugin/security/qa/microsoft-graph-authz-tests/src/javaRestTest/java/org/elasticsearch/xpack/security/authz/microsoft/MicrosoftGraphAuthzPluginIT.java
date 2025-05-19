@@ -22,17 +22,14 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.security.authc.saml.SamlIdpMetadataBuilder;
 import org.elasticsearch.xpack.security.authc.saml.SamlResponseBuilder;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.util.Base64;
 import java.util.HashMap;
@@ -44,28 +41,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = initTestCluster();
-    private static Path caPath;
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(cluster);
 
-    private static final String IDP_ENTITY_ID = "https://idp.example.org/";
+    private static final String IDP_ENTITY_ID = "http://idp.example.org/";
 
     private static ElasticsearchCluster initTestCluster() {
         return ElasticsearchCluster.local()
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.authc.token.enabled", "true")
-            .setting("xpack.security.authc.api_key.enabled", "true")
-            .setting("xpack.security.http.ssl.enabled", "true")
-            .setting("xpack.security.http.ssl.certificate", "node.crt")
-            .setting("xpack.security.http.ssl.key", "node.key")
-            .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
-            .setting("xpack.security.transport.ssl.enabled", "true")
-            .setting("xpack.security.transport.ssl.certificate", "node.crt")
-            .setting("xpack.security.transport.ssl.key", "node.key")
-            .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
-            .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+            .setting("xpack.security.http.ssl.enabled", "false")
             .plugin("microsoft-graph-authz")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("test_admin", "x-pack-test-password", User.ROOT_USER_ROLE, true)
@@ -79,9 +66,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.saml.saml1.idp.metadata.path", "metadata.xml")
             .setting("xpack.security.authc.realms.saml.saml1.attributes.principal", "urn:oid:2.5.4.3")
             .setting("xpack.security.authc.realms.saml.saml1.ssl.certificate_authorities", "ca.crt")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.entity_id", "https://sp/default.example.org/")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.acs", "https://acs/default")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.logout", "https://logout/default")
+            .setting("xpack.security.authc.realms.saml.saml1.sp.entity_id", "http://sp/default.example.org/")
+            .setting("xpack.security.authc.realms.saml.saml1.sp.acs", "http://acs/default")
+            .setting("xpack.security.authc.realms.saml.saml1.sp.logout", "http://logout/default")
             .setting("xpack.security.authc.realms.saml.saml1.authorization_realms", "microsoft_graph1")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.order", "2")
             .build();
@@ -97,15 +84,6 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         return null;
     }
 
-    @BeforeClass
-    public static void loadCertificateAuthority() throws Exception {
-        URL resource = MicrosoftGraphAuthzPluginIT.class.getResource("/ssl/ca.crt");
-        if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
-        }
-        caPath = PathUtils.get(resource.toURI());
-    }
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -113,13 +91,13 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     @Override
     protected String getProtocol() {
-        return "https";
+        return "http";
     }
 
     @Override
     protected Settings restClientSettings() {
         final String token = basicAuthHeaderValue("rest_test", new SecureString("rest_password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, caPath).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
@@ -133,9 +111,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     private String getSamlAssertionJsonBodyString(String username) throws Exception {
-        var message = new SamlResponseBuilder().spEntityId("https://sp/default.example.org/")
+        var message = new SamlResponseBuilder().spEntityId("http://sp/default.example.org/")
             .idpEntityId(IDP_ENTITY_ID)
-            .acs(new URL("https://acs/default"))
+            .acs(new URL("http://acs/default"))
             .attribute("urn:oid:2.5.4.3", username)
             .sign(getDataPath("/saml/signing.crt"), getDataPath("/saml/signing.key"), new char[0])
             .asString();

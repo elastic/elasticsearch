@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -29,19 +30,21 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Look for any fields used in the plan that are missing locally and replace them with null.
+ * Look for any fields used in the plan that are missing or that are constant locally and replace them with null or with the value.
  * This should minimize the plan execution, in the best scenario skipping its execution all together.
  */
-public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
+public class ReplaceFieldWithConstant extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         var lookupFieldsBuilder = AttributeSet.builder();
+        Map<Attribute, Expression> attrToValue = new HashMap<>();
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
@@ -52,6 +55,18 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             if (esRelation.indexMode() == IndexMode.LOOKUP) {
                 lookupFieldsBuilder.addAll(esRelation.output());
             }
+            // find constant values only in the main indices
+            else if (esRelation.indexMode() == IndexMode.STANDARD) {
+                for (Attribute attribute : esRelation.output()) {
+                    if (attribute instanceof FieldAttribute fa) {
+                        // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
+                        var val = localLogicalOptimizerContext.searchStats().constantValue(fa.fieldName());
+                        if (val != null) {
+                            attrToValue.put(attribute, Literal.of(attribute, val));
+                        }
+                    }
+                }
+            }
         });
         AttributeSet lookupFields = lookupFieldsBuilder.build();
 
@@ -61,10 +76,10 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
             || lookupFields.contains(f);
 
-        return plan.transformUp(p -> missingToNull(p, shouldBeRetained));
+        return plan.transformUp(p -> missingToNull(p, shouldBeRetained, attrToValue));
     }
 
-    private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained) {
+    private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained, Map<Attribute, Expression> constants) {
         if (plan instanceof EsRelation relation) {
             // For any missing field, place an Eval right after the EsRelation to assign null values to that attribute (using the same name
             // id!), thus avoiding that InsertFieldExtrations inserts a field extraction later.
@@ -118,7 +133,10 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
             || plan instanceof TopN) {
-            return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> shouldBeRetained.test(f) ? f : Literal.of(f, null));
+            return plan.transformExpressionsOnlyUp(
+                FieldAttribute.class,
+                f -> constants.getOrDefault(f, shouldBeRetained.test(f) ? f : Literal.of(f, null))
+            );
         }
 
         return plan;

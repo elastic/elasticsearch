@@ -12,8 +12,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFiltered
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceConstantKeywords;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceMissingFieldWithNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -39,9 +38,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new Batch<>(
                 "Local rewrite",
                 Limiter.ONCE,
-                new ReplaceConstantKeywords(),
                 new ReplaceTopNWithLimitAndSort(),
-                new ReplaceMissingFieldWithNull(),
+                new ReplaceFieldWithConstant(),
                 new InferIsNotNull(),
                 new InferNonNullAggConstraint()
             ),

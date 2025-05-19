@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.Partition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -484,6 +485,7 @@ public class PushTopNToSourceTests extends ESTestCase {
         private final LinkedHashMap<String, MetadataAttribute> metadata;
         private IndexMode indexMode;
         private final List<Alias> aliases = new ArrayList<>();
+        private final List<Partition> partitions = new ArrayList<>();
         private final List<Order> orders = new ArrayList<>();
         private int limit = Integer.MAX_VALUE;
 
@@ -586,7 +588,14 @@ public class PushTopNToSourceTests extends ESTestCase {
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }
-            return new TopNExec(Source.EMPTY, child, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+            return new TopNExec(
+                Source.EMPTY,
+                child,
+                partitions,
+                orders,
+                new Literal(Source.EMPTY, limit, INTEGER),
+                randomEstimatedRowSize()
+            );
         }
 
         public TestPhysicalPlanBuilder asTimeSeries() {

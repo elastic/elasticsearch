@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -23,11 +24,14 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -194,6 +198,16 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    public record Partition(int channel) {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Partition.class);
+
+        @Override
+        public String toString() {
+            return "Partition[channel=" + this.channel + "]";
+        }
+    }
+
     public record SortOrder(int channel, boolean asc, boolean nullsFirst) {
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortOrder.class);
@@ -224,6 +238,7 @@ public class TopNOperator implements Operator, Accountable {
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
+        List<Partition> partitions,
         List<SortOrder> sortOrders,
         int maxPageSize
     ) implements OperatorFactory {
@@ -243,6 +258,7 @@ public class TopNOperator implements Operator, Accountable {
                 topCount,
                 elementTypes,
                 encoders,
+                partitions,
                 sortOrders,
                 maxPageSize
             );
@@ -256,6 +272,8 @@ public class TopNOperator implements Operator, Accountable {
                 + elementTypes
                 + ", encoders="
                 + encoders
+                + ", partitions="
+                + partitions
                 + ", sortOrders="
                 + sortOrders
                 + "]";
@@ -264,12 +282,14 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final Queue inputQueue;
+    private final Map<String, Queue> inputQueues;
 
+    private final int topCount;
     private final int maxPageSize;
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
+    private final List<Partition> partitions;
     private final List<SortOrder> sortOrders;
 
     private Row spare;
@@ -304,16 +324,19 @@ public class TopNOperator implements Operator, Accountable {
         int topCount,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
+        List<Partition> partitions,
         List<SortOrder> sortOrders,
         int maxPageSize
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
+        this.topCount = topCount;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
+        this.partitions = partitions;
         this.sortOrders = sortOrders;
-        this.inputQueue = new Queue(topCount);
+        this.inputQueues = new TreeMap<>();
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -385,6 +408,8 @@ public class TopNOperator implements Operator, Accountable {
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
                 spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
 
+                String partitionKey = getPartitionKey(page, i);
+                Queue inputQueue = inputQueues.computeIfAbsent(partitionKey, key -> new Queue(topCount));
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {
@@ -392,6 +417,28 @@ public class TopNOperator implements Operator, Accountable {
             pagesReceived++;
             rowsReceived += page.getPositionCount();
         }
+    }
+
+    /**
+     * Calculates the partition key of the i-th row of the given page.
+     *
+     * @param page page for which the partition key should be calculated
+     * @param i row index
+     * @return partition key of the i-th row of the given page
+     */
+    private String getPartitionKey(Page page, int i) {
+        if (partitions.isEmpty()) {
+            return "";
+        }
+        assert page.getPositionCount() > 0;
+        StringBuilder builder = new StringBuilder();
+        for (Partition partition : partitions) {
+            try (var block = page.getBlock(partition.channel).filter(i)) {
+                BytesRef partitionFieldValue = ((BytesRefBlock) block).getBytesRef(i, new BytesRef());
+                builder.append(partitionFieldValue.utf8ToString());
+            }
+        }
+        return builder.toString();
     }
 
     @Override
@@ -407,14 +454,17 @@ public class TopNOperator implements Operator, Accountable {
             spare.close();
             spare = null;
         }
-        if (inputQueue.size() == 0) {
-            return Collections.emptyIterator();
-        }
-        List<Row> list = new ArrayList<>(inputQueue.size());
-        List<Page> result = new ArrayList<>();
-        ResultBuilder[] builders = null;
         boolean success = false;
+        List<Row> list = null;
+        ResultBuilder[] builders = null;
+        List<Page> result = new ArrayList<>();
+        // TODO: optimize case where all the queues are empty
         try {
+            for (var entry : inputQueues.entrySet()) {
+            Queue inputQueue = entry.getValue();
+
+            list = new ArrayList<>(inputQueue.size());
+            builders = null;
             while (inputQueue.size() > 0) {
                 list.add(inputQueue.pop());
             }
@@ -483,6 +533,7 @@ public class TopNOperator implements Operator, Accountable {
                 }
             }
             assert builders == null;
+            }
             success = true;
             return result.iterator();
         } finally {
@@ -524,20 +575,20 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
+        List<Releasable> releasables = new ArrayList<>();
+        releasables.addAll(inputQueues.values().stream().map(Releasables::wrap).toList());
+        releasables.add(output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks)));
         /*
          * If we close before calling finish then spare and inputQueue will be live rows
          * that need closing. If we close after calling finish then the output iterator
          * will contain pages of results that have yet to be returned.
          */
-        Releasables.closeExpectNoException(
-            spare,
-            inputQueue == null ? null : Releasables.wrap(inputQueue),
-            output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
-        );
+        Releasables.closeExpectNoException(spare, Releasables.wrap(releasables));
     }
 
-    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
-        .shallowSizeOfInstance(List.class) * 3;
+    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class)
+        + RamUsageEstimator.shallowSizeOfInstance(List.class) * 4
+        + RamUsageEstimator.shallowSizeOfInstance(Map.class);
 
     @Override
     public long ramBytesUsed() {
@@ -548,25 +599,34 @@ public class TopNOperator implements Operator, Accountable {
         // These lists may slightly under-count, but it's not likely to be by much.
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * elementTypes.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
+        size += RamUsageEstimator.alignObjectSize(arrHeader + ref * partitions.size());
+        size += partitions.size() * Partition.SHALLOW_SIZE;
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        size += inputQueue.ramBytesUsed();
+        long ramBytesUsedSum = inputQueues.entrySet().stream()
+            .mapToLong(e -> e.getKey().getBytes(Charset.defaultCharset()).length + e.getValue().ramBytesUsed())
+            .sum();
+        size += ramBytesUsedSum;
         return size;
     }
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        int queueSizeSum = inputQueues.values().stream().mapToInt(Queue::size).sum();
+        return new TopNOperatorStatus(queueSizeSum, ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override
     public String toString() {
+        int queueSizeSum = inputQueues.values().stream().mapToInt(Queue::size).sum();
         return "TopNOperator[count="
-            + inputQueue
+            + queueSizeSum + "/" + topCount
             + ", elementTypes="
             + elementTypes
             + ", encoders="
             + encoders
+            + ", partitions="
+            + partitions
             + ", sortOrders="
             + sortOrders
             + "]";

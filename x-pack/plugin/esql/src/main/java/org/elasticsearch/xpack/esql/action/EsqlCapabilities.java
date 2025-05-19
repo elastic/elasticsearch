@@ -873,7 +873,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1037,6 +1037,12 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_EVAL,
 
         /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1044,7 +1050,42 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot());
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
+         */
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

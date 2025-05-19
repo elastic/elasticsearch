@@ -41,11 +41,11 @@ added as new columns to that row.
 If multiple documents in the lookup index match a single row in your
 results, the output will contain one row for each matching combination.
 
-**Examples**
-
 ::::{tip}
-In case of name collisions, the newly created columns will override existing columns.
+For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#usage-notes).
 ::::
+
+**Examples**
 
 **IP Threat correlation**: This query would allow you to see if any source
 IPs match known malicious addresses.

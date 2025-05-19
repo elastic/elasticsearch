@@ -38,7 +38,9 @@ public class ChangePointOperator implements Operator {
 
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int metricChannel, List<Integer> partitionChannel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
+    public record Factory(int metricChannel, List<Integer> partitionChannel, String sourceText, int sourceLine, int sourceColumn)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new ChangePointOperator(driverContext, metricChannel, partitionChannel, sourceText, sourceLine, sourceColumn);
@@ -64,7 +66,14 @@ public class ChangePointOperator implements Operator {
 
     // TODO: make org.elasticsearch.xpack.esql.core.tree.Source available here
     // (by modularizing esql-core) and use that instead of the individual fields.
-    public ChangePointOperator(DriverContext driverContext, int metricChannel, List<Integer> partitionChannel, String sourceText, int sourceLine, int sourceColumn) {
+    public ChangePointOperator(
+        DriverContext driverContext,
+        int metricChannel,
+        List<Integer> partitionChannel,
+        String sourceText,
+        int sourceLine,
+        int sourceColumn
+    ) {
         this.driverContext = driverContext;
         this.metricChannel = metricChannel;
         this.partitionChannel = partitionChannel;
@@ -128,7 +137,6 @@ public class ChangePointOperator implements Operator {
         }
         boolean tooManyValues = maxValuesCount > INPUT_VALUE_COUNT_LIMIT;
 
-
         List<MlAggsHelper.DoubleBucketValues> bucketValuesPerPartition = new ArrayList<>();
         boolean hasNulls = false;
         boolean hasMultivalued = false;
@@ -168,14 +176,14 @@ public class ChangePointOperator implements Operator {
                 }
             }
             // Handle last partition separately
-//        if (lastPartitionFieldValue != null) {
+            // if (lastPartitionFieldValue != null) {
             MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
                 null,
                 values.stream().mapToDouble(Double::doubleValue).toArray(),
                 bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
             );
             bucketValuesPerPartition.add(bucketValues);
-//        }
+            // }
         }
 
         List<ChangeType> changeTypes = new ArrayList<>();
@@ -237,7 +245,9 @@ public class ChangePointOperator implements Operator {
 
             try {
                 // TODO: How to handle case when there are no change points
-                if (changeType != null && pageStartIndex <= changeType.changePoint() && changeType.changePoint() < pageStartIndex + inputPage.getPositionCount()) {
+                if (changeType != null
+                    && pageStartIndex <= changeType.changePoint()
+                    && changeType.changePoint() < pageStartIndex + inputPage.getPositionCount()) {
                     try (
                         BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
                         DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
@@ -258,7 +268,7 @@ public class ChangePointOperator implements Operator {
                     changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
                     changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
                 }
-                outputPage = inputPage.appendBlocks(new Block[]{changeTypeBlock, changePvalueBlock});
+                outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
                 if (pageStartIndex + inputPage.getPositionCount() > INPUT_VALUE_COUNT_LIMIT) {
                     outputPage = outputPage.subPage(0, INPUT_VALUE_COUNT_LIMIT - pageStartIndex);
                 }
@@ -317,7 +327,7 @@ public class ChangePointOperator implements Operator {
             + metricChannel
             + ", partitionChannels="
             + partitionChannel.stream().map(c -> c.toString()).collect(Collectors.joining(",", "[", "]"))
-        + "]";
+            + "]";
     }
 
     private Warnings warnings(boolean onlyWarnings) {

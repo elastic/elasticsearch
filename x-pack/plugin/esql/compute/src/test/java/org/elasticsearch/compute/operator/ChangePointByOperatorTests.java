@@ -19,7 +19,6 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,17 +73,19 @@ public class ChangePointByOperatorTests extends OperatorTestCase {
         }
         assertThat(
             actualChangePoints,
-            equalTo(List.of(
-                Tuple.tuple(rowCount / 6, "step_change"),
-                Tuple.tuple(rowCount / 2, "step_change"),
-                Tuple.tuple(8 * rowCount / 9, "spike"))
+            equalTo(
+                List.of(
+                    Tuple.tuple(rowCount / 6, "step_change"),
+                    Tuple.tuple(rowCount / 2, "step_change"),
+                    Tuple.tuple(8 * rowCount / 9, "spike")
+                )
             )
         );
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new ChangePointOperator.Factory(0, List.of(1), null,0, 0);
+        return new ChangePointOperator.Factory(0, List.of(1), null, 0, 0);
     }
 
     @Override

@@ -448,6 +448,26 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         expectThrows(ExecutionException.class, TaskCancelledException.class, cancelledFuture::result);
     }
 
+    public void testClearCurrentCachedItem() throws ExecutionException {
+        final TestCache testCache = new TestCache();
+
+        // The first get() calls the refresh function.
+        final TestFuture future0 = new TestFuture();
+        testCache.get("foo", () -> false, future0);
+        testCache.assertPendingRefreshes(1);
+        testCache.completeNextRefresh("foo", 1);
+        assertThat(future0.result(), equalTo(1));
+
+        testCache.clearCurrentCachedItem();
+
+        // The second get() with a matching key will execute a refresh since the cached item was cleared.
+        final TestFuture future1 = new TestFuture();
+        testCache.get("foo", () -> false, future1);
+        testCache.assertPendingRefreshes(1);
+        testCache.completeNextRefresh("foo", 2);
+        assertThat(future1.result(), equalTo(2));
+    }
+
     private static final ThreadContext testThreadContext = new ThreadContext(Settings.EMPTY);
 
     private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {

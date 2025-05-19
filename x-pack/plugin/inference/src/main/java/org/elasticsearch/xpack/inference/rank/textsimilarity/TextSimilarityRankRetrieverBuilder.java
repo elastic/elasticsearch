@@ -177,10 +177,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return inferenceId;
     }
 
-    public boolean failuresAllowed() {
-        return failuresAllowed;
-    }
-
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());

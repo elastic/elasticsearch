@@ -461,3 +461,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized/Test index configured rescore vector score consistency}
   issue: https://github.com/elastic/elasticsearch/issues/128077
+- class: org.elasticsearch.compute.operator.ChangePointOperatorTests
+  method: testSimpleFinishClose
+  issue: https://github.com/elastic/elasticsearch/issues/127106

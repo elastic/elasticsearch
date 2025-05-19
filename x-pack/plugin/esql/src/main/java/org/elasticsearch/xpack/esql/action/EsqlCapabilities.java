@@ -1037,6 +1037,12 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_EVAL,
 
         /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1069,7 +1075,17 @@ public class EsqlCapabilities {
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
-        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS;
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

@@ -462,3 +462,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/128123

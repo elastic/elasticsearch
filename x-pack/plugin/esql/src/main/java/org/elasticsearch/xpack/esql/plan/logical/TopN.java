@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.Partition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -24,11 +25,13 @@ import java.util.Objects;
 public class TopN extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
+    private final List<Partition> partition;
     private final List<Order> order;
     private final Expression limit;
 
-    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit) {
+    public TopN(Source source, LogicalPlan child, List<Partition> partition, List<Order> order, Expression limit) {
         super(source, child);
+        this.partition = partition;
         this.order = order;
         this.limit = limit;
     }
@@ -37,6 +40,7 @@ public class TopN extends UnaryPlan {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
+            in.readCollectionAsList(Partition::new),
             in.readCollectionAsList(Order::new),
             in.readNamedWriteable(Expression.class)
         );
@@ -46,6 +50,7 @@ public class TopN extends UnaryPlan {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        out.writeCollection(partition);
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
     }
@@ -57,21 +62,25 @@ public class TopN extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return limit.resolved() && Resolvables.resolved(order);
+        return limit.resolved() && Resolvables.resolved(partition) && Resolvables.resolved(order);
     }
 
     @Override
     protected NodeInfo<TopN> info() {
-        return NodeInfo.create(this, TopN::new, child(), order, limit);
+        return NodeInfo.create(this, TopN::new, child(), partition, order, limit);
     }
 
     @Override
     public TopN replaceChild(LogicalPlan newChild) {
-        return new TopN(source(), newChild, order, limit);
+        return new TopN(source(), newChild, partition, order, limit);
     }
 
     public Expression limit() {
         return limit;
+    }
+
+    public List<Partition> partition() {
+        return partition;
     }
 
     public List<Order> order() {
@@ -80,14 +89,14 @@ public class TopN extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit);
+        return Objects.hash(super.hashCode(), partition, order, limit);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             var other = (TopN) obj;
-            return Objects.equals(order, other.order) && Objects.equals(limit, other.limit);
+            return Objects.equals(partition, other.partition) && Objects.equals(order, other.order) && Objects.equals(limit, other.limit);
         }
         return false;
     }

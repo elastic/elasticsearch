@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -133,7 +132,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         )) {
             var request = new TransportGetAllocationStatsAction.Request(TimeValue.ONE_MINUTE, TaskId.EMPTY_TASK_ID, metrics);
 
-            when(allocationStatsService.stats(argThat(r -> true))).thenReturn(
+            when(allocationStatsService.stats(any())).thenReturn(
                 Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats())
             );
 
@@ -161,7 +160,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         disableAllocationStatsCache();
         final var requestCounter = new AtomicInteger();
         final var isExecuting = new AtomicBoolean();
-        when(allocationStatsService.stats(argThat(r -> true))).thenAnswer(invocation -> {
+        when(allocationStatsService.stats(any())).thenAnswer(invocation -> {
             try {
                 assertTrue(isExecuting.compareAndSet(false, true));
                 assertThat(Thread.currentThread().getName(), containsString("[management]"));
@@ -262,7 +261,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         final Runnable resetExpectedAllocationStats = () -> {
             final var stats = Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats());
             allocationStats.set(stats);
-            when(allocationStatsService.stats(argThat(r -> true))).thenReturn(stats);
+            when(allocationStatsService.stats(any())).thenReturn(stats);
         };
 
         final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {

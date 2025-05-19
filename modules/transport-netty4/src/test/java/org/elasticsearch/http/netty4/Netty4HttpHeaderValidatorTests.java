@@ -115,7 +115,6 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
      * Sends back-to-back http requests and randomly fail validation.
      * Ensures that invalid requests drop content and valid pass through.
      */
-    @AwaitsFix(bugUrl = "coverage TODO nocommit")
     public void testMixedValidationResults() {
         for (var i = 0; i < 1000; i++) {
             var shouldPassValidation = randomBoolean();

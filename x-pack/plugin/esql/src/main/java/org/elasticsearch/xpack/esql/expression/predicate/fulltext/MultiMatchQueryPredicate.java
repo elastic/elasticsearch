@@ -95,8 +95,8 @@ public class MultiMatchQueryPredicate extends FullTextPredicate implements Trans
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return true; // needs update if we'll ever validate the fields
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return Translatable.YES; // needs update if we'll ever validate the fields
     }
 
     @Override

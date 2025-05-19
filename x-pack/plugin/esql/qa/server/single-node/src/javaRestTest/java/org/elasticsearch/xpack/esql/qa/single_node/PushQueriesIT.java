@@ -143,7 +143,7 @@ public class PushQueriesIT extends ESRestTestCase {
             | WHERE test == "%value" AND foo == 1
             """;
         List<String> luceneQueryOptions = switch (type) {
-            case "text", "auto" -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
+            case "text", "auto" -> List.of("#(#test.keyword:%value -_ignored:test.keyword) #foo:[1 TO 1]");
             case "match_only_text" -> List.of("foo:[1 TO 1]");
             case "semantic_text" ->
                 /*

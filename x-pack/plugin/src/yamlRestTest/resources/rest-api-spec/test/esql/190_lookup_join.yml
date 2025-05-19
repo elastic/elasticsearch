@@ -68,6 +68,19 @@ setup:
               color:
                 type: keyword
   - do:
+      indices.create:
+        index: test-lookup-no-key
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              no-key:
+                type: long
+              color:
+                type: keyword
+  - do:
       indices.update_aliases:
         body:
           actions:
@@ -120,6 +133,15 @@ setup:
           - { "key": 2, "color": "yellow" }
           - { "index": { } }
           - { "key": [0, 1, 2], "color": "green" }
+  - do:
+      bulk:
+        index: "test-lookup-no-key"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "no-key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "no-key": 2, "color": "yellow" }
 
 ---
 basic:
@@ -281,3 +303,14 @@ mv-on-query:
   - match: {values.0: [[0, 1, 2], null]}
   - match: {values.1: [1, "cyan"]}
   - match: {values.2: [2, "yellow"]}
+
+---
+lookup-no-key:
+  - do:
+      esql.query:
+          body:
+            query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Unknown column [key] in right side of join" }

@@ -219,7 +219,8 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19 = def(8_841_0_28);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING_8_19 = def(8_841_0_29);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_8_19 = def(8_841_0_30);
-    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19 = def(8_841_0_31);
+    public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_31);
+    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19 = def(8_841_0_32);
 
     /*
      * STOP! READ THIS FIRST! No, really,

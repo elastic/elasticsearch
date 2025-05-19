@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,13 +27,14 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
-public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, ChunkedToXContent> {
+public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
+    Deque<ServerSentEvent>,
+    StreamingUnifiedChatCompletionResults.Results> {
     public static final String FUNCTION_FIELD = "function";
     private static final Logger logger = LogManager.getLogger(OpenAiUnifiedStreamingProcessor.class);
 
@@ -60,20 +60,10 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
 
     private final BiFunction<String, Exception, Exception> errorParser;
-    private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
     private volatile boolean previousEventWasError = false;
 
     public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
-    }
-
-    @Override
-    protected void upstreamRequest(long n) {
-        if (buffer.isEmpty()) {
-            super.upstreamRequest(n);
-        } else {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
-        }
     }
 
     @Override
@@ -101,15 +91,8 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
 
         if (results.isEmpty()) {
             upstream().request(1);
-        } else if (results.size() == 1) {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         } else {
-            // results > 1, but openai spec only wants 1 chunk per SSE event
-            var firstItem = singleItem(results.poll());
-            while (results.isEmpty() == false) {
-                buffer.offer(results.poll());
-            }
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(firstItem));
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         }
     }
 
@@ -301,13 +284,5 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
                 return PARSER.parse(parser, null);
             }
         }
-    }
-
-    private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
-    ) {
-        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
-        deque.offer(result);
-        return deque;
     }
 }

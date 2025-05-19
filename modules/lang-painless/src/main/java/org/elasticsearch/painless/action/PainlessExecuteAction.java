@@ -828,7 +828,8 @@ public class PainlessExecuteAction {
                     // This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
                     // nor _source (if there are no mappings there are no metadata fields).
                     ParsedDocument parsedDocument = documentMapper.parse(sourceToParse);
-                    indexWriter.addDocuments(parsedDocument.docs());
+                    // only index the root doc since nested docs are not supported in painless anyways
+                    indexWriter.addDocuments(List.of(parsedDocument.rootDoc()));
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);

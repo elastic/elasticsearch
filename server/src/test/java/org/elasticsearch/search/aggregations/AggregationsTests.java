@@ -156,7 +156,7 @@ public class AggregationsTests extends ESTestCase {
                 } else {
                     multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
-            } else if (testCase instanceof InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase) {
+            } else if (testCase instanceof SingleBucketAggregationTestCase<?> singleBucketAggTestCase) {
                 if (currentDepth < maxDepth) {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0, currentDepth + 1, maxDepth);
                 } else {

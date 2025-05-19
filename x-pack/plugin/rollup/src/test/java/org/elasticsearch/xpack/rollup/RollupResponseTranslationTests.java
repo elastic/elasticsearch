@@ -162,29 +162,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> aggTree = new ArrayList<>(1);
-        InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        Sum sum = mock(Sum.class);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.getName()).thenReturn("foo");
-        when(sum.getMetadata()).thenReturn(metadata);
-        when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(sum);
+        subaggs.add(new Sum("foo", 10.0, DocValueFormat.RAW, metadata));
+        subaggs.add(new Sum("foo." + RollupField.COUNT_FIELD, 2.0, DocValueFormat.RAW, null));
 
-        Sum count = mock(Sum.class);
-        when(count.value()).thenReturn(2.0);
-        when(count.value()).thenReturn(2.0);
-        when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetadata()).thenReturn(null);
-        when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(count);
-
-        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
-        when(filter.getName()).thenReturn("filter_foo");
+        InternalFilter filter = new InternalFilter("filter_foo", 0, InternalAggregations.from(subaggs), metadata);
         aggTree.add(filter);
 
         InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
@@ -285,33 +270,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testTranslateRollup() throws Exception {
         SearchResponse response = mock(SearchResponse.class);
         when(response.getTook()).thenReturn(new TimeValue(100));
-        List<InternalAggregation> aggTree = new ArrayList<>(1);
-        InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        Sum sum = mock(Sum.class);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.getName()).thenReturn("foo");
-        when(sum.getMetadata()).thenReturn(metadata);
-        when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(sum);
-
-        Sum count = mock(Sum.class);
-        when(count.value()).thenReturn(2.0);
-        when(count.value()).thenReturn(2.0);
-        when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetadata()).thenReturn(null);
-        when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(count);
-
-        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
-        when(filter.getName()).thenReturn("filter_foo");
-        aggTree.add(filter);
-
-        InternalAggregations mockAggs = InternalAggregations.from(aggTree);
+        subaggs.add(new Sum("foo", 10.0, DocValueFormat.RAW, metadata));
+        subaggs.add(new Sum("foo." + RollupField.COUNT_FIELD, 2.0, DocValueFormat.RAW, null));
+        InternalAggregations mockAggs = InternalAggregations.from(
+            new InternalFilter("filter_foo", 0, InternalAggregations.from(subaggs), null)
+        );
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
             new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
@@ -434,33 +401,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
-        List<InternalAggregation> aggTree = new ArrayList<>(1);
-        InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        Sum sum = mock(Sum.class);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.value()).thenReturn(10.0);
-        when(sum.getName()).thenReturn("foo");
-        when(sum.getMetadata()).thenReturn(metadata);
-        when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(sum);
-
-        Sum count = mock(Sum.class);
-        when(count.value()).thenReturn(2.0);
-        when(count.value()).thenReturn(2.0);
-        when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetadata()).thenReturn(null);
-        when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
-        subaggs.add(count);
-
-        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
-        when(filter.getName()).thenReturn("filter_foo");
-        aggTree.add(filter);
-
-        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        subaggs.add(new Sum("foo", 10.0, DocValueFormat.RAW, metadata));
+        subaggs.add(new Sum("foo." + RollupField.COUNT_FIELD, 2.0, DocValueFormat.RAW, null));
+        InternalAggregations mockAggsWithout = InternalAggregations.from(
+            new InternalFilter("filter_foo", 0, InternalAggregations.from(subaggs), Map.of())
+        );
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 

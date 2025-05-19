@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.hamcrest.Matchers.containsString;
 
 public class StGeotileTests extends SpatialGridFunctionTestCase {
     public StGeotileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -42,5 +44,12 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         Expression bounds = args.size() > 2 ? args.get(2) : null;
         return new StGeotile(source, args.get(0), args.get(1), bounds);
+    }
+
+    public void testInvalidPrecision() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(-1, StGeotileTests::valueOf));
+        assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of -1. Must be between 0 and 29."));
+        ex = expectThrows(IllegalArgumentException.class, () -> process(GeoTileUtils.MAX_ZOOM + 1, StGeotileTests::valueOf));
+        assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of 30. Must be between 0 and 29."));
     }
 }

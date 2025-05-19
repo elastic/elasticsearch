@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -18,6 +22,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeNotNull;
 
 public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunctionTestCase {
 
@@ -85,6 +90,24 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                 case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
+        }
+    }
+
+    protected Long process(int precision, BiFunction<BytesRef, Integer, Long> expectedValue) {
+        Object spatialObj = this.testCase.getDataValues().getFirst();
+        assumeNotNull(spatialObj);
+        assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
+        BytesRef wkb = (BytesRef) spatialObj;
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                build(
+                    Source.EMPTY,
+                    List.of(new Literal(Source.EMPTY, wkb, DataType.GEO_POINT), new Literal(Source.EMPTY, precision, DataType.INTEGER))
+                )
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(wkb, precision)))
+        ) {
+            return block.isNull(0) ? null : expectedValue.apply(wkb, precision);
         }
     }
 }

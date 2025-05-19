@@ -85,7 +85,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     private static int checkPrecisionRange(int precision) {
         if (precision < 1 || precision > Geohash.PRECISION) {
             throw new IllegalArgumentException(
-                "Invalid geohash precision of " + precision + ". Must be between 1 and " + Geohash.PRECISION + "."
+                "Invalid geohash_grid precision of " + precision + ". Must be between 1 and " + Geohash.PRECISION + "."
             );
         }
         return precision;

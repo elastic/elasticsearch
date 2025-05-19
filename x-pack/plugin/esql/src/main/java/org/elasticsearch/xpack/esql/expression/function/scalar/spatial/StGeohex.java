@@ -81,7 +81,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     private static int checkPrecisionRange(int precision) {
         if (precision < 1 || precision > H3.MAX_H3_RES) {
             throw new IllegalArgumentException(
-                "Invalid geohex precision of " + precision + ". Must be between 0 and " + H3.MAX_H3_RES + "."
+                "Invalid geohex_grid precision of " + precision + ". Must be between 0 and " + H3.MAX_H3_RES + "."
             );
         }
         return precision;

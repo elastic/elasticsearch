@@ -488,24 +488,19 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testProvidersAffectMode() {
-        ClusterState state;
-        var projectId = randomProjectIdOrDefault();
-        {
-            state = DataStreamTestHelper.getClusterStateWithDataStreams(
-                projectId,
-                List.of(Tuple.tuple("data-stream-1", 2)),
-                List.of(),
-                System.currentTimeMillis(),
-                Settings.EMPTY,
-                0,
-                false,
-                false
-            );
-        }
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state.projectState(projectId),
+            state,
             req,
             resolver,
             systemIndices,
@@ -526,10 +521,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ),
             null
         );
-        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("lookup"));
         assertThat(
             response.getDataStreams()
-                .getFirst()
+                .get(0)
                 .getIndexSettingsValues()
                 .values()
                 .stream()

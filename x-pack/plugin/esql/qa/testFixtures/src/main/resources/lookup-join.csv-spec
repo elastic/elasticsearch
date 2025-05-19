@@ -1567,6 +1567,29 @@ Spanish
 German
 ;
 
+dropAgainWithWildcardAfterEval2
+required_capability: join_lookup_v12
+required_capability: drop_again_with_wildcard_after_eval
+from addresses,cartesian_multipolygons,hosts
+| rename city.name as message 
+| lookup join message_types_lookup on message 
+| eval  card = -6013949614291505456, hOntTwnVC = null, PQAF = null, DXkxCFXyw = null, number = -7336429038807752405 
+| eval  dewAwHC = -1186293612, message = null 
+| sort number ASC, street ASC, ip0 DESC, name ASC NULLS FIRST, host ASC 
+| drop number, host_group, *umber, `city.country.continent.name`, dewAwHC, `zip_code`, `message`, city.country.continent.planet.name, `name`, `ip1`, message, zip_code 
+| drop description, *e, id 
+| keep `hOntTwnVC`, city.country.continent.planet.galaxy, street
+| limit 5
+;
+
+hOntTwnVC:null  | city.country.continent.planet.galaxy:keyword  | street:keyword
+null            | Milky Way                                     | Kearny St
+null            | Milky Way                                     | Keizersgracht
+null            | Milky Way                                     | Marunouchi
+null            | null                                          | null
+null            | null                                          | null
+;
+
 ###############################################
 # LOOKUP JOIN on date_nanos field
 ###############################################

@@ -59,7 +59,7 @@ public class Stash implements ToXContentFragment {
 
     /**
      * Tells whether a particular key needs to be looked up in the stash based on its name.
-     * Returns true if the string representation of the key starts with "$", false otherwise
+     * Returns true if the string representation of the key either starts with {@code $} or contains a {@code ${...}}, false otherwise.
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
@@ -75,6 +75,19 @@ public class Stash implements ToXContentFragment {
             return true;
         }
         return EXTENDED_KEY.matcher(stashKey).find();
+    }
+
+    /**
+     * Tells whether a particular key represents exactly a "simple" stashed value reference.
+     * Returns true if the string representation of the key either starts with {@code $}, false otherwise.
+     * Unlike {@link #containsStashedValue}, this returns false if the key contains an "extended" reference {@code ${...}}.
+     */
+    public boolean isSimpleStashedValue(Object key) {
+        if (key == null || false == key instanceof CharSequence) {
+            return false;
+        }
+        String stashKey = key.toString();
+        return Strings.hasLength(stashKey) && stashKey.startsWith("$");
     }
 
     /**

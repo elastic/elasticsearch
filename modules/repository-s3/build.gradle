@@ -79,7 +79,6 @@ testing {
       dependencies {
         implementation(project(':test:fixtures:s3-fixture'))
         implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
-
       }
     }
     // test suite defined by InternalJavaRestTestPlugin

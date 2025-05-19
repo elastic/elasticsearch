@@ -2805,7 +2805,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST responses. Otherwise, returns the empty string.
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
      */
     protected String activeProjectPrefix() {
         return multiProjectEnabled ? (activeProject + "/") : "";

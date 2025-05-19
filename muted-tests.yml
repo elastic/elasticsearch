@@ -447,15 +447,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/126359
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testRandomWithFilter
-  issue: https://github.com/elastic/elasticsearch/issues/127963
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testSearchBoost
-  issue: https://github.com/elastic/elasticsearch/issues/127969
-- class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
-  method: testFindFewer
-  issue: https://github.com/elastic/elasticsearch/issues/128002
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009

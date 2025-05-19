@@ -1,0 +1,6 @@
+pr: 128161
+summary: System data streams incorrectly show up in the list of template validation
+  problems
+area: Data streams
+type: bug
+issues: []

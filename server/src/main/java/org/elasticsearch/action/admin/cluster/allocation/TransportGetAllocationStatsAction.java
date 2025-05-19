@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
@@ -207,13 +207,13 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     private static class AllocationStatsCache extends CancellableSingleObjectCache<Long, Long, Map<String, NodeAllocationStats>> {
         private volatile long ttlMillis;
         private final ThreadPool threadPool;
-        private final ExecutorService executorService;
+        private final Executor executor;
         private final AllocationStatsService allocationStatsService;
 
         AllocationStatsCache(ThreadPool threadPool, AllocationStatsService allocationStatsService, TimeValue ttl) {
             super(threadPool.getThreadContext());
             this.threadPool = threadPool;
-            this.executorService = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             this.allocationStatsService = allocationStatsService;
             setTTL(ttl);
         }
@@ -235,7 +235,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             ActionListener<Map<String, NodeAllocationStats>> listener
         ) {
             if (supersedeIfStale.getAsBoolean() == false) {
-                executorService.execute(
+                executor.execute(
                     ActionRunnable.supply(
                         // If caching is disabled the item is only cached long enough to prevent duplicate concurrent requests.
                         ActionListener.runBefore(listener, this::clearCacheIfDisabled),

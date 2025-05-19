@@ -103,7 +103,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
     /**
      * Sets the currently cached item reference to {@code null}, which will result in a {@code refresh()} on the next {@code get()} call.
      */
-    protected void clearCurrentCachedItem() {
+    protected final void clearCurrentCachedItem() {
         this.currentCachedItemRef.set(null);
     }
 

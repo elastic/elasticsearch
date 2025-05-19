@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -306,7 +307,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     }
 
     private void verifyAllocationStatsServiceNumCallsEqualTo(int numCalls) {
-        verify(allocationStatsService, times(numCalls)).stats(argThat(r -> true));
+        verify(allocationStatsService, times(numCalls)).stats(any());
     }
 
     private static TransportGetAllocationStatsAction.Request getRequest() {

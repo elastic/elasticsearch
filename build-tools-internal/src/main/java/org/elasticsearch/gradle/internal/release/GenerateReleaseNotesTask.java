@@ -36,12 +36,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.inject.Inject;
-
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Orchestrates the steps required to generate or update various release notes files.

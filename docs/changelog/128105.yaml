@@ -1,0 +1,5 @@
+pr: 128105
+summary: "Google VertexAI integration now supports chat_completion task"
+area: Inference
+type: enhancement
+issues: [ ]

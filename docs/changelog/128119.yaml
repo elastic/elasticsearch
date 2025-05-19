@@ -1,0 +1,5 @@
+pr: 128119
+summary: Avoid some uses of `ConcurrentLinkedQueue.size()` in `SharedBlobCacheService`
+area: Distributed
+type: enhancement
+issues: []

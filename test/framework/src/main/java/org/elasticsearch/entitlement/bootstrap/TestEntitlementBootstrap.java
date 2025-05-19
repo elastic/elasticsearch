@@ -9,17 +9,9 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
-import com.sun.tools.attach.AgentInitializationException;
-import com.sun.tools.attach.AgentLoadException;
-import com.sun.tools.attach.AttachNotSupportedException;
-import com.sun.tools.attach.VirtualMachine;
-
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.TestEntitlementInitialization;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-
-import java.io.IOException;
 
 class TestEntitlementBootstrap {
 
@@ -30,20 +22,6 @@ class TestEntitlementBootstrap {
      */
     public static void bootstrap() {
         logger.debug("Loading entitlement agent");
-        loadAgent(EntitlementBootstrap.findAgentJar());
-    }
-
-    @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
-    private static void loadAgent(String agentPath) {
-        try {
-            VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
-            try {
-                vm.loadAgent(agentPath, TestEntitlementInitialization.class.getName());
-            } finally {
-                vm.detach();
-            }
-        } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
-        }
+        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), TestEntitlementInitialization.class.getName());
     }
 }

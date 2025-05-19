@@ -22,8 +22,6 @@ import org.elasticsearch.plugins.PluginDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,20 +35,15 @@ import java.util.function.Function;
  */
 public class TestEntitlementInitialization {
 
-    private static ElasticsearchEntitlementChecker manager;
+    private static ElasticsearchEntitlementChecker checker;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
-        return manager;
+        return checker;
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = initChecker();
-        DynamicInstrumentation.initialize(
-            inst,
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            false
-        );
+        checker = EntitlementInitialization.initChecker(inst, createPolicyManager());
     }
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
@@ -124,26 +117,5 @@ public class TestEntitlementInitialization {
             pathLookup,
             Set.of()
         );
-    }
-
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
-
-        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
-            ElasticsearchEntitlementChecker.class,
-            Runtime.version().feature()
-        );
-
-        Constructor<?> constructor;
-        try {
-            constructor = clazz.getConstructor(PolicyManager.class);
-        } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
-        }
-        try {
-            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
-        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new AssertionError(e);
-        }
     }
 }

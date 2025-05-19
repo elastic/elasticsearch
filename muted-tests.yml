@@ -465,3 +465,6 @@ tests:
 - class: org.elasticsearch.upgrades.IndexingIT
   method: testIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/128123
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/128125

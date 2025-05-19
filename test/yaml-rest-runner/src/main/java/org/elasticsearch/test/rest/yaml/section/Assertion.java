@@ -50,7 +50,7 @@ public abstract class Assertion implements ExecutableSection {
     }
 
     protected final Object getActualValue(ClientYamlTestExecutionContext executionContext) throws IOException {
-        // If the "key" contains only a simple stashed value reference, such as "$body", just get that value from the stash.
+        // If the "field" name contains only a simple stashed value reference, such as "$body", just get that value from the stash.
         if (executionContext.stash().isSimpleStashedValue(field)) {
             return executionContext.stash().getValue(field);
         }

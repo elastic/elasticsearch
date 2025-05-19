@@ -16,8 +16,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,13 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String USER_ROLE = "user";
-    private static final String MODEL_ROLE = "model";
-
-    private GoogleVertexAiChatCompletionModel createModel() {
-        // The actual values here don't matter for serialization logic,
-        // as the model isn't directly used for generating the request body fields in this entity.
-        return GoogleVertexAiChatCompletionModelTests.createCompletionModel("projectID", "location", "modelId", "modelName", null);
-    }
+    private static final String ASSISTANT_ROLE = "assistant";
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
@@ -83,7 +75,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             ),
             new UnifiedCompletionRequest.Message(
                 new UnifiedCompletionRequest.ContentString("Previous model response."),
-                MODEL_ROLE,
+                ASSISTANT_ROLE,
                 null,
                 null
             ),
@@ -411,7 +403,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testError_UnsupportedRole() throws IOException {
-        var unsupportedRole = "assistant";
+        var unsupportedRole = "someUnexpectedRole";
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Test"),
             unsupportedRole,
@@ -427,7 +419,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var statusException = assertThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
 
         assertEquals(RestStatus.BAD_REQUEST, statusException.status());
-        assertThat(statusException.toString(), containsString("Role [assistant] not supported by Google VertexAI ChatCompletion"));
+        var errorMessage = Strings.format("Role [%s] not supported by Google VertexAI ChatCompletion", unsupportedRole);
+        assertThat(statusException.toString(), containsString(errorMessage));
     }
 
     public void testError_UnsupportedContentObjectType() throws IOException {
@@ -567,7 +560,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             List.of(
                 new UnifiedCompletionRequest.Message(
                     null,
-                    "model",
+                    "assistant",
                     "100",
                     List.of(
                         new UnifiedCompletionRequest.ToolCall(
@@ -622,7 +615,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 new UnifiedCompletionRequest.Message(
                     // new UnifiedCompletionRequest.ContentObject("", "text"),
                     new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("", "text"))),
-                    "model",
+                    "assistant",
                     null,
                     List.of(
                         new UnifiedCompletionRequest.ToolCall(
@@ -646,7 +639,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             List.of(
                 new UnifiedCompletionRequest.Message(
                     new UnifiedCompletionRequest.ContentString(""),
-                    "model",
+                    "assistant",
                     null,
                     List.of(
                         new UnifiedCompletionRequest.ToolCall(

@@ -70,12 +70,18 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
         var messageRoleLowered = messageRole.toLowerCase();
 
+        if (messageRoleLowered.equals(USER_ROLE)) {
+            return USER_ROLE;
+        } else if (messageRole.equals(ASSISTANT_ROLE)) {
+            // Gemini VertexAI API does not use "assistant". Instead, it uses "model"
+            return MODEL_ROLE;
+        }
 
         var errorMessage = format(
             "Role [%s] not supported by Google VertexAI ChatCompletion. Supported roles: [%s, %s]",
             messageRole,
             USER_ROLE,
-            MODEL_ROLE
+            ASSISTANT_ROLE
         );
         throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
     }

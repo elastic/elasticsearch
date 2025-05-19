@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -26,7 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
-public class RerankOperator extends AsyncOperator<Page> {
+public class RerankOperator extends AsyncOperator<RerankOperator.OngoingRerank> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
@@ -85,20 +86,16 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     @Override
-    protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+    protected void performAsync(Page inputPage, ActionListener<OngoingRerank> listener) {
         // Ensure input page blocks are released when the listener is called.
-        final ActionListener<Page> outputListener = ActionListener.runAfter(listener, () -> { releasePageOnAnyThread(inputPage); });
-
+        listener = listener.delegateResponse((l, e) -> {
+            releasePageOnAnyThread(inputPage);
+            l.onFailure(e);
+        });
         try {
-            inferenceRunner.doInference(
-                buildInferenceRequest(inputPage),
-                ActionListener.wrap(
-                    inferenceResponse -> outputListener.onResponse(buildOutput(inputPage, inferenceResponse)),
-                    outputListener::onFailure
-                )
-            );
+            inferenceRunner.doInference(buildInferenceRequest(inputPage), listener.map(resp -> new OngoingRerank(inputPage, resp)));
         } catch (Exception e) {
-            outputListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 
@@ -108,73 +105,23 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     @Override
-    protected void releaseFetchedOnAnyThread(Page page) {
-        releasePageOnAnyThread(page);
+    protected void releaseFetchedOnAnyThread(OngoingRerank result) {
+        releasePageOnAnyThread(result.inputPage);
     }
 
     @Override
     public Page getOutput() {
-        return fetchFromBuffer();
+        var fetched = fetchFromBuffer();
+        if (fetched == null) {
+            return null;
+        } else {
+            return fetched.buildOutput(blockFactory, scoreChannel);
+        }
     }
 
     @Override
     public String toString() {
         return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
-    }
-
-    private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
-        if (inferenceResponse.getResults() instanceof RankedDocsResults rankedDocsResults) {
-            return buildOutput(inputPage, rankedDocsResults);
-
-        }
-
-        throw new IllegalStateException(
-            "Inference result has wrong type. Got ["
-                + inferenceResponse.getResults().getClass()
-                + "] while expecting ["
-                + RankedDocsResults.class
-                + "]"
-        );
-    }
-
-    private Page buildOutput(Page inputPage, RankedDocsResults rankedDocsResults) {
-        int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
-        Block[] blocks = new Block[blockCount];
-
-        try {
-            for (int b = 0; b < blockCount; b++) {
-                if (b == scoreChannel) {
-                    blocks[b] = buildScoreBlock(inputPage, rankedDocsResults);
-                } else {
-                    blocks[b] = inputPage.getBlock(b);
-                    blocks[b].incRef();
-                }
-            }
-            return new Page(blocks);
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw (e);
-        }
-    }
-
-    private Block buildScoreBlock(Page inputPage, RankedDocsResults rankedDocsResults) {
-        Double[] sortedRankedDocsScores = new Double[inputPage.getPositionCount()];
-
-        try (DoubleBlock.Builder scoreBlockFactory = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())) {
-            for (RankedDocsResults.RankedDoc rankedDoc : rankedDocsResults.getRankedDocs()) {
-                sortedRankedDocsScores[rankedDoc.index()] = (double) rankedDoc.relevanceScore();
-            }
-
-            for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
-                if (sortedRankedDocsScores[pos] != null) {
-                    scoreBlockFactory.appendDouble(sortedRankedDocsScores[pos]);
-                } else {
-                    scoreBlockFactory.appendNull();
-                }
-            }
-
-            return scoreBlockFactory.build();
-        }
     }
 
     private InferenceAction.Request buildInferenceRequest(Page inputPage) {
@@ -193,6 +140,71 @@ public class RerankOperator extends AsyncOperator<Page> {
             }
 
             return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
+        }
+    }
+
+    public static final class OngoingRerank {
+        final Page inputPage;
+        final Double[] rankedScores;
+
+        OngoingRerank(Page inputPage, InferenceAction.Response resp) {
+            if (resp.getResults() instanceof RankedDocsResults == false) {
+                releasePageOnAnyThread(inputPage);
+                throw new IllegalStateException(
+                    "Inference result has wrong type. Got ["
+                        + resp.getResults().getClass()
+                        + "] while expecting ["
+                        + RankedDocsResults.class
+                        + "]"
+                );
+
+            }
+            final var results = (RankedDocsResults) resp.getResults();
+            this.inputPage = inputPage;
+            this.rankedScores = extractRankedScores(inputPage.getPositionCount(), results);
+        }
+
+        private static Double[] extractRankedScores(int positionCount, RankedDocsResults rankedDocsResults) {
+            Double[] sortedRankedDocsScores = new Double[positionCount];
+            for (RankedDocsResults.RankedDoc rankedDoc : rankedDocsResults.getRankedDocs()) {
+                sortedRankedDocsScores[rankedDoc.index()] = (double) rankedDoc.relevanceScore();
+            }
+            return sortedRankedDocsScores;
+        }
+
+        Page buildOutput(BlockFactory blockFactory, int scoreChannel) {
+            int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
+            Block[] blocks = new Block[blockCount];
+            Page outputPage = null;
+            try (Releasable ignored = inputPage::releaseBlocks) {
+                for (int b = 0; b < blockCount; b++) {
+                    if (b == scoreChannel) {
+                        blocks[b] = buildScoreBlock(blockFactory);
+                    } else {
+                        blocks[b] = inputPage.getBlock(b);
+                        blocks[b].incRef();
+                    }
+                }
+                outputPage = new Page(blocks);
+                return outputPage;
+            } finally {
+                if (outputPage == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+        }
+
+        private Block buildScoreBlock(BlockFactory blockFactory) {
+            try (DoubleBlock.Builder scoreBlockFactory = blockFactory.newDoubleBlockBuilder(rankedScores.length)) {
+                for (Double rankedScore : rankedScores) {
+                    if (rankedScore != null) {
+                        scoreBlockFactory.appendDouble(rankedScore);
+                    } else {
+                        scoreBlockFactory.appendNull();
+                    }
+                }
+                return scoreBlockFactory.build();
+            }
         }
     }
 }

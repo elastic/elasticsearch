@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -28,7 +29,11 @@ public class TestDriverFactory {
         List<Operator> intermediateOperators,
         SinkOperator sink
     ) {
-        return create(driverContext, source, intermediateOperators, sink, () -> {});
+        return create(driverContext, source, intermediateOperators, sink, () -> {
+            if (driverContext.breaker() instanceof LocalCircuitBreaker localBreaker) {
+                localBreaker.close();
+            }
+        });
     }
 
     public static Driver create(

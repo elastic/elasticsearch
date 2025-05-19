@@ -22,7 +22,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -75,6 +77,19 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleLargeInput() {
         assertSimple(driverContext(), between(1_000, 10_000));
+    }
+
+    /**
+     * Test with a local breaker
+     */
+    public final void testWithLocalBreaker() {
+        BlockFactory blockFactory = blockFactory();
+        final int overReservedBytes = between(0, 1024 * 1024);
+        final int maxOverReservedBytes = between(overReservedBytes, 1024 * 1024);
+        var localBreaker = new LocalCircuitBreaker(blockFactory.breaker(), overReservedBytes, maxOverReservedBytes);
+        BlockFactory localBlockFactory = blockFactory.newChildFactory(localBreaker);
+        DriverContext driverContext = new DriverContext(localBlockFactory.bigArrays(), localBlockFactory);
+        assertSimple(driverContext, between(10, 10_000));
     }
 
     /**
@@ -247,9 +262,19 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             for (Page page : input) {
-                operator.addInput(page);
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
             }
             operator.finish();
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 

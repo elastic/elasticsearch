@@ -440,7 +440,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     List.of(
                         new ExpectedCluster(
                             LOCAL_CLUSTER,
-                            "alias-filtered-1*",
+                            localIndexName + "*",
                             EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                             localNumShards
                         ),

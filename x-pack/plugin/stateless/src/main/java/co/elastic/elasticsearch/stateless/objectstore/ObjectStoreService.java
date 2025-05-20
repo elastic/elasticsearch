@@ -151,7 +151,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 return FS.createRepositorySettings(bucket, client, basePath);
             }
         },
-        S3("bucket"),
+        S3("bucket") {
+            @Override
+            public Settings createRepositorySettings(String bucket, String client, String basePath) {
+                return Settings.builder()
+                    .put(super.createRepositorySettings(bucket, client, basePath))
+                    .put("add_purpose_custom_query_parameter", "true")
+                    .build();
+            }
+        },
         GCS("bucket"),
         AZURE("container");
 

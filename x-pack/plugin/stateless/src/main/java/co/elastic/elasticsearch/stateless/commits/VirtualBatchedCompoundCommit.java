@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -851,7 +852,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
-            IndexInput input = directory.openInput(filename, IOContext.READONCE);
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
+            IndexInput input = directory.openInput(filename, ioContext);
             try {
                 input.seek(offset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {

@@ -144,7 +144,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "deepseek",
                     "googleaistudio",
                     "openai",
-                    "streaming_completion_test_service"
+                    "streaming_completion_test_service",
+                    "hugging_face"
                 ).toArray()
             )
         );
@@ -152,11 +153,14 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(4));
+        assertThat(services.size(), equalTo(5));
 
         var providers = providers(services);
 
-        assertThat(providers, containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service").toArray()));
+        assertThat(
+            providers,
+            containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face").toArray())
+        );
     }
 
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {

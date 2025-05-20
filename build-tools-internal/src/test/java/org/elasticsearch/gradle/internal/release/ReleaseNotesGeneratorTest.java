@@ -13,7 +13,6 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,8 +89,6 @@ public class ReleaseNotesGeneratorTest {
 
         // when:
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, bundles);
-
-        Files.write(Path.of("/Users/bseeders/output.txt"), actualOutput.getBytes());
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));

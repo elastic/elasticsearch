@@ -1027,9 +1027,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .prefix(keyPath)
                 .maxUploads(maxUploads)
                 // TODO adjust to use S3BlobStore.configureRequestForMetrics, adding metrics collection
-                .overrideConfiguration(
-                    b -> b.putRawQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey())
-                )
+                .overrideConfiguration(b -> blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, b))
                 .build();
             final var multipartUploadListing = SocketAccess.doPrivileged(
                 () -> clientReference.client().listMultipartUploads(listMultipartUploadsRequest)
@@ -1060,12 +1058,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             .key(u.key())
                             .uploadId(u.uploadId())
                             // TODO adjust to use S3BlobStore.configureRequestForMetrics, adding metrics collection
-                            .overrideConfiguration(
-                                b -> b.putRawQueryParameter(
-                                    S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                                    OperationPurpose.SNAPSHOT_DATA.getKey()
-                                )
-                            )
+                            .overrideConfiguration(b -> blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, b))
                             .build()
                     )
                 );

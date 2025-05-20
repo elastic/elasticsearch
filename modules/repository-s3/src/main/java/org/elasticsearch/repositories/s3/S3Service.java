@@ -137,7 +137,7 @@ class S3Service extends AbstractLifecycleComponent {
         ResourceWatcherService resourceWatcherService,
         Supplier<Region> defaultRegionSupplier
     ) {
-        final Settings settings = clusterService.getSettings();
+        final Settings nodeSettings = clusterService.getSettings();
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
@@ -145,13 +145,13 @@ class S3Service extends AbstractLifecycleComponent {
             Clock.systemUTC(),
             resourceWatcherService
         );
-        compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(settings);
-        compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(settings);
-        isStateless = DiscoveryNode.isStateless(settings);
+        compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
+        compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        isStateless = DiscoveryNode.isStateless(nodeSettings);
         defaultRegionSetter = new RunOnce(() -> defaultRegion = defaultRegionSupplier.get());
         if (projectResolver.supportsMultipleProjects()) {
             s3PerProjectClientManager = new S3PerProjectClientManager(
-                settings,
+                nodeSettings,
                 this::buildClientReference,
                 clusterService.threadPool().generic()
             );

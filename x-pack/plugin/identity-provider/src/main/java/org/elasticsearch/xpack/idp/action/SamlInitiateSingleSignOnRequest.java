@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -44,6 +46,20 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         if (Strings.isNullOrEmpty(assertionConsumerService)) {
             validationException = addValidationError("acs is missing", validationException);
         }
+
+        // Check for duplicate attribute keys
+        if (attributes != null && attributes.getAttributes().isEmpty() == false) {
+            Set<String> keys = new HashSet<>();
+            for (SamlInitiateSingleSignOnAttributes.Attribute attribute : attributes.getAttributes()) {
+                if (keys.add(attribute.getKey()) == false) {
+                    validationException = addValidationError(
+                        "duplicate attribute key [" + attribute.getKey() + "] found",
+                        validationException
+                    );
+                }
+            }
+        }
+
         return validationException;
     }
 

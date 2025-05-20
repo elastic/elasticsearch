@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -101,8 +100,8 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     public static Tuple<List<Alias>, List<NamedExpression>> aliasedNulls(
         List<Attribute> outputAttributes,
-        Predicate<Attribute> shouldBeReplaced)
-    {
+        Predicate<Attribute> shouldBeReplaced
+    ) {
         Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
         List<NamedExpression> newProjections = new ArrayList<>(outputAttributes.size());
         for (Attribute attr : outputAttributes) {

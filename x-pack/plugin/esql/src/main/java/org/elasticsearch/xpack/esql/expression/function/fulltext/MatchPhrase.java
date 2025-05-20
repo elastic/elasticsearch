@@ -53,6 +53,7 @@ import static org.elasticsearch.index.query.MatchPhraseQueryBuilder.ZERO_TERMS_Q
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -176,6 +177,11 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         return ENTRY.name;
     }
 
+    @Override
+    public String functionName() {
+        return ENTRY.name;
+    }
+
     private static MatchPhrase readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
@@ -195,7 +201,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options())).and(checkParamCompatibility());
+        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveField() {

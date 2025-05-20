@@ -63,6 +63,7 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIEL
 import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -299,7 +300,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options())).and(checkParamCompatibility());
+        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveField() {

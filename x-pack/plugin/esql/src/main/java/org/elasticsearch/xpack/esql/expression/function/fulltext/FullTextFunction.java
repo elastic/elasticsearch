@@ -396,14 +396,14 @@ public abstract class FullTextFunction extends Function
         }
     }
 
-    protected TypeResolution resolveOptions(Expression options) {
+    protected TypeResolution resolveOptions(Expression options, TypeResolutions.ParamOrdinal paramOrdinal) {
         if (options != null) {
-            TypeResolution resolution = isNotNull(options, sourceText(), THIRD);
+            TypeResolution resolution = isNotNull(options, sourceText(), paramOrdinal);
             if (resolution.unresolved()) {
                 return resolution;
             }
             // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options, sourceText(), THIRD);
+            resolution = isMapExpression(options, sourceText(), paramOrdinal);
             if (resolution.unresolved()) {
                 return resolution;
             }

@@ -333,7 +333,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveOptions(options()));
+        return resolveQuery().and(resolveOptions(options(), SECOND));
     }
 
     @Override

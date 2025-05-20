@@ -1217,9 +1217,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchPhraseInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands\n"
-                + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
-            error("row title = \"brown fox\" | eval x = match_phrase(title:\"fox\") ")
+            "1:36: [MatchPhrase] function is only supported in WHERE and STATS commands\n"
+                + "line 1:49: [MatchPhrase] function cannot operate on [title], which is not a field from an index mapping",
+            error("row title = \"brown fox\" | eval x = match_phrase(title, \"brown fox\") ")
         );
     }
 
@@ -1261,11 +1261,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchPhraseWithNonIndexedColumnCurrentlyUnsupported() {
         assertEquals(
-            "1:67: [MATCH_PHRASE] function cannot operate on [initial], which is not a field from an index mapping",
+            "1:74: [MatchPhrase] function cannot operate on [initial], which is not a field from an index mapping",
             error("from test | eval initial = substring(first_name, 1) | where match_phrase(initial, \"A\")")
         );
         assertEquals(
-            "1:67: [MATCH_PHRASE] function cannot operate on [text], which is not a field from an index mapping",
+            "1:74: [MatchPhrase] function cannot operate on [text], which is not a field from an index mapping",
             error("from test | eval text=concat(first_name, last_name) | where match_phrase(text, \"cat\")")
         );
     }
@@ -1279,7 +1279,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchPhraseFunctionIsNotNullable() {
         assertEquals(
-            "1:48: [MATCH_PHRASE] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            "1:55: [MatchPhrase] function cannot operate on [text::keyword], which is not a field from an index mapping",
             error("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"Anna\")")
         );
     }

@@ -19,75 +19,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
-<% if (docker_base == 'iron_bank') { %>
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
-ARG BASE_TAG=9.6
-<% } %>
-
 ################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM ${base_image} AS builder
-
-<% if (docker_base == 'iron_bank') { %>
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-COPY tini /bin/tini
-RUN chmod 0555 /bin/tini
-
-<% } else { %>
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-<% if (docker_base == "wolfi") { %>
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
-<% } else { %>
-RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
-<% } %>
-
-<% if (docker_base != 'wolfi') { %>
-    # `tini` is a tiny but valid init for containers. This is used to cleanly
-    # control how ES and any child processes are shut down.
-    # For wolfi we pick it from the blessed wolfi package registry.
-    #
-    # The tini GitHub page gives instructions for verifying the binary using
-    # gpg, but the keyservers are slow to return the key and this can fail the
-    # build. Instead, we check the binary against the published checksum.
-    RUN set -eux ; \\
-        tini_bin="" ; \\
-        case "\$(arch)" in \\
-            aarch64) tini_bin='tini-arm64' ;; \\
-            x86_64)  tini_bin='tini-amd64' ;; \\
-            *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-        esac ; \\
-        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-        sha256sum -c \${tini_bin}.sha256sum ; \\
-        rm \${tini_bin}.sha256sum ; \\
-        mv \${tini_bin} /bin/tini ; \\
-        chmod 0555 /bin/tini
-<% } %>
-
-<% } %>
 
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-<% if (docker_base == "iron_bank") {
-  // Iron Bank always copies the local artifact. It uses `arch` from the
-  // template context variables.
-%>
-COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
-<% } else {
-  // Fetch the appropriate Elasticsearch distribution for this architecture.
-  // Keep this command on one line - it is replaced with a `COPY` during local builds.
-  // It uses the `arch` shell command to fetch the correct distro for the build machine,
-  // which is needed for Docker Hub builds.
-%>
+# Fetch the appropriate Elasticsearch distribution for this architecture.
+# Keep this command on one line - it is replaced with a `COPY` during local builds.
+# It uses the `arch` shell command to fetch the correct distro for the build machine,
+# which is needed for Docker Hub builds.
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
-<% } %>
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
@@ -115,6 +64,38 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
+# Add plugins infrastructure
+RUN mkdir -p /opt/plugins/archive
+RUN chmod -R 0555 /opt/plugins
+
+RUN mkdir -p /fips/libs
+COPY fips/libs/*.jar /fips/libs/
+
+COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
+RUN set -eux ; \\
+    for beat in filebeat metricbeat ; do \\
+      if [ ! -s /tmp/\$beat-${version}.tar.gz ]; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is empty - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      if ! tar tf /tmp/\$beat-${version}.tar.gz >/dev/null; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is corrupt - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      mkdir -p /opt/\$beat ; \\
+      tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
+    done
+
+COPY plugins/*.zip /opt/plugins/archive/
+
+RUN chown 1000:1000 /opt/plugins/archive/*
+RUN chmod 0444 /opt/plugins/archive/*
+
+COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
+COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
+
+WORKDIR /usr/share/elasticsearch/config
+
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
@@ -122,19 +103,8 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 # Add entrypoint
 ################################################################################
 
-FROM ${base_image}
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7
 
-<% if (docker_base == "iron_bank") { %>
-<%
-/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
-/* scripting so this version doesn't have the retry loop featured below. */
-%>
-RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
-    ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip findutils unzip procps-ng && \\
-    ${package_manager} clean all
-
-<% } else if (docker_base == "wolfi") { %>
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
           "      ${package_manager} update && \n" +
@@ -147,42 +117,20 @@ RUN <%= retry.loop(package_manager,
 # Set Bash as the default shell for future commands
 SHELL ["/bin/bash", "-c"]
 
-# Optionally set Bash as the default shell in the container at runtime
-CMD ["/bin/bash"]
-
-<% } else { %>
-
-RUN <%= retry.loop(
-    package_manager,
-      "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
-      "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "        nc shadow-utils zip unzip findutils procps-ng && \n" +
-      "      ${package_manager} clean all"
-    ) %>
-
-<% } %>
-
-
-<% if (docker_base == "wolfi") { %>
 RUN groupadd -g 1000 elasticsearch && \
     adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
     adduser elasticsearch root && \
     chown -R 0:0 /usr/share/elasticsearch
-<% } else { %>
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chown -R 0:0 /usr/share/elasticsearch
-<% } %>
 
 ENV ELASTIC_CONTAINER=true
 
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-<% if (docker_base != "wolfi") { %>
-COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-<% } %>
+COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
+COPY --from=builder --chown=0:0 /opt /opt
 
+ENV ES_PLUGIN_ARCHIVE_DIR=/opt/plugins/archive
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 ENV SHELL=/bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -204,15 +152,32 @@ RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-<% if (docker_base == 'wolfi') { %>
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
-<% } else { %>
-RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
-<% } %>
+
+# Convert cacerts (PKCS12) to BCFKS format using POSIX-compatible shell syntax
+RUN printf "\\n" | jdk/bin/keytool -importkeystore \
+  -srckeystore /usr/share/elasticsearch/jdk/lib/security/cacerts \
+  -srcstoretype PKCS12 \
+  -destkeystore config/cacerts.bcfks \
+  -deststorepass passwordcacert \
+  -deststoretype BCFKS \
+  -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+  -providerpath lib/bc-fips-1.0.2.5.jar \
+  -destprovidername BCFIPS
+
+
+## Add fips specific JVM options
+RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
+-Djavax.net.ssl.keyStoreType=BCFKS
+-Dorg.bouncycastle.fips.approved_only=true
+-Djava.security.properties=config/fips_java.security
+-Djava.security.policy=config/fips_java.policy
+-Djavax.net.ssl.trustStore=config/cacerts.bcfks
+-Djavax.net.ssl.trustStorePassword=passwordcacert
+EOF
 
 EXPOSE 9200 9300
 
-<% if (docker_base != 'iron_bank') { %>
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\
   org.label-schema.name="Elasticsearch" \\
@@ -240,32 +205,19 @@ LABEL name="Elasticsearch" \\
   release="1" \\
   summary="Elasticsearch" \\
   description="You know, for search."
-<% } %>
 
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
-<% if (docker_base == 'iron_bank') { %>
-COPY LICENSE /licenses/LICENSE.addendum
-<% } %>
 
-<% if (docker_base == "wolfi") { %>
-# Our actual entrypoint is `tini`, a minimal but functional init program. It
-# calls the entrypoint we provide, while correctly forwarding signals.
-ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-# Dummy overridable parameter parsed by entrypoint
-CMD ["eswrapper"]
-<% } else { %>
-# Our actual entrypoint is `tini`, a minimal but functional init program. It
-# calls the entrypoint we provide, while correctly forwarding signals.
-ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-# Dummy overridable parameter parsed by entrypoint
-CMD ["eswrapper"]
-<% } %>
+# Generate a stub command that will be overwritten at runtime
+RUN mkdir /app && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    chmod 0555 /app/elasticsearch.sh
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/app/elasticsearch.sh"]
 
 USER 1000:0
 
-<% if (docker_base == 'iron_bank') { %>
-HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
-<% } %>
 ################################################################################
 # End of multi-stage Dockerfile
 ################################################################################

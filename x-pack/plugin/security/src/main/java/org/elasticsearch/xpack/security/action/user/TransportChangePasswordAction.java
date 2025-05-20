@@ -20,12 +20,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 
 import java.util.ArrayList;
@@ -87,17 +89,20 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         nativeUsersStore.getUser(username, new ActionListener<>() {
             @Override
             public void onResponse(User user) {
-                if (user == null) {
+                if (ClientReservedRealm.isReserved(username, settings) == false && user == null) {
                     List<Realm> nonNativeRealms = realms.getActiveRealms()
                         .stream()
-                        .filter(t -> NativeRealmSettings.TYPE.equalsIgnoreCase(t.type()) == false)
+                        .filter(
+                            t -> NativeRealmSettings.TYPE.equalsIgnoreCase(t.type()) == false
+                                && ReservedRealm.TYPE.equalsIgnoreCase(t.name()) == false
+                        ) // Reserved realm is implemented in the native store
                         .toList();
                     if (nonNativeRealms.isEmpty()) {
                         listener.onFailure(createUserNotFoundException());
                     }
                     CountDownLatch latch = new CountDownLatch(nonNativeRealms.size());
                     List<Exception> realmErrors = Collections.synchronizedList(new ArrayList<>());
-                    realms.stream().forEach(realm -> {
+                    nonNativeRealms.forEach(realm -> {
                         // we should check if this request is mistakenly trying to reset a user in some other realm
                         realm.lookupUser(username, new ActionListener<>() {
                             @Override
@@ -107,7 +112,9 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                                     validationException.addValidationError(
                                         "user ["
                                             + username
-                                            + "] is not a native user and cannot be managed via this API."
+                                            + "] is a(n)"
+                                            + realm
+                                            + " user and cannot be managed via this API."
                                             + (ELASTIC_NAME.equalsIgnoreCase(username)
                                                 ? " To update the '" + ELASTIC_NAME + "' user in a cloud deployment, use the console."
                                                 : "")

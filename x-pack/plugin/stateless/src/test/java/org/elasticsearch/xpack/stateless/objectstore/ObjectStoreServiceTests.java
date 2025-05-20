@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -51,10 +52,18 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -66,14 +75,21 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -89,9 +105,16 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class ObjectStoreServiceTests extends ESTestCase {
@@ -484,6 +507,158 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 assertThat(cacheStats.writeBytes(), lessThan(latestBccLength));
             }
         }
+    }
+
+    public void testProjectObjectStores() throws IOException {
+        final long primaryTerm = randomLongBetween(1, 42);
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.allProjects()
+            )
+        ) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final String blobName = "test_blob";
+
+            final BlobStoreRepository clusterObjectStore = objectStoreService.getObjectStore();
+            assertThat(
+                objectStoreService.getProjectObjectStores(),
+                equalTo(Map.of(ProjectId.DEFAULT, objectStoreService.getObjectStore()))
+            );
+            assertThat(objectStoreService.getProjectObjectStore(ProjectId.DEFAULT), sameInstance(clusterObjectStore));
+
+            clusterObjectStore.blobStore()
+                .blobContainer(BlobPath.EMPTY)
+                .writeBlob(randomFrom(OperationPurpose.values()), blobName, new BytesArray("cluster"), true);
+
+            // create some projects
+            final List<ProjectId> projectIds = randomList(1, 3, ESTestCase::randomUniqueProjectId);
+            final Map<ProjectId, BlobStoreRepository> projectObjectStores = new HashMap<>();
+            for (int i = 0; i < projectIds.size(); i++) {
+                final ProjectId projectId = projectIds.get(i);
+                assertProjectObjectStoreNotFound(objectStoreService, projectId);
+                final var projectSettingsBuilder = Settings.builder()
+                    .put("stateless.object_store.bucket", "bucket_" + projectId)
+                    .put("stateless.object_store.base_path", "base_path");
+                if (randomBoolean()) {
+                    projectSettingsBuilder.put("stateless.object_store.type", "fs");
+                }
+
+                ClusterServiceUtils.setState(
+                    testHarness.clusterService,
+                    ClusterState.builder(testHarness.clusterService.state())
+                        .putProjectMetadata(ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()))
+                        .build()
+                );
+                // We should always have the default project object store (i.e., 1)
+                // plus the number of object stores equal to the number of created projects (i.e., i + 1)
+                assertThat(objectStoreService.getProjectObjectStores(), aMapWithSize(1 + i + 1));
+
+                final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);
+                assertNotNull(projectObjectStore);
+                assertThat(projectObjectStore.getMetadata().type(), equalTo("fs"));
+                assertThat(
+                    projectObjectStore.getMetadata().settings().get("location"),
+                    equalTo(PathUtils.get("bucket_" + projectId, "base_path").toString())
+                );
+                assertThat(projectObjectStore.lifecycleState(), equalTo(Lifecycle.State.STARTED));
+
+                // Write the blob of the same name should succeed since the base path is different
+                projectObjectStore.blobStore()
+                    .blobContainer(BlobPath.EMPTY)
+                    .writeBlob(randomFrom(OperationPurpose.values()), blobName, new BytesArray(projectId.id()), true);
+
+                projectObjectStores.put(projectId, projectObjectStore);
+            }
+
+            // Delete the projects
+            for (int i = 0; i < projectIds.size(); i++) {
+                final ProjectId projectId = projectIds.get(i);
+                final ClusterState state = testHarness.clusterService.state();
+                ClusterServiceUtils.setState(
+                    testHarness.clusterService,
+                    ClusterState.builder(state)
+                        .metadata(Metadata.builder(state.metadata()).removeProject(projectId))
+                        .routingTable(GlobalRoutingTable.builder(state.globalRoutingTable()).removeProject(projectId).build())
+                        .build()
+                );
+                // We should always have the default project object store (i.e., 1)
+                // plus the number of object stores equal to the number of existing projects (i.e., projectIds.size() - i - 1)
+                assertThat(objectStoreService.getProjectObjectStores(), aMapWithSize(1 + projectIds.size() - i - 1));
+                assertThat(objectStoreService.getProjectObjectStores(), not(hasKey(projectId)));
+                assertProjectObjectStoreNotFound(objectStoreService, projectId);
+                assertThat(projectObjectStores.get(projectId).lifecycleState(), equalTo(Lifecycle.State.CLOSED));
+            }
+        }
+    }
+
+    public void testProjectObjectStoreExceptions() throws IOException {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final ProjectId projectId = randomUniqueProjectId();
+        final var expectedException = randomBoolean() ? new RepositoryException(Stateless.NAME, "boom") : new RuntimeException("ugh");
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.allProjects()
+            ) {
+                @Override
+                protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
+                    return new RepositoriesService(nodeSettings, clusterService, Map.of(FsRepository.TYPE, metadata -> {
+                        if (metadata.settings().get("location").contains("bucket_" + projectId)) {
+                            throw expectedException;
+                        } else {
+                            return createFsRepository(xContentRegistry, metadata);
+                        }
+                    }), Map.of(), threadPool, client, List.of());
+                }
+            }
+        ) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            final var projectSettingsBuilder = Settings.builder()
+                .put("stateless.object_store.bucket", "bucket_" + projectId)
+                .put("stateless.object_store.base_path", "base_path");
+            if (randomBoolean()) {
+                projectSettingsBuilder.put("stateless.object_store.type", "fs");
+            }
+
+            ClusterServiceUtils.setState(
+                testHarness.clusterService,
+                ClusterState.builder(testHarness.clusterService.state())
+                    .putProjectMetadata(ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()))
+                    .build()
+            );
+
+            assertThat(objectStoreService.getProjectObjectStores().keySet(), contains(ProjectId.DEFAULT));
+            assertNotNull(objectStoreService.getProjectObjectStores());
+            assertThat(objectStoreService.getProjectObjectStoreExceptions().keySet(), contains(projectId));
+
+            final var e = expectThrows(RepositoryException.class, () -> objectStoreService.getProjectObjectStore(projectId));
+            assertThat(e.getCause(), is(expectedException));
+
+            // Delete the project
+            final ClusterState state = testHarness.clusterService.state();
+            ClusterServiceUtils.setState(
+                testHarness.clusterService,
+                ClusterState.builder(state)
+                    .metadata(Metadata.builder(state.metadata()).removeProject(projectId))
+                    .routingTable(GlobalRoutingTable.builder(state.globalRoutingTable()).removeProject(projectId).build())
+                    .build()
+            );
+            assertThat(objectStoreService.getProjectObjectStoreExceptions(), anEmptyMap());
+            assertProjectObjectStoreNotFound(objectStoreService, projectId);
+        }
+    }
+
+    private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {
+        final var e = expectThrows(RepositoryException.class, () -> objectStoreService.getProjectObjectStore(projectId));
+        assertThat(e.getMessage(), equalTo("[" + Stateless.NAME + "] project [" + projectId + "] object store not found"));
     }
 
     private record CacheWriteCount(int writeCount, int regionStart, int regionEnd) {}

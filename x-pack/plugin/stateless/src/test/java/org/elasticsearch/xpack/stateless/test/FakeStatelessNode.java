@@ -63,9 +63,12 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -175,12 +178,22 @@ public class FakeStatelessNode implements Closeable {
         this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, 1);
     }
 
-    @SuppressWarnings("this-escape")
     public FakeStatelessNode(
         Function<Settings, Environment> environmentSupplier,
         CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
         NamedXContentRegistry xContentRegistry,
         long primaryTerm
+    ) throws IOException {
+        this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+    }
+
+    @SuppressWarnings("this-escape")
+    public FakeStatelessNode(
+        Function<Settings, Environment> environmentSupplier,
+        CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
+        NamedXContentRegistry xContentRegistry,
+        long primaryTerm,
+        ProjectResolver projectResolver
     ) throws IOException {
         this.primaryTerm = primaryTerm;
         DiscoveryNodeUtils.create(
@@ -244,43 +257,14 @@ public class FakeStatelessNode implements Closeable {
                 Set.of()
             );
 
-            repoService = new RepositoriesService(
-                nodeSettings,
-                clusterService,
-                Map.of(
-                    FsRepository.TYPE,
-                    metadata -> new FsRepository(
-                        metadata,
-                        environment,
-                        xContentRegistry,
-                        clusterService,
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        new RecoverySettings(nodeSettings, clusterSettings)
-                    ) {
-                        @Override
-                        protected BlobStore createBlobStore() throws Exception {
-                            final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
-                            final Path locationFile = environment.resolveRepoDir(location);
-                            return new FsBlobStore(bufferSize, locationFile, isReadOnly()) {
-                                @Override
-                                public BlobContainer blobContainer(BlobPath path) {
-                                    return wrapBlobContainer(path, super.blobContainer(path));
-                                }
-                            };
-                        }
-                    }
-                ),
-                Map.of(),
-                threadPool,
-                client,
-                List.of()
-            );
+            repoService = createRepositoryService(xContentRegistry);
 
             transportService.start();
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService);
+            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
+            clusterService.addStateApplier(objectStoreService);
             objectStoreService.start();
             localCloseables.add(objectStoreService);
             indicesService = mock(IndicesService.class);
@@ -312,6 +296,41 @@ public class FakeStatelessNode implements Closeable {
 
             closeables = localCloseables.transfer();
         }
+    }
+
+    protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
+        return new RepositoriesService(
+            nodeSettings,
+            clusterService,
+            Map.of(FsRepository.TYPE, metadata -> createFsRepository(xContentRegistry, metadata)),
+            Map.of(),
+            threadPool,
+            client,
+            List.of()
+        );
+    }
+
+    protected FsRepository createFsRepository(NamedXContentRegistry xContentRegistry, RepositoryMetadata metadata) {
+        return new FsRepository(
+            metadata,
+            environment,
+            xContentRegistry,
+            clusterService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new RecoverySettings(nodeSettings, clusterSettings)
+        ) {
+            @Override
+            protected BlobStore createBlobStore() throws Exception {
+                final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
+                final Path locationFile = environment.resolveRepoDir(location);
+                return new FsBlobStore(bufferSize, locationFile, isReadOnly()) {
+                    @Override
+                    public BlobContainer blobContainer(BlobPath path) {
+                        return wrapBlobContainer(path, super.blobContainer(path));
+                    }
+                };
+            }
+        };
     }
 
     public StatelessCommitCleaner getCommitCleaner() {

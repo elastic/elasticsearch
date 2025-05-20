@@ -85,7 +85,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+                || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                     executionInfo,
                     clusterAlias,

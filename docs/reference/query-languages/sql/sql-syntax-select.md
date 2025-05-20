@@ -120,7 +120,7 @@ where:
 `table_name`
 :   Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
 
-If the table name contains special SQL characters (such as `.`,`-`,`*`,etc…​) use double quotes to escape them:
+If the table name contains special SQL characters (such as `.`,`-`,`*`,etc… ) use double quotes to escape them:
 
 ```sql
 SELECT * FROM "emp" LIMIT 1;

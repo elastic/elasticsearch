@@ -1,10 +1,14 @@
 ---
 setup:
   - requires:
+      test_runner_features: [ "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
+      allowed_warnings_regex:
+        # https://github.com/elastic/elasticsearch/issues/127911
+        - "Index \\[\\.profiling-.*\\] name begins with a dot .* and will not be allowed in a future Elasticsearch version."
       cluster.put_settings:
         body:
           persistent:

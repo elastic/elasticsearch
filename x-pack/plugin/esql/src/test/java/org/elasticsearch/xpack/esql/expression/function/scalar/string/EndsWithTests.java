@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -120,8 +121,24 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
         var function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.KEYWORD, Map.of(), true)),
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("field", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            )
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
@@ -130,7 +147,15 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
         var function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(
+                Source.EMPTY,
+                null,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true),
+                Nullability.TRUE,
+                null,
+                false
+            ),
             new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
         );
 

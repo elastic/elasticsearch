@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.util;
 
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -46,7 +47,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name, type, emptyMap(), randomBoolean()), Nullability.TRUE, null, false);
     }
 
     public static FieldAttribute getFieldAttribute(String name) {
@@ -54,7 +55,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name + "f", dataType, emptyMap(), true), Nullability.TRUE, null, false);
     }
 
     /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */

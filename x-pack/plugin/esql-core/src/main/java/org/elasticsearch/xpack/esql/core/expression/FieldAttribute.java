@@ -44,18 +44,6 @@ public class FieldAttribute extends TypedAttribute {
     private final String parentName;
     private final EsField field;
 
-    public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
-    }
-
     public FieldAttribute(
         Source source,
         @Nullable String parentName,

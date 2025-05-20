@@ -292,7 +292,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
                     ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, name, t);
+                    : new FieldAttribute(source, parentName, name, t, Nullability.TRUE, null, false);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -458,7 +458,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Column column = entry.getValue();
                 // create a fake ES field - alternative is to use a ReferenceAttribute
                 EsField field = new EsField(name, column.type(), Map.of(), false, false);
-                attributes.add(new FieldAttribute(source, null, name, field));
+                attributes.add(new FieldAttribute(source, null, name, field, Nullability.TRUE, null, false));
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
             }
@@ -881,11 +881,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute(fa.source(), name, field);
+            return new FieldAttribute(fa.source(), null, name, field, Nullability.TRUE, null, false);
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+            return new FieldAttribute(
+                attribute.source(),
+                null,
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name()),
+                Nullability.TRUE,
+                null,
+                false
+            );
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
@@ -1687,7 +1695,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, true);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parentName(),
+                unionTypedFieldName,
+                resolvedField,
+                Nullability.TRUE,
+                null,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs

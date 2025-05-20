@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -29,7 +30,15 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        var docId = new FieldAttribute(
+            plan.source(),
+            null,
+            EsQueryExec.DOC_ID_FIELD.getName(),
+            EsQueryExec.DOC_ID_FIELD,
+            Nullability.TRUE,
+            null,
+            false
+        );
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(docId);
 

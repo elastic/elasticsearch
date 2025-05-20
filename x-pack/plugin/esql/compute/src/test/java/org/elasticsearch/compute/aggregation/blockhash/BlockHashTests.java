@@ -33,18 +33,14 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

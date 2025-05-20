@@ -363,7 +363,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   def transformTask = tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
-    TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
+      TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -532,7 +532,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
 
       String baseSuffix = DockerBase.WOLFI.suffix
-      from(projectDir.resolve("src/docker/Dockerfile")) {
+      from(projectDir.resolve("src/docker/${dockerBase.dockerfile}")) {
         expand(
           [
             base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",
@@ -542,7 +542,6 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
           ]
         )
         filter SquashNewlinesFilter
-        rename ~/Dockerfile\.ess$/, 'Dockerfile'
       }
     }
 

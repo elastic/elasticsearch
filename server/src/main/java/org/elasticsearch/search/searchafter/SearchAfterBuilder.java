@@ -153,7 +153,13 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
-                case DOC, INT:
+                case DOC:
+                    if (value instanceof Number valueNumber) {
+                        return (valueNumber).intValue();
+                    }
+                    return Integer.parseInt(value.toString());
+
+                case INT:
                     // As mixing INT and LONG sort in a single request is allowed,
                     // we may get search_after values that are larger than Integer.MAX_VALUE
                     // in this case convert them to Integer.MAX_VALUE

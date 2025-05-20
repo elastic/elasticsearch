@@ -164,7 +164,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         );
         XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
         rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
-        rewrittenSortField.setOptimizeSortWithPoints(numericSortField.getOptimizeSortWithPoints());
+        // we don't optimize sorting on int field for old indices
+        rewrittenSortField.setOptimizeSortWithPoints(false);
         return rewrittenSortField;
     }
 

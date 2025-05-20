@@ -1032,9 +1032,13 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will only be present if text field is not stored
-            // and there is no syntheticSourceDelegate
-            if (isSyntheticSource && syntheticSourceDelegate == null) {
+            // _ignored_source field will contain entries for this field if it is not stored
+            // and there is no syntheticSourceDelegate.
+            // See #syntheticSourceSupport().
+            // But if a text field is a multi field it won't have an entry in _ignored_source.
+            // The parent might, but we don't have enough context here to figure this out.
+            // So we bail.
+            if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader();
             }
 
@@ -1083,6 +1087,13 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (isSyntheticSource && syntheticSourceDelegate != null) {
+                // Since we are using synthetic source and a delegate, we can't use this field
+                // to determine if the delegate has values in the document (f.e. handling of `null` is different
+                // between text and keyword).
+                return BlockSourceReader.lookupMatchingAll();
+            }
+
             if (isIndexed()) {
                 if (getTextSearchInfo().hasNorms()) {
                     return BlockSourceReader.lookupFromNorms(name());

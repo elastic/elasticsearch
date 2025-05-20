@@ -314,7 +314,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
           filter TransformLog4jConfigFilter
         }
       }
-      if(base == DockerBase.FIPS) {
+      if(base == DockerBase.CLOUD_ESS_FIPS) {
 
         // If we're performing a release build, but `build.id` hasn't been set, we can
         // infer that we're not at the Docker building stage of the build, and therefore
@@ -482,8 +482,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else {
+      } else if(base.image != null) {
         baseImages = [base.image]
+      } else {
+        baseImages = []
       }
 
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
@@ -590,7 +592,7 @@ for (final Architecture architecture : Architecture.values()) {
     }
     if(base == DockerBase.DEFAULT) {
       // Add additional docker hub specific context which we use solely for publishing to docker hub.
-      // At the moment it only differs in not labels added that we need for openshift certification
+      // At the moment it is exactly the same as the default context.
       addBuildDockerContextTask(architecture, base, 'DockerHubContext', "docker-hub-build-context")
     }
   }
@@ -608,19 +610,19 @@ subprojects { Project subProject ->
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
       base = DockerBase.IRON_BANK
-    } else if (subProject.name.contains('cloud-ess-')) {
+    } else if (subProject.name.contains('cloud-ess-docker')) {
       base = DockerBase.CLOUD_ESS
     } else if (subProject.name.contains('wolfi-')) {
       base = DockerBase.WOLFI
-    } else if (subProject.name.contains('fips-')) {
-      base = DockerBase.FIPS
+    } else if (subProject.name.contains('cloud-ess-fips-docker')) {
+      base = DockerBase.CLOUD_ESS_FIPS
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String extension =
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
         (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
-          (base == DockerBase.FIPS ? 'fips.tar' :
+          (base == DockerBase.CLOUD_ESS_FIPS ? 'cloud-ess-fips.tar' :
             (base == DockerBase.WOLFI ? 'wolfi.tar' :
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"

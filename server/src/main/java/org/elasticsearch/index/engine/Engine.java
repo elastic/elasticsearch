@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
@@ -62,6 +63,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -86,6 +88,7 @@ import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,6 +110,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -144,6 +148,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -173,6 +178,9 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
     }
@@ -280,13 +288,13 @@ public abstract class Engine implements Closeable {
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
-            return new DenseVectorStats(0);
+            return new DenseVectorStats();
         }
 
-        List<String> fields = new ArrayList<>();
+        List<DenseVectorFieldMapper> fields = new ArrayList<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof DenseVectorFieldMapper) {
-                fields.add(mapper.fullPath());
+            if (mapper instanceof DenseVectorFieldMapper denseVectorFieldMapper) {
+                fields.add(denseVectorFieldMapper);
             }
         }
         if (fields.isEmpty()) {
@@ -297,24 +305,26 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
-        long valueCount = 0;
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<DenseVectorFieldMapper> fields) {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
+        var stats = new DenseVectorStats();
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
+                stats.add(getDenseVectorStats(readerContext.reader(), fields));
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
-        return new DenseVectorStats(valueCount);
+        return stats;
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
+    private DenseVectorStats getDenseVectorStats(final LeafReader atomicReader, List<DenseVectorFieldMapper> fieldMappers)
+        throws IOException {
         long count = 0;
-        for (var field : fields) {
-            var info = atomicReader.getFieldInfos().fieldInfo(field);
+        Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
+        for (var fieldMapper : fieldMappers) {
+            FieldInfo info = atomicReader.getFieldInfos().fieldInfo(fieldMapper.fullPath());
             if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
@@ -326,9 +336,16 @@ public abstract class Engine implements Closeable {
                         count += values != null ? values.size() : 0;
                     }
                 }
+                SegmentReader reader = Lucene.segmentReader(atomicReader);
+                var vectorsReader = reader.getVectorReader();
+                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorsReader = fieldsReader.getFieldReader(info.name);
+                }
+                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                offHeapStats.put(info.name, offHeap);
             }
         }
-        return count;
+        return new DenseVectorStats(count, Collections.unmodifiableMap(offHeapStats));
     }
 
     /**
@@ -434,11 +451,18 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final PauseLock throttlingLock;
+        private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
+
+        public IndexThrottle(boolean pause) {
+            throttlingLock = new PauseLock(pause ? 0 : 1);
+            lockReference = new ReleasableLock(throttlingLock);
+        }
 
         public Releasable acquireThrottle() {
             return lock.acquire();
@@ -448,12 +472,15 @@ public abstract class Engine implements Closeable {
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
+            throttlingLock.throttle();
             lock = lockReference;
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
+            throttlingLock.unthrottle();
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
@@ -540,6 +567,58 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    /* A lock implementation that allows us to control how many threads can take the lock
+     * In particular, this is used to set the number of allowed threads to 1 or 0
+     * when index throttling is activated.
+     */
+    protected static final class PauseLock implements Lock {
+        private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        private final int allowThreads;
+
+        public PauseLock(int allowThreads) {
+            this.allowThreads = allowThreads;
+        }
+
+        public void lock() {
+            semaphore.acquireUninterruptibly();
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+            semaphore.acquire();
+        }
+
+        @Override
+        public void unlock() {
+            semaphore.release();
+        }
+
+        @Override
+        public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
+
+        public void throttle() {
+            assert semaphore.availablePermits() == Integer.MAX_VALUE;
+            semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
+        }
+
+        public void unthrottle() {
+            assert semaphore.availablePermits() <= allowThreads;
+            semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
     }
 
@@ -960,7 +1039,7 @@ public abstract class Engine implements Closeable {
     public abstract void syncTranslog() throws IOException;
 
     /**
-     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
     public abstract Closeable acquireHistoryRetentionLock();
 

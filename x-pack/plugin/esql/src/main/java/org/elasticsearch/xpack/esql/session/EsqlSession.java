@@ -355,15 +355,13 @@ public class EsqlSession {
         }).<PreAnalysisResult>andThen((l, result) -> {
             // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
             // invalid index resolution to updateExecutionInfo
-            if (result.indices.isValid()) {
-                // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                if (allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
-            }
+            // If we run out of clusters to search due to unavailability we can stop the analysis right here
+            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
             // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
             l.onResponse(result);
         }).<PreAnalysisResult>andThen((l, result) -> {
             // first attempt (maybe the only one) at analyzing the plan
-            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, logicalPlanListener, l);
+            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
             assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
@@ -374,6 +372,10 @@ public class EsqlSession {
             LOGGER.debug("Analyzing the plan (second attempt, without filter)");
             LogicalPlan plan;
             try {
+                // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -484,12 +486,12 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
         if (executionInfo.isCrossClusterSearch()
             && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
+            LOGGER.debug("No more clusters to search, ending analysis stage");
             logicalPlanListener.onFailure(new NoClustersToSearchException());
             return true;
         }
@@ -501,6 +503,7 @@ public class EsqlSession {
         Function<PreAnalysisResult, LogicalPlan> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
         ActionListener<LogicalPlan> logicalPlanListener,
         ActionListener<PreAnalysisResult> l
     ) {
@@ -510,6 +513,11 @@ public class EsqlSession {
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
 
         try {
+            if (result.indices.isValid() || requestFilter != null) {
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
+            }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {
             if (e instanceof VerificationException ve) {
@@ -582,9 +590,15 @@ public class EsqlSession {
         }
 
         var referencesBuilder = AttributeSet.builder();
-        // "keep" attributes are special whenever a wildcard is used in their name
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
+        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
+        // to remove if their name matches one of these wildcards.
+        //
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        var keepCommandRefsBuilder = AttributeSet.builder();
+        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        //
+        // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
+        var shadowingRefsBuilder = AttributeSet.builder();
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
@@ -609,12 +623,12 @@ public class EsqlSession {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinRefsBuilder.addAll(usingJoinType.columns());
                 }
-                if (keepCommandRefsBuilder.isEmpty()) {
+                if (shadowingRefsBuilder.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(keepCommandRefsBuilder);
+                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
                 }
             } else {
                 referencesBuilder.addAll(p.references());
@@ -626,12 +640,10 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    if (p instanceof Keep) {
-                        keepCommandRefsBuilder.add(ua);
-                    }
+                    shadowingRefsBuilder.add(ua);
                 });
                 if (p instanceof Keep) {
-                    keepCommandRefsBuilder.addAll(p.references());
+                    shadowingRefsBuilder.addAll(p.references());
                 }
             }
 
@@ -661,7 +673,7 @@ public class EsqlSession {
                     if (fieldNames.contains(alias.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
+                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), shadowingRefsBuilder.contains(attr)));
                 });
             }
         });

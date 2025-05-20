@@ -28,19 +28,20 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -71,7 +72,6 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -168,7 +168,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).buildTemplate();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -248,7 +248,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                                 builder,
                                 withEffectiveRetention,
                                 getDataStreamResponse.getRolloverConfiguration(),
-                                getDataStreamResponse.getGlobalRetention()
+                                getDataStreamResponse.getDataGlobalRetention(),
+                                getDataStreamResponse.getFailuresGlobalRetention()
                             );
                         String serialized = Strings.toString(builder);
                         Map<String, Object> resultMap = XContentHelper.convertToMap(
@@ -290,7 +291,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
          * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(7)).buildTemplate();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(7))
+            .buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -836,7 +839,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().enabled(false).buildTemplate();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -891,17 +894,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testLifecycleAppliedToFailureStore() throws Exception {
-        // We configure a lifecycle with downsampling to ensure it doesn't fail
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
             .dataRetention(TimeValue.timeValueSeconds(20))
-            .downsampling(
-                List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
-                )
-            )
             .buildTemplate();
 
         putComposableIndexTemplate("id1", """
@@ -915,7 +909,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                    "type": "boolean"
                  }
              }
-            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, lifecycle, true);
+            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, null, lifecycle, true);
 
         String dataStreamName = "metrics-fs";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -956,7 +950,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             );
         });
 
-        updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
+        updateFailureStoreConfiguration(dataStreamName, true, TimeValue.timeValueSeconds(1));
 
         // And finally apply retention
         assertBusy(() -> {
@@ -1025,7 +1019,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle.Template lifecycle,
+        @Nullable DataStreamLifecycle.Template dataLifecycle,
+        boolean withFailureStore
+    ) throws IOException {
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, dataLifecycle, null, withFailureStore);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamLifecycle.Template dataLifecycle,
+        @Nullable DataStreamLifecycle.Template failuresLifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
@@ -1036,8 +1043,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     Template.builder()
                         .settings(settings)
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
-                        .lifecycle(lifecycle)
-                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(withFailureStore))
+                        .lifecycle(dataLifecycle)
+                        .dataStreamOptions(
+                            new DataStreamOptions.Template(new DataStreamFailureStore.Template(withFailureStore, failuresLifecycle))
+                        )
                 )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -1054,6 +1063,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             dataRetention
         );
         assertAcked(client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest));
+    }
+
+    static void updateFailureStoreConfiguration(String dataStreamName, boolean enabled, TimeValue retention) {
+        PutDataStreamOptionsAction.Request putDataOptionsRequest = new PutDataStreamOptionsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName },
+            new DataStreamFailureStore(enabled, DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(retention).build())
+        );
+        assertAcked(client().execute(PutDataStreamOptionsAction.INSTANCE, putDataOptionsRequest));
     }
 
     /*
@@ -1088,7 +1107,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                             Template.builder()
                                 .settings(Settings.EMPTY)
                                 .lifecycle(
-                                    DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                    DataStreamLifecycle.dataLifecycleBuilder()
+                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
                                 )
                         )
                         .build(),

@@ -280,7 +280,11 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The DN of the user that is used to bind to the LDAP and perform searches. Only applicable in user search mode. If not specified, an anonymous bind is attempted. Defaults to Empty. Due to its potential security impact, `bind_dn` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
 
 `bind_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [6.3] Use `secure_bind_password` instead. The password for the user that is used to bind to the LDAP directory. Defaults to Empty. Due to its potential security impact, `bind_password` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
+:   :::{admonition} Deprecated in 6.3
+    Use `secure_bind_password` instead.
+    :::
+
+    ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the user that is used to bind to the LDAP directory. Defaults to Empty. Due to its potential security impact, `bind_password` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
 
 `secure_bind_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md), [Reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings)) The password for the user that is used to bind to the LDAP directory. Defaults to Empty.
@@ -315,7 +319,11 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the filter used to search the directory in attempts to match an entry with the username provided by the user. Defaults to `(uid={{0}})`. `{{0}}` is substituted with the username provided when searching.
 
 `user_search.attribute`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [5.6] Use `user_search.filter` instead. The attribute to match with the username sent with the request. Defaults to `uid`.
+:   :::{admonition} Deprecated in 5.6
+     Use `user_search.filter` instead.
+     :::
+
+     ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The attribute to match with the username sent with the request. Defaults to `uid`.
 
 `user_search.pool.enabled`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Enables or disables connection pooling for user search. If set to `false`, a new connection is created for every search. The default is `true` when `bind_dn` is set.
@@ -363,7 +371,11 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The TCP connect timeout period for establishing an LDAP connection. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.7] The TCP read timeout period after establishing an LDAP connection. This is equivalent to and is deprecated in favor of `timeout.response` and they cannot be used simultaneously. An `s` at the end indicates seconds, or `ms` indicates milliseconds.
+:   :::{admonition} Deprecated in 7.7
+    This setting was deprecated in 7.7.
+    :::
+
+    ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The TCP read timeout period after establishing an LDAP connection. This is equivalent to and is deprecated in favor of `timeout.response` and they cannot be used simultaneously. An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 
 `timeout.response`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The time interval to wait for the response from the LDAP server. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of `timeout.ldap_search`.
@@ -380,7 +392,11 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 
 
 `ssl.key_passphrase`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -416,13 +432,21 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -439,7 +463,11 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 
 
 `ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -453,26 +481,16 @@ In addition to the [Settings valid for all realms](#ref-realm-settings), you can
 `ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Indicates the type of verification when using `ldaps` to protect against man in the middle attacks and certificate forgery.
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`: Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`: Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`: Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `ssl.supported_protocols`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. The default is `TLSv1.3,TLSv1.2`.
@@ -530,7 +548,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The DN of the user that is used to bind to Active Directory and perform searches. Defaults to Empty. Due to its potential security impact, `bind_dn` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
 
 `bind_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [6.3] Use `secure_bind_password` instead. The password for the user that is used to bind to Active Directory. Defaults to Empty. Due to its potential security impact, `bind_password` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the user that is used to bind to Active Directory. Defaults to Empty. Due to its potential security impact, `bind_password` is not exposed via the [nodes info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-info).
+
+    :::{admonition} Deprecated in 6.3
+    Use `secure_bind_password` instead.
+    :::
 
 `secure_bind_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md), [Reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings)) The password for the user that is used to bind to Active Directory. Defaults to Empty.
@@ -587,7 +609,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The TCP connect timeout period for establishing an LDAP connection. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.7] The TCP read timeout period after establishing an LDAP connection. This is equivalent to and is deprecated in favor of `timeout.response` and they cannot be used simultaneously. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of `timeout.ldap_search`.
+:   :::{admonition} Deprecated in 7.7
+    This is equivalent to and is deprecated in favor of `timeout.response` and they cannot be used simultaneously.
+    :::
+
+    ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The TCP read timeout period after establishing an LDAP connection. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of `timeout.ldap_search`.
 
 `timeout.response`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The time interval to wait for the response from the AD server. An `s` at the end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of `timeout.ldap_search`.
@@ -620,7 +646,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 
 `ssl.key_passphrase`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -629,7 +659,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
 
 `ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -638,7 +672,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the key in the keystore. The default is the keystore password.
 
 `ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `ssl.secure_keystore.password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
@@ -655,7 +693,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -677,26 +719,16 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Indicates the type of verification when using `ldaps` to protect against man in the middle attacks and certificate forgery.
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+     Defaults to `full`.
 
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
 
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
-    Defaults to `full`.
-
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `ssl.supported_protocols`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
@@ -744,7 +776,11 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Algorithm for the truststore. Defaults to `SunX509`.
 
 `truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -950,7 +986,11 @@ These settings are not used for any purpose other than loading metadata over htt
 
 
 `ssl.key_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -983,7 +1023,11 @@ These settings are not used for any purpose other than loading metadata over htt
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
@@ -992,7 +1036,11 @@ These settings are not used for any purpose other than loading metadata over htt
 
 
 `ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1014,7 +1062,11 @@ You cannot use this setting and `ssl.keystore.key_password` at the same time.
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the truststore file. It must be either `jks` or `PKCS12`. If the file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1028,26 +1080,16 @@ You cannot use this setting and `ssl.keystore.key_password` at the same time.
 `ssl.verification_mode` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Controls the verification of certificates.
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `ssl.supported_protocols` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
@@ -1230,7 +1272,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 
 
 `ssl.key_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -1263,7 +1309,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
@@ -1272,7 +1322,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 
 
 `ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1295,7 +1349,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the truststore file. It must be either `jks` or `PKCS12`. If the file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1309,26 +1367,16 @@ These settings are *only* used for the back-channel communication between {{es}}
 `ssl.verification_mode` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Controls the verification of certificates.
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `ssl.supported_protocols` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
@@ -1438,6 +1486,15 @@ $$$jwt-claim-pattern-principal$$$
 `client_authentication.rotation_grace_period`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Sets the grace period for how long after rotating the `client_authentication.shared_secret` is valid. `client_authentication.shared_secret` can be rotated by updating the keystore then calling the [reload API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-reload-secure-settings). Defaults to `1m`.
 
+`http.proxy.host`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the address of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL.
+
+`http.proxy.scheme`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the protocol to use to connect to the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Must be `http`.
+
+`http.proxy.port`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the port of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Defaults to `80`.
+
 `http.connect_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Sets the timeout for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. A value of zero means the timeout is not used. Defaults to `5s`.
 
@@ -1488,7 +1545,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 
 
 `ssl.key_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -1521,7 +1582,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
@@ -1530,7 +1595,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 
 
 `ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1553,7 +1622,11 @@ These settings are *only* used for the back-channel communication between {{es}}
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the truststore file. It must be either `jks` or `PKCS12`. If the file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1567,26 +1640,16 @@ These settings are *only* used for the back-channel communication between {{es}}
 `ssl.verification_mode` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Controls the verification of certificates.
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `ssl.supported_protocols` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
@@ -1655,26 +1718,16 @@ You can configure the following TLS/SSL settings.
 `xpack.security.http.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The SSL settings in `xpack.security.http.ssl` control a *server context* for TLS, which defines the settings for the TLS connection. The use of `verification_mode` in a TLS *server* is discouraged. Defines how to verify the certificates presented by another party in the TLS connection:
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `xpack.security.http.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
@@ -1698,7 +1751,11 @@ When using PEM encoded files, use the following settings:
 
 
 `xpack.security.http.ssl.key_passphrase`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -1730,13 +1787,21 @@ When using Java keystore files (JKS), which contain the private key, certificate
 
 
 `xpack.security.http.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `xpack.security.http.ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.security.http.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1751,7 +1816,11 @@ When using Java keystore files (JKS), which contain the private key, certificate
 
 
 `xpack.security.http.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1776,13 +1845,21 @@ PKCS#12 files are configured in the same way as Java keystore files:
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `xpack.security.http.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `xpack.security.http.ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.security.http.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1800,7 +1877,11 @@ PKCS#12 files are configured in the same way as Java keystore files:
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 
 `xpack.security.http.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1833,26 +1914,16 @@ You can configure the following TLS/SSL settings.
 `xpack.security.transport.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `xpack.security.transport.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
@@ -1879,7 +1950,11 @@ When using PEM encoded files, use the following settings:
 
 
 `xpack.security.transport.ssl.key_passphrase`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
@@ -1913,13 +1988,21 @@ When using Java keystore files (JKS), which contain the private key, certificate
 
 
 `xpack.security.transport.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `xpack.security.transport.ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.security.transport.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1934,7 +2017,11 @@ When using Java keystore files (JKS), which contain the private key, certificate
 
 
 `xpack.security.transport.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -1959,13 +2046,21 @@ PKCS#12 files are configured in the same way as Java keystore files:
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `xpack.security.transport.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `xpack.security.transport.ssl.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.security.transport.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
@@ -1983,7 +2078,11 @@ PKCS#12 files are configured in the same way as Java keystore files:
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 
 `xpack.security.transport.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
@@ -2016,26 +2115,16 @@ You can configure the following TLS/SSL settings.
 `xpack.security.remote_cluster_server.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The SSL settings in `xpack.security.remote_cluster_server.ssl` control a *server context* for TLS, which defines the settings for the TLS connection. The use of `verification_mode` in a TLS *server* is discouraged. Defines how to verify the certificates presented by another party in the TLS connection:
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `xpack.security.remote_cluster_server.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
@@ -2155,26 +2244,16 @@ You can configure the following TLS/SSL settings.
 `xpack.security.remote_cluster_client.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
-
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`:   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`:   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`:   Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `xpack.security.remote_cluster_client.ssl.cipher_suites`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
@@ -2315,67 +2394,66 @@ Certain realms store user credentials in memory. To limit exposure to credential
 
 $$$cache-hash-algo$$$
 
-|     |     |     |     |
-| --- | --- | --- | --- |
-| Algorithm |  |  | Description |
-| `ssha256` |  |  | Uses a salted `sha-256` algorithm (default). |
-| `md5` |  |  | Uses `MD5` algorithm. |
-| `sha1` |  |  | Uses `SHA1` algorithm. |
-| `bcrypt` |  |  | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
-| `bcrypt4` |  |  | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
-| `bcrypt5` |  |  | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
-| `bcrypt6` |  |  | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
-| `bcrypt7` |  |  | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
-| `bcrypt8` |  |  | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
-| `bcrypt9` |  |  | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
-| `pbkdf2` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
-| `pbkdf2_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
-| `pbkdf2_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
-| `pbkdf2_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
-| `pbkdf2_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
-| `pbkdf2_stretch` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
-| `noop`,`clear_text` |  |  | Doesn’t hash the credentials and keeps it in clear text in                            memory. CAUTION: keeping clear text is considered insecure                            and can be compromised at the OS level (for example through                            memory dumps and using `ptrace`). |
+| Algorithm | Description |
+| --- | --- |
+| `ssha256` | Uses a salted `sha-256` algorithm (default). |
+| `md5` | Uses `MD5` algorithm. |
+| `sha1` | Uses `SHA1` algorithm. |
+| `bcrypt` | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
+| `bcrypt4` | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
+| `bcrypt5` | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
+| `bcrypt6` | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
+| `bcrypt7` | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
+| `bcrypt8` | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
+| `bcrypt9` | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
+| `pbkdf2` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
+| `pbkdf2_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
+| `pbkdf2_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
+| `pbkdf2_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
+| `pbkdf2_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
+| `pbkdf2_stretch` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
+| `noop`,`clear_text` | Doesn’t hash the credentials and keeps it in clear text in                            memory. CAUTION: keeping clear text is considered insecure                            and can be compromised at the OS level (for example through                            memory dumps and using `ptrace`). |
 
 Likewise, realms that store passwords hash them using cryptographically strong and password-specific salt values. You can configure the algorithm for password hashing by setting the [static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting) `xpack.security.authc.password_hashing.algorithm` setting to one of the following:
 
 $$$password-hashing-algorithms$$$
 
-| Algorithm |  |  | Description |
-| --- | --- | --- | --- |
-| `bcrypt` |  |  | Uses `bcrypt` algorithm with salt generated in 1024 rounds. (default) |
-| `bcrypt4` |  |  | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
-| `bcrypt5` |  |  | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
-| `bcrypt6` |  |  | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
-| `bcrypt7` |  |  | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
-| `bcrypt8` |  |  | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
-| `bcrypt9` |  |  | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
-| `bcrypt10` |  |  | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
-| `bcrypt11` |  |  | Uses `bcrypt` algorithm with salt generated in 2048 rounds. |
-| `bcrypt12` |  |  | Uses `bcrypt` algorithm with salt generated in 4096 rounds. |
-| `bcrypt13` |  |  | Uses `bcrypt` algorithm with salt generated in 8192 rounds. |
-| `bcrypt14` |  |  | Uses `bcrypt` algorithm with salt generated in 16384 rounds. |
-| `pbkdf2` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
-| `pbkdf2_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
-| `pbkdf2_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
-| `pbkdf2_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
-| `pbkdf2_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
-| `pbkdf2_stretch` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
+| Algorithm | Description |
+| --- | --- |
+| `bcrypt` | Uses `bcrypt` algorithm with salt generated in 1024 rounds. (default) |
+| `bcrypt4` | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
+| `bcrypt5` | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
+| `bcrypt6` | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
+| `bcrypt7` | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
+| `bcrypt8` | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
+| `bcrypt9` | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
+| `bcrypt10` | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
+| `bcrypt11` | Uses `bcrypt` algorithm with salt generated in 2048 rounds. |
+| `bcrypt12` | Uses `bcrypt` algorithm with salt generated in 4096 rounds. |
+| `bcrypt13` | Uses `bcrypt` algorithm with salt generated in 8192 rounds. |
+| `bcrypt14` | Uses `bcrypt` algorithm with salt generated in 16384 rounds. |
+| `pbkdf2` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
+| `pbkdf2_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
+| `pbkdf2_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
+| `pbkdf2_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
+| `pbkdf2_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
+| `pbkdf2_stretch` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
 
 Furthermore, {{es}} supports authentication via securely-generated high entropy tokens, for instance [API keys](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key). Analogous to passwords, only the tokens' hashes are stored. Since the tokens are guaranteed to have sufficiently high entropy to resist offline attacks, secure salted hash functions are supported in addition to the password-hashing algorithms mentioned above.
 
@@ -2383,35 +2461,35 @@ You can configure the algorithm for API key stored credential hashing by setting
 
 $$$secure-token-hashing-algorithms$$$
 
-| Algorithm |  |  | Description |
-| --- | --- | --- | --- |
-| `ssha256` |  |  | Uses a salted `sha-256` algorithm. (default) |
-| `bcrypt` |  |  | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
-| `bcrypt4` |  |  | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
-| `bcrypt5` |  |  | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
-| `bcrypt6` |  |  | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
-| `bcrypt7` |  |  | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
-| `bcrypt8` |  |  | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
-| `bcrypt9` |  |  | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
-| `bcrypt10` |  |  | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
-| `bcrypt11` |  |  | Uses `bcrypt` algorithm with salt generated in 2048 rounds. |
-| `bcrypt12` |  |  | Uses `bcrypt` algorithm with salt generated in 4096 rounds. |
-| `bcrypt13` |  |  | Uses `bcrypt` algorithm with salt generated in 8192 rounds. |
-| `bcrypt14` |  |  | Uses `bcrypt` algorithm with salt generated in 16384 rounds. |
-| `pbkdf2` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
-| `pbkdf2_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
-| `pbkdf2_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
-| `pbkdf2_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
-| `pbkdf2_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
-| `pbkdf2_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
-| `pbkdf2_stretch` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_10000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_50000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_100000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_500000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
-| `pbkdf2_stretch_1000000` |  |  | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
+| Algorithm | Description |
+| --- | --- |
+| `ssha256` | Uses a salted `sha-256` algorithm. (default) |
+| `bcrypt` | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
+| `bcrypt4` | Uses `bcrypt` algorithm with salt generated in 16 rounds. |
+| `bcrypt5` | Uses `bcrypt` algorithm with salt generated in 32 rounds. |
+| `bcrypt6` | Uses `bcrypt` algorithm with salt generated in 64 rounds. |
+| `bcrypt7` | Uses `bcrypt` algorithm with salt generated in 128 rounds. |
+| `bcrypt8` | Uses `bcrypt` algorithm with salt generated in 256 rounds. |
+| `bcrypt9` | Uses `bcrypt` algorithm with salt generated in 512 rounds. |
+| `bcrypt10` | Uses `bcrypt` algorithm with salt generated in 1024 rounds. |
+| `bcrypt11` | Uses `bcrypt` algorithm with salt generated in 2048 rounds. |
+| `bcrypt12` | Uses `bcrypt` algorithm with salt generated in 4096 rounds. |
+| `bcrypt13` | Uses `bcrypt` algorithm with salt generated in 8192 rounds. |
+| `bcrypt14` | Uses `bcrypt` algorithm with salt generated in 16384 rounds. |
+| `pbkdf2` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations. |
+| `pbkdf2_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations. |
+| `pbkdf2_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations. |
+| `pbkdf2_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations. |
+| `pbkdf2_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                              pseudorandom function using 500000 iterations. |
+| `pbkdf2_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations. |
+| `pbkdf2_stretch` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_10000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 10000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_50000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 50000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_100000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 100000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_500000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 500000 iterations, after hashing the                             initial input with SHA512 first. |
+| `pbkdf2_stretch_1000000` | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a                             pseudorandom function using 1000000 iterations, after hashing the                             initial input with SHA512 first. |
 
 
 

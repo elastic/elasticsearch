@@ -113,11 +113,8 @@ The following parameters are accepted by `keyword` fields:
     The `index.mapping.dimension_fields.limit` [index setting](/reference/elasticsearch/index-settings/time-series.md) limits the number of dimensions in an index.
 
     Dimension fields have the following constraints:
-
     * The `doc_values` and `index` mapping parameters must be `true`.
-    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
-
-        * The field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
+    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints: the field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
 
 
 ## Synthetic `_source` [keyword-synthetic-source]
@@ -232,6 +229,42 @@ Will become:
 ```console-result
 {
   "kwd": ["bar", "baz", "foo", "bang"]
+}
+```
+
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source:
+
+$$$synthetic-source-keyword-example-null-value$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "kwd": ["NA", "bar", "foo"]
 }
 ```
 

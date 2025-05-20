@@ -650,11 +650,6 @@ public class EsqlCapabilities {
         MATCH_FUNCTION,
 
         /**
-         * MATCH PHRASE function
-         */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * KQL function
          */
         KQL_FUNCTION,
@@ -1084,7 +1079,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions in STATS
          */
-        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

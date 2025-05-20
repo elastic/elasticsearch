@@ -816,6 +816,7 @@ public class LocalExecutionPlanner {
         return source.with(
             new ChangePointOperator.Factory(
                 layout.get(changePoint.value().id()).channel(),
+                changePoint.partition().stream().map(p -> layout.get(p.id()).channel()).toList(),
                 changePoint.sourceText(),
                 changePoint.sourceLocation().getLineNumber(),
                 changePoint.sourceLocation().getColumnNumber()

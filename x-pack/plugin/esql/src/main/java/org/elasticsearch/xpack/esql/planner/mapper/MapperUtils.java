@@ -130,6 +130,7 @@ public class MapperUtils {
                 child,
                 changePoint.value(),
                 changePoint.key(),
+                changePoint.partition(),
                 changePoint.targetType(),
                 changePoint.targetPvalue()
             );

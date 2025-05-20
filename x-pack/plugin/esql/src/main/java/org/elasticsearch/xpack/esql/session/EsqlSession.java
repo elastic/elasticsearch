@@ -602,7 +602,7 @@ public class EsqlSession {
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] canRemoveAliases = new boolean[] { true, true };
+        boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -658,7 +658,7 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {
@@ -667,22 +667,13 @@ public class EsqlSession {
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                canRemoveAliases[1] = true;
-                // go down each plan and remove aliases until we meet a plan that can override aliases
-                p.forEachDown(c -> {
-                    if (canRemoveAliases[1] && couldOverrideAliases(c)) {
-                        canRemoveAliases[1] = false;
+                p.forEachExpressionDown(Alias.class, alias -> {
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(alias.name())) {
+                        return;
                     }
-                    if (canRemoveAliases[1]) {
-                        c.forEachExpression(Alias.class, alias -> {
-                            // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
-                            // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                            if (fieldNames.contains(alias.name())) {
-                                return;
-                            }
-                            referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), shadowingRefsBuilder.contains(attr)));
-                        });
-                    }
+                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), shadowingRefsBuilder.contains(attr)));
                 });
             }
         });
@@ -733,7 +724,8 @@ public class EsqlSession {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof Rename
-            || p instanceof TopN) == false;
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

@@ -604,7 +604,20 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | eval language = concat(x, "-", lang)
                 | keep emp_no, x, lang, language
                 | sort emp_no desc | limit 3""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*", "lang", "lang.*")
+            Set.of(
+                "emp_no",
+                "x",
+                "lang",
+                "language",
+                "language_name",
+                "languages",
+                "x.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*",
+                "lang.*",
+                "language.*"
+            )
         );
     }
 

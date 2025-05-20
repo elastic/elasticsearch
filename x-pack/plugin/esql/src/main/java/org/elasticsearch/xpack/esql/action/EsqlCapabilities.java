@@ -1037,6 +1037,12 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_EVAL,
 
         /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1079,7 +1085,13 @@ public class EsqlCapabilities {
         /**
          * Full text functions in STATS
          */
-        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT;
 
         private final boolean enabled;
 

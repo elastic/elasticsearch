@@ -46,14 +46,8 @@ run it using Gradle:
 ==== Launching and debugging from an IDE
 
 If you want to run and debug Elasticsearch from your IDE, the `./gradlew run` task
-supports a remote debugging option. Run the following from your terminal:
-
----------------------------------------------------------------------------
-./gradlew run --debug-jvm
----------------------------------------------------------------------------
-
-Next start the "Debug Elasticsearch" run configuration in IntelliJ. This will enable the IDE to connect to the process and allow debug functionality.
-
+supports a remote debugging option. Start the "Debug Elasticsearch" run configuration in IntelliJ. This will enable the
+IDE to connect to the process and allow debug functionality.
 
 As such the IDE needs to be instructed to listen for connections on the debug port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
@@ -63,6 +57,12 @@ is called "Auto restart" and needs to be checked.
 NOTE: If you have imported the project into IntelliJ according to the instructions in
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
+
+Next run the following from your terminal:
+
+---------------------------------------------------------------------------
+./gradlew run --debug-jvm
+---------------------------------------------------------------------------
 
 ===== Debugging the CLI launcher
 

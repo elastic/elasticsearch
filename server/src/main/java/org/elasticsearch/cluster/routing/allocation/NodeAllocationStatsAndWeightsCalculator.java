@@ -15,7 +15,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeights;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.common.util.Maps;
@@ -28,7 +29,7 @@ import java.util.Map;
  */
 public class NodeAllocationStatsAndWeightsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
-    private final BalancerSettings balancerSettings;
+    private final BalancingWeightsFactory balancingWeightsFactory;
 
     /**
      * Node shard allocation stats and the total node weight.
@@ -42,9 +43,12 @@ public class NodeAllocationStatsAndWeightsCalculator {
         float currentNodeWeight
     ) {}
 
-    public NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster writeLoadForecaster, BalancerSettings balancerSettings) {
+    public NodeAllocationStatsAndWeightsCalculator(
+        WriteLoadForecaster writeLoadForecaster,
+        BalancingWeightsFactory balancingWeightsFactory
+    ) {
         this.writeLoadForecaster = writeLoadForecaster;
-        this.balancerSettings = balancerSettings;
+        this.balancingWeightsFactory = balancingWeightsFactory;
     }
 
     /**
@@ -54,30 +58,28 @@ public class NodeAllocationStatsAndWeightsCalculator {
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
+        Runnable ensureNotCancelled,
         @Nullable DesiredBalance desiredBalance
     ) {
         if (metadata.hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
-        var weightFunction = new WeightFunction(
-            balancerSettings.getShardBalanceFactor(),
-            balancerSettings.getIndexBalanceFactor(),
-            balancerSettings.getWriteLoadBalanceFactor(),
-            balancerSettings.getDiskUsageBalanceFactor()
-        );
+        final BalancingWeights balancingWeights = balancingWeightsFactory.create();
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
         var nodeAllocationStatsAndWeights = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
+            WeightFunction weightFunction = balancingWeights.weightFunctionForNode(node);
             int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
             long forecastedDiskUsage = 0;
             long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
+                ensureNotCancelled.run();
                 if (shardRouting.relocating()) {
                     // Skip the shard if it is moving off this node. The node running recovery will count it.
                     continue;

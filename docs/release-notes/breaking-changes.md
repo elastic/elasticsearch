@@ -12,6 +12,10 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
+
+No breaking changes in this version.
+
 ## 9.0.0 [elasticsearch-900-breaking-changes]
 
 Aggregations:
@@ -34,6 +38,9 @@ will prevent node from starting [#118366](https://github.com/elastic/elasticsear
 
 Cluster Coordination:
 * Remove unsupported legacy value for `discovery.type` [#112903](https://github.com/elastic/elasticsearch/pull/112903)
+
+ES|QL
+* Limit the scope of the skip_unavailable setting for remote clusters [#120236](https://github.com/elastic/elasticsearch/pull/120236)
 
 EQL:
 * Set allow_partial_search_results=true by default [#120267](https://github.com/elastic/elasticsearch/pull/120267)

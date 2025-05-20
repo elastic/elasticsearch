@@ -63,7 +63,7 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[QSTR] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[QSTR] function is only supported in WHERE and STATS commands"));
     }
 
     public void testInvalidQueryStringEof() {

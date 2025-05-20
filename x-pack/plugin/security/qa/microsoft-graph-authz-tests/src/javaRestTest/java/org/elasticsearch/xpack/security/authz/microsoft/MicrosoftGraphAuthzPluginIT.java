@@ -68,7 +68,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     private static ElasticsearchCluster initTestCluster() {
         return ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
+            .module("analysis-common")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -88,7 +88,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.saml.saml1.authorization_realms", "microsoft_graph1")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.order", "2")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_id", CLIENT_ID)
-            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
+            .keystore("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.tenant_id", TENANT_ID)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host", graphFixture::getBaseUrl)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)

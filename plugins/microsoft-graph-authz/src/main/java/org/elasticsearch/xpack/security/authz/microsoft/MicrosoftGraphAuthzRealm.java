@@ -20,6 +20,8 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
@@ -46,6 +48,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final HttpClient httpClient;
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
+    private final SecureString clientSecret;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
         super(config);
@@ -53,6 +56,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         this.roleMapper = roleMapper;
         this.config = config;
         this.httpClient = HttpClients.createDefault();
+        this.clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
     }
 
     @Override
@@ -110,7 +114,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                     new BasicNameValuePair("grant_type", "client_credentials"),
                     new BasicNameValuePair("scope", "https://graph.microsoft.com/.default"),
                     new BasicNameValuePair("client_id", config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)),
-                    new BasicNameValuePair("client_secret", config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET))
+                    new BasicNameValuePair("client_secret", clientSecret.toString())
                 )
             )
         );

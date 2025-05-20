@@ -144,8 +144,7 @@ abstract class DataNodeRequestSender {
                     var pendingRetries = new HashSet<ShardId>();
                     for (ShardId shardId : pendingShardIds) {
                         if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            var failure = shardFailures.get(shardId);
-                            if (failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException) {
+                            if (isRetryableFailure(shardFailures.get(shardId))) {
                                 pendingRetries.add(shardId);
                             }
                         }
@@ -156,7 +155,8 @@ abstract class DataNodeRequestSender {
                         }
                     }
                     for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                            && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
                             shardFailures.compute(
                                 shardId,
                                 (k, v) -> new ShardFailure(
@@ -326,6 +326,10 @@ abstract class DataNodeRequestSender {
     record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
     private record ShardFailure(boolean fatal, Exception failure) {}
+
+    private static boolean isRetryableFailure(ShardFailure failure) {
+        return failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException;
+    }
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.

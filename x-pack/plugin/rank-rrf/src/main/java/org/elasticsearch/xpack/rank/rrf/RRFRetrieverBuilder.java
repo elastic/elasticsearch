@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -21,8 +22,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverInfo;
-import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverParser;
+import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,12 +74,16 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                     );
                 }
 
-                List<SimplifiedInnerRetrieverInfo> simplifiedInnerRetrieverInfo = SimplifiedInnerRetrieverParser.parse(fields, query, w -> {
+                Map<String, Float> fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
+                fieldsAndWeights.values().forEach(w -> {
                     if (w != 1.0f) {
-                        throw new IllegalArgumentException("[" + NAME + "] does not support per-field weights");
+                        throw new IllegalArgumentException(
+                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
+                        );
                     }
                 });
-                innerRetrievers = SimplifiedInnerRetrieverParser.convertToRetrievers(simplifiedInnerRetrieverInfo);
+
+                innerRetrievers = SimplifiedInnerRetrieverUtils.convertToRetrievers(fieldsAndWeights.keySet(), query);
             } else {
                 innerRetrievers = List.of();
             }

@@ -232,6 +232,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             );
             public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
             public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
+            public static final ParseField INDEX_MODE = new ParseField("index_mode");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -246,6 +247,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final boolean templatePreferIlmValue;
             @Nullable
             private final Long maximumTimestamp;
+            @Nullable
+            private final String indexMode;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -256,7 +259,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
-                @Nullable Long maximumTimestamp
+                @Nullable Long maximumTimestamp,
+                @Nullable String indexMode
             ) {
                 this.dataStream = dataStream;
                 this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
@@ -267,6 +271,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
+                this.indexMode = indexMode;
             }
 
             @SuppressWarnings("unchecked")
@@ -287,6 +292,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     : Map.of();
                 this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
                 this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
+                this.indexMode = in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)
+                    ? in.readOptionalString()
+                    : null;
             }
 
             public DataStream getDataStream() {
@@ -329,6 +337,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
+            @Nullable
+            public String getIndexModeName() {
+                return indexMode;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -347,6 +360,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)) {
+                    out.writeOptionalString(indexMode);
                 }
             }
 
@@ -399,6 +415,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
                 if (this.maximumTimestamp != null) {
                     builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
+                }
+                if (this.indexMode != null) {
+                    builder.field(INDEX_MODE.getPreferredName(), indexMode);
                 }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
@@ -455,6 +474,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                                 builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
                             }
                         }
+                        builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
                     }
 
                     builder.endObject();
@@ -515,7 +535,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
-                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp)
+                    && Objects.equals(indexMode, that.indexMode);
             }
 
             @Override
@@ -529,7 +550,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     timeSeries,
                     indexSettingsValues,
                     templatePreferIlmValue,
-                    maximumTimestamp
+                    maximumTimestamp,
+                    indexMode
                 );
             }
         }
@@ -566,9 +588,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          * Encapsulates the configured properties we want to display for each backing index.
          * They'll usually be settings values, but could also be additional properties derived from settings.
          */
-        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy) implements Writeable {
+        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy, @Nullable String indexMode)
+            implements
+                Writeable {
             public IndexProperties(StreamInput in) throws IOException {
-                this(in.readBoolean(), in.readOptionalString(), in.readEnum(ManagedBy.class));
+                this(
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readEnum(ManagedBy.class),
+                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)
+                        ? in.readOptionalString()
+                        : "unknown"
+                );
             }
 
             @Override
@@ -576,6 +607,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19)) {
+                    out.writeOptionalString(indexMode);
+                }
             }
         }
 

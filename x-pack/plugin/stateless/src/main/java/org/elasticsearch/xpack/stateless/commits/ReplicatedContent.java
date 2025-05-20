@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit.I
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -231,14 +232,13 @@ class ReplicatedContent {
      */
     record InternalFileRangeReader(String filename, Directory directory, long rangeOffset, long rangeLength) implements InternalDataReader {
 
-        @Override
-        public InputStream getInputStream(long offset, long length) throws IOException {
+        private InputStream createInputStream(long offset, long length, IOContext context) throws IOException {
             long fileLength = rangeOffset + rangeLength;
             long fileOffset = rangeOffset + offset;
             assert fileOffset < fileLength
                 : "offset [" + rangeOffset + "+" + offset + "] more than file length [" + rangeOffset + "+" + rangeLength + "]";
             long fileBytesToRead = Math.min(Math.min(length, rangeLength), fileLength - fileOffset);
-            IndexInput input = directory.openInput(filename, IOContext.READONCE);
+            IndexInput input = directory.openInput(filename, context);
             try {
                 input.seek(fileOffset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {
@@ -251,6 +251,17 @@ class ReplicatedContent {
                 IOUtils.closeWhileHandlingException(input);
                 throw e;
             }
+        }
+
+        @Override
+        public InputStream getInputStream(long offset, long length) throws IOException {
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
+            return createInputStream(offset, length, ioContext);
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return createInputStream(0L, Long.MAX_VALUE, IOContext.READONCE);
         }
     }
 }

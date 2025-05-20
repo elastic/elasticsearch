@@ -360,10 +360,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return Collections.unmodifiableList(actionHandlers);
     }
 
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
-    }
+    // @Override
+    // public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+    // return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
+    // }
 
     @Override
     public List<RestHandler> getRestHandlers(

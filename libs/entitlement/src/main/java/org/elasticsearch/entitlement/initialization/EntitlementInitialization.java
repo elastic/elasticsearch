@@ -23,6 +23,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toSet;
+
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
  * instantiate and configure an {@link EntitlementChecker},
@@ -90,7 +92,7 @@ public class EntitlementInitialization {
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             ENTITLEMENTS_MODULE,
             pathLookup,
-            bootstrapArgs.suppressFailureLogClasses()
+            bootstrapArgs.suppressFailureLogPackages()
         );
     }
 

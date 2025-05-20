@@ -1037,6 +1037,12 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_EVAL,
 
         /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
          * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
          */

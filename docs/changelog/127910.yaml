@@ -1,0 +1,5 @@
+pr: 127910
+summary: Add Microsoft Graph Delegated Authorization Realm Plugin
+area: Authorization
+type: enhancement
+issues: []

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * The request that allows to set a user as enabled or disabled
  */
-public class SetEnabledRequest extends ActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
+public class SetEnabledRequest extends LegacyActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
 
     private Boolean enabled;
     private String username;

@@ -41,6 +41,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static com.nimbusds.jose.util.JSONObjectUtils.getJSONObjectArray;
+import static com.nimbusds.jose.util.JSONObjectUtils.getString;
+
 public class MicrosoftGraphAuthzRealm extends Realm {
 
     private static final Logger logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
@@ -122,7 +125,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var response = httpClient.execute(request, new BasicResponseHandler());
 
         final var json = JSONObjectUtils.parse(response);
-        final var token = (String) json.get("access_token");
+        final var token = getString(json, "access_token");
         logger.trace("Azure access token [{}]", token);
 
         return token;
@@ -141,8 +144,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var response = httpClient.execute(request, new BasicResponseHandler());
 
         final var json = JSONObjectUtils.parse(response);
-        final var email = (String) json.get("mail");
-        final var name = (String) json.get("displayName");
+        final var email = getString(json, "email");
+        final var name = getString(json, "displayName");
 
         logger.trace("User [{}] has email [{}]", name, email);
 
@@ -166,10 +169,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             final var response = httpClient.execute(request, new BasicResponseHandler());
 
             var json = JSONObjectUtils.parse(response);
-            nextPage = (String) json.get("@odata.nextLink");
-            for (var groupData : (List<?>) json.get("value")) {
-                final var properties = (Map<?, ?>) groupData;
-                groups.add((String) properties.get("id"));
+            nextPage = getString(json, "@odata.nextLink");
+            for (var groupData : getJSONObjectArray(json, "groups")) {
+                groups.add(getString(groupData, "id"));
             }
         }
 

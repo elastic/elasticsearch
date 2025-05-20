@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;

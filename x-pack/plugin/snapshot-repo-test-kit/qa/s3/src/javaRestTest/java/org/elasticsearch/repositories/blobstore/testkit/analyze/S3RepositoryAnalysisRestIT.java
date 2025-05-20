@@ -66,8 +66,8 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
                 // getRepositoryData looking for root index-N blob will have different/missing x-purpose parameter
                 return;
             }
+            repoAnalysisStarted.set(true);
         }
-        repoAnalysisStarted.set(true);
         assertTrue(request.toString(), request.hasQueryParamOnce("x-purpose"));
         assertEquals(request.toString(), "RepositoryAnalysis", request.getQueryParamOnce("x-purpose"));
     }

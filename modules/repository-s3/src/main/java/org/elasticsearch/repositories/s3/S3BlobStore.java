@@ -344,9 +344,7 @@ class S3BlobStore implements BlobStore {
         int retryCounter = 0;
         while (true) {
             try (AmazonS3Reference clientReference = clientReference()) {
-                final var response = SocketAccess.doPrivileged(
-                    () -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition))
-                );
+                final var response = clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
                 if (response.hasErrors()) {
                     final var exception = new ElasticsearchException(buildDeletionErrorMessage(response.errors()));
                     logger.warn(exception.getMessage(), exception);

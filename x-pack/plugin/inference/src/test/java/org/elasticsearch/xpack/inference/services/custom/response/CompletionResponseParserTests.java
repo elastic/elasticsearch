@@ -38,7 +38,12 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
 
     public void testFromMap() {
         var validation = new ValidationException();
-        var parser = CompletionResponseParser.fromMap(new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")), validation);
+
+        var parser = CompletionResponseParser.fromMap(
+            new HashMap<>(Map.of(COMPLETION_PARSER_RESULT, "$.result[*].text")),
+            "scope",
+            validation
+        );
 
         assertThat(parser, is(new CompletionResponseParser("$.result[*].text")));
     }
@@ -47,12 +52,12 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> CompletionResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].text")), validation)
+            () -> CompletionResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].text")), "scope", validation)
         );
 
         assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [json_parser] does not contain the required setting [completion_result];")
+            is("Validation Failed: 1: [scope.json_parser] does not contain the required setting [completion_result];")
         );
     }
 

@@ -165,6 +165,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put("bucket", "bucket")
             .put("base_path", "backup")
             .put("client", "test")
+            .put("add_purpose_custom_query_parameter", "true")
             .build();
     }
 

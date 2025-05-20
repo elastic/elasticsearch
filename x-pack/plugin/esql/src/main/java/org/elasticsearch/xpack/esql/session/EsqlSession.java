@@ -574,10 +574,6 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
-
         Holder<Boolean> projectAll = new Holder<>(false);
         parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
             if (projectAll.get()) {

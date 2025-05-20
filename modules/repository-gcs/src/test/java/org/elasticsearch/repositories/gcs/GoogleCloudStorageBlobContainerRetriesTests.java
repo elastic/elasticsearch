@@ -219,7 +219,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
     @Override
     protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {
-        exchange.getResponseHeaders().add("x-goog-generation", "1");
+        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(randomNonNegativeInt()));
     }
 
     public void testShouldRetryOnConnectionRefused() {

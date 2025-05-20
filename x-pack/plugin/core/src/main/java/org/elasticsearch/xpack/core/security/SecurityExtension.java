@@ -16,6 +16,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -112,6 +114,18 @@ public interface SecurityExtension {
      */
     default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a {@link NodeLocalServiceAccountTokenStore} used to authenticate service account tokens.
+     * If {@code null} is returned, the default service account token stores will be used.
+     *
+     * Providing a custom {@link NodeLocalServiceAccountTokenStore} here overrides the default implementation.
+     *
+     * @param components Access to components that can be used to authenticate service account tokens
+     */
+    default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+        return null;
     }
 
     /**

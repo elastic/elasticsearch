@@ -77,9 +77,10 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
     );
 
-    /** Formerly the protocol to use to connect to s3, now unused. V2 AWS SDK can infer the protocol from {@link #endpoint}. */
+    /** The protocol to use to connect to s3, now only used if {@link #endpoint} is not a proper URI that starts with {@code http://} or
+     * {@code https://}. */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
-    static final Setting.AffixSetting<HttpScheme> UNUSED_PROTOCOL_SETTING = Setting.affixKeySetting(
+    static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
         key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
@@ -178,8 +179,18 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope, Property.Deprecated)
     );
 
+    /** Whether to include the {@code x-purpose} custom query parameter in all requests. */
+    static final Setting.AffixSetting<Boolean> ADD_PURPOSE_CUSTOM_QUERY_PARAMETER = Setting.affixKeySetting(
+        PREFIX,
+        "add_purpose_custom_query_parameter",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
+
+    /** The scheme (HTTP or HTTPS) for talking to the endpoint, for use only if the endpoint doesn't contain an explicit scheme */
+    final HttpScheme protocol;
 
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
@@ -216,11 +227,15 @@ final class S3ClientSettings {
     /** Whether chunked encoding should be disabled or not. */
     final boolean disableChunkedEncoding;
 
+    /** Whether to add the {@code x-purpose} custom query parameter to all requests. */
+    final boolean addPurposeCustomQueryParameter;
+
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
     private S3ClientSettings(
         AwsCredentials credentials,
+        HttpScheme protocol,
         String endpoint,
         String proxyHost,
         int proxyPort,
@@ -232,9 +247,11 @@ final class S3ClientSettings {
         int maxRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
+        boolean addPurposeCustomQueryParameter,
         String region
     ) {
         this.credentials = credentials;
+        this.protocol = protocol;
         this.endpoint = endpoint;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
@@ -246,6 +263,7 @@ final class S3ClientSettings {
         this.maxRetries = maxRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
+        this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
     }
 
@@ -261,6 +279,7 @@ final class S3ClientSettings {
             .put(repositorySettings)
             .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
             .build();
+        final HttpScheme newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
@@ -277,6 +296,11 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
+        final boolean newAddPurposeCustomQueryParameter = getRepoSettingOrDefault(
+            ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
+            normalizedSettings,
+            addPurposeCustomQueryParameter
+        );
         final AwsCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
@@ -284,7 +308,8 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
-        if (Objects.equals(endpoint, newEndpoint)
+        if (Objects.equals(protocol, newProtocol)
+            && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
@@ -294,11 +319,13 @@ final class S3ClientSettings {
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
+            && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)) {
             return this;
         }
         return new S3ClientSettings(
             newCredentials,
+            newProtocol,
             newEndpoint,
             newProxyHost,
             newProxyPort,
@@ -310,6 +337,7 @@ final class S3ClientSettings {
             newMaxRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
+            newAddPurposeCustomQueryParameter,
             newRegion
         );
     }
@@ -405,6 +433,7 @@ final class S3ClientSettings {
         ) {
             return new S3ClientSettings(
                 S3ClientSettings.loadCredentials(settings, clientName),
+                getConfigValue(settings, clientName, PROTOCOL_SETTING),
                 getConfigValue(settings, clientName, ENDPOINT_SETTING),
                 getConfigValue(settings, clientName, PROXY_HOST_SETTING),
                 getConfigValue(settings, clientName, PROXY_PORT_SETTING),
@@ -416,6 +445,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
+                getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION)
             );
         }
@@ -435,12 +465,14 @@ final class S3ClientSettings {
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
             && Objects.equals(credentials, that.credentials)
+            && Objects.equals(protocol, that.protocol)
             && Objects.equals(endpoint, that.endpoint)
             && Objects.equals(proxyHost, that.proxyHost)
             && proxyScheme == that.proxyScheme
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
+            && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region);
     }
 
@@ -448,6 +480,7 @@ final class S3ClientSettings {
     public int hashCode() {
         return Objects.hash(
             credentials,
+            protocol,
             endpoint,
             proxyHost,
             proxyPort,
@@ -458,6 +491,7 @@ final class S3ClientSettings {
             maxRetries,
             maxConnections,
             disableChunkedEncoding,
+            addPurposeCustomQueryParameter,
             region
         );
     }

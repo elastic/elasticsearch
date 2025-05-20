@@ -148,7 +148,7 @@ PUT idx/_doc/1
     null,
     "the quick brown fox",
     "the quick brown fox",
-    "jumped over the lazy dog",
+    "jumped over the lazy dog"
   ]
 }
 ```
@@ -158,8 +158,8 @@ Will become:
 ```console-result
 {
   "text": [
-    "jumped over the lazy dog"
     "NA",
+    "jumped over the lazy dog",
     "the quick brown fox"
   ]
 }

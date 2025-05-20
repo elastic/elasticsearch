@@ -17,7 +17,7 @@ public enum DockerBase {
     DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
-    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "dockerfiles/iron_bank/Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
     WOLFI(
@@ -28,7 +28,7 @@ public enum DockerBase {
     ),
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
-    CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
+    CLOUD_ESS(null, "-cloud-ess", "apk", "dockerfiles/cloud_ess/Dockerfile"),
 
     CLOUD_ESS_FIPS(
         null,
@@ -41,10 +41,6 @@ public enum DockerBase {
     private final String suffix;
     private final String packageManager;
     private final String dockerfile;
-
-    DockerBase(String image, String suffix) {
-        this(image, suffix, "apt-get", "dockerfile");
-    }
 
     DockerBase(String image, String suffix, String packageManager, String dockerfile) {
         this.image = image;

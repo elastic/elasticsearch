@@ -532,7 +532,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
 
       String baseSuffix = DockerBase.WOLFI.suffix
-      from(projectDir.resolve("src/docker/Dockerfile.ess")) {
+      from(projectDir.resolve("src/docker/Dockerfile")) {
         expand(
           [
             base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",

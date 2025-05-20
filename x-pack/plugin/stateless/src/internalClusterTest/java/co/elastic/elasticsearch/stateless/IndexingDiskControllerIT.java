@@ -32,6 +32,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -415,9 +416,10 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             Settings settings,
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
-            ClusterService clusterService
+            ClusterService clusterService,
+            ProjectResolver projectResolver
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
         }
     }
 
@@ -433,9 +435,10 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             Settings settings,
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
-            ClusterService clusterService
+            ClusterService clusterService,
+            ProjectResolver projectResolver
         ) {
-            super(settings, repositoriesService, threadPool, clusterService);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
         }
 
         synchronized void block() {

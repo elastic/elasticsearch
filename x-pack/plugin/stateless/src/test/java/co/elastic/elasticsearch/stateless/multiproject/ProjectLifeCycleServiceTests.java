@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -93,7 +94,13 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
                 client,
                 List.of()
             );
-            var objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService);
+            var objectStoreService = new ObjectStoreService(
+                nodeSettings,
+                repoService,
+                threadPool,
+                clusterService,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            );
             closeable.add(objectStoreService);
             objectStoreService.start();
 

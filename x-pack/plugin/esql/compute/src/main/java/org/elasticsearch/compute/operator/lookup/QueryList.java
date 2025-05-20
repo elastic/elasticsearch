@@ -219,7 +219,7 @@ public abstract class QueryList {
             null,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
                 ? offset -> rangeFieldType.dateTimeFormatter().formatNanos(block.getLong(offset))
-                : block::getLong
+                : i -> block.getLong(i) / 1000_000
         );
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -36,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
@@ -53,12 +53,20 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            (canPushToSource(exp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+            switch (translatable(exp, pushdownPredicates).finish()) {
+                case NO -> nonPushable.add(exp);
+                case YES -> pushable.add(exp);
+                case RECHECK -> {
+                    pushable.add(exp);
+                    nonPushable.add(exp);
+                }
+            }
         }
-        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
+        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -67,16 +75,24 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
     ) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-            (canPushToSource(resExp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+            switch (translatable(resExp, pushdownPredicates).finish()) {
+                case NO -> nonPushable.add(exp);
+                case YES -> pushable.add(exp);
+                case RECHECK -> {
+                    nonPushable.add(exp);
+                    nonPushable.add(exp);
+                }
+            }
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -90,6 +106,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan rewrite(
+        LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
         List<Expression> pushable,
@@ -99,7 +116,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.toQueryBuilder();
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
@@ -198,19 +215,5 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
-    }
-
-    /**
-     * Check if the given expression can be pushed down to the source.
-     * This version of the check is called when we do not have SearchStats available. It assumes no exact subfields for TEXT fields,
-     * and makes the indexed/doc-values check using the isAggregatable flag only, which comes from field-caps, represents the field state
-     * over the entire cluster (is not node specific), and has risks for indexed=false/doc_values=true fields.
-     */
-    public static boolean canPushToSource(Expression exp) {
-        return canPushToSource(exp, LucenePushdownPredicates.DEFAULT);
-    }
-
-    static boolean canPushToSource(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
-        return exp instanceof TranslationAware aware && aware.translatable(lucenePushdownPredicates);
     }
 }

@@ -195,10 +195,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return inferenceId;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
-    }
-
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.get(0).retriever());

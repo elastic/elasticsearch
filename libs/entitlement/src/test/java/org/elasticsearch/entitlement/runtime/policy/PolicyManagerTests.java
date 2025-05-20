@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;

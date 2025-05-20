@@ -11,21 +11,14 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportLogger;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
@@ -128,29 +121,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         );
 
         final String nodeName = internalCluster().startNode();
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        String masterNode = internalCluster().getMasterName();
-        ConnectionManager connManager = internalCluster().getInstance(TransportService.class, masterNode).getConnectionManager();
-        connManager.addListener(new TransportConnectionListener() {
-            @Override
-            public void onConnectionClosed(Transport.Connection conn) {
-                conn.addCloseListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void ignored) {}
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        latch.countDown();
-                    }
-                });
-            }
-        });
-
-        int failAttempts = 0;
-        do {
-            internalCluster().restartNode(nodeName);
-        } while (latch.await(500, TimeUnit.MILLISECONDS) == false && failAttempts++ < 10);
+        internalCluster().restartNode(nodeName);
 
         mockLog.assertAllExpectationsMatched();
     }

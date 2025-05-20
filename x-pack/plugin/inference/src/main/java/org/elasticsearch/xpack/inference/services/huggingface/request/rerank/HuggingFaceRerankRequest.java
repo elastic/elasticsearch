@@ -62,20 +62,19 @@ public class HuggingFaceRerankRequest implements Request {
                     input,
                     returnDocuments,
                     topN != null ? topN : model.getTaskSettings().getTopNDocumentsOnly(),
-                    model.getTaskSettings(),
-                    model.getServiceSettings().modelId()
+                    model.getTaskSettings()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
 
         decorateWithAuth(httpPost);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
-    public void decorateWithAuth(HttpPost httpPost) {
+    void decorateWithAuth(HttpPost httpPost) {
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
     }
 

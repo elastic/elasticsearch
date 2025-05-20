@@ -23,15 +23,10 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class HuggingFaceRerankResponseEntity {
-
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Hugging Face rerank response";
-    private static final String INVALID_ID_FIELD_FORMAT_TEMPLATE = "Expected numeric value for record ID field in Hugging Face rerank ";
 
     /**
      * Parses the Hugging Face rerank response.
@@ -41,10 +36,9 @@ public class HuggingFaceRerankResponseEntity {
      * <pre>
      *     <code>
      *         {
-     *              "input": ["luke", "like", "leia", "chewy","r2d2", "star", "wars"],
+     *              "texts": ["luke", "leia"],
      *              "query": "star wars main character",
-     *              "return_documents": true,
-     *              "top_n": 1
+     *              "return_text": true
      *          }
      *     </code>
      * </pre>
@@ -53,15 +47,18 @@ public class HuggingFaceRerankResponseEntity {
 
      * <pre>
      *     <code>
-     *         {
-     *              "rerank": [
-     *                  {
-     *                       "index": 5,
-     *                       "relevance_score": -0.06920313,
-     *                       "text": "star"
-     *                   }
-     *               ]
-     *          }
+     *         [
+     *              {
+     *                   "index": 0,
+     *                   "score": -0.07996220886707306,
+     *                   "text": "luke"
+     *               },
+     *               {
+     *                  "index": 1,
+     *                  "score": -0.08393221348524094,
+     *                  "text": "leia"
+     *              }
+     *         ]
      *     </code>
      * </pre>
      */
@@ -71,10 +68,6 @@ public class HuggingFaceRerankResponseEntity {
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
-
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, token, jsonParser);
-
             var rankedDocs = doParse(jsonParser);
             var rankedDocsByRelevanceStream = rankedDocs.stream()
                 .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed());
@@ -88,24 +81,11 @@ public class HuggingFaceRerankResponseEntity {
     private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
         return parseList(parser, (listParser, index) -> {
             var parsedRankedDoc = HuggingFaceRerankResponseEntity.RankedDocEntry.parse(parser);
-
-            if (parsedRankedDoc.id == null) {
-                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDocEntry.ID.getPreferredName()));
-            }
-
-            if (parsedRankedDoc.score == null) {
-                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDocEntry.SCORE.getPreferredName()));
-            }
-
-            try {
-                return new RankedDocsResults.RankedDoc(parsedRankedDoc.id, parsedRankedDoc.score, parsedRankedDoc.text);
-            } catch (NumberFormatException e) {
-                throw new IllegalStateException(format(INVALID_ID_FIELD_FORMAT_TEMPLATE, parsedRankedDoc.id));
-            }
+            return new RankedDocsResults.RankedDoc(parsedRankedDoc.id, parsedRankedDoc.score, parsedRankedDoc.text);
         });
     }
 
-    private record RankedDocEntry(@Nullable Integer id, @Nullable Float score, @Nullable String text) {
+    private record RankedDocEntry(Integer id, Float score, @Nullable String text) {
 
         private static final ParseField TEXT = new ParseField("text");
         private static final ParseField SCORE = new ParseField("score");

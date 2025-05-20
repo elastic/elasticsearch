@@ -18,12 +18,11 @@ import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFace
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 
 public class HuggingFaceRerankRequestEntityTests extends ESTestCase {
     private static final String INPUT = "texts";
     private static final String QUERY = "query";
-    private static final String INFERENCE_ID = "model";
     private static final Integer TOP_N = 8;
     private static final Boolean RETURN_DOCUMENTS = false;
 
@@ -33,36 +32,28 @@ public class HuggingFaceRerankRequestEntityTests extends ESTestCase {
             List.of(INPUT),
             Boolean.TRUE,
             TOP_N,
-            new HuggingFaceRerankTaskSettings(TOP_N, RETURN_DOCUMENTS),
-            INFERENCE_ID
+            new HuggingFaceRerankTaskSettings(TOP_N, RETURN_DOCUMENTS)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        String expected = """
             {"texts":["texts"],
             "query":"query",
             "return_text":true,
-            "top_n":8}"""));
+            "top_n":8}""";
+        assertEquals(stripWhitespace(expected), xContentResult);
     }
 
     public void testXContent_WritesMinimalFields() throws IOException {
-        var entity = new HuggingFaceRerankRequestEntity(
-            QUERY,
-            List.of(INPUT),
-            null,
-            null,
-            new HuggingFaceRerankTaskSettings(null, null),
-            INFERENCE_ID
-        );
+        var entity = new HuggingFaceRerankRequestEntity(QUERY, List.of(INPUT), null, null, new HuggingFaceRerankTaskSettings(null, null));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {"texts":["texts"],"query":"query"}"""));
+        String expected = """
+            {"texts":["texts"],"query":"query"}""";
+        assertEquals(stripWhitespace(expected), xContentResult);
     }
 }

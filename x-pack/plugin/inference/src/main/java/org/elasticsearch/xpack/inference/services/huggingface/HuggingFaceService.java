@@ -76,43 +76,43 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     }
 
     @Override
-    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
-        return switch (input.taskType()) {
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
+        return switch (params.taskType()) {
             case RERANK -> new HuggingFaceRerankModel(
-                input.inferenceEntityId(),
-                input.taskType(),
+                params.inferenceEntityId(),
+                params.taskType(),
                 NAME,
-                input.serviceSettings(),
-                input.taskSettings(),
-                input.secretSettings(),
-                input.context()
+                params.serviceSettings(),
+                params.taskSettings(),
+                params.secretSettings(),
+                params.context()
             );
             case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
-                input.inferenceEntityId(),
-                input.taskType(),
+                params.inferenceEntityId(),
+                params.taskType(),
                 NAME,
-                input.serviceSettings(),
-                input.chunkingSettings(),
-                input.secretSettings(),
-                input.context()
+                params.serviceSettings(),
+                params.chunkingSettings(),
+                params.secretSettings(),
+                params.context()
             );
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
-                input.inferenceEntityId(),
-                input.taskType(),
+                params.inferenceEntityId(),
+                params.taskType(),
                 NAME,
-                input.serviceSettings(),
-                input.secretSettings(),
-                input.context()
+                params.serviceSettings(),
+                params.secretSettings(),
+                params.context()
             );
             case CHAT_COMPLETION, COMPLETION -> new HuggingFaceChatCompletionModel(
-                input.inferenceEntityId(),
-                input.taskType(),
+                params.inferenceEntityId(),
+                params.taskType(),
                 NAME,
-                input.serviceSettings(),
-                input.secretSettings(),
-                input.context()
+                params.serviceSettings(),
+                params.secretSettings(),
+                params.context()
             );
-            default -> throw new ElasticsearchStatusException(input.failureMessage(), RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(params.failureMessage(), RestStatus.BAD_REQUEST);
         };
     }
 

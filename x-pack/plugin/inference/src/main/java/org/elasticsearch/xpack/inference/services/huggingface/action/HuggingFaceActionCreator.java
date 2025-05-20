@@ -51,9 +51,12 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
     private static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler("hugging face rerank", (request, response) -> {
-        var errorMessage = format(INVALID_REQUEST_TYPE_MESSAGE, "RERANK", request != null ? request.getClass().getName() : "null");
-
         if ((request instanceof HuggingFaceRerankRequest) == false) {
+            var errorMessage = format(
+                INVALID_REQUEST_TYPE_MESSAGE,
+                "RERANK",
+                request != null ? request.getClass().getSimpleName() : "null"
+            );
             throw new IllegalArgumentException(errorMessage);
         }
         return HuggingFaceRerankResponseEntity.fromResponse((HuggingFaceRerankRequest) request, response);

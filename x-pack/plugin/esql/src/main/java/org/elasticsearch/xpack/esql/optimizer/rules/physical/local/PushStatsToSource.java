@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -33,7 +34,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
@@ -94,19 +95,26 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             // check if regular field
                             else {
                                 if (target instanceof FieldAttribute fa) {
-                                    var fName = fa.name();
+                                    var fName = fa.fieldName();
                                     if (context.searchStats().isSingleValue(fName)) {
-                                        fieldName = fa.name();
+                                        fieldName = fName;
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }
                                 }
                             }
                             if (fieldName != null) {
                                 if (count.hasFilter()) {
-                                    if (canPushToSource(count.filter()) == false) {
+                                    // Note: currently, it seems like we never actually perform stats pushdown if we reach here.
+                                    // That's because stats pushdown only works for 1 agg function (without BY); but in that case, filters
+                                    // are extracted into a separate filter node upstream from the aggregation (and hopefully pushed into
+                                    // the EsQueryExec separately).
+                                    if (translatable(
+                                        count.filter(),
+                                        LucenePushdownPredicates.DEFAULT
+                                    ) != TranslationAware.Translatable.YES) {
                                         return null; // can't push down
                                     }
-                                    var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter());
+                                    var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.Stat(fieldName, COUNT, query);

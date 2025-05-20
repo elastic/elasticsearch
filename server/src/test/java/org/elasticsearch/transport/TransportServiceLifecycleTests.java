@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,14 +80,14 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                 randomFrom(random, nodeA, nodeB).transportService.getLocalNode(),
                                 TestNode.randomActionName(random),
                                 new EmptyRequest(),
-                                new TransportResponseHandler<TransportResponse.Empty>() {
+                                new TransportResponseHandler<ActionResponse.Empty>() {
 
                                     final AtomicBoolean completed = new AtomicBoolean();
 
                                     final Executor executor = nodeB.randomExecutor();
 
                                     @Override
-                                    public void handleResponse(TransportResponse.Empty response) {
+                                    public void handleResponse(ActionResponse.Empty response) {
                                         assertTrue(completed.compareAndSet(false, true));
                                         requestPermits.release();
                                     }
@@ -98,8 +99,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public TransportResponse.Empty read(StreamInput in) {
-                                        return TransportResponse.Empty.INSTANCE;
+                                    public ActionResponse.Empty read(StreamInput in) {
+                                        return ActionResponse.Empty.INSTANCE;
                                     }
 
                                     @Override
@@ -132,7 +133,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
 
         try (var nodeA = new TestNode("node-A")) {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<ActionResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
                 TestNode.randomActionName(random()),
@@ -156,7 +157,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 Settings.builder().put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), true).build()
             )
         ) {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<ActionResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
                 TestNode.randomActionName(random()),
@@ -183,7 +184,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 "simulated exception in sendRequest",
                 safeAwaitAndUnwrapFailure(
                     IOException.class,
-                    TransportResponse.Empty.class,
+                    ActionResponse.Empty.class,
                     l -> nodeA.transportService.sendRequest(
                         nodeA.getThrowingConnection(),
                         TestNode.randomActionName(random()),
@@ -212,7 +213,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 }
             }
 
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<ActionResponse.Empty>();
             try {
                 nodeA.transportService.sendRequest(
                     nodeA.getThrowingConnection(),
@@ -239,7 +240,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         nodeA.close();
 
         final var testThread = Thread.currentThread();
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         nodeA.transportService.sendRequest(
             nodeA.getThrowingConnection(),
             TestNode.randomActionName(random()),
@@ -400,7 +401,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                     EmptyRequest::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                            channel.sendResponse(ActionResponse.Empty.INSTANCE);
                         } else {
                             channel.sendResponse(new ElasticsearchException("simulated"));
                         }

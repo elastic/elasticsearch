@@ -78,7 +78,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
@@ -310,7 +309,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
-            + "shard limit. ",
+            + "shard limit.",
         "Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
@@ -327,7 +326,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_index_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the index shard limit. ",
+                        + "] tier has reached the index shard limit.",
                     "Increase the values for the ["
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] index setting on each index or add more nodes to the target tiers.",
@@ -358,7 +357,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_cluster_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the cluster shard limit. ",
+                        + "] tier has reached the cluster shard limit.",
                     "Increase the values for the ["
                         + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] cluster setting or add more nodes to the target tiers.",
@@ -406,7 +405,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
-            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
         "Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
             + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
@@ -1152,7 +1151,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Returns the diagnosis for unassigned primary and replica shards.
-         * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         *
+         * @param verbose                   true if the diagnosis should be generated, false if they should be omitted.
          * @param maxAffectedResourcesCount the max number of affected resources to be returned as part of the diagnosis
          * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
@@ -1243,23 +1243,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
 
-            Map<String, Set<ProjectIndexName>> featureToDsBackingIndices = getSystemDsBackingIndicesForProjects(
-                systemIndices,
-                affectedProjects,
-                metadata
-            );
-
-            // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
-            // the list of affected indices (the feature state will cover the restore of these indices too)
-            for (Map.Entry<String, Set<ProjectIndexName>> featureToBackingIndices : featureToDsBackingIndices.entrySet()) {
-                for (ProjectIndexName featureIndex : featureToBackingIndices.getValue()) {
-                    if (restoreFromSnapshotIndices.contains(featureIndex)) {
-                        affectedFeatureStates.add(featureToBackingIndices.getKey());
-                        affectedIndices.remove(featureIndex);
-                    }
-                }
-            }
-
             if (affectedIndices.isEmpty() == false) {
                 affectedResources.add(
                     new Diagnosis.Resource(
@@ -1281,7 +1264,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         /**
-         * Retrieve the system indices for the projects and group them by Feature
+         * Retrieve the system indices and indices backing system data streams for the projects and group them by Feature
          */
         private static Map<String, Set<ProjectIndexName>> getSystemIndicesForProjects(
             SystemIndices systemIndices,
@@ -1293,40 +1276,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 .collect(
                     Collectors.toMap(
                         SystemIndices.Feature::getName,
-                        feature -> feature.getIndexDescriptors()
+                        feature -> feature.getSystemResourceDescriptors()
                             .stream()
                             .flatMap(
                                 descriptor -> projects.stream()
                                     .flatMap(
                                         projectId -> descriptor.getMatchingIndices(metadata.getProject(projectId))
-                                            .stream()
-                                            .map(index -> new ProjectIndexName(projectId, index))
-                                    )
-                            )
-                            .collect(Collectors.toSet())
-                    )
-                );
-        }
-
-        /**
-         * Retrieve the backing indices for system data stream for the projects and group them by Feature
-         */
-        private static Map<String, Set<ProjectIndexName>> getSystemDsBackingIndicesForProjects(
-            SystemIndices systemIndices,
-            Set<ProjectId> projects,
-            Metadata metadata
-        ) {
-            return systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(
-                        SystemIndices.Feature::getName,
-                        feature -> feature.getDataStreamDescriptors()
-                            .stream()
-                            .flatMap(
-                                descriptor -> projects.stream()
-                                    .flatMap(
-                                        projectId -> descriptor.getBackingIndexNames(metadata.getProject(projectId))
                                             .stream()
                                             .map(index -> new ProjectIndexName(projectId, index))
                                     )

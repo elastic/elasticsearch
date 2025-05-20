@@ -584,6 +584,21 @@ c:long
 3
 ;
 
+reuse categorize arg expression in agg
+required_capability: categorize_v5
+
+FROM sample_data
+| STATS m = MAX(LENGTH(CONCAT(message, "_end"))) BY c = CATEGORIZE(CONCAT(message, "_end"))
+| SORT m
+;
+
+m:integer      |c:keyword
+16             |.*?Disconnected_end.*?
+20             |.*?Connection.+?error_end.*?
+25             |.*?Connected.+?to.*?
+;
+
+
 categorize in aggs inside function
 required_capability: categorize_v5
 

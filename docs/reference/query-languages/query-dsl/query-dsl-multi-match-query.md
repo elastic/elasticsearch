@@ -139,12 +139,12 @@ Normally the `best_fields` type uses the score of the **single** best matching f
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`, `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `fuzzy_rewrite`, `zero_terms_query`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`, as explained in [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md).
 
-::::{admonition} `operator` and `minimum_should_match`
+::::{admonition} operator and minimum_should_match
 :class: important
 
 :name: operator-min
 
-The `best_fields` and `most_fields` types are *field-centric* — they generate a `match` query **per field**. This means that the `operator` and `minimum_should_match` parameters are applied to each field individually, which is probably not what you want.
+The `best_fields` and `most_fields` types are *field-centric* — they generate a `match` query **per field**. This means that the `operator` and `minimum_should_match` parameters are applied to each field individually, which is probably not what you want.
 
 Take this query for example:
 
@@ -257,7 +257,7 @@ GET /_search
 
 Also, accepts `analyzer`, `boost`, `lenient` and `zero_terms_query` as explained in [Match](/reference/query-languages/query-dsl/query-dsl-match-query.md), as well as `slop` which is explained in [Match phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md). Type `phrase_prefix` additionally accepts `max_expansions`.
 
-::::{admonition} `phrase`, `phrase_prefix` and `fuzziness`
+::::{admonition} phrase, phrase_prefix and fuzziness
 :class: important
 
 :name: phrase-fuzziness
@@ -438,7 +438,7 @@ By default, each per-term `blended` query will use the best score returned by an
 `0.0 < n < 1.0`
 :   Take the single best score plus `tie_breaker` multiplied by each of the scores from other matching fields/ groups
 
-::::{admonition} `cross_fields` and `fuzziness`
+::::{admonition} cross_fields and fuzziness
 :class: important
 
 :name: crossfields-fuzziness

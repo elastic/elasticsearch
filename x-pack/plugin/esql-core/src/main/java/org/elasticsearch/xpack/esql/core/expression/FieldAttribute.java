@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ESQL_FIELD_ATTRIBUTE_DROP_TYPE;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -65,47 +65,12 @@ public class FieldAttribute extends TypedAttribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        this(source, parentName, name, field.getDataType(), field, nullability, id, synthetic);
-    }
-
-    /**
-     * Used only for testing. Do not use this otherwise, as an explicitly set type will be ignored the next time this FieldAttribute is
-     * {@link FieldAttribute#clone}d.
-     */
-    FieldAttribute(
-        Source source,
-        @Nullable String parentName,
-        String name,
-        DataType type,
-        EsField field,
-        Nullability nullability,
-        @Nullable NameId id,
-        boolean synthetic
-    ) {
-        super(source, name, type, nullability, id, synthetic);
+        super(source, name, field.getDataType(), nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
     }
 
-    @Deprecated
-    /**
-     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
-     */
-    private FieldAttribute(
-        Source source,
-        @Nullable String parentName,
-        String name,
-        DataType type,
-        EsField field,
-        @Nullable String qualifier,
-        Nullability nullability,
-        @Nullable NameId id,
-        boolean synthetic
-    ) {
-        this(source, parentName, name, type, field, nullability, id, synthetic);
-    }
-
-    private FieldAttribute(StreamInput in) throws IOException {
+    private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -114,29 +79,36 @@ public class FieldAttribute extends TypedAttribute {
          * and NameId. This should become a hard cast when we move everything out
          * of esql-core.
          */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            readParentName(in),
-            readCachedStringWithVersionCheck(in),
-            DataType.readFrom(in),
-            EsField.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        String parentName = ((PlanStreamInput) in).readOptionalCachedString();
+        String name = readCachedStringWithVersionCheck(in);
+        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+            DataType.readFrom(in);
+        }
+        EsField field = EsField.readFrom(in);
+        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+            in.readOptionalString();
+        }
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
+        return new FieldAttribute(source, parentName, name, field, nullability, nameId, synthetic);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
-            writeParentName(out);
+            ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
             writeCachedStringWithVersionCheck(out, name());
-            dataType().writeTo(out);
+            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+                dataType().writeTo(out);
+            }
             field.writeTo(out);
-            // We used to write the qualifier here. We can still do if needed in the future.
-            out.writeOptionalString(null);
+            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+                // We used to write the qualifier here. We can still do if needed in the future.
+                out.writeOptionalString(null);
+            }
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
@@ -144,27 +116,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
-    }
-
-    private void writeParentName(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
-        } else {
-            // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
-            // fake FieldAttribute here as long as the name is correct.
-            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, parentName(), field());
-            out.writeOptionalWriteable(fakeParent);
-        }
-    }
-
-    private static String readParentName(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            return ((PlanStreamInput) in).readOptionalCachedString();
-        }
-
-        FieldAttribute parent = in.readOptionalWriteable(FieldAttribute::readFrom);
-        return parent == null ? null : parent.name();
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::innerReadFrom);
     }
 
     @Override
@@ -223,15 +175,15 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), parentName, field);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj)
-            && Objects.equals(parentName, ((FieldAttribute) obj).parentName)
-            && Objects.equals(field, ((FieldAttribute) obj).field);
+    protected boolean innerEquals(Object o) {
+        var other = (FieldAttribute) o;
+        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

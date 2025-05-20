@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-operators-math.html
 ---
 
-# Math Operators [sql-operators-math]
+# Math operators [sql-operators-math]
 
 Perform mathematical operations affecting one or two values. The result is a value of numeric type.
 

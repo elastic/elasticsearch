@@ -21,7 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCase<DataStreamLifecycle> {
+public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<DataStreamLifecycle> {
 
     @Override
     protected Writeable.Reader<DataStreamLifecycle> instanceReader() {
@@ -53,25 +54,39 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DataStreamLifecycle createTestInstance() {
-        return randomLifecycle();
+        return randomBoolean() ? randomDataLifecycle() : randomFailuresLifecycle();
     }
 
     @Override
     protected DataStreamLifecycle mutateInstance(DataStreamLifecycle instance) throws IOException {
+        var lifecycleTarget = instance.targetsFailureStore()
+            ? DataStreamLifecycle.LifecycleType.FAILURES
+            : DataStreamLifecycle.LifecycleType.DATA;
         var enabled = instance.enabled();
         var retention = instance.dataRetention();
         var downsampling = instance.downsampling();
-        switch (randomInt(2)) {
+        switch (randomInt(3)) {
             case 0 -> {
+                if (instance.targetsFailureStore()) {
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                } else {
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.FAILURES;
+                    downsampling = null;
+                }
+            }
+            case 1 -> {
                 if (retention == null) {
                     retention = randomPositiveTimeValue();
                 } else {
                     retention = randomBoolean() ? null : randomValueOtherThan(retention, ESTestCase::randomPositiveTimeValue);
                 }
             }
-            case 1 -> {
+            case 2 -> {
                 if (downsampling == null) {
                     downsampling = randomDownsampling();
+                    if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
+                        lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                    }
                 } else {
                     downsampling = randomBoolean()
                         ? null
@@ -80,12 +95,39 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             }
             default -> enabled = enabled == false;
         }
-        return new DataStreamLifecycle(enabled, retention, downsampling);
+        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsampling);
     }
 
-    @Override
-    protected DataStreamLifecycle doParseInstance(XContentParser parser) throws IOException {
-        return DataStreamLifecycle.fromXContent(parser);
+    public void testDataLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle lifecycle = randomDataLifecycle();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.dataLifecycleFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
+    }
+
+    public void testFailuresLifecycleXContentSerialization() throws IOException {
+        DataStreamLifecycle lifecycle = randomFailuresLifecycle();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            lifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, randomBoolean());
+            String lifecycleJson = Strings.toString(builder);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                var parsed = DataStreamLifecycle.failureLifecycleFromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+                assertThat(parsed, equalTo(lifecycle));
+            }
+        }
     }
 
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
@@ -132,10 +174,10 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            var parsed = DataStreamLifecycle.fromXContent(parser);
+            var parsed = DataStreamLifecycle.dataLifecycleFromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
-            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT));
+            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         }
     }
 
@@ -172,7 +214,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -195,7 +237,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -215,7 +257,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -235,14 +277,14 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder().downsampling((List.of())).build()
+                () -> DataStreamLifecycle.dataLifecycleBuilder().downsampling((List.of())).build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         Stream.iterate(1, i -> i * 2)
                             .limit(12)
@@ -262,7 +304,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.builder()
+                () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -283,59 +325,97 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
     public void testEffectiveRetention() {
         // No retention in the data stream lifecycle
         {
-            DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.builder().downsampling(randomDownsampling()).build();
+            DataStreamLifecycle noDataRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+                .downsampling(randomDownsampling())
+                .build();
+            DataStreamLifecycle noFailuresRetentionLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
+
+            // No global retention
+            // Data lifecycle
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noDataRetentionLifecycle
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            // Failures lifecycle
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveFailuresRetentionWithSource.v1(), nullValue());
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(null, maxRetention),
-                false
-            );
+            // Only max retention
+            DataStreamGlobalRetention onlyMaxRetention = new DataStreamGlobalRetention(null, maxRetention);
+            // Data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(onlyMaxRetention, false);
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
+            // Default configuration with data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(defaultRetention, null),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
 
-            effectiveDataRetentionWithSource = noRetentionLifecycle.getEffectiveDataRetentionWithSource(
+            // Complete global retention with data lifecycle
+            effectiveDataRetentionWithSource = noDataRetentionLifecycle.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(defaultRetention, maxRetention),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(defaultRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
+
+            // Complete global retention with failures lifecycle
+            effectiveFailuresRetentionWithSource = noFailuresRetentionLifecycle.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, maxRetention),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(defaultRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
         }
 
         // With retention in the data stream lifecycle
         {
             TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
-            DataStreamLifecycle lifecycleRetention = DataStreamLifecycle.builder()
+            DataStreamLifecycle dataLifecycleRetention = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataStreamRetention)
                 .downsampling(randomDownsampling())
                 .build();
+            DataStreamLifecycle failuresLifecycleRetention = DataStreamLifecycle.failuresLifecycleBuilder()
+                .dataRetention(dataStreamRetention)
+                .build();
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
 
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
+            // No global retention
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataLifecycleRetention
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveFailuresRetentionWithSource = failuresLifecycleRetention
+                .getEffectiveDataRetentionWithSource(null, randomBoolean());
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+            // only default & data lifecycle
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(defaultRetention, null),
                 false
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
+            // only failures default & failures lifecycle
+            effectiveFailuresRetentionWithSource = failuresLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(defaultRetention, null),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+
             TimeValue maxGlobalRetention = randomBoolean() ? dataStreamRetention : TimeValue.timeValueDays(dataStreamRetention.days() + 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(defaultRetention, maxGlobalRetention),
                 false
             );
@@ -343,7 +423,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
 
             TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
-            effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
+            effectiveDataRetentionWithSource = dataLifecycleRetention.getEffectiveDataRetentionWithSource(
                 new DataStreamGlobalRetention(
                     randomBoolean()
                         ? null
@@ -354,6 +434,17 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            effectiveFailuresRetentionWithSource = failuresLifecycleRetention.getEffectiveDataRetentionWithSource(
+                new DataStreamGlobalRetention(
+                    randomBoolean()
+                        ? null
+                        : TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
+                    maxRetentionLessThanDataStream
+                ),
+                false
+            );
+            assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
         }
 
         // Global retention does not apply to internal data streams
@@ -365,10 +456,13 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 TimeValue.timeValueDays(7),
                 TimeValue.timeValueDays(90)
             );
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(dataStreamRetention).build();
+            DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(dataStreamRetention).build();
+            DataStreamLifecycle failuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+                .dataRetention(dataStreamRetention)
+                .build();
 
             // Verify that global retention should have kicked in
-            var effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
+            var effectiveDataRetentionWithSource = dataLifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
             if (dataStreamWithRetention) {
                 assertThat(effectiveDataRetentionWithSource.v1(), equalTo(globalRetention.maxRetention()));
                 assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
@@ -377,15 +471,32 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DEFAULT_GLOBAL_RETENTION));
             }
 
+            // Verify that global retention should have kicked in
+            var effectiveFailuresRetentionWithSource = failuresLifecycle.getEffectiveDataRetentionWithSource(globalRetention, false);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(globalRetention.maxRetention()));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));
+            } else {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(globalRetention.defaultRetention()));
+                assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DEFAULT_FAILURES_RETENTION));
+            }
+
             // Now verify that internal data streams do not use global retention
             // Verify that global retention should have kicked in
-            effectiveDataRetentionWithSource = lifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
+            effectiveDataRetentionWithSource = dataLifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
             if (dataStreamWithRetention) {
                 assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             } else {
                 assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             }
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
+            effectiveFailuresRetentionWithSource = failuresLifecycle.getEffectiveDataRetentionWithSource(globalRetention, true);
+            if (dataStreamWithRetention) {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), equalTo(dataStreamRetention));
+            } else {
+                assertThat(effectiveFailuresRetentionWithSource.v1(), nullValue());
+            }
+            assertThat(effectiveFailuresRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
         }
     }
 
@@ -398,10 +509,21 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    public static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.builder()
+    public static DataStreamLifecycle randomDataLifecycle() {
+        return DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsampling(randomBoolean() ? null : randomDownsampling())
+            .enabled(randomBoolean())
+            .build();
+    }
+
+    /**
+     * Failures lifecycle does not support downsampling, this is why we have a dedicated method
+     * @return a random lifecycle without downsampling
+     */
+    public static DataStreamLifecycle randomFailuresLifecycle() {
+        return DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .enabled(randomBoolean())
             .build();
     }
@@ -428,5 +550,24 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    public void testInvalidLifecycleConfiguration() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataStreamFailureStore(
+                randomBoolean(),
+                new DataStreamLifecycle(
+                    DataStreamLifecycle.LifecycleType.FAILURES,
+                    null,
+                    null,
+                    DataStreamLifecycleTests.randomDownsampling()
+                )
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("Failure store lifecycle does not support downsampling, please remove the downsampling configuration.")
+        );
     }
 }

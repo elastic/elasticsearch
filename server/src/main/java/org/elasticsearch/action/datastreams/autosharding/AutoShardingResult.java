@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.datastreams.autosharding;
 
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Arrays;
@@ -25,13 +25,7 @@ import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType
  * {@link DataStreamAutoShardingService#DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING}) the target number of shards will be -1 and cool down
  * remaining {@link TimeValue#MAX_VALUE}.
  */
-public record AutoShardingResult(
-    AutoShardingType type,
-    int currentNumberOfShards,
-    int targetNumberOfShards,
-    TimeValue coolDownRemaining,
-    @Nullable Double writeLoad
-) {
+public record AutoShardingResult(AutoShardingType type, int currentNumberOfShards, int targetNumberOfShards, TimeValue coolDownRemaining) {
 
     static final String COOLDOWN_PREVENTING_TYPES = Arrays.toString(
         new AutoShardingType[] { COOLDOWN_PREVENTED_DECREASE, COOLDOWN_PREVENTED_INCREASE }
@@ -53,8 +47,36 @@ public record AutoShardingResult(
         AutoShardingType.NOT_APPLICABLE,
         -1,
         -1,
-        TimeValue.MAX_VALUE,
-        null
+        TimeValue.MAX_VALUE
     );
 
+    @Override
+    public String toString() {
+        return switch (type) {
+            case INCREASE_SHARDS -> Strings.format(
+                "Recommendation to increase shards from %d to %d",
+                currentNumberOfShards,
+                targetNumberOfShards
+            );
+            case DECREASE_SHARDS -> Strings.format(
+                "Recommendation to decrease shards from %d to %d",
+                currentNumberOfShards,
+                targetNumberOfShards
+            );
+            case COOLDOWN_PREVENTED_INCREASE -> Strings.format(
+                "Deferred recommendation to increase shards from %d to %d after cooldown period %s",
+                currentNumberOfShards,
+                targetNumberOfShards,
+                coolDownRemaining
+            );
+            case COOLDOWN_PREVENTED_DECREASE -> Strings.format(
+                "Deferred recommendation to decrease shards from %d to %d after cooldown period %s",
+                currentNumberOfShards,
+                targetNumberOfShards,
+                coolDownRemaining
+            );
+            case NO_CHANGE_REQUIRED -> Strings.format("Recommendation to leave shards unchanged at %d", currentNumberOfShards);
+            case NOT_APPLICABLE -> "No recommendation as auto-sharding not enabled";
+        };
+    }
 }

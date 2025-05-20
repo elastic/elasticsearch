@@ -3,6 +3,7 @@
   "type" : "operator",
   "operator" : "/",
   "name" : "div",
+  "titleName" : "divide",
   "description" : "Divide one number by another. If either field is multivalued then the result is `null`.",
   "note" : "Division of two integer types will yield an integer result, rounding towards 0. If you need floating point division, `Cast (::)` one of the arguments to a `DOUBLE`.",
   "signatures" : [

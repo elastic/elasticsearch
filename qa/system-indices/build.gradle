@@ -17,3 +17,8 @@ esplugin {
   licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
   noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
+
+dependencies {
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':x-pack:plugin:migrate')
+}

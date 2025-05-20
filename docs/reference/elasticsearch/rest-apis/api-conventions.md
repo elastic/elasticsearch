@@ -1,8 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/api-conventions.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html
 applies_to:
   stack: all
+  serverless: all
 navigation_title: API conventions
 ---
 
@@ -51,10 +53,9 @@ For example, the following `traceparent` value would produce the following `trac
 `trace.id`: 0af7651916cd43dd8448eb211c80319c
 ```
 
-
 ## GET and POST requests [get-requests]
 
-A number of {{es}} GET APIs—​most notably the search API—​support a request body. While the GET action makes sense in the context of retrieving information, GET requests with a body are not supported by all HTTP libraries. All {{es}} GET APIs that require a body can also be submitted as POST requests. Alternatively, you can pass the request body as the [`source` query string parameter](#api-request-body-query-string) when using GET.
+A number of {{es}} GET APIs— most notably the search API— support a request body. While the GET action makes sense in the context of retrieving information, GET requests with a body are not supported by all HTTP libraries. All {{es}} GET APIs that require a body can also be submitted as POST requests. Alternatively, you can pass the request body as the [`source` query string parameter](#api-request-body-query-string) when using GET.
 
 
 ## Cron expressions [api-cron-expressions]
@@ -119,10 +120,10 @@ All elements are required except for `year`. See [Cron special characters](#cron
 :   Increment. Use to separate values when specifying a time increment. The first value represents the starting point, and the second value represents the interval. For example, if you want the schedule to trigger every 20 minutes starting at the top of the hour, you could specify `0/20` in the `minutes` field. Similarly, specifying `1/5` in `day_of_month` field will trigger every 5 days starting on the first day of the month.
 
 `L`
-:   Last. Use in the `day_of_month` field to mean the last day of the month—​day 31 for January, day 28 for February in non-leap years, day 30 for April, and so on. Use alone in the `day_of_week` field in place of `7` or `SAT`, or after a particular day of the week to select the last day of that type in the month. For example `6L` means the last Friday of the month. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. Avoid using the `L` option when specifying lists or ranges of values, as the results likely won’t be what you expect.
+:   Last. Use in the `day_of_month` field to mean the last day of the month— day 31 for January, day 28 for February in non-leap years, day 30 for April, and so on. Use alone in the `day_of_week` field in place of `7` or `SAT`, or after a particular day of the week to select the last day of that type in the month. For example `6L` means the last Friday of the month. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. Avoid using the `L` option when specifying lists or ranges of values, as the results likely won’t be what you expect.
 
 `W`
-:   Weekday. Use to specify the weekday (Monday-Friday) nearest the given day. As an example, if you specify `15W` in the `day_of_month` field and the 15th is a Saturday, the schedule will trigger on the 14th. If the 15th is a Sunday, the schedule will trigger on Monday the 16th. If the 15th is a Tuesday, the schedule will trigger on Tuesday the 15th. However if you specify `1W` as the value for `day_of_month`, and the 1st is a Saturday, the schedule will trigger on Monday the 3rd—​it won’t jump over the month boundary. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. You can only use the `W` option when the `day_of_month` is a single day—​it is not valid when specifying a range or list of days.
+:   Weekday. Use to specify the weekday (Monday-Friday) nearest the given day. As an example, if you specify `15W` in the `day_of_month` field and the 15th is a Saturday, the schedule will trigger on the 14th. If the 15th is a Sunday, the schedule will trigger on Monday the 16th. If the 15th is a Tuesday, the schedule will trigger on Tuesday the 15th. However if you specify `1W` as the value for `day_of_month`, and the 1st is a Saturday, the schedule will trigger on Monday the 3rd— it won’t jump over the month boundary. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. You can only use the `W` option when the `day_of_month` is a single day— it is not valid when specifying a range or list of days.
 
 `#`
 :   Nth XXX day in a month. Use in the `day_of_week` field to specify the nth XXX day of the month. For example, if you specify `6#1`, the schedule will trigger on the first Friday of the month. Note that if you specify `3#5` and there are not 5 Tuesdays in a particular month, the schedule won’t trigger that month.
@@ -231,33 +232,17 @@ PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
 
 The special characters used for date rounding must be URI encoded as follows:
 
-`<`
-:   `%3C`
-
-`>`
-:   `%3E`
-
-`/`
-:   `%2F`
-
-`{`
-:   `%7B`
-
-`}`
-:   `%7D`
-
-`|`
-:   `%7C`
-
-`+`
-:   `%2B`
-
-`:`
-:   `%3A`
-
-`,`
-:   `%2C`
-
+| | |
+|---|---|
+| `<` | `%3C` |
+| `>` | `%3E` |
+| `/` | `%2F` |
+| `{` | `%7B` |
+| `}` | `%7D` |
+| `|` | `%7C` |
+| `+` | `%2B` |
+| `:` | `%3A` |
+| `,` | `%2C` |
 ::::
 
 
@@ -339,8 +324,9 @@ Some multi-target APIs that can target indices also support the following query 
 `ignore_throttled`
 :   (Optional, Boolean) If `true`, concrete, expanded or aliased indices are ignored when frozen. Defaults to `true`.
 
-    [7.16.0]
-
+    :::{admonition} Deprecated in 7.16.0
+    This parameter was deprecated in 7.16.0.
+    :::
 
 ::::{note}
 APIs with a single target, such as the [get document API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), do not support multi-target syntax.
@@ -369,7 +355,6 @@ Global index templates that match all indices are not applied to hidden indices.
 Direct access to system indices is deprecated and will no longer be allowed in a future major version.
 ::::
 
-
 To view system indices within cluster:
 
 ```console
@@ -380,7 +365,61 @@ GET _cluster/state/metadata?filter_path=metadata.indices.*.system
 When overwriting current cluster state, system indices should be restored as part of their [feature state](docs-content://deploy-manage/tools/snapshot-and-restore.md#feature-state).
 ::::
 
+### Node specification [cluster-nodes]
 
+Some cluster-level APIs may operate on a subset of the nodes which can be specified with node filters.
+For example,  [task management]({{es-apis}}group/endpoint-tasks), [node stats]({{es-apis}}operation/operation-nodes-stats), and [node info]({{es-apis}}operation/operation-nodes-info-1) APIs can all report results from a filtered set of nodes rather than from all nodes.
+
+Node filters are written as a comma-separated list of individual filters, each of which adds or removes nodes from the chosen subset.
+Each filter can be one of the following:
+
+* `_all`, to add all nodes to the subset.
+* `_local`, to add the local node to the subset.
+* `_master`, to add the currently-elected master node to the subset.
+* a node ID or name, to add this node to the subset.
+* an IP address or hostname, to add all matching nodes to the subset.
+* a pattern, using `*` wildcards, which adds all nodes to the subset whose name, address, or hostname matches the pattern.
+* `master:true`, `data:true`, `ingest:true`, `voting_only:true`, `ml:true`, or `coordinating_only:true`, which respectively add to the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
+* `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`, or `coordinating_only:false`, which respectively remove from the subset all master-eligible nodes, all data nodes, all ingest nodes, all voting-only nodes, all machine learning nodes, and all coordinating-only nodes.
+* a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`, which adds to the subset all nodes with a [custom node attribute](/reference/elasticsearch/configuration-reference/node-settings.md#custom-node-attributes) whose name and value match the respective patterns. Custom node attributes are configured by setting properties in the configuration file of the form `node.attr.attrname: attrvalue`.
+
+Node filters run in the order in which they are given, which is important if using filters that remove nodes from the set.
+For example, `_all,master:false` means all the nodes except the master-eligible ones.
+`master:false,_all` means the same as `_all` because the `_all` filter runs after the `master:false` filter.
+
+If no filters are given, the default is to select all nodes.
+If any filters are specified, they run starting with an empty chosen subset.
+This means that filters such as `master:false` which remove nodes from the chosen subset are only useful if they come after some other filters.
+When used on its own, `master:false` selects no nodes.
+
+Here are some examples of the use of node filters with some [cluster APIs]({{es-apis}}group/endpoint-cluster):
+
+```sh
+# If no filters are given, the default is to select all nodes
+GET /_nodes
+# Explicitly select all nodes
+GET /_nodes/_all
+# Select just the local node
+GET /_nodes/_local
+# Select the elected master node
+GET /_nodes/_master
+# Select nodes by name, which can include wildcards
+GET /_nodes/node_name_goes_here
+GET /_nodes/node_name_goes_*
+# Select nodes by address, which can include wildcards
+GET /_nodes/10.0.0.3,10.0.0.4
+GET /_nodes/10.0.0.*
+# Select nodes by role
+GET /_nodes/_all,master:false
+GET /_nodes/data:true,ingest:true
+GET /_nodes/coordinating_only:true
+GET /_nodes/master:true,voting_only:false
+# Select nodes by custom attribute
+# (for example, with something like `node.attr.rack: 2` in the configuration file)
+GET /_nodes/rack:2
+GET /_nodes/ra*:2
+GET /_nodes/ra*:2*
+```
 
 ## Parameters [api-conventions-parameters]
 

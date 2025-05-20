@@ -9,11 +9,13 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -47,7 +49,9 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,6 +74,11 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * version of the blob, but again must not yield partial data). Usually, however, we write once and only read after the write completes, and
  * in this case we insist that the read succeeds.
  *
+ * The writer may also attempt to copy the blob, either just before the write completes (which may fail with not found)
+ * or after (which should not fail). The writer may overwrite the source while the copy is in progress. If a copy is attempted,
+ * readers will read the copy instead of the original. As above, if the copy succeeds, then readers should see a complete copy.
+ * If the source is overwritten while the copy is in progress, readers may see either the original blob or the new one but no
+ * mixture or partial result.
  *
  * <pre>
  *
@@ -82,6 +91,12 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *      |                                    |                                        |
  *      | Write blob with random content     |                                        |
  *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      | Copy blob during write (rarely)    |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      |                      Copy complete |                                        |
+ *      |←-----------------------------------|                                        |
  *      |                                    |                                        |
  *      | Read range during write (rarely)   |                                        |
  *      |----------------------------------------------------------------------------→|
@@ -105,6 +120,18 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *      | -------------\                     |                                        |
  *      |-| Read phase |                     |                                        |
  *      | |------------|                     |                                        |
+ *      |                                    |                                        |
+ *      | Copy blob (rarely)                 |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      | TODO: Overwrite source (rarely)    |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      |                 Overwrite complete |                                        |
+ *      |←-----------------------------------|                                        |
+ *      |                                    |                                        |
+ *      |                      Copy complete |                                        |
+ *      |←-----------------------------------|                                        |
  *      |                                    |                                        |
  *      | Read range [a,b)                   |                                        |
  *      |----------------------------------------------------------------------------→|
@@ -143,7 +170,6 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
- *
  */
 class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
 
@@ -191,14 +217,17 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobAnalyzeAction.Request request;
+        private final Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobAnalyzeAction.Response> listener;
+        private final ActionListener<Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
         private final long checksumEnd;
+        // If a copy is requested, do exactly one so that the number of blobs created is controlled by RepositoryAnalyzeAction.
+        // Doing the copy in step 1 exercises copy before read completes. Step 2 exercises copy after read completes or the happy path.
+        private final boolean doEarlyCopy;
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
         private final GroupedActionListener<NodeResponse> readNodesListener;
@@ -209,10 +238,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobAnalyzeAction.Request request,
+            Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobAnalyzeAction.Response> listener
+            ActionListener<Response> listener
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -230,6 +259,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 checksumStart = randomLongBetween(0L, request.targetLength);
                 checksumEnd = randomLongBetween(checksumStart + 1, request.targetLength + 1);
             }
+            doEarlyCopy = random.nextBoolean();
 
             final ArrayList<DiscoveryNode> nodes = new ArrayList<>(request.nodes); // copy for shuffling purposes
             if (request.readEarly) {
@@ -334,8 +364,12 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                                 bytesReference,
                                 failIfExists
                             );
-                        } catch (BlobWriteAbortedException e) {
-                            assert request.getAbortWrite() : "write unexpectedly aborted";
+                        } catch (Exception e) {
+                            if (ExceptionsHelper.unwrap(e, BlobWriteAbortedException.class) != null) {
+                                assert request.getAbortWrite() : "write unexpectedly aborted";
+                            } else {
+                                throw e;
+                            }
                         }
                     } else {
                         blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);
@@ -368,11 +402,37 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
 
         private void onLastReadForInitialWrite() {
+            var readBlobName = request.blobName;
+            if (request.copyBlobName != null && doEarlyCopy) {
+                try {
+                    blobContainer.copyBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        blobContainer,
+                        request.blobName,
+                        request.copyBlobName,
+                        request.targetLength
+                    );
+                    readBlobName = request.copyBlobName;
+                } catch (UnsupportedOperationException uoe) {
+                    // not all repositories support copy
+                } catch (NoSuchFileException | FileNotFoundException ignored) {
+                    // assume this is due to copy starting before the source was finished
+                    logger.trace("copy FNF before write completed: {}", request.blobName);
+                } catch (IOException e) {
+                    if (request.getAbortWrite() == false) {
+                        throw new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "failed to copy blob before write: [" + request.blobName + "]",
+                            e
+                        );
+                    }
+                }
+            }
             if (earlyReadNodes.isEmpty() == false) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("sending read request to [{}] for [{}] before write complete", earlyReadNodes, request.getDescription());
                 }
-                readOnNodes(earlyReadNodes, true);
+                readOnNodes(earlyReadNodes, readBlobName, true);
             }
             if (request.getAbortWrite()) {
                 throw new BlobWriteAbortedException();
@@ -383,10 +443,36 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             if (logger.isTraceEnabled()) {
                 logger.trace("sending read request to [{}] for [{}] after write complete", readNodes, request.getDescription());
             }
-            readOnNodes(readNodes, false);
+            var readBlobName = request.blobName;
+            if (request.copyBlobName != null && doEarlyCopy == false && request.getAbortWrite() == false) {
+                try {
+                    blobContainer.copyBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        blobContainer,
+                        request.blobName,
+                        request.copyBlobName,
+                        request.targetLength
+                    );
+                    readBlobName = request.copyBlobName;
+                } catch (UnsupportedOperationException uoe) {
+                    // not all repositories support copy
+                } catch (IOException e) {
+                    for (int i = 0; i < readNodes.size(); i++) {
+                        readNodesListener.onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "failed to copy blob after write: [" + request.blobName + "]",
+                                e
+                            )
+                        );
+                    }
+                    return;
+                }
+            }
+            readOnNodes(readNodes, readBlobName, false);
         }
 
-        private void readOnNodes(List<DiscoveryNode> nodes, boolean beforeWriteComplete) {
+        private void readOnNodes(List<DiscoveryNode> nodes, String blobName, boolean beforeWriteComplete) {
             for (DiscoveryNode node : nodes) {
                 if (task.isCancelled()) {
                     // record dummy response since we're already on the path to failure
@@ -396,7 +482,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 } else {
                     // no need for extra synchronization after checking if we were cancelled a couple of lines ago -- we haven't notified
                     // the outer listener yet so any bans on the children are still in place
-                    final GetBlobChecksumAction.Request blobChecksumRequest = getBlobChecksumRequest();
+                    final GetBlobChecksumAction.Request blobChecksumRequest = getBlobChecksumRequest(blobName);
                     transportService.sendChildRequest(
                         node,
                         GetBlobChecksumAction.NAME,
@@ -432,11 +518,11 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             }
         }
 
-        private GetBlobChecksumAction.Request getBlobChecksumRequest() {
+        private GetBlobChecksumAction.Request getBlobChecksumRequest(String blobName) {
             return new GetBlobChecksumAction.Request(
                 request.getRepositoryName(),
                 request.getBlobPath(),
-                request.getBlobName(),
+                blobName,
                 checksumStart,
                 checksumWholeBlob ? 0L : checksumEnd
             );
@@ -637,7 +723,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;
@@ -650,6 +736,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         private final boolean readEarly;
         private final boolean writeAndOverwrite;
         private final boolean abortWrite;
+        @Nullable
+        private final String copyBlobName;
 
         Request(
             String repositoryName,
@@ -662,7 +750,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             int earlyReadNodeCount,
             boolean readEarly,
             boolean writeAndOverwrite,
-            boolean abortWrite
+            boolean abortWrite,
+            @Nullable String copyBlobName
         ) {
             assert 0 < targetLength;
             assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
@@ -678,6 +767,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             this.readEarly = readEarly;
             this.writeAndOverwrite = writeAndOverwrite;
             this.abortWrite = abortWrite;
+            this.copyBlobName = copyBlobName;
         }
 
         Request(StreamInput in) throws IOException {
@@ -693,6 +783,11 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
             abortWrite = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+                copyBlobName = in.readOptionalString();
+            } else {
+                copyBlobName = null;
+            }
         }
 
         @Override
@@ -709,6 +804,14 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
             out.writeBoolean(abortWrite);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)) {
+                out.writeOptionalString(copyBlobName);
+            } else if (copyBlobName != null) {
+                assert false : out.getTransportVersion();
+                throw new IllegalStateException(
+                    "cannot serialize " + this + "] using transport version [" + out.getTransportVersion() + "]"
+                );
+            }
         }
 
         @Override
@@ -734,6 +837,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 + writeAndOverwrite
                 + ", abortWrite="
                 + abortWrite
+                + ", copyBlobName="
+                + copyBlobName
                 + "]";
         }
 

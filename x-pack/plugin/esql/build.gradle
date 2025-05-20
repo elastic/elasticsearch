@@ -53,6 +53,7 @@ dependencies {
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('kql'))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -90,10 +91,27 @@ tasks.named("test").configure {
   if (buildParams.ci == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
+    // Define the folder to delete and recreate
+    def tempDir = file("build/testrun/test/temp/esql")
+    def commandsExamplesFile = new File(tempDir, "commands.examples")
+    // Find all matching .md files for commands examples
+    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/esql/_snippets/commands/examples/") {
+      include("**/*.csv-spec/*.md")
+    }
     doFirst {
       injected.fs.delete {
-        it.delete("build/testrun/test/temp/esql")
+        it.delete(tempDir)
       }
+      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+      tempDir.mkdirs() // Recreate the folder
+
+      // Write directory name and filename of each .md file to the output file
+      commandsExamplesFile.withWriter { writer ->
+        mdFiles.each { file ->
+          writer.writeLine("${file.parentFile.name}/${file.name}")
+        }
+      }
+      println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
     }
     File imagesFolder = file("build/testrun/test/temp/esql/images")
     File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
@@ -103,6 +121,9 @@ tasks.named("test").configure {
     def kibanaDocFolder = file("${rootDir}/docs/reference/query-languages/esql/kibana")
     def snippetsTree = fileTree(snippetsFolder).matching {
       include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
+    def commandsExamplesTree = fileTree(snippetsFolder).matching {
+      include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
     }
     def imagesTree = fileTree(imagesFolder).matching {
       include "**/*.svg"  // Recursively include all SVG files
@@ -114,10 +135,12 @@ tasks.named("test").configure {
     doLast {
       def snippets = snippetsTree.files.collect { it.name }
       int countSnippets = snippets.size()
-      if (countSnippets == 0) {
+      def commandsExamples = commandsExamplesTree.files.collect { it.name }
+      int countCommandsExamples = commandsExamples.size()
+      if (countSnippets == 0 && countCommandsExamples == 0) {
         logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
       } else {
-        logger.quiet("ESQL Docs: Found $countSnippets generated markdown files to patch into docs")
+        logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
         injected.fs.sync {
           from snippetsFolder
           into snippetsDocFolder
@@ -131,8 +154,8 @@ tasks.named("test").configure {
           } else {
             // If we do run the full test of tests, be careful about what we need to preserve
             preserve {
-              // The lists are static, and the operators are a mix of generated and static content
-              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md'
+              // The lists and commands are static, and the operators are a mix of generated and static content
+              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
             }
           }
         }
@@ -173,7 +196,7 @@ tasks.named("test").configure {
         // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
         line.replaceAll(
           /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
-          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
+          '](https://www.elastic.co/docs/reference/$1$2)'
         )
       }
       if (countKibana == 0) {
@@ -228,6 +251,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }

@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.plugin.noop;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,10 +39,10 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
     public static final ActionType<BulkResponse> NOOP_BULK_ACTION = new ActionType<>("mock:data/write/bulk");
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
-            new ActionHandler<>(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
+            new ActionHandler(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
+            new ActionHandler(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
         );
     }
 

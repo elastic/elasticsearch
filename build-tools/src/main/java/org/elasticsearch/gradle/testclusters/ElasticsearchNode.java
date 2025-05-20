@@ -1435,12 +1435,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Map<String, String> expansions = jvmOptionExpansions();
-            for (String origin : expansions.keySet()) {
-                if (content.contains(origin) == false) {
-                    throw new IOException("template property " + origin + " not found in template.");
+            Map<ReplacementKey, String> expansions = jvmOptionExpansions();
+            for (var entry : expansions.entrySet()) {
+                ReplacementKey replacement = entry.getKey();
+                String key = replacement.key();
+                if (content.contains(key) == false) {
+                    key = replacement.fallback();
+                    if (content.contains(key) == false) {
+                        throw new IOException("Template property '" + replacement + "' not found in template:\n" + content);
+                    }
                 }
-                content = content.replace(origin, expansions.get(origin));
+                content = content.replace(key, entry.getValue());
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
@@ -1448,17 +1453,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private Map<String, String> jvmOptionExpansions() {
-        Map<String, String> expansions = new HashMap<>();
+    private record ReplacementKey(String key, String fallback) {}
+
+    private Map<ReplacementKey, String> jvmOptionExpansions() {
+        Map<ReplacementKey, String> expansions = new HashMap<>();
         Version version = getVersion();
-        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs);
-        if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+
+        ReplacementKey heapDumpPathSub;
+        if (version.before("8.19.0") && version.onOrAfter("6.3.0")) {
+            heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", null);
+        } else {
+            // temporarily fall back to the old substitution so both old and new work during backport
+            heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
         }
-        if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+        expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
+
+        ReplacementKey gcLogSub;
+        if (version.before("8.19.0") && version.onOrAfter("6.2.0")) {
+            gcLogSub = new ReplacementKey("logs/gc.log", null);
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
         }
+        expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
+
+        ReplacementKey errorFileSub;
+        if (version.before("8.19.0") && version.getMajor() >= 7) {
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", null);
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
+        }
+        expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+
         return expansions;
     }
 

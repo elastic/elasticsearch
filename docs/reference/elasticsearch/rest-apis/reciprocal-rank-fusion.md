@@ -108,7 +108,7 @@ The `rrf` retriever supports:
 * [suggesters](/reference/elasticsearch/rest-apis/search-suggesters.md)
 * [highlighting](/reference/elasticsearch/rest-apis/highlighting.md)
 * [collapse](/reference/elasticsearch/rest-apis/collapse-search-results.md)
-* [profiling](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html#profiling-queries)
+* [profiling](/reference/elasticsearch/rest-apis/search-profile.md)
 
 The `rrf` retriever does not currently support:
 

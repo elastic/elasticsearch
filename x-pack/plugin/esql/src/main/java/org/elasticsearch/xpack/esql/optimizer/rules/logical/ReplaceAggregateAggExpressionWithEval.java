@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -50,20 +50,20 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        // build alias map
+        // an alias map for evaluatable grouping functions
         AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
-        aggregate.forEachExpressionUp(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
-        var aliases = aliasesBuilder.build();
-
-        // Build Categorize grouping functions map.
-        // Functions like BUCKET() shouldn't reach this point,
-        // as they are moved to an early EVAL by ReplaceAggregateNestedExpressionWithEval
-        Map<Categorize, Attribute> groupingAttributes = new HashMap<>();
+        // a function map for non-evaluatable grouping functions
+        Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
+            aggregate.groupings().size()
+        );
         aggregate.forEachExpressionUp(Alias.class, a -> {
-            if (a.child() instanceof Categorize groupingFunction) {
-                groupingAttributes.put(groupingFunction, a.toAttribute());
+            if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
+                nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
+            } else {
+                aliasesBuilder.put(a.toAttribute(), a.child());
             }
         });
+        var aliases = aliasesBuilder.build();
 
         // break down each aggregate into AggregateFunction and/or grouping key
         // preserve the projection at the end
@@ -123,8 +123,11 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                         return alias.toAttribute();
                     });
 
-                    // replace grouping functions with their references
-                    aggExpression = aggExpression.transformUp(Categorize.class, groupingAttributes::get);
+                    // replace non-evaluatable grouping functions with their references
+                    aggExpression = aggExpression.transformUp(
+                        GroupingFunction.NonEvaluatableGroupingFunction.class,
+                        nonEvalGroupingAttributes::get
+                    );
 
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);
@@ -152,7 +155,7 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
         return plan;
     }
 
-    static String syntheticName(Expression expression, Expression af, int counter) {
+    private static String syntheticName(Expression expression, Expression af, int counter) {
         return TemporaryNameUtils.temporaryName(expression, af, counter);
     }
 }

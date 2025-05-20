@@ -3,6 +3,7 @@
   "type" : "operator",
   "operator" : "*",
   "name" : "mul",
+  "titleName" : "multiply",
   "description" : "Multiply two numbers together. If either field is multivalued then the result is `null`.",
   "signatures" : [
     {

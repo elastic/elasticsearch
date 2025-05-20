@@ -15,6 +15,7 @@ import fixture.s3.S3HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -111,8 +112,14 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
                 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
                 @Override
                 public void handle(HttpExchange exchange) throws IOException {
-                    assertThat(parseRequest(exchange).queryParameters().keySet(), queryParamMatcher);
-                    super.handle(exchange);
+                    try {
+                        assertThat(parseRequest(exchange).queryParameters().keySet(), queryParamMatcher);
+                        super.handle(exchange);
+                    } catch (Error e) {
+                        // HttpServer catches Throwable, so we must throw errors on another thread
+                        ExceptionsHelper.maybeDieOnAnotherThread(e);
+                        throw e;
+                    }
                 }
             }
 

@@ -67,6 +67,25 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         this.idp = idp;
     }
 
+    /**
+     * Builds and signs a SAML Response Message with a single assertion for the provided user
+     *
+     * @param user        The user who is authenticated (actually a combination of user+sp)
+     * @param authnState  The authentication state as presented in the SAML request (or {@code null})
+     * @return A SAML Response
+     */
+    public Response build(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
+        return build(user, authnState, null);
+    }
+
+    /**
+     * Builds and signs a SAML Response Message with a single assertion for the provided user
+     *
+     * @param user        The user who is authenticated (actually a combination of user+sp)
+     * @param authnState  The authentication state as presented in the SAML request (or {@code null})
+     * @param customAttributes  Optional custom attributes to include in the response (or {@code null})
+     * @return A SAML Response
+     */
     public Response build(
         UserServiceAuthentication user,
         @Nullable SamlAuthenticationState authnState,

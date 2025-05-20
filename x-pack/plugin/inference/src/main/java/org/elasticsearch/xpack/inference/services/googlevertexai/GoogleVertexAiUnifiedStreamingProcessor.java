@@ -32,7 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -65,19 +64,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     private static final String FUNCTION_TYPE = "function";
 
     private final BiFunction<String, Exception, Exception> errorParser;
-    private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
 
     public GoogleVertexAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
-    }
-
-    @Override
-    protected void upstreamRequest(long n) {
-        if (buffer.isEmpty()) {
-            super.upstreamRequest(n);
-        } else {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
-        }
     }
 
     @Override
@@ -99,16 +88,8 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
         if (results.isEmpty()) {
             upstream().request(1);
-        } else if (results.size() == 1) {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         } else {
-            // Vertex AI doesn't specify how many events per chunk, so handle buffering just in case
-            logger.warn("Received multiple chunks ({}) from a single SSE batch, buffering.", results.size());
-            var firstItem = singleItem(results.poll());
-            while (results.isEmpty() == false) {
-                buffer.offer(results.poll());
-            }
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(firstItem));
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         }
     }
 
@@ -365,13 +346,5 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         public static UsageMetadata parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
-    }
-
-    private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
-    ) {
-        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
-        deque.offer(result);
-        return deque;
     }
 }

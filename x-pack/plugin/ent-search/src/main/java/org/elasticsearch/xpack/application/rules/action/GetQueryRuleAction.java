@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,11 +30,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class GetQueryRuleAction {
 
     public static final String NAME = "cluster:admin/xpack/query_rules/rule/get";
-    public static final ActionType<GetQueryRuleAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private GetQueryRuleAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final String rulesetId;
         private final String ruleId;
 
@@ -110,6 +110,7 @@ public class GetQueryRuleAction {
             (p) -> new Request((String) p[0], (String) p[1])
 
         );
+
         static {
             PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
             PARSER.declareString(constructorArg(), RULE_ID_FIELD);

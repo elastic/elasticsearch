@@ -14,11 +14,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -118,6 +118,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     /**
      * Allow some parts of the request to be completed
+     *
      * @return a pending child requests
      */
     static Set<TestRequest> allowPartialRequest(TestRequest request) throws Exception {
@@ -418,7 +419,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
-    static class TestRequest extends ActionRequest {
+    static class TestRequest extends LegacyActionRequest {
         final int id;
         final DiscoveryNode node;
         final List<TestRequest> subRequests;

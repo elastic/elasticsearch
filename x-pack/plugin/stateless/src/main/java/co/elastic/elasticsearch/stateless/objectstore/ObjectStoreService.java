@@ -35,8 +35,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -56,6 +60,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -67,6 +72,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,6 +92,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
@@ -100,7 +107,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.core.Strings.format;
 
-public class ObjectStoreService extends AbstractLifecycleComponent {
+public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(ObjectStoreService.class);
     private static final Logger SHARD_FILES_DELETES_LOGGER = LogManager.getLogger(
@@ -111,13 +118,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      * This setting refers to the destination of the blobs in the object store.
      * Depending on the underlying object store type, it may be a bucket (for S3 or GCP), a location (for FS), or a container (for Azure).
      */
-    public static final Setting<String> BUCKET_SETTING = Setting.simpleString("stateless.object_store.bucket", Setting.Property.NodeScope);
+    public static final Setting<String> BUCKET_SETTING = Setting.simpleString(
+        "stateless.object_store.bucket",
+        Setting.Property.NodeScope,
+        Setting.Property.ProjectScope
+    );
 
-    public static final Setting<String> CLIENT_SETTING = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
+    public static final Setting<String> CLIENT_SETTING = Setting.simpleString(
+        "stateless.object_store.client",
+        Setting.Property.NodeScope,
+        Setting.Property.ProjectScope
+    );
 
     public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString(
         "stateless.object_store.base_path",
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.ProjectScope
     );
     public static final int DELETE_BATCH_SIZE = 100;
 
@@ -202,7 +218,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 return List.<Setting<?>>of(BUCKET_SETTING, CLIENT_SETTING).iterator();
             }
         },
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.ProjectScope
     );
 
     public static final Setting<TimeValue> OBJECT_STORE_FILE_DELETION_DELAY = Setting.timeSetting(
@@ -233,14 +250,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
+    private Map<ProjectId, BlobStoreRepository> projectObjectStores;
+    @Nullable // if multi-project is disabled
+    private final Map<ProjectId, RepositoryException> projectObjectStoreExceptions;
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
     public ObjectStoreService(
         Settings settings,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ProjectResolver projectResolver
     ) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
@@ -256,7 +278,61 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             threadPool.info(Stateless.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
         );
+        this.projectResolver = projectResolver;
+        if (projectResolver.supportsMultipleProjects()) {
+            projectObjectStoreExceptions = new ConcurrentHashMap<>();
+        } else {
+            projectObjectStoreExceptions = null;
+        }
         this.permits = new Semaphore(0);
+    }
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        assert projectResolver.supportsMultipleProjects();
+        assert projectObjectStoreExceptions != null;
+        for (var projectId : event.projectDelta().added()) {
+            final var projectSettings = event.state().metadata().getProject(projectId).settings();
+            try {
+                final RepositoryMetadata repositoryMetadata = getRepositoryMetadata(projectSettings);
+                final var repository = repositoriesService.createRepository(repositoryMetadata);
+                assert repository instanceof BlobStoreRepository;
+                final var projectObjectStore = (BlobStoreRepository) repository;
+                final var previous = projectObjectStores.put(projectId, projectObjectStore);
+                assert previous == null : "project [" + projectId + "] already has an object store";
+                projectObjectStore.start();
+                logger.info(
+                    "object store started for project [" + projectId + "], type [{}], bucket [{}], base path [{}], client [{}]",
+                    TYPE_SETTING.get(projectSettings),
+                    BUCKET_SETTING.get(projectSettings),
+                    projectObjectStore.basePath().buildAsString(),
+                    CLIENT_SETTING.get(projectSettings)
+                );
+            } catch (Exception e) {
+                final String message = "failed to create object store for project [" + projectId + "]";
+                logger.warn(message, e);
+                if (e instanceof RepositoryException repositoryException) {
+                    projectObjectStoreExceptions.put(projectId, repositoryException);
+                } else {
+                    projectObjectStoreExceptions.put(projectId, new RepositoryException(Stateless.NAME, message, e));
+                }
+            }
+        }
+
+        for (var projectId : event.projectDelta().removed()) {
+            final var projectObjectStore = projectObjectStores.remove(projectId);
+            if (projectObjectStore == null) {
+                final var repositoryException = projectObjectStoreExceptions.remove(projectId);
+                assert repositoryException != null
+                    : "attempt to remove the object store for project [" + projectId + "] that is never created";
+                logger.info("object store exception removed for project [{}]", projectId);
+            } else {
+                projectObjectStore.close();
+                logger.info("object store closed for project [{}]", projectId);
+            }
+        }
+
+        // TODO: For the time being, deliberately ignore updated projects since object store settings are static and not updatable
     }
 
     // package private for tests
@@ -268,6 +344,38 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             throw new IllegalStateException("Blob store is not started");
         }
         return objectStore;
+    }
+
+    // package private for tests
+    BlobStoreRepository getProjectObjectStore(ProjectId projectId) {
+        if (projectObjectStores == null) {
+            throw new RepositoryException(Stateless.NAME, "project object stores not initialized");
+        }
+        final var projectObjectStore = projectObjectStores.get(projectId);
+        if (projectObjectStore != null) {
+            if (projectObjectStore.lifecycleState() != Lifecycle.State.STARTED) {
+                throw new RepositoryException(Stateless.NAME, "project [{}] object store not started", projectId);
+            }
+            return projectObjectStore;
+        }
+        assert projectObjectStoreExceptions != null;
+        final var repoException = projectObjectStoreExceptions.get(projectId);
+        if (repoException != null) {
+            throw repoException;
+        } else {
+            throw new RepositoryException(Stateless.NAME, "project [{}] object store not found", projectId);
+        }
+    }
+
+    // package private for tests
+    Map<ProjectId, BlobStoreRepository> getProjectObjectStores() {
+        return projectObjectStores;
+    }
+
+    // package private for tests
+    @Nullable
+    Map<ProjectId, RepositoryException> getProjectObjectStoreExceptions() {
+        return projectObjectStoreExceptions;
     }
 
     public BlobContainer getClusterRootContainer() {
@@ -352,13 +460,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.stats();
     }
 
-    protected Settings getRepositorySettings(ObjectStoreType type) {
+    protected Settings getRepositorySettings(ObjectStoreType type, Settings settings) {
         return type.createRepositorySettings(BUCKET_SETTING.get(settings), CLIENT_SETTING.get(settings), BASE_PATH_SETTING.get(settings));
     }
 
     private RepositoryMetadata getRepositoryMetadata(Settings settings) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
-        return new RepositoryMetadata(Stateless.NAME, type.toString(), getRepositorySettings(type));
+        return new RepositoryMetadata(Stateless.NAME, type.toString(), getRepositorySettings(type, settings));
     }
 
     @Override
@@ -367,9 +475,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             throw new IllegalStateException("Repositories service is not initialized");
         }
         assert objectStore == null;
+        assert projectObjectStores == null;
         Repository repository = repositoriesService.createRepository(getRepositoryMetadata(settings));
         assert repository instanceof BlobStoreRepository;
         this.objectStore = (BlobStoreRepository) repository;
+        if (projectResolver.supportsMultipleProjects()) {
+            projectObjectStores = new ConcurrentHashMap<>();
+            projectObjectStores.put(ProjectId.DEFAULT, objectStore);
+        } else {
+            projectObjectStores = Map.of(ProjectId.DEFAULT, objectStore);
+        }
         this.objectStore.start();
         this.permits.release(UPLOAD_PERMITS);
         logger.info(
@@ -397,7 +512,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             logger.warn("interrupted while waiting for the object store service to shut down", e);
         }
         objectStore.close();
+        IOUtils.closeWhileHandlingException(projectObjectStores.values().stream().filter(store -> store != objectStore).toList());
         objectStore = null;
+        projectObjectStores = null;
+        if (projectObjectStoreExceptions != null) {
+            projectObjectStoreExceptions.clear();
+        }
         logger.info("object store service closed");
     }
 

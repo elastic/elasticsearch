@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.regex.Regex;
@@ -700,9 +701,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             Settings settings,
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
-            ClusterService clusterService
+            ClusterService clusterService,
+            ProjectResolver projectResolver
         ) {
-            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService);
+            return new TestObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
         }
     }
 
@@ -712,14 +714,18 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             Settings settings,
             RepositoriesService repositoriesService,
             ThreadPool threadPool,
-            ClusterService clusterService
+            ClusterService clusterService,
+            ProjectResolver projectResolver
         ) {
-            super(settings, repositoriesService, threadPool, clusterService);
+            super(settings, repositoriesService, threadPool, clusterService, projectResolver);
         }
 
         @Override
-        protected Settings getRepositorySettings(ObjectStoreType type) {
-            return Settings.builder().put(super.getRepositorySettings(type)).put("buffer_size", MULTIPART_UPLOAD_BUFFER_SIZE).build();
+        protected Settings getRepositorySettings(ObjectStoreType type, Settings settings) {
+            return Settings.builder()
+                .put(super.getRepositorySettings(type, settings))
+                .put("buffer_size", MULTIPART_UPLOAD_BUFFER_SIZE)
+                .build();
         }
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -143,9 +144,18 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
     }
 
     private void closeClientsAsync(List<ClientsHolder> clientsHoldersToClose, ActionListener<Void> listener) {
-        executor.execute(() -> {
-            IOUtils.closeWhileHandlingException(clientsHoldersToClose);
-            listener.onResponse(null);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                IOUtils.closeWhileHandlingException(clientsHoldersToClose);
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Failed to close s3 clients", e);
+                listener.onFailure(e);
+            }
         });
     }
 

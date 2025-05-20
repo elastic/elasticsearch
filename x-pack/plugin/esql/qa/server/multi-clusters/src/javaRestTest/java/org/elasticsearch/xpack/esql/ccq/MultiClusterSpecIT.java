@@ -255,22 +255,26 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
-            String index = fromStatement.substring("FROM ".length());
+            String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
+            final String remoteIndices;
             if (canUseRemoteIndicesOnly() && randomBoolean()) {
-                index = remoteIndices(index);
+                remoteIndices = Arrays.stream(localIndices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
             } else {
-                index = index + "," + remoteIndices(index);
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> "*:" + index.trim() + "," + index.trim())
+                    .collect(Collectors.joining(","));
             }
-            var newFrom = "FROM " + index + " " + commands[0].substring(fromStatement.length());
+            var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
+            String[] indices = parts[1].split(",");
             if (canUseRemoteIndicesOnly() && randomBoolean()) {
-                parts[1] = remoteIndices(parts[1]);
+                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
             } else {
-                parts[1] = parts[1] + "," + remoteIndices(parts[1]);
+                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim() + "," + index.trim()).collect(Collectors.joining(","));
             }
             String newNewMetrics = String.join(" ", parts);
             testCase.query = newNewMetrics + query.substring(first.length());
@@ -288,12 +292,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testCase;
     }
 
-    static String remoteIndices(String localIndices) {
-        String[] parts = localIndices.split(",");
-        return Arrays.stream(parts).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
-    }
-
     static boolean canUseRemoteIndicesOnly() {
+        // If the data is indexed only into the remote cluster, we can query only the remote indices.
+        // However, due to the union types bug in CCS, we must include the local indices in versions without the fix.
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 

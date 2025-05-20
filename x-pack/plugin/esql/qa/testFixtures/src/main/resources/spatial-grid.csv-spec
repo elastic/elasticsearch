@@ -901,6 +901,40 @@ count:long | centroid:geo_point                            | geohexString:keywor
 1          | POINT (13.144258903339505 32.66916951164603)  | 813fbffffffffff      | POLYGON ((8.974635637589913 30.254840780701706, 9.380676605201614 25.60370257696876, 13.915183885634578 23.45043771532035, 18.351304577591982 25.86678026136113, 18.343416368196834 30.62734805513404, 13.488580338198277 32.87501547725471, 8.974635637589913 30.254840780701706))
 ;
 
+gridGeohexQueryBounds
+required_capability: spatial_grid
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))"))
+| WHERE ST_GEOHEX_TO_STRING(geohex) == "811f3ffffffffff"
+| EVAL geohexString = ST_GEOHEX_TO_STRING(ST_GEOHEX(location, 1))
+| KEEP abbrev, location, geohexString
+;
+
+abbrev:keyword | location:geo_point                        | geohexString:keyword
+BRE            | POINT (8.7858617703132 53.052287104156)   | 811f3ffffffffff
+GOT            | POINT (12.2938269092573 57.6857493534879) | 811f3ffffffffff
+CPH            | POINT (12.6493508684508 55.6285017221528) | 811f3ffffffffff
+HAM            | POINT (10.005647830925 53.6320011640866)  | 811f3ffffffffff
+TXL            | POINT (13.2903090925074 52.5544287044101) | 811f3ffffffffff
+;
+
+gridGeohexByBounds
+required_capability: spatial_grid
+
+FROM airports
+| WHERE abbrev IN ("RTW", "TIP", "XMN")
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))"))
+| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)
+| KEEP abbrev, location, geohex, geohexString
+;
+
+abbrev:keyword | location:geo_point                        | geohex:long        | geohexString:keyword
+RTW            | POINT (46.035023249891 51.5606456508842)  | null               | null
+XMN            | POINT (118.12696884672 24.537192570557)   | null               | null
+TIP            | POINT (13.1442589810713 32.6691695504993) | 582085853791125503 | 813fbffffffffff
+;
+
 gridGeohexStatsByPointsBounds
 required_capability: spatial_grid
 

@@ -259,7 +259,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             ),
             ConfigurationParseContext.REQUEST,
             TaskType.TEXT_EMBEDDING,
-                "inference_id"
+            "inference_id"
         );
 
         MatcherAssert.assertThat(

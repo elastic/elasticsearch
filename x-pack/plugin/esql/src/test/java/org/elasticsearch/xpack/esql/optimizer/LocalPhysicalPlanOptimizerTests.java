@@ -69,9 +69,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -1419,6 +1421,93 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var extract = as(agg.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],FINAL,[language_code{r}#7, $
+     *      $c$count{r}#32, $$c$seen{r}#33],12]
+     *   \_ExchangeExec[[language_code{r}#7, $$c$count{r}#32, $$c$seen{r}#33],true]
+     *     \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],INITIAL,[language_code{r}#7,
+     *          $$c$count{r}#34, $$c$seen{r}#35],12]
+     *       \_GrokExec[first_name{f}#19,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@75389ac1],[foo{r}#12]]
+     *         \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
+     *           \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
+     *             \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
+     *               \_EvalExec[[null[INTEGER] AS languages#21]]
+     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[112]
+     */
+    public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages, first_name
+            | rename languages AS language_code
+            | mv_expand emp_no
+            | grok first_name "%{WORD:foo}"
+            | lookup join languages_lookup ON language_code
+            | stats c = count(emp_no) by language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(Expressions.names(agg.output()), contains("c", "language_code"));
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var grok = as(agg.child(), GrokExec.class);
+        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var project = as(mvexpand.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        var source = as(eval.child(), EsQueryExec.class);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],FINAL,[language_code{r}#12
+     * , $$c$count{r}#32, $$c$seen{r}#33],12]
+     *   \_ExchangeExec[[language_code{r}#12, $$c$count{r}#32, $$c$seen{r}#33],true]
+     *     \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],INITIAL,[language_code{r}#
+     *          12, $$c$count{r}#34, $$c$seen{r}#35],12]
+     *       \_LookupJoinExec[[language_code{r}#12],[language_code{f}#29],[]]
+     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@764e5109],[languag
+     *              e_code{r}#12]]
+     *         | \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
+     *         |   \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
+     *         |     \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
+     *         |       \_EvalExec[[null[INTEGER] AS languages#21]]
+     *         |         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[66]
+     *         \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#37], limit[], sort[] estimatedRowSize[4]
+     */
+    public void testMissingFieldsNotPurgingTheJoinLocally() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages, first_name
+            | rename languages AS language_code
+            | mv_expand emp_no
+            | grok first_name "%{NUMBER:language_code:int}" // this reassigns language_code
+            | lookup join languages_lookup ON language_code
+            | stats c = count(emp_no) by language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(Expressions.names(agg.output()), contains("c", "language_code"));
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var join = as(agg.child(), LookupJoinExec.class);
+        var grok = as(join.left(), GrokExec.class);
+        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var project = as(mvexpand.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        var source = as(eval.child(), EsQueryExec.class);
+        var right = as(join.right(), EsQueryExec.class);
     }
 
     /*

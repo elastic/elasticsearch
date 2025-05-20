@@ -21,11 +21,11 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor<
-    Deque<byte[]>,
+    Deque<ServerSentEvent>,
     StreamingUnifiedChatCompletionResults.Results> {
 
     private static final Logger logger = LogManager.getLogger(GoogleVertexAiUnifiedStreamingProcessor.class);
@@ -81,17 +81,17 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     }
 
     @Override
-    protected void next(Deque<byte[]> events) throws Exception {
+    protected void next(Deque<ServerSentEvent> events) throws Exception {
 
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(events.size());
 
         for (var event : events) {
             try {
-                var completionChunk = parse(parserConfig, event);
+                var completionChunk = parse(parserConfig, event.data());
                 completionChunk.forEachRemaining(results::offer);
             } catch (Exception e) {
-                var eventString = Arrays.toString(event);
+                var eventString = event.data();
                 logger.warn("Failed to parse event from Google Vertex AI provider: {}", eventString);
                 throw errorParser.apply(eventString, e);
             }
@@ -114,7 +114,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     private Iterator<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
         XContentParserConfiguration parserConfig,
-        byte[] event
+        String event
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event)) {
             moveToFirstToken(jsonParser);

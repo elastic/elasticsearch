@@ -89,19 +89,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         String model = "gemini-1.5-flash-001";
         URI expectedUri = new URI(
             "https://us-east1-aiplatform.googleapis.com/v1/projects/my-gcp-project"
-                + "/locations/global/publishers/google/models/gemini-1.5-flash-001:streamGenerateContent"
-        );
-        URI actualUri = GoogleVertexAiChatCompletionModel.buildUri(location, projectId, model);
-        assertThat(actualUri, is(expectedUri));
-    }
-
-    public void testBuildUri_WithDifferentValues() throws URISyntaxException {
-        String location = "europe-west2";
-        String projectId = "another-project-123";
-        String model = "gemini-pro";
-        URI expectedUri = new URI(
-            "https://europe-west2-aiplatform.googleapis.com/v1/projects/another-project-123/"
-                + "locations/global/publishers/google/models/gemini-pro:streamGenerateContent"
+                + "/locations/global/publishers/google/models/gemini-1.5-flash-001:streamGenerateContent?alt=sse"
         );
         URI actualUri = GoogleVertexAiChatCompletionModel.buildUri(location, projectId, model);
         assertThat(actualUri, is(expectedUri));

@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.streaming.JsonArrayPartsEventParser;
-import org.elasticsearch.xpack.inference.external.response.streaming.JsonArrayPartsEventProcessor;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -49,7 +49,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         assert request.isStreaming() : "GoogleVertexAiUnifiedChatCompletionResponseHandler only supports streaming requests";
 
-        var serverSentEventProcessor = new JsonArrayPartsEventProcessor(new JsonArrayPartsEventParser());
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
 
         flow.subscribe(serverSentEventProcessor);

@@ -128,6 +128,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
                 GoogleVertexAiUtils.MODELS,
                 format("%s:%s", model, GoogleVertexAiUtils.STREAM_GENERATE_CONTENT)
             )
+            .setCustomQuery(GoogleVertexAiUtils.QUERY_PARAM_ALT_SSE)
             .build();
     }
 }

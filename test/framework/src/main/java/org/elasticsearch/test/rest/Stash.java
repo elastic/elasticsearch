@@ -59,18 +59,15 @@ public class Stash implements ToXContentFragment {
 
     /**
      * Tells whether a particular key needs to be looked up in the stash based on its name.
-     * Returns true if the string representation of the key either starts with {@code $} or contains a {@code ${...}}, false otherwise.
+     * Returns true if the string representation of the key either starts with {@code $} or contains a {@code ${...}} reference.
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
     public boolean containsStashedValue(Object key) {
-        if (key == null || false == key instanceof CharSequence) {
+        if (false == key instanceof CharSequence) {
             return false;
         }
         String stashKey = key.toString();
-        if (false == Strings.hasLength(stashKey)) {
-            return false;
-        }
         if (stashKey.startsWith("$")) {
             return true;
         }
@@ -78,16 +75,19 @@ public class Stash implements ToXContentFragment {
     }
 
     /**
-     * Tells whether a particular key represents exactly a "simple" stashed value reference.
-     * Returns true if the string representation of the key either starts with {@code $}, false otherwise.
-     * Unlike {@link #containsStashedValue}, this returns false if the key contains an "extended" reference {@code ${...}}.
+     * Tells whether a particular key represents exactly a stashed value reference.
+     * Returns true if the string representation of the key either starts with {@code $} or consists only of a {@code ${...}} reference.
+     * Unlike {@link #containsStashedValue}, returns false if the key contains an a {@code ${...}} reference within a longer string.
      */
-    public boolean isSimpleStashedValue(Object key) {
-        if (key == null || false == key instanceof CharSequence) {
+    public boolean isStashedValue(Object key) {
+        if (false == key instanceof CharSequence) {
             return false;
         }
         String stashKey = key.toString();
-        return Strings.hasLength(stashKey) && stashKey.startsWith("$");
+        if (stashKey.startsWith("$")) {
+            return true;
+        }
+        return EXTENDED_KEY.matcher(stashKey).matches();
     }
 
     /**

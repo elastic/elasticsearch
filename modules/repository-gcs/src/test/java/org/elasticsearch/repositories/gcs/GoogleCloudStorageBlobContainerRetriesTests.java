@@ -584,12 +584,13 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     public void testContentsChangeWhileStreaming() throws IOException {
         GoogleCloudStorageHttpHandler handler = new GoogleCloudStorageHttpHandler("bucket");
         httpServer.createContext("/", handler);
-        final int enoughBytesToTriggerChunkedDownload = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
+        // The blob needs to be large enough that it won't be entirely buffered on the first request
+        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
         final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
 
         final String key = randomIdentifier();
-        byte[] initialValue = randomByteArrayOfLength(enoughBytesToTriggerChunkedDownload);
+        byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
         container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
         BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
@@ -605,7 +606,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             httpServer.createContext("/", handler);
 
             // Update the file
-            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToTriggerChunkedDownload);
+            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
             container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
 
             // Read the rest of the stream, it should throw because the contents changed

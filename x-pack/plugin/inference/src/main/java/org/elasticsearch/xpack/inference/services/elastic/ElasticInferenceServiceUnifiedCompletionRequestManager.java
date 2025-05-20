@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;

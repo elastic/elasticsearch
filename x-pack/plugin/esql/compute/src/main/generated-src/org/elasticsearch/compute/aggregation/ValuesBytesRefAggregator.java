@@ -19,7 +19,10 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -54,6 +57,22 @@ class ValuesBytesRefAggregator {
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
         return new GroupingState(bigArrays);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
@@ -127,8 +146,8 @@ class ValuesBytesRefAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
             LongLongHash _values = null;
@@ -237,34 +256,78 @@ class ValuesBytesRefAggregator {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-
-                /*
-                 * Insert the ids in order.
-                 */
-                BytesRef scratch = new BytesRef();
-                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
-                    int start = 0;
-                    for (int s = 0; s < selected.getPositionCount(); s++) {
-                        int group = selected.getInt(s);
-                        int end = selectedCounts[group];
-                        int count = end - start;
-                        switch (count) {
-                            case 0 -> builder.appendNull();
-                            case 1 -> append(builder, ids[start], scratch);
-                            default -> {
-                                builder.beginPositionEntry();
-                                for (int i = start; i < end; i++) {
-                                    append(builder, ids[i], scratch);
-                                }
-                                builder.endPositionEntry();
-                            }
-                        }
-                        start = end;
-                    }
-                    return builder.build();
+                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                    return buildOrdinalOutputBlock(blockFactory, selected, selectedCounts, ids);
+                } else {
+                    return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
                 }
             } finally {
                 blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+            }
+        }
+
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
+            /*
+             * Insert the ids in order.
+             */
+            BytesRef scratch = new BytesRef();
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+                int start = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int end = selectedCounts[group];
+                    int count = end - start;
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> append(builder, ids[start], scratch);
+                        default -> {
+                            builder.beginPositionEntry();
+                            for (int i = start; i < end; i++) {
+                                append(builder, ids[i], scratch);
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                    start = end;
+                }
+                return builder.build();
+            }
+        }
+
+        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
+            BytesRefVector dict = null;
+            IntBlock ordinals = null;
+            BytesRefBlock result = null;
+            var dictArray = bytes.takeBytesRefsOwnership();
+            bytes = null; // transfer ownership to dictArray
+            try (var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+                int start = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int end = selectedCounts[group];
+                    int count = end - start;
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> builder.appendInt(Math.toIntExact(values.getKey2(ids[start])));
+                        default -> {
+                            builder.beginPositionEntry();
+                            for (int i = start; i < end; i++) {
+                                builder.appendInt(Math.toIntExact(values.getKey2(ids[i])));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                    start = end;
+                }
+                ordinals = builder.build();
+                dict = blockFactory.newBytesRefArrayVector(dictArray, Math.toIntExact(dictArray.size()));
+                dictArray = null; // transfer ownership to dict
+                result = new OrdinalBytesRefBlock(ordinals, dict);
+                return result;
+            } finally {
+                if (result == null) {
+                    Releasables.close(dictArray, dict, ordinals);
+                }
             }
         }
 

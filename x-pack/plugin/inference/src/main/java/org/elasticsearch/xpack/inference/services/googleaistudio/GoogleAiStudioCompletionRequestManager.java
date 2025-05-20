@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequest;
+import org.elasticsearch.xpack.inference.services.googleaistudio.response.GoogleAiStudioCompletionResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;

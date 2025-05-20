@@ -23,7 +23,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
@@ -282,6 +281,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery;
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
+    exports org.elasticsearch.indices.system;
     exports org.elasticsearch.inference;
     exports org.elasticsearch.ingest;
     exports org.elasticsearch.internal
@@ -454,7 +454,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
@@ -475,4 +476,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
+    exports org.elasticsearch.index.codec.perfield;
 }

@@ -10,6 +10,7 @@ dependencies {
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
   restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -49,7 +50,6 @@ tasks.named("yamlRestTest").configure {
     '^ilm/10_basic/Test Undeletable Policy In Use',
     '^ilm/20_move_to_step/*',
     '^ilm/30_retry/*',
-    '^ilm/40_explain_lifecycle/*',
     '^ilm/60_operation_mode/*',
     '^ilm/60_remove_policy_for_index/*',
     '^ilm/70_downsampling/*',
@@ -165,4 +165,5 @@ tasks.named("yamlRestTest").configure {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "tests.multi_project.enabled", true
 }

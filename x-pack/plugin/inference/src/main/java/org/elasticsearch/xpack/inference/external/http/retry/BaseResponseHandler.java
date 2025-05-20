@@ -76,13 +76,21 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) {
+    public void validateResponse(
+        ThrottlerManager throttlerManager,
+        Logger logger,
+        Request request,
+        HttpResult result,
+        boolean checkForErrorObject
+    ) {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
 
-        // When the response is streamed the status code could be 200 but the error object will be set
-        // so we need to check for that specifically
-        checkForErrorObject(request, result);
+        if (checkForErrorObject) {
+            // When the response is streamed the status code could be 200 but the error object will be set
+            // so we need to check for that specifically
+            checkForErrorObject(request, result);
+        }
     }
 
     protected abstract void checkForFailureStatusCode(Request request, HttpResult result);

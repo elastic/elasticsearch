@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereRerankRequest;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
+import org.elasticsearch.xpack.inference.services.cohere.response.CohereRankedResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;

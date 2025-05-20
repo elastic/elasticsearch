@@ -30,8 +30,10 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeight
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -442,14 +444,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
-        new NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster.DEFAULT, createBuiltInClusterSettings()) {
+        new NodeAllocationStatsAndWeightsCalculator(
+            WriteLoadForecaster.DEFAULT,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+        ) {
             @Override
             public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
                 Metadata metadata,
                 RoutingNodes routingNodes,
                 ClusterInfo clusterInfo,
+                Runnable ensureNotCancelled,
                 @Nullable DesiredBalance desiredBalance
             ) {
+                ensureNotCancelled.run();
                 return Map.of();
             }
         };

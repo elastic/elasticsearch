@@ -98,7 +98,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleCircuitBreaking() {
         ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
-        Operator.OperatorFactory simple = simple();
+        Operator.OperatorFactory simple = simple(new SimpleOptions(true));
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         try {

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -113,7 +114,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             new Literal(Source.EMPTY, "test", DataType.KEYWORD)
         );
 
-        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
@@ -123,7 +124,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
         );
 
-        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
@@ -133,9 +134,9 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
         );
 
-        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(true));
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
 
-        var query = function.asQuery(TranslatorHandler.TRANSLATOR_HANDLER);
+        var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\")));
     }

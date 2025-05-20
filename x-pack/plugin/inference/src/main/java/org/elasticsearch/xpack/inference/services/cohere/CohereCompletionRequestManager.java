@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.cohere.completion.CohereCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.request.completion.CohereCompletionRequest;
+import org.elasticsearch.xpack.inference.services.cohere.response.CohereCompletionResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;

@@ -154,6 +154,9 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         try {
             switch (sortType) {
                 case DOC, INT:
+                    // As mixing INT and LONG sort in a single request is allowed,
+                    // we may get search_after values that are larger than Integer.MAX_VALUE
+                    // in this case convert them to Integer.MAX_VALUE
                     if (value instanceof Number valueNumber) {
                         if (valueNumber.longValue() > Integer.MAX_VALUE) {
                             valueNumber = Integer.MAX_VALUE;

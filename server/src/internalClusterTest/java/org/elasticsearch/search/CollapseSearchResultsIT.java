@@ -145,8 +145,8 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
         bulkRequest2.add(client().prepareIndex("shop_int").setId("int01").setSource("brand_id", 1, "price", 101));
         bulkRequest2.add(client().prepareIndex("shop_int").setId("int02").setSource("brand_id", 1, "price", 102));
         bulkRequest2.add(client().prepareIndex("shop_int").setId("int03").setSource("brand_id", 1, "price", 104));
-        bulkRequest2.add(client().prepareIndex("shop_int").setId("int04").setSource("brand_id", 2, "price", 201));
-        bulkRequest2.add(client().prepareIndex("shop_int").setId("int05").setSource("brand_id", 2, "price", 202));
+        bulkRequest2.add(client().prepareIndex("shop_int").setId("int04").setSource("brand_id", 2, "price", 202));
+        bulkRequest2.add(client().prepareIndex("shop_int").setId("int05").setSource("brand_id", 2, "price", 203));
         bulkRequest2.add(client().prepareIndex("shop_int").setId("int06").setSource("brand_id", 3, "price", 300));
         bulkRequest2.get();
         refresh();
@@ -180,7 +180,7 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                 // Second hit should be brand_id=2 with highest price
                 Map<String, Object> secondHitSource = hits.getAt(1).getSourceAsMap();
                 assertEquals(2, secondHitSource.get("brand_id"));
-                assertEquals(202, secondHitSource.get("price"));
+                assertEquals(203, secondHitSource.get("price"));
                 assertEquals("int05", hits.getAt(1).getId());
 
                 // Check inner hits for brand_id=2

@@ -1,0 +1,5 @@
+pr: 127224
+summary: Discard unnecessary slow responses
+area: ES|QL
+type: enhancement
+issues: []

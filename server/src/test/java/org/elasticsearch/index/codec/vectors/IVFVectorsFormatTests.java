@@ -60,7 +60,6 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        assumeTrue("IVF format flat enabled", IVFVectorsFormat.IVF_FORMAT_FEATURE_FLAG.isEnabled());
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 }

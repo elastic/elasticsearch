@@ -216,7 +216,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return factory(initShardContexts(), mapperService("index1").fieldType("long"), ElementType.LONG);
     }
 

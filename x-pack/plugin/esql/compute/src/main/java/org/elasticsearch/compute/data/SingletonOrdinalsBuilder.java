@@ -22,6 +22,8 @@ import java.util.Arrays;
 public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBuilder, Releasable, Block.Builder {
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
+    private int minOrd = Integer.MAX_VALUE;
+    private int maxOrd = Integer.MIN_VALUE;
     private final int[] ords;
     private int count;
 
@@ -39,8 +41,10 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
-    public SingletonOrdinalsBuilder appendOrd(int value) {
-        ords[count++] = value;
+    public SingletonOrdinalsBuilder appendOrd(int ord) {
+        ords[count++] = ord;
+        minOrd = Math.min(minOrd, ord);
+        maxOrd = Math.max(maxOrd, ord);
         return this;
     }
 
@@ -55,7 +59,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     BytesRefBlock buildOrdinal() {
-        int valueCount = docValues.getValueCount();
+        int valueCount = maxOrd - minOrd + 1;
         long breakerSize = ordsSize(valueCount);
         blockFactory.adjustBreaker(breakerSize);
         BytesRefVector bytesVector = null;
@@ -65,7 +69,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             Arrays.fill(newOrds, -1);
             for (int ord : ords) {
                 if (ord != -1) {
-                    newOrds[ord] = 0;
+                    newOrds[ord - minOrd] = 0;
                 }
             }
             // resolve the ordinals and remaps the ordinals
@@ -74,7 +78,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                 for (int i = 0; i < newOrds.length; i++) {
                     if (newOrds[i] != -1) {
                         newOrds[i] = ++nextOrd;
-                        bytesBuilder.appendBytesRef(docValues.lookupOrd(i));
+                        bytesBuilder.appendBytesRef(docValues.lookupOrd(i + minOrd));
                     }
                 }
                 bytesVector = bytesBuilder.build();
@@ -86,7 +90,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                     if (ord == -1) {
                         ordinalsBuilder.appendNull();
                     } else {
-                        ordinalsBuilder.appendInt(newOrds[ord]);
+                        ordinalsBuilder.appendInt(newOrds[ord - minOrd]);
                     }
                 }
                 ordinalBlock = ordinalsBuilder.build();
@@ -107,7 +111,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             blockFactory.adjustBreaker(breakerSize);
             try {
                 int[] sortedOrds = ords.clone();
-                Arrays.sort(sortedOrds);
                 int uniqueCount = compactToUnique(sortedOrds);
 
                 try (BreakingBytesRefBuilder copies = new BreakingBytesRefBuilder(blockFactory.breaker(), "ords")) {
@@ -167,7 +170,12 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     boolean shouldBuildOrdinalsBlock() {
-        return ords.length >= 2 * docValues.getValueCount() && ords.length >= 32;
+        if (minOrd <= maxOrd) {
+            int numOrds = maxOrd - minOrd + 1;
+            return OrdinalBytesRefBlock.isDense(ords.length, numOrds);
+        } else {
+            return false;
+        }
     }
 
     @Override

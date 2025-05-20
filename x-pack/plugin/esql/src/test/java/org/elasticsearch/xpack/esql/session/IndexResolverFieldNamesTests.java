@@ -1368,7 +1368,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok type "%{WORD:b}"
             | stats x = max(b)
             | keep x""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("message", "x", "x.*", "message.*")));
+        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
     }
 
     public void testAvoidGrokAttributesRemoval2() {
@@ -1414,7 +1414,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok type "%{WORD:b}"
             | stats x = max(b)
             | keep x""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("message", "x", "type", "x.*", "message.*", "type.*")));
+        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
     }
 
     /**

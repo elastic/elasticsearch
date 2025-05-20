@@ -172,7 +172,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
         Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath);
-        assertThat(settings.keySet().size(), equalTo(basePath != null ? 3 : 2));
+        assertThat(
+            settings.keySet().size(),
+            equalTo(2 + (basePath == null ? 0 : 1) + (objectStoreType == S3 ? 1 /* add_purpose_custom_query_parameter */ : 0))
+        );
         assertThat(settings.get(bucketName), equalTo(bucket));
         assertThat(settings.get("client"), equalTo(client));
         assertThat(settings.get("base_path"), equalTo(basePath));

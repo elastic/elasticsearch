@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -44,8 +45,8 @@ public class AliasValidator {
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public static void validateAlias(Alias alias, String index, Metadata metadata) {
-        validateAlias(alias.name(), index, alias.indexRouting(), lookup(metadata));
+    public static void validateAlias(Alias alias, String index, ProjectMetadata projectMetadata) {
+        validateAlias(alias.name(), index, alias.indexRouting(), lookup(projectMetadata));
     }
 
     /**
@@ -53,8 +54,8 @@ public class AliasValidator {
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public static void validateAliasMetadata(AliasMetadata aliasMetadata, String index, Metadata metadata) {
-        validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), lookup(metadata));
+    public static void validateAliasMetadata(AliasMetadata aliasMetadata, String index, ProjectMetadata projectMetadata) {
+        validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), lookup(projectMetadata));
     }
 
     /**
@@ -159,8 +160,8 @@ public class AliasValidator {
         queryBuilder.toQuery(searchExecutionContext);
     }
 
-    private static Function<String, String> lookup(Metadata metadata) {
-        return name -> Optional.ofNullable(metadata.getIndicesLookup().get(name))
+    private static Function<String, String> lookup(ProjectMetadata projectMetadata) {
+        return name -> Optional.ofNullable(projectMetadata.getIndicesLookup().get(name))
             .filter(indexAbstraction -> indexAbstraction.getType() != IndexAbstraction.Type.ALIAS)
             .map(IndexAbstraction::getName)
             .orElse(null);

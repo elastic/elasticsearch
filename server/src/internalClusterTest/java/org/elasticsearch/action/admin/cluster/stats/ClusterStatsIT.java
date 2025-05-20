@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -64,7 +65,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = clusterAdmin().health(
-            new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForEvents(Priority.LANGUID)
+                .waitForNodes(Integer.toString(numNodes))
         ).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
@@ -161,7 +163,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
-        prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
+        prepareCreate("test1").setSettings(indexSettings(2, 1)).get();
 
         response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
@@ -179,7 +181,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
-        prepareCreate("test2").setSettings(Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0)).get();
+        prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         ensureGreen();
         response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));

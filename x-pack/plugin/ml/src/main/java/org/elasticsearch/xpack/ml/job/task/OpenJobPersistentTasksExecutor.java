@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
@@ -73,8 +70,7 @@ import java.util.Set;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
@@ -82,10 +78,6 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
-
-    // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
-    // can only be done if the master node is on or after that version.
-    private static final TransportVersion MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = TransportVersions.V_7_11_0;
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
@@ -116,14 +108,14 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         Client client,
         IndexNameExpressionResolver expressionResolver,
         XPackLicenseState licenseState,
-        boolean includeNodeInfo
+        AnomalyDetectionAuditor auditor
     ) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
+        this.auditor = auditor;
         this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
@@ -309,14 +301,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         }
 
         ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
-            if (runningDatafeedId != null
-                // If the minimum TransportVersion is on or above MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT then so must be
-                // the version associated with the master node, which is what is required to perform this action
-                && TransportVersionUtils.isMinTransportVersionOnOrAfter(
-                    clusterState,
-                    MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT
-                )) {
-
+            if (runningDatafeedId != null) {
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
                 RevertToCurrentSnapshotAction revertToCurrentSnapshotAction = new RevertToCurrentSnapshotAction(
@@ -406,7 +391,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
 
             String datafeedId = datafeeds.iterator().next();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             delegate.onResponse(datafeedTask != null ? datafeedId : null);
         });
@@ -436,7 +421,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     }
                     assert snapshot.getPage().results().size() == 1;
                     ModelSnapshot snapshotObj = snapshot.getPage().results().get(0);
-                    if (snapshotObj.getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
+                    if (snapshotObj.getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
                         listener.onResponse(true);
                         return;
                     }
@@ -446,7 +431,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 + "please revert to a newer model snapshot or reset the job",
                             jobId,
                             jobSnapshotId,
-                            MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION.toString()
+                            MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
                         )
                     );
                 }, snapshotFailure -> {
@@ -500,10 +485,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 assert jobPage.size() == 1;
 
                 String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-                if (jobSnapshotId == null
-                    // If the minimum TransportVersion is on or above ResetJobAction.TRANSPORT_VERSION_INTRODUCED then so must be
-                    // the version associated with the master node, which is what is required to perform this action
-                    && TransportVersionUtils.isMinTransportVersionOnOrAfter(clusterState, ResetJobAction.TRANSPORT_VERSION_INTRODUCED)) {
+                if (jobSnapshotId == null) {
                     logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
                     ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
                     request.setSkipJobStateValidation(true);

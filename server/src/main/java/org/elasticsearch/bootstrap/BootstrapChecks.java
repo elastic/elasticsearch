@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -31,7 +32,6 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -210,7 +210,6 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
@@ -262,7 +261,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -334,7 +333,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
         @Override
@@ -411,12 +410,12 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
+            final long maxFileSize = getProcessLimits().maxFileSize();
             if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    maxFileSize,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -425,8 +424,8 @@ final class BootstrapChecks {
             }
         }
 
-        long getMaxFileSize() {
-            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
+        protected ProcessLimits getProcessLimits() {
+            return NativeAccess.instance().getProcessLimits();
         }
 
         @Override
@@ -584,7 +583,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         @Override
@@ -608,7 +607,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing
@@ -700,7 +699,7 @@ final class BootstrapChecks {
         }
 
         String javaVersion() {
-            return Constants.JAVA_VERSION;
+            return Runtime.version().toString();
         }
 
         @Override
@@ -708,33 +707,6 @@ final class BootstrapChecks {
             return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
-    }
-
-    static class AllPermissionCheck implements BootstrapCheck {
-
-        @Override
-        public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        boolean isAllPermissionGranted() {
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
-        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {

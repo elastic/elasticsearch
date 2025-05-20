@@ -319,8 +319,103 @@ a         | a
 
 //see https://github.com/elastic/elasticsearch/issues/103331
 keepStarMvExpand#[skip:-8.12.99]
+required_capability: fix_precision_of_scaled_float_fields
 from employees | where emp_no == 10001 | keep * |  mv_expand first_name;
 
 avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean  
-268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.0300000000000002         | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true           
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true           
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+sortMvExpand
+required_capability: add_limit_inside_mv_expand
+row a = 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+sortMvExpandFromIndex
+required_capability: add_limit_inside_mv_expand
+from employees | sort emp_no | mv_expand emp_no | limit 1 | keep emp_no;
+
+emp_no:integer
+10001
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+limitSortMvExpand
+required_capability: add_limit_inside_mv_expand
+row a = 1 | limit 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+limitSortMultipleMvExpand
+required_capability: add_limit_inside_mv_expand
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | mv_expand b | mv_expand c | limit 3;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+3         | 2         | 3
+;
+
+
+multipleLimitSortMultipleMvExpand
+required_capability: add_limit_inside_mv_expand
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 2 | mv_expand b | mv_expand c | limit 3;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
+multipleLimitSortMultipleMvExpand2
+required_capability: add_limit_inside_mv_expand
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 3 | mv_expand b | mv_expand c | limit 2;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102084
+whereMvExpand
+required_capability: add_limit_inside_mv_expand
+row  a = 1, b = -15 | where b > 3   | mv_expand b;
+
+a:integer | b:integer
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102084
+whereMvExpandOnIndex
+required_capability: add_limit_inside_mv_expand
+from employees | where emp_no == 10003  | mv_expand first_name | keep first_name;
+
+first_name:keyword
+Parto
+;
+
+
+sortBeforeAndAfterMvExpand
+from employees 
+| sort first_name 
+| mv_expand job_positions 
+| sort emp_no, job_positions 
+| keep emp_no, job_positions 
+| limit 2;
+
+emp_no:integer | job_positions:keyword   
+10001          | Accountant
+10001          | Senior Python Developer          
 ;

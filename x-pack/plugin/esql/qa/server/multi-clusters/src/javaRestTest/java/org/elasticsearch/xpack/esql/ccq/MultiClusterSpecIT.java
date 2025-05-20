@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -21,10 +22,10 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -38,15 +39,22 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V3;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -68,6 +76,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     private static TestFeatureService remoteFeaturesService;
     private static RestClient remoteClusterClient;
+    private static DataLocation dataLocation = null;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -88,17 +97,47 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testcases;
     }
 
-    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
+    public MultiClusterSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions, mode);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
+        if (remoteMetadata) {
+            // remove the capability from the test to enable it
+            testCase.requiredCapabilities = testCase.requiredCapabilities.stream()
+                .filter(c -> c.equals("metadata_fields_remote_test") == false)
+                .toList();
+        }
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
-        assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
-        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
-        assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+        // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
+        // because they may produce inconsistent results with multiple clusters.
+        assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
+        Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
+        assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V2.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V6.capabilityName()));
+        assumeFalse("LOOKUP JOIN not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName()));
+        // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
+        assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
+        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V3.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -139,6 +178,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return twoClients(localClient, remoteClient);
     }
 
+    // These indices are used in metadata tests so we want them on remote only for consistency
+    public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
+
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk and _query requests.
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -147,13 +189,16 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
+        assertNotNull("data location was set", dataLocation);
         // write to a single cluster for now due to the precision of some functions such as avg and tests related to updates
-        final RestClient bulkClient = randomFrom(localClient, remoteClient);
+        final RestClient bulkClient = dataLocation == DataLocation.REMOTE_ONLY ? remoteClient : randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
+            } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
+                return remoteClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return bulkClient.performRequest(request);
             } else {
@@ -169,6 +214,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return null;
         }).when(twoClients).close();
         return twoClients;
+    }
+
+    enum DataLocation {
+        REMOTE_ONLY,
+        ANY_CLUSTER
     }
 
     static Request[] cloneRequests(Request orig, int numClones) throws IOException {
@@ -191,41 +241,61 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return clones;
     }
 
+    /**
+     * Convert FROM employees ... => FROM *:employees,employees
+     */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        if (dataLocation == null) {
+            dataLocation = randomFrom(DataLocation.values());
+        }
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
-
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
-
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
-            String remoteIndices = Arrays.stream(localIndices)
-                .map(index -> "*:" + index.trim() + "," + index.trim())
-                .collect(Collectors.joining(","));
+            final String remoteIndices;
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                remoteIndices = Arrays.stream(localIndices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+            } else {
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> "*:" + index.trim() + "," + index.trim())
+                    .collect(Collectors.joining(","));
+            }
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
+            String[] parts = commands[0].split("\\s+");
+            assert parts.length >= 2 : commands[0];
+            String[] indices = parts[1].split(",");
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+            } else {
+                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim() + "," + index.trim()).collect(Collectors.joining(","));
+            }
+            String newNewMetrics = String.join(" ", parts);
+            testCase.query = newNewMetrics + query.substring(first.length());
+        }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
-            final String pattern = "Line (\\d+):(\\d+):";
+            final String pattern = "\\b1:(\\d+)\\b";
             final Pattern regex = Pattern.compile(pattern);
-            testCase.adjustExpectedWarnings(warning -> {
-                Matcher matcher = regex.matcher(warning);
-                if (matcher.find()) {
-                    int line = Integer.parseInt(matcher.group(1));
-                    if (line == 1) {
-                        int position = Integer.parseInt(matcher.group(2));
-                        int newPosition = position + offset;
-                        return warning.replaceFirst(pattern, "Line " + line + ":" + newPosition + ":");
-                    }
-                }
-                return warning;
-            });
+            testCase.adjustExpectedWarnings(warning -> regex.matcher(warning).replaceAll(match -> {
+                int position = Integer.parseInt(match.group(1));
+                int newPosition = position + offset;
+                return "1:" + newPosition;
+            }));
         }
         return testCase;
+    }
+
+    static boolean canUseRemoteIndicesOnly() {
+        // If the data is indexed only into the remote cluster, we can query only the remote indices.
+        // However, due to the union types bug in CCS, we must include the local indices in versions without the fix.
+        return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
     static boolean hasIndexMetadata(String query) {
@@ -237,7 +307,31 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return false;
     }
 
-    static boolean hasMetricsCommand(String query) {
-        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIndexModeLookup() throws IOException {
+        // CCS does not yet support JOIN_LOOKUP_V10 and clusters falsely report they have this capability
+        // return hasCapabilities(List.of(JOIN_LOOKUP_V10.capabilityName()));
+        return false;
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsTook() throws IOException {
+        // We don't read took properly in multi-cluster tests.
+        return false;
     }
 }

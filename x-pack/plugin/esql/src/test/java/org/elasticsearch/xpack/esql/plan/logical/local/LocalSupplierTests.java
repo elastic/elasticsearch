@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.AbstractWireTestCase;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -34,10 +32,10 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
     protected LocalSupplier copyInstance(LocalSupplier instance, TransportVersion version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);
-            instance.writeTo(new PlanStreamOutput(output, PlanNameRegistry.INSTANCE, null));
+            instance.writeTo(new PlanStreamOutput(output, null));
             try (StreamInput in = output.bytes().streamInput()) {
                 in.setTransportVersion(version);
-                return LocalSupplier.readFrom(new PlanStreamInput(in, PlanNameRegistry.INSTANCE, getNamedWriteableRegistry(), null));
+                return LocalSupplier.readFrom(new PlanStreamInput(in, getNamedWriteableRegistry(), null));
             }
         }
     }
@@ -47,7 +45,7 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
         return randomBoolean() ? LocalSupplier.EMPTY : randomNonEmpty();
     }
 
-    private LocalSupplier randomNonEmpty() {
+    public static LocalSupplier randomNonEmpty() {
         return LocalSupplier.of(randomList(1, 10, LocalSupplierTests::randomBlock).toArray(Block[]::new));
     }
 
@@ -78,10 +76,5 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
     @Override
     protected boolean shouldBeSame(LocalSupplier newInstance) {
         return newInstance.get().length == 0;
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Block.getNamedWriteables());
     }
 }

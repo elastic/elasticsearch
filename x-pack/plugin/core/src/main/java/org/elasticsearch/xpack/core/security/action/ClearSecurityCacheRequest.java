@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
-public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCacheRequest> {
+public class ClearSecurityCacheRequest extends BaseNodesRequest {
 
     private String cacheName;
     private String[] keys;
@@ -42,12 +41,7 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
         return keys;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
         private String cacheName;
         private String[] keys;
 

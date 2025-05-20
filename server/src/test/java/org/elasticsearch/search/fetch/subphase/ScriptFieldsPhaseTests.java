@@ -83,7 +83,7 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
         processor.setNextReader(null);
         var searchHit = new SearchHit(1);
         try {
-            var hitContext = new FetchSubPhase.HitContext(searchHit, null, 1, Map.of(), null);
+            var hitContext = new FetchSubPhase.HitContext(searchHit, null, 1, Map.of(), null, null);
             processor.process(hitContext);
 
             DocumentField field = searchHit.field("field");

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -90,7 +90,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         // the EncryptedRepository can require more than one connection open at one time
         executorService = EsExecutors.newScaling(
             ESMockAPIBasedRepositoryIntegTestCase.class.getName(),
-            0,
+            1,
             2,
             60,
             TimeUnit.SECONDS,
@@ -169,19 +169,25 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        // need to use verify=false, because the verification process on master makes extra calls on placeholder repo
+        // hence impacting http metrics and failing test
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 
@@ -196,15 +202,19 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
             internalCluster().getInstances(RepositoriesService.class).spliterator(),
@@ -217,11 +227,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        // Since no abort request is made, filter it out from the stats (also ensure it is 0) before comparing to the mock counts
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts.entrySet()
+        Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
             .stream()
-            .filter(entry -> false == ("AbortMultipartObject".equals(entry.getKey()) && entry.getValue() == 0L))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().requests()));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
 
@@ -272,7 +280,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         // value is the number of times the request has been seen
         private final Map<String, AtomicInteger> requests;
 
-        private final HttpHandler delegate;
+        protected final HttpHandler delegate;
         private final int maxErrorsPerRequest;
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
@@ -336,7 +344,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * HTTP handler that allows collect request stats per request type.
      *
-     * Implementors should keep track of the desired requests on {@link #maybeTrack(String, Headers)}.
+     * Implementors should keep track of the desired requests on {@link #maybeTrack(HttpExchange)}.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
@@ -345,8 +353,11 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         private final Map<String, Long> operationCount = new HashMap<>();
 
-        public HttpStatsCollectorHandler(HttpHandler delegate) {
+        public HttpStatsCollectorHandler(HttpHandler delegate, String[] operations) {
             this.delegate = delegate;
+            for (String operation : operations) {
+                operationCount.put(operation, 0L);
+            }
         }
 
         @Override
@@ -359,15 +370,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected synchronized void trackRequest(final String requestType) {
-            operationCount.put(requestType, operationCount.getOrDefault(requestType, 0L) + 1);
+            operationCount.put(requestType, operationCount.get(requestType) + 1);
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-
-            maybeTrack(request, exchange.getRequestHeaders());
-
+            maybeTrack(exchange);
             delegate.handle(exchange);
         }
 
@@ -377,10 +385,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
          * The request is represented as:
          * Request = Method SP Request-URI
          *
-         * @param request the request to be tracked if it matches the criteria
-         * @param requestHeaders the http request headers
+         * @param exchange the exchange to possibly track
          */
-        protected abstract void maybeTrack(String request, Headers requestHeaders);
+        protected abstract void maybeTrack(HttpExchange exchange);
     }
 
     /**

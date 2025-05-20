@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -165,7 +166,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                     containsString("first"),
                     containsString("bootstrap check failure [2] of [2]:"),
                     containsString("second"),
-                    containsString("For more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
+                    containsString("For more information see [https://www.elastic.co/docs/")
                 )
             )
         );
@@ -213,7 +214,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 "initial heap size [" + initialHeapSize.get() + "] " + "not equal to maximum heap size [" + maxHeapSize.get() + "]"
             )
         );
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
         final String memoryLockingMessage = "and prevents memory locking from locking the entire heap";
         final Matcher<String> memoryLockingMatcher;
         if (isMemoryLocked) {
@@ -263,7 +264,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
         );
         assertThat(e.getMessage(), containsString("max file descriptors"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
@@ -321,10 +322,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                     () -> BootstrapChecks.check(bootstrapContext, true, Collections.singletonList(check))
                 );
                 assertThat(e.getMessage(), containsString("memory locking requested for elasticsearch process but memory is not locked"));
-                assertThat(
-                    e.getMessage(),
-                    containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
-                );
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
             } else {
                 // nothing should happen
                 BootstrapChecks.check(bootstrapContext, true, Collections.singletonList(check));
@@ -347,7 +345,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
         );
         assertThat(e.getMessage(), containsString("max number of threads"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
@@ -373,7 +371,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
         );
         assertThat(e.getMessage(), containsString("max size virtual memory"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxSizeVirtualMemory.set(ProcessLimits.UNLIMITED);
 
@@ -388,8 +386,8 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
-            long getMaxFileSize() {
-                return maxFileSize.get();
+            protected ProcessLimits getProcessLimits() {
+                return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, maxFileSize.get());
             }
         };
 
@@ -398,7 +396,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
         );
         assertThat(e.getMessage(), containsString("max file size"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxFileSize.set(ProcessLimits.UNLIMITED);
 
@@ -429,7 +427,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                     + "but should be using a server VM for the best performance"
             )
         );
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         vmName.set("Java HotSpot(TM) 32-Bit Server VM");
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
@@ -458,7 +456,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                     + "] or -XX:+UseSerialGC was explicitly specified"
             )
         );
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         useSerialGC.set("false");
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
@@ -482,7 +480,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck))
         );
         assertThat(e.getMessage(), containsString("system call filters failed to install; check the logs and fix your configuration"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck));
@@ -510,10 +508,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         runMightForkTest(check, isSystemCallFilterInstalled, () -> mightFork.set(false), () -> mightFork.set(true), e -> {
             assertThat(e.getMessage(), containsString("error"));
-            assertThat(
-                e.getMessage(),
-                containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
-            );
+            assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
         });
     }
 
@@ -550,10 +545,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                             + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"
                     )
                 );
-                assertThat(
-                    e.getMessage(),
-                    containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
-                );
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
             }
         );
     }
@@ -592,10 +584,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                             + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"
                     )
                 );
-                assertThat(
-                    e.getMessage(),
-                    containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
-                );
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
             }
         );
     }
@@ -660,34 +649,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             e.getMessage(),
             containsString("Java version [" + javaVersion.get() + "] is an early-access build, only use release builds")
         );
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         // if not on an early-access build, nothing should happen
         javaVersion.set(randomFrom("1.8.0_152", "9"));
         BootstrapChecks.check(emptyContext, true, checks);
 
-    }
-
-    public void testAllPermissionCheck() throws NodeValidationException {
-        final AtomicBoolean isAllPermissionGranted = new AtomicBoolean(true);
-        final BootstrapChecks.AllPermissionCheck allPermissionCheck = new BootstrapChecks.AllPermissionCheck() {
-            @Override
-            boolean isAllPermissionGranted() {
-                return isAllPermissionGranted.get();
-            }
-        };
-
-        final List<BootstrapCheck> checks = Collections.singletonList(allPermissionCheck);
-        final NodeValidationException e = expectThrows(
-            NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, true, checks)
-        );
-        assertThat(e, hasToString(containsString("granting the all permission effectively disables security")));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
-
-        // if all permissions are not granted, nothing should happen
-        isAllPermissionGranted.set(false);
-        BootstrapChecks.check(emptyContext, true, checks);
     }
 
     public void testAlwaysEnforcedChecks() {
@@ -752,7 +719,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b -> {
             final BootstrapContext context = createTestContext(
@@ -781,7 +748,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck))
         );
         assertThat(e.getMessage(), containsString("Little-endian native byte order is required to run Elasticsearch"));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         reference[0] = ByteOrder.LITTLE_ENDIAN;
         BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck));

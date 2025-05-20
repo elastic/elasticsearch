@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,10 +18,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
@@ -43,6 +44,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
@@ -55,7 +57,8 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData()
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            bitsetFilterCache::getBitSetProducer
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -195,27 +198,27 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertEquals(1, mapping.getRoot().mappers.size());
         Mapper object = mapping.getRoot().getMapper("obj");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("obj", object.simpleName());
-        assertEquals("obj", object.name());
+        assertEquals("obj", object.leafName());
+        assertEquals("obj", object.fullPath());
         ObjectMapper objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("source");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("source", object.simpleName());
-        assertEquals("obj.source", object.name());
+        assertEquals("source", object.leafName());
+        assertEquals("obj.source", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("geo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("geo", object.simpleName());
-        assertEquals("obj.source.geo", object.name());
+        assertEquals("geo", object.leafName());
+        assertEquals("obj.source.geo", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         Mapper location = objectMapper.getMapper("location");
         assertThat(location, CoreMatchers.instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) location;
-        assertEquals("obj.source.geo.location", geoPointFieldMapper.name());
-        assertEquals("location", geoPointFieldMapper.simpleName());
+        assertEquals("obj.source.geo.location", geoPointFieldMapper.fullPath());
+        assertEquals("location", geoPointFieldMapper.leafName());
         assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 
@@ -318,12 +321,12 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_5_0);
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersions.V_8_5_0
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.V_8_5_0
         );
+        TransportVersion transportVersion = TransportVersions.V_8_5_0;
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
             MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -17,6 +18,7 @@ import org.elasticsearch.ExceptionsHelper;
 class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final Runnable original;
     private final long creationTimeNanos;
+    private long beforeExecuteTime = -1;
     private long startTimeNanos;
     private long finishTimeNanos = -1;
     private boolean failedOrRejected = false;
@@ -58,6 +60,19 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * Returns the time in nanoseconds between the creation time and the execution time
+     *
+     * @return The time in nanoseconds or -1 if the task was never de-queued
+     */
+    long getQueueTimeNanos() {
+        if (beforeExecuteTime == -1) {
+            assert false : "beforeExecute must be called before getQueueTimeNanos";
+            return -1;
+        }
+        return beforeExecuteTime - creationTimeNanos;
+    }
+
+    /**
      * Return the time this task spent being run.
      * If the task is still running or has not yet been run, returns -1.
      */
@@ -67,6 +82,13 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
             return -1;
         }
         return Math.max(finishTimeNanos - startTimeNanos, 1);
+    }
+
+    /**
+     * Called when the task has reached the front of the queue and is about to be executed
+     */
+    public void beforeExecute() {
+        beforeExecuteTime = System.nanoTime();
     }
 
     /**

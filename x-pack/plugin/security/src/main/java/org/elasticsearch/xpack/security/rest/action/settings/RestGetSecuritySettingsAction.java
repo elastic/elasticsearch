@@ -11,12 +11,15 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSecuritySettingsAction extends SecurityBaseRestHandler {
 
@@ -31,12 +34,12 @@ public class RestGetSecuritySettingsAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(RestRequest.Method.GET, "/_security/settings").build());
+        return List.of(new Route(GET, "/_security/settings"));
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetSecuritySettingsAction.Request req = new GetSecuritySettingsAction.Request();
+        final var req = new GetSecuritySettingsAction.Request(RestUtils.getMasterNodeTimeout(request));
         return restChannel -> client.execute(GetSecuritySettingsAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
     }
 }

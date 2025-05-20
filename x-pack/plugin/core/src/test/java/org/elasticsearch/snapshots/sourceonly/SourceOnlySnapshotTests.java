@@ -32,6 +32,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -108,8 +109,10 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                         logger.warn(snapReader + " " + reader);
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
+                        StoredFields snapStoredFields = snapReader.storedFields();
+                        StoredFields storedFields = reader.storedFields();
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
-                            assertEquals(snapReader.document(i).get("_source"), reader.document(i).get("_source"));
+                            assertEquals(snapStoredFields.document(i).get("_source"), storedFields.document(i).get("_source"));
                         }
                         for (LeafReaderContext ctx : snapReader.leaves()) {
                             if (ctx.reader() instanceof SegmentReader) {
@@ -188,12 +191,14 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                 assertEquals(snapReader.maxDoc(), 3);
                 assertEquals(snapReader.numDocs(), 2);
+                StoredFields snapStoredFields = snapReader.storedFields();
+                StoredFields storedFields = reader.storedFields();
                 for (int i = 0; i < 3; i++) {
-                    assertEquals(snapReader.document(i).get("src"), reader.document(i).get("src"));
+                    assertEquals(snapStoredFields.document(i).get("src"), storedFields.document(i).get("src"));
                 }
                 IndexSearcher searcher = newSearcher(snapReader);
                 TopDocs id = searcher.search(new TermQuery(new Term("id", "1")), 10);
-                assertEquals(0, id.totalHits.value);
+                assertEquals(0, id.totalHits.value());
             }
 
             targetDir = newDirectory(targetDir);
@@ -321,7 +326,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 1);
                     assertEquals(snapReader.numDocs(), 1);
-                    assertEquals("3", snapReader.document(0).getField("rank").stringValue());
+                    assertEquals("3", snapReader.storedFields().document(0).getField("rank").stringValue());
                 }
                 try (IndexReader writerReader = DirectoryReader.open(writer)) {
                     assertEquals(writerReader.maxDoc(), 2);

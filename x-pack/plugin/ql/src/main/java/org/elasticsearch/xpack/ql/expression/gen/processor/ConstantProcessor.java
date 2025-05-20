@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class ConstantProcessor implements Processor {
 
-    public static String NAME = "c";
+    public static final String NAME = "c";
 
     private Object constant;
     private final Type type;

@@ -53,7 +53,6 @@ public class PostStartTrialResponse extends ActionResponse {
     private final String acknowledgeMessage;
 
     PostStartTrialResponse(StreamInput in) throws IOException {
-        super(in);
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();

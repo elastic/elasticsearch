@@ -115,13 +115,14 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                 final int frank = rank;
                 results.compute(new RankKey(rrfRankDoc.doc, rrfRankDoc.shardIndex), (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(rrfRankDoc.doc, rrfRankDoc.shardIndex, fqc);
+                        value = new RRFRankDoc(rrfRankDoc.doc, rrfRankDoc.shardIndex, fqc, rankConstant);
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
+                    assert value.positions != null && value.scores != null;
                     value.positions[fqi] = frank - 1;
+                    assert rrfRankDoc.scores != null;
                     value.scores[fqi] = rrfRankDoc.scores[fqi];
-
                     return value;
                 });
             }
@@ -139,6 +140,8 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
             }
+            assert rrf1.positions != null && rrf1.scores != null;
+            assert rrf2.positions != null && rrf2.scores != null;
             assert rrf1.positions.length == rrf2.positions.length;
             for (int qi = 0; qi < rrf1.positions.length; ++qi) {
                 if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {
@@ -170,5 +173,9 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
         // return the top results where sort, collapse fields,
         // and completion suggesters are not allowed
         return topResults;
+    }
+
+    public int rankConstant() {
+        return rankConstant;
     }
 }

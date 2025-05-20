@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.searchafter;
@@ -46,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -149,10 +151,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[] { 0, null }),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(2L));
                 assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
+                Map<String, Object> source = searchResponse.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), Matchers.equalTo(100));
+                assertThat(source.get("field2"), Matchers.equalTo("toto"));
             }
         );
     }
@@ -437,8 +440,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 int foundHits = 0;
                 do {
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         foundHits++;
@@ -468,8 +472,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         after = hit.getSortValues();
@@ -504,8 +509,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         foundSeqNos.add(((Number) timestamp).longValue());
                         after = hit.getSortValues();

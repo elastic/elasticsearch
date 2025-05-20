@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -13,6 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -51,6 +54,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -134,7 +139,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
 
         }
 
@@ -145,6 +154,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
+    protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected Executor writeExecutor;
     protected long primaryTerm;
 
@@ -159,14 +169,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = setUpThreadPool();
+        Settings settings = threadPoolSettings();
+        threadPool = setUpThreadPool(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
     }
 
-    protected ThreadPool setUpThreadPool() {
-        return new TestThreadPool(getClass().getName(), threadPoolSettings());
+    protected ThreadPool setUpThreadPool(Settings settings) {
+        return new TestThreadPool(getClass().getName(), settings);
     }
 
     @Override
@@ -196,7 +208,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public Settings threadPoolSettings() {
-        return Settings.EMPTY;
+        return Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean()).build();
     }
 
     protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
@@ -295,10 +307,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexingOperationListener... listeners
     ) throws IOException {
         assert shardRouting.initializing() : shardRouting;
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings indexSettings = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
                 randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000)
@@ -533,6 +542,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 indexEventListener,
                 indexReaderWrapper,
                 threadPool,
+                threadPoolMergeExecutorService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 warmer,
                 Collections.emptyList(),
@@ -543,7 +553,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
                 null,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -869,7 +880,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             routingTable
         );
         try {
-            PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+            PlainActionFuture<RecoveryResponse> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             recovery.recoverToTarget(future);
             future.actionGet();
             recoveryTarget.markAsDone();
@@ -940,19 +951,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static Releasable getOperationPermit(final IndexShard shard) {
-        return PlainActionFuture.get(future -> {
-            if (shard.routingEntry().primary()) {
-                shard.acquirePrimaryOperationPermit(future, null);
-            } else {
-                shard.acquireReplicaOperationPermit(
-                    shard.getOperationPrimaryTerm(),
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    future,
-                    null
-                );
-            }
-        }, 0, TimeUnit.NANOSECONDS);
+        final var listener = new SubscribableListener<Releasable>();
+        if (shard.routingEntry().primary()) {
+            shard.acquirePrimaryOperationPermit(listener, null);
+        } else {
+            shard.acquireReplicaOperationPermit(
+                shard.getOperationPrimaryTerm(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                listener,
+                null
+            );
+        }
+        assertTrue(listener.isDone());
+        return safeAwait(listener);
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
@@ -988,12 +1000,23 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, Versions.MATCH_ANY, source, XContentType.JSON, null);
+    }
+
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType, String routing)
+        throws IOException {
+        return indexDoc(shard, id, Versions.MATCH_ANY, source, xContentType, routing);
     }
 
     // Uses an auto-generated ID if `id` is null/empty
-    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType, String routing)
-        throws IOException {
+    protected Engine.IndexResult indexDoc(
+        IndexShard shard,
+        String id,
+        long version,
+        String source,
+        XContentType xContentType,
+        String routing
+    ) throws IOException {
         long autoGeneratedTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
         if (Strings.isEmpty(id)) {
             id = UUIDs.base64UUID();
@@ -1003,7 +1026,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(
-                Versions.MATCH_ANY,
+                version,
                 VersionType.INTERNAL,
                 sourceToParse,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -1019,7 +1042,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                         .build()
                 );
                 result = shard.applyIndexOperationOnPrimary(
-                    Versions.MATCH_ANY,
+                    version,
                     VersionType.INTERNAL,
                     sourceToParse,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -1186,6 +1209,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
-        return PlainActionFuture.get(indexShard::recoverLocallyUpToGlobalCheckpoint, 10, TimeUnit.SECONDS);
+        return safeAwait(indexShard::recoverLocallyUpToGlobalCheckpoint);
     }
 }

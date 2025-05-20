@@ -38,11 +38,13 @@ public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String snapLifecycleName = request.param("name");
         try (XContentParser parser = request.contentParser()) {
-            PutSnapshotLifecycleAction.Request req = PutSnapshotLifecycleAction.Request.parseRequest(snapLifecycleName, parser);
-            req.ackTimeout(getAckTimeout(request));
-            req.masterNodeTimeout(getMasterNodeTimeout(request));
+            final var req = PutSnapshotLifecycleAction.Request.parseRequest(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                request.param("name"),
+                parser
+            );
             return channel -> client.execute(PutSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
         }
     }

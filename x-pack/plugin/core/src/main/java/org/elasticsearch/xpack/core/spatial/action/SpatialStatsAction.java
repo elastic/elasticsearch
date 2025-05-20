@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.spatial.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -17,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
@@ -46,7 +45,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         CARTESIANBOUNDS
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
@@ -75,14 +74,9 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             }
             return true;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -110,9 +104,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         }
 
         public EnumCounters<Item> getStats() {
-            List<EnumCounters<Item>> countersPerNode = getNodes().stream()
-                .map(SpatialStatsAction.NodeResponse::getStats)
-                .collect(Collectors.toList());
+            List<EnumCounters<Item>> countersPerNode = getNodes().stream().map(NodeResponse::getStats).collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
         }
 

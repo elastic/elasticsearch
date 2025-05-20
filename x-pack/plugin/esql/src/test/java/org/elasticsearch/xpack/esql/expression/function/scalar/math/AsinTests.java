@@ -10,15 +10,15 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class AsinTests extends AbstractFunctionTestCase {
+public class AsinTests extends AbstractScalarFunctionTestCase {
     public AsinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -38,8 +38,8 @@ public class AsinTests extends AbstractFunctionTestCase {
                 Double.NEGATIVE_INFINITY,
                 Math.nextDown(-1d),
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Asin input out of range"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Asin input out of range"
                 )
             )
         );
@@ -51,12 +51,12 @@ public class AsinTests extends AbstractFunctionTestCase {
                 Math.nextUp(1d),
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Asin input out of range"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Asin input out of range"
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

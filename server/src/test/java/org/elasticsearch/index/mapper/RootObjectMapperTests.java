@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -312,13 +313,21 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionNonRuntimeType() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionMissingType() throws IOException {
@@ -359,6 +368,19 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testSyntheticSourceKeepAllThrows() throws IOException {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("synthetic_source_keep", "all")
+                .endObject()
+                .endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("root object can't be configured with [synthetic_source_keep:all]"));
     }
 
     public void testWithoutMappers() throws IOException {

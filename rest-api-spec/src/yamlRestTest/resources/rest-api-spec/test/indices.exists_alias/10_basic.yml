@@ -34,17 +34,3 @@
         name: test_alias
 
   - is_false: ''
-
----
-"Test indices.exists_alias with local flag":
-  - skip:
-      features: ["allowed_warnings"]
-
-  - do:
-      indices.exists_alias:
-        name: test_alias
-        local: true
-      allowed_warnings:
-        - "the [?local=true] query parameter to get-aliases requests has no effect and will be removed in a future version"
-
-  - is_false: ''

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,9 +29,10 @@ public class RolloverEnabledTestTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        long version
+        long version,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
         this.version = version;
     }
 
@@ -53,7 +55,7 @@ public class RolloverEnabledTestTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+    protected boolean applyRolloverAfterTemplateV2Update() {
         return true;
     }
 

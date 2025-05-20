@@ -40,7 +40,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
             // the current managed index is a shrunk index
-            if (currentClusterState.metadata().index(shrunkenIndexSource) == null) {
+            if (currentClusterState.metadata().getProject().index(shrunkenIndexSource) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
                 String policyName = indexMetadata.getLifecyclePolicyName();
@@ -66,27 +66,24 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         }
         getClient().admin()
             .indices()
-            .delete(
-                new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        // even if not all nodes acked the delete request yet we can consider this operation as successful as
-                        // we'll generate a new index name and attempt to shrink into the newly generated name
-                        listener.onResponse(null);
-                    }
+            .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // even if not all nodes acked the delete request yet we can consider this operation as successful as
+                    // we'll generate a new index name and attempt to shrink into the newly generated name
+                    listener.onResponse(null);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof IndexNotFoundException) {
-                            // we can move on if the index was deleted in the meantime
-                            listener.onResponse(null);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        // we can move on if the index was deleted in the meantime
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(e);
                     }
                 }
-            );
+            });
     }
 
 }

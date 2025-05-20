@@ -74,7 +74,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = createRandomInstance();
         ClusterState newClusterState = generateUniqueIndexNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
-        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        LifecycleExecutionState executionState = newClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
         assertThat(
             "the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name",
             executionState.shrinkIndexName(),

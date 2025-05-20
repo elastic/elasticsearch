@@ -17,12 +17,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -45,18 +45,13 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
         public Request() {
             super(new String[0]);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            org.elasticsearch.action.support.TransportAction.localOnly();
-        }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         NodeRequest() {}
 
@@ -116,7 +111,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
     }
 
-    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
+    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
 
         private final EnrichCache enrichCache;
         private final EnrichCoordinatorProxyAction.Coordinator coordinator;
@@ -136,9 +131,8 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
 
         @Override
-        protected void resolveRequest(Request request, ClusterState clusterState) {
-            DiscoveryNode[] ingestNodes = clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
-            request.setConcreteNodes(ingestNodes);
+        protected DiscoveryNode[] resolveRequest(Request request, ClusterState clusterState) {
+            return clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
         }
 
         @Override

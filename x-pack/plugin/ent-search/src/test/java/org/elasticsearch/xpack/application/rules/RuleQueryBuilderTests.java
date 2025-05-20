@@ -11,9 +11,11 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ParsingException;
@@ -36,6 +38,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,7 +55,11 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected RuleQueryBuilder doCreateTestQueryBuilder() {
-        return new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, randomAlphaOfLength(10));
+        return new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, randomList(1, 3, this::randomRulesetId));
+    }
+
+    private String randomRulesetId() {
+        return randomAlphaOfLengthBetween(1, 10);
     }
 
     @Override
@@ -67,17 +74,18 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testIllegalArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, "rulesetId"));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), null, List.of("rulesetId")));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of()));
         expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, null));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, ""));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, MATCH_CRITERIA, "rulesetId"));
-        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), "rulesetId"));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of("")));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, MATCH_CRITERIA, List.of("rulesetId")));
+        expectThrows(IllegalArgumentException.class, () -> new RuleQueryBuilder(null, Collections.emptyMap(), List.of("rulesetId")));
     }
 
     public void testFromJson() throws IOException {
         String query = """
             {
-              "rule_query": {
+              "rule": {
                 "organic": {
                   "term": {
                     "tag": {
@@ -88,14 +96,16 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
                 "match_criteria": {
                   "query_string": "elastic"
                 },
-                "ruleset_id": "ruleset1"
+                "ruleset_ids": [ "ruleset1", "ruleset2" ]
               }
             }""";
 
         RuleQueryBuilder queryBuilder = (RuleQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
 
-        assertEquals("ruleset1", queryBuilder.rulesetId());
+        assertEquals(2, queryBuilder.rulesetIds().size());
+        assertEquals("ruleset1", queryBuilder.rulesetIds().get(0));
+        assertEquals("ruleset2", queryBuilder.rulesetIds().get(1));
         assertEquals(query, "elastic", queryBuilder.matchCriteria().get("query_string"));
         assertThat(queryBuilder.organicQuery(), instanceOf(TermQueryBuilder.class));
     }
@@ -104,14 +114,18 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     * test that unknown query names in the clauses throw an error
     */
     public void testUnknownQueryName() {
-        String query = "{\"rule_query\" : {\"organic\" : { \"unknown_query\" : { } } } }";
+        String query = "{\"rule\" : {\"organic\" : { \"unknown_query\" : { } } } }";
 
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[1:50] [rule_query] failed to parse field [organic]", ex.getMessage());
+        assertEquals("[1:44] [rule] failed to parse field [organic]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {
-        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new TermQueryBuilder("foo", 1), Map.of("query_string", "bar"), "baz");
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
+            new TermQueryBuilder("foo", 1),
+            Map.of("query_string", "bar"),
+            List.of("baz", "qux")
+        );
         QueryBuilder rewritten = ruleQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
     }
@@ -130,38 +144,67 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
         // Get request, to pull the query ruleset from the system index using clientWithOrigin
+        String declaringClass = method.getDeclaringClass().getName();
+        String methodName = method.getName();
+        Object arg = args[0];
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
             && method.getName().equals("execute")
-            && args[0] == TransportGetAction.TYPE) {
+            && args[0] == TransportMultiGetAction.TYPE) {
 
-            GetRequest getRequest = (GetRequest) args[1];
-            assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
-            String rulesetId = getRequest.id();
+            List<QueryRuleset> queryRulesets = new ArrayList<>();
+            MultiGetRequest multiGetRequest = (MultiGetRequest) args[1];
+            multiGetRequest.getItems().forEach(getRequest -> {
+                assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));
+                String rulesetId = getRequest.id();
+                List<QueryRule> rules = List.of(
+                    new QueryRule(
+                        "my_rule1",
+                        QueryRule.QueryRuleType.PINNED,
+                        List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("elastic"))),
+                        Map.of("ids", List.of("id1", "id2")),
+                        null
+                    )
+                );
+                QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
+                queryRulesets.add(queryRuleset);
+            });
 
-            List<QueryRule> rules = List.of(
-                new QueryRule(
-                    "my_rule1",
-                    QueryRule.QueryRuleType.PINNED,
-                    List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("elastic"))),
-                    Map.of("ids", List.of("id1", "id2"))
-                )
-            );
-            QueryRuleset queryRuleset = new QueryRuleset(rulesetId, rules);
+            MultiGetItemResponse[] multiGetItemResponses = new MultiGetItemResponse[queryRulesets.size()];
+            for (int i = 0; i < queryRulesets.size(); i++) {
+                QueryRuleset queryRuleset = queryRulesets.get(i);
+                String rulesetId = queryRuleset.id();
+                String json;
+                try {
+                    XContentBuilder builder = queryRuleset.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
+                    json = Strings.toString(builder);
 
-            String json;
-            try {
-                XContentBuilder builder = queryRuleset.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
-                json = Strings.toString(builder);
-            } catch (IOException ex) {
-                throw new ElasticsearchException("boom", ex);
+                    MultiGetItemResponse multiGetItemResponse = new MultiGetItemResponse(
+                        new GetResponse(
+                            new GetResult(
+                                QueryRulesIndexService.QUERY_RULES_ALIAS_NAME,
+                                rulesetId,
+                                0,
+                                1,
+                                0L,
+                                true,
+                                new BytesArray(json),
+                                null,
+                                null
+                            )
+                        ),
+                        null
+                    );
+                    multiGetItemResponses[i] = multiGetItemResponse;
+
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("boom", ex);
+                }
             }
 
-            GetResponse response = new GetResponse(
-                new GetResult(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId, 0, 1, 0L, true, new BytesArray(json), null, null)
-            );
+            MultiGetResponse response = new MultiGetResponse(multiGetItemResponses);
 
             @SuppressWarnings("unchecked")
-            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[2];
+            ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) args[2];
             listener.onResponse(response);
 
             return null;

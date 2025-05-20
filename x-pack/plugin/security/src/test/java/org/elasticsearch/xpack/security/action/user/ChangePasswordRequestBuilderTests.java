@@ -76,7 +76,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithHashedPasswordNotHash() {
-        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredPasswordHash()).toUpperCase(Locale.ROOT));
         final char[] hash = randomAlphaOfLength(20).toCharArray();
         final String json = Strings.format("""
             {

@@ -76,8 +76,8 @@ public class DnRoleMapperTests extends ESTestCase {
     public void init() throws IOException {
         settings = Settings.builder().put("resource.reload.interval.high", "100ms").put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(settings);
-        if (Files.exists(env.configFile()) == false) {
-            Files.createDirectory(env.configFile());
+        if (Files.exists(env.configDir()) == false) {
+            Files.createDirectory(env.configDir());
         }
         threadPool = new TestThreadPool("test");
     }
@@ -100,7 +100,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testMapper_AutoReload() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.configFile().resolve("test_role_mapping.yml");
+        Path file = env.configDir().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -144,7 +144,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.configFile().resolve("test_role_mapping.yml");
+        Path file = env.configDir().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -171,7 +171,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testMapperAutoReloadWithoutListener() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.configFile().resolve("test_role_mapping.yml");
+        Path file = env.configDir().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {

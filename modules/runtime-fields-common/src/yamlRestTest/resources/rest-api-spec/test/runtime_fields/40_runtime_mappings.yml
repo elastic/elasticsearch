@@ -34,7 +34,7 @@ setup:
             day_of_week:
               type: keyword
               script:
-                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
 
   - match: {indices:                             ["test-1"]}
   - length: {fields.timestamp:                            1}
@@ -78,7 +78,7 @@ setup:
             day_of_week:
               type: keyword
               script:
-                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
 
   - match: {indices:                    ["test-1", "test-2"]}
   - length: {fields.day_of_week:                          1}

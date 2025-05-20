@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 
@@ -41,16 +42,16 @@ public class RestUpdateConnectorSyncJobErrorAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        UpdateConnectorSyncJobErrorAction.Request request = UpdateConnectorSyncJobErrorAction.Request.fromXContentBytes(
-            restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
-
-        return restChannel -> client.execute(
-            UpdateConnectorSyncJobErrorAction.INSTANCE,
-            request,
-            new RestToXContentListener<>(restChannel, ConnectorUpdateActionResponse::status)
-        );
+        try (XContentParser parser = restRequest.contentParser()) {
+            UpdateConnectorSyncJobErrorAction.Request request = UpdateConnectorSyncJobErrorAction.Request.fromXContent(
+                parser,
+                restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM)
+            );
+            return restChannel -> client.execute(
+                UpdateConnectorSyncJobErrorAction.INSTANCE,
+                request,
+                new RestToXContentListener<>(restChannel, ConnectorUpdateActionResponse::status)
+            );
+        }
     }
 }

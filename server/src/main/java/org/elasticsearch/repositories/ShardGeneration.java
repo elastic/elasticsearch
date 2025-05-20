@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -76,9 +77,9 @@ public final class ShardGeneration implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Convert to a {@link String} for use in naming the {@code index-$SHARD_GEN} blob containing a {@link BlobStoreIndexShardSnapshots}.
+     * For use in naming the {@code index-$SHARD_GEN} blob containing a {@link BlobStoreIndexShardSnapshots}.
      */
-    public String toBlobNamePart() {
+    public String getGenerationUUID() {
         return rawGeneration;
     }
 

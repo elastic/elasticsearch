@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -27,7 +28,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type.toString());
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));
@@ -42,7 +43,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("type", type);
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[type] type [" + type + "] not supported, cannot convert field."));
@@ -58,7 +59,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         String type = "type-" + randomAlphaOfLengthBetween(1, 10);
         config.put("type", type);
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -70,7 +71,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[type] required property is missing"));
@@ -85,7 +86,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "field2");
         config.put("type", type.toString());
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field2"));
@@ -101,7 +102,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         config.put("type", type.toString());
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
-        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config);
+        ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
         assertThat(convertProcessor.getField(), equalTo("field1"));
         assertThat(convertProcessor.getTargetField(), equalTo("field1"));

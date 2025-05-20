@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,25 +115,31 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
             if (isEmpty() == false) {
                 return;
             }
-            if (docValues.advanceExact(docId) == false) {
-                return;
-            }
 
-            int docValuesCount = docValues.docValueCount();
-            assert docValuesCount > 0;
-            isEmpty = false;
-            if (docValuesCount == 1) {
-                label.collect(docValues.nextValue());
-            } else {
-                Object[] values = new Object[docValuesCount];
-                for (int i = 0; i < docValuesCount; i++) {
-                    values[i] = docValues.nextValue();
+            for (int i = 0; i < docIdBuffer.size(); i++) {
+                int docId = docIdBuffer.get(i);
+                if (docValues.advanceExact(docId) == false) {
+                    continue;
                 }
-                label.collect(values);
+                int docValuesCount = docValues.docValueCount();
+                assert docValuesCount > 0;
+                isEmpty = false;
+                if (docValuesCount == 1) {
+                    label.collect(docValues.nextValue());
+                } else {
+                    var values = new Object[docValuesCount];
+                    for (int j = 0; j < docValuesCount; j++) {
+                        values[j] = docValues.nextValue();
+                    }
+                    label.collect(values);
+                }
+                // Only need to record one label value from one document, within in the same tsid-and-time-interval we only keep the first
+                // with downsampling.
+                return;
             }
         }
 
@@ -141,14 +150,14 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
+    static final class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
 
         AggregateMetricFieldProducer(String name, Metric metric) {
             super(name, new LastValueLabel(metric.name()));
         }
     }
 
-    public static class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
+    static final class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
         HistogramLastLabelFieldProducer(String name) {
             super(name);
         }
@@ -164,6 +173,42 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
                     counts.add(histogramValue.count());
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+            }
+        }
+    }
+
+    static final class FlattenedLastValueFieldProducer extends LabelLastValueFieldProducer {
+
+        FlattenedLastValueFieldProducer(String name) {
+            super(name);
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.startObject(name());
+
+                var value = label.get();
+                List<BytesRef> list;
+                if (value instanceof Object[] values) {
+                    list = new ArrayList<>(values.length);
+                    for (Object v : values) {
+                        list.add(new BytesRef(v.toString()));
+                    }
+                } else {
+                    list = List.of(new BytesRef(value.toString()));
+                }
+
+                var iterator = list.iterator();
+                var helper = new FlattenedFieldSyntheticWriterHelper(() -> {
+                    if (iterator.hasNext()) {
+                        return iterator.next();
+                    } else {
+                        return null;
+                    }
+                });
+                helper.write(builder);
+                builder.endObject();
             }
         }
     }

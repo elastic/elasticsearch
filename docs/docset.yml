@@ -1,0 +1,111 @@
+project: 'Elasticsearch'
+max_toc_depth: 2
+exclude:
+  - README.md
+  - internal/*
+  - reference/query-languages/esql/kibana/docs/**
+  - reference/query-languages/esql/README.md
+cross_links:
+  - beats
+  - cloud
+  - docs-content
+  - ecs
+  - eland
+  - elasticsearch-hadoop
+  - elasticsearch-java
+  - elasticsearch-js
+  - elasticsearch-net
+  - elasticsearch-php
+  - elasticsearch-py
+  - elasticsearch-rs
+  - elasticsearch-ruby
+  - go-elasticsearch
+  - kibana
+  - logstash
+  - logstash-docs-md
+toc:
+  - toc: reference
+  - toc: release-notes
+  - toc: extend
+subs:
+  version: 9.0.0
+  api-request-title:   "Request"
+  api-prereq-title:   "Prerequisites"
+  api-description-title:   "Description"
+  api-path-parms-title:   "Path parameters"
+  api-query-parms-title:   "Query parameters"
+  api-request-body-title:   "Request body"
+  api-examples-title:   "Examples"
+  ecloud:   "Elastic Cloud"
+  ess:   "Elasticsearch Service"
+  ece:   "Elastic Cloud Enterprise"
+  eck:   "Elastic Cloud on Kubernetes"
+  ech:   "Elastic Cloud Hosted"
+  es-apis: https://www.elastic.co/docs/api/doc/elasticsearch/
+  es-serverless-apis: https://www.elastic.co/docs/api/doc/elasticsearch-serverless/
+  es-issue:   "https://github.com/elastic/elasticsearch/issues/"
+  serverless-full:   "Elastic Cloud Serverless"
+  serverless-short:   "Serverless"
+  es-serverless:   "Elasticsearch Serverless"
+  ess-utm-params:   "?page=docs&placement=docs-body"
+  cloud-only:   "This feature is designed for indirect use by Elasticsearch Service, Elastic Cloud Enterprise, and Elastic Cloud on Kubernetes. Direct use is not supported."
+  security-app:   "Elastic Security app"
+  stack-monitor-app:   "Stack Monitoring"
+  agent:   "Elastic Agent"
+  fleet:   "Fleet"
+  stack:   "Elastic Stack"
+  xpack:   "X-Pack"
+  es:   "Elasticsearch"
+  kib:   "Kibana"
+  ls:   "Logstash"
+  beats:   "Beats"
+  filebeat:   "Filebeat"
+  metricbeat:   "Metricbeat"
+  es-sql:   "Elasticsearch SQL"
+  esql:   "ES|QL"
+  security-features:   "security features"
+  operator-feature:   "operator privileges feature"
+  stack-security-features:   "Elastic Stack security features"
+  monitoring:   "X-Pack monitoring"
+  monitor-features:   "monitoring features"
+  stack-monitor-features:   "Elastic Stack monitoring features"
+  watcher:   "Watcher"
+  report-features:   "reporting features"
+  ml:   "machine learning"
+  ml-cap:   "Machine learning"
+  ml-features:   "machine learning features"
+  ccr:   "cross-cluster replication"
+  ccr-init:   "CCR"
+  ccs:   "cross-cluster search"
+  ccs-cap:   "Cross-cluster search"
+  ilm:   "index lifecycle management"
+  ilm-cap:   "Index lifecycle management"
+  ilm-init:   "ILM"
+  search-snap:   "searchable snapshot"
+  search-snaps:   "searchable snapshots"
+  slm:   "snapshot lifecycle management"
+  slm-init:   "SLM"
+  dfeed:   "datafeed"
+  dfeeds:   "datafeeds"
+  dfeeds-cap:   "Datafeeds"
+  anomaly-detect:   "anomaly detection"
+  anomaly-jobs:   "anomaly detection jobs"
+  dataframe:   "data frame"
+  dataframe-cap:   "Data frame"
+  transform:   "transform"
+  transforms:   "transforms"
+  transforms-cap:   "Transforms"
+  dfanalytics-cap:   "Data frame analytics"
+  dfanalytics:   "data frame analytics"
+  dfanalytics-job:   "data frame analytics job"
+  dfanalytics-jobs:   "data frame analytics jobs"
+  ctransforms:   "continuous transforms"
+  regression:   "regression"
+  regression-cap:   "Regression"
+  classification:   "classification"
+  classification-cap:   "Classification"
+  infer-cap:   "Inference"
+  infer:   "inference"
+  feat-imp:   "feature importance"
+  feat-imp-cap:   "Feature importance"
+  nlp:   "natural language processing"

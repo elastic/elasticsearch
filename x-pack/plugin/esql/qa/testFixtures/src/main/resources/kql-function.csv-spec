@@ -1,0 +1,270 @@
+###############################################
+# Tests for KQL function
+#
+
+kqlWithField
+required_capability: kql_function
+
+// tag::kql-with-field[]
+FROM books
+| WHERE KQL("author: Faulkner")
+// end::kql-with-field[]
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::kql-with-field-result[]
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+// end::kql-with-field-result[]
+;
+
+kqlWithMultipleFields
+required_capability: kql_function
+
+from books 
+| where kql("title:Return* AND author:*Tolkien")  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+kqlWithQueryExpressions
+required_capability: kql_function
+
+from books 
+| where kql(CONCAT("title:Return*", " AND author:*Tolkien"))  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+kqlWithConjunction
+required_capability: kql_function
+
+from books 
+| where kql("title: Rings") and ratings > 4.6
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
+;
+
+kqlWithFunctionPushedToLucene
+required_capability: kql_function
+
+from hosts 
+| where kql("host: beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+;
+
+kqlWithNonPushableConjunction
+required_capability: kql_function
+
+from books 
+| where kql("title: Rings") and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
+kqlWithMultipleWhereClauses
+required_capability: kql_function
+
+from books 
+| where kql("title: rings") 
+| where kql("year > 1 AND year < 2005") 
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings           
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+
+kqlWithMultivaluedTextField
+required_capability: kql_function
+
+from employees 
+| where kql("job_positions: Tech Lead AND job_positions:(Reporting Analyst)") 
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+kqlWithMultivaluedNumericField
+required_capability: kql_function
+
+from employees 
+| where kql("salary_change > 14") 
+| keep emp_no, first_name, last_name, salary_change;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword | salary_change:double
+10003          | Parto              | Bamford           | [12.82, 14.68]              
+10015          | Guoxiang           | Nooteboom         | [12.4, 14.25]               
+10023          | Bojan              | Montemayor        | [0.8, 14.63]                
+10040          | Weiyi              | Meriste           | [-8.94, 1.92, 6.97, 14.74]  
+10061          | Tse                | Herber            | [-2.58, -0.95, 14.39]       
+10065          | Satosi             | Awdeh             | [-9.81, -1.47, 14.44]       
+10099          | Valter             | Sullins           | [-8.78, -3.98, 10.71, 14.26]
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: kql_function
+
+from employees 
+| where (kql("job_positions: (Data Scientist) OR job_positions:(Support Engineer)")) and gender == "F"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10023          | Bojan              | Montemayor
+10041          | Uri                | Lenart
+10044          | Mingsen            | Casley
+10053          | Sanjiv             | Zschoche
+10069          | Margareta          | Bierman
+;
+
+testKqlWithNonPushableDisjunctions
+required_capability: kql_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where kql("title:lord") or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675   
+2714   
+4023   
+7140   
+8678
+;
+
+testKqlWithNonPushableDisjunctionsOnComplexExpressions
+required_capability: kql_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where (kql("title:lord") and ratings > 4.5) or (kql("author:dostoevsky") and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
+;
+
+testKqlInStatsNonPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where kql("title:Lord")
+;
+
+c:long
+3
+;
+
+
+testMatchInStatsPushableAndNonPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where (kql("title: lord") and ratings > 4.5) or (kql("author: dostoevsky") and length(title) > 50)
+;
+
+c:long
+6
+;
+
+testKqlInStatsPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where kql("author:tolkien")
+;
+
+c:long
+22
+;
+
+testKqlInStatsWithNonPushableDisjunctions
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where kql("title: lord") or length(title) > 130 
+;
+
+c:long
+5
+;
+
+testKqlInStatsWithMultipleAggs
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where kql("title: lord"), m = max(book_no::integer) where kql("author: tolkien"), n = min(book_no::integer) where kql("author: dostoevsky") 
+;
+
+c:long | m:integer | n:integer
+4      | 9607      | 1211
+;
+
+
+testKqlInStatsWithGrouping
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS r = AVG(ratings) where kql("title: Lord AND Rings") by author | WHERE r is not null
+;
+ignoreOrder: true
+
+r:double           | author: text
+4.75               | Alan Lee                 
+4.674999952316284  | J. R. R. Tolkien         
+4.670000076293945  | John Ronald Reuel Tolkien
+4.670000076293945  | Agnes Perkins            
+4.670000076293945  | Charles Adolph Huttar    
+4.670000076293945  | Walter Scheps            
+4.559999942779541  | J.R.R. Tolkien           
+;

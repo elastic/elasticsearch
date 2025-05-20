@@ -54,7 +54,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
      * Returns true if this ordinal block is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return ordinals.getTotalValueCount() * 2 / 3 >= bytes.getPositionCount();
+        return isDense(ordinals.getTotalValueCount(), bytes.getPositionCount());
+    }
+
+    public static boolean isDense(long totalPositions, long dictionarySize) {
+        return totalPositions >= 10 && totalPositions >= dictionarySize * 2L;
     }
 
     public IntBlock getOrdinalsBlock() {
@@ -71,7 +75,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public BytesRefVector asVector() {
+    public OrdinalBytesRefVector asVector() {
         IntVector vector = ordinals.asVector();
         if (vector != null) {
             return new OrdinalBytesRefVector(vector, bytes);
@@ -126,6 +130,32 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        OrdinalBytesRefBlock result = null;
+        IntBlock filteredOrdinals = ordinals.keepMask(mask);
+        try {
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
+            }
+        }
+        return result;
+    }
+
+    @Override
     public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(this, positions, targetBlockSize);
     }
@@ -177,11 +207,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return ordinals.mayHaveNulls();
     }
@@ -193,6 +218,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public boolean mayHaveMultivaluedFields() {
+        return ordinals.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return ordinals.mayHaveMultivaluedFields();
     }
 
@@ -219,5 +249,24 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public long ramBytesUsed() {
         return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BytesRefBlock b) {
+            return BytesRefBlock.equals(this, b);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefBlock.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

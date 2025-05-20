@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
 
@@ -59,8 +60,8 @@ public class ConcatFilesTaskTests {
         file2.getParentFile().mkdirs();
         file1.createNewFile();
         file2.createNewFile();
-        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
-        Files.write(file2.toPath(), ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file1.toPath(), "Hello" + System.lineSeparator() + "Hello");
+        Files.writeString(file2.toPath(), "Hello" + System.lineSeparator() + "नमस्ते");
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 

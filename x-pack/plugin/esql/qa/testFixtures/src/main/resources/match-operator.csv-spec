@@ -1,0 +1,779 @@
+###############################################
+# Tests for Match function
+#
+
+matchWithField
+required_capability: match_operator_colon
+
+// tag::match-with-field[]
+FROM books 
+| WHERE author:"Faulkner"
+// end::match-with-field[]
+| KEEP book_no, author 
+| SORT book_no 
+| LIMIT 5
+;
+
+// tag::match-with-field-result[]
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+// end::match-with-field-result[]
+;
+
+matchWithMultipleFunctions
+required_capability: match_operator_colon
+
+from books 
+| where title:"Return" AND author:"Tolkien"  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+matchAfterKeep
+required_capability: match_operator_colon
+
+from books 
+| keep book_no, author 
+| where author:"Faulkner"
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterDrop
+required_capability: match_operator_colon
+
+from books 
+| drop ratings, description, year, publisher, title, author.keyword
+| where author:"Faulkner"
+| keep book_no, author
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterEval
+required_capability: match_operator_colon
+
+from books 
+| eval stars = to_long(ratings / 2.0) 
+| where author:"Faulkner"
+| sort book_no 
+| keep book_no, author, stars
+| limit 5;
+
+book_no:keyword | author:text                                           | stars:long
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]    | 3
+2713            | William Faulkner                                      | 2
+2847            | Colleen Faulkner                                      | 3
+2883            | William Faulkner                                      | 2
+3293            | Danny Faulkner                                        | 2
+;
+
+matchWithConjunction
+required_capability: match_operator_colon
+
+from books 
+| where title:"Rings" and ratings > 4.6
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
+;
+
+
+matchWithDisjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where author : "Vonnegut" or author : "Guinane" 
+| keep book_no, author;
+ignoreOrder:true
+
+book_no:keyword | author:text
+2464            | Kurt Vonnegut  
+6970            | Edith Vonnegut 
+8956            | Kurt Vonnegut  
+3950            | Kurt Vonnegut  
+4382            | Carole Guinane 
+;
+
+matchWithDisjunctionAndFiltersConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" or author : "Guinane") and year > 1997
+| keep book_no, author, year;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer
+6970            | Edith Vonnegut    | 1998
+4382            | Carole Guinane    | 2001
+;
+
+matchWithDisjunctionAndConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" or author : "Marquez") and description : "realism"
+| keep book_no;
+
+book_no:keyword
+4814
+;
+
+matchWithMoreComplexDisjunctionAndConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" and description : "charming") or (author : "Marquez" and description : "realism")
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+6970
+4814
+;
+
+matchWithDisjunctionIncludingConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where author : "Vonnegut" or (author : "Marquez" and description : "realism")
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2464
+6970
+4814
+8956
+3950
+;
+
+matchWithFunctionPushedToLucene
+required_capability: match_operator_colon
+
+from hosts 
+| where host:"beta" and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+;
+
+matchWithNonPushableConjunction
+required_capability: match_operator_colon
+
+from books 
+| where title:"Rings" and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
+matchWithMultipleWhereClauses
+required_capability: match_operator_colon
+
+from books 
+| where title:"rings" 
+| where title:"lord" 
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2675            | The Lord of the Rings - Boxed Set           
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+matchMultivaluedField
+required_capability: match_operator_colon
+
+from employees 
+| where job_positions:"Tech Lead" and job_positions:"Reporting Analyst"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: match_operator_colon
+
+from employees 
+| where job_positions:"Data Scientist" and job_positions:"Support Engineer"
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10043          | Yishay             | Tzvieli      
+;
+
+testMatchAndQueryStringFunctions
+required_capability: match_operator_colon
+required_capability: qstr_function
+
+from employees 
+| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) and gender: F")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10041          | Uri                 | Lenart         
+10043          | Yishay              | Tzvieli        
+;
+
+combinedMatchWithFunctions
+required_capability: match_operator_colon
+
+from books
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year
+| sort book_no
+;
+
+book_no:keyword | title:text               | author:text    | year:integer
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014
+;
+
+matchWithStats
+required_capability: match_operator_colon
+
+from books
+| where author:"faulkner" AND year > 1990
+| where mv_count(author) == 1
+| stats count(*) BY author.keyword
+| sort author.keyword
+;
+
+count(*): long  | author.keyword:keyword
+1               | Bettilu Stein Faulkner
+2               | Colleen Faulkner
+1               | Danny Faulkner
+1               | Keith Faulkner
+1               | Paul Faulkner
+8               | William Faulkner
+;
+
+testMatchBooleanField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where still_hired:true and height > 2.08 
+| keep first_name, still_hired, height;
+ignoreOrder:true
+
+first_name:keyword  | still_hired:boolean   | height:double
+Saniya              | true                  | 2.1
+Yongqiao            | true                  | 2.1
+Kwee                | true                  | 2.1
+Amabile             | true                  | 2.09
+;
+
+testMatchIntegerField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where emp_no:10004
+| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchDoubleField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where salary_change:9.07
+| keep emp_no, salary_change;
+
+emp_no:integer | salary_change:double
+10014          | [-1.89, 9.07] 
+;  
+
+testMatchLongField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from date_nanos
+| where num:1698069301543123456
+| keep num;
+
+num:long
+1698069301543123456
+;
+
+testMatchUnsignedLongField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from ul_logs
+| where bytes_out:12749081495402663265
+| keep bytes_out;
+
+bytes_out:unsigned_long
+12749081495402663265
+;
+
+testMatchIpFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from sample_data
+| where client_ip:"172.21.0.5"
+| keep client_ip, message;
+
+client_ip:ip   | message:keyword
+172.21.0.5     | Disconnected
+;
+
+testMatchDateFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from date_nanos
+| where millis:"2023-10-23T13:55:01.543Z"
+| keep millis;
+
+millis:date
+2023-10-23T13:55:01.543Z
+;
+
+testMatchDateNanosFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from date_nanos
+| where nanos:"2023-10-23T13:55:01.543123456Z"
+| keep nanos;
+
+nanos:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+testMatchBooleanFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where still_hired:"true" and height > 2.08 
+| keep first_name, still_hired, height;
+ignoreOrder:true
+
+first_name:keyword  | still_hired:boolean   | height:double
+Saniya              | true                  | 2.1
+Yongqiao            | true                  | 2.1
+Kwee                | true                  | 2.1
+Amabile             | true                  | 2.09
+;
+
+testMatchIntegerFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where emp_no:"10004"
+| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchDoubleFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where salary_change:"9.07"
+| keep emp_no, salary_change;
+
+emp_no:integer | salary_change:double
+10014          | [-1.89, 9.07]   
+;
+
+testMatchLongFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from date_nanos
+| where num:"1698069301543123456"
+| keep num;
+
+num:long
+1698069301543123456
+;
+
+testMatchUnsignedLongFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from ul_logs
+| where bytes_out:"12749081495402663265"
+| keep bytes_out;
+
+bytes_out:unsigned_long
+12749081495402663265
+;
+
+testMatchVersionFieldAsString
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from apps 
+| where version:"2.1" 
+| keep name, version;
+
+name:keyword | version:version
+bbbbb        | 2.1
+;
+
+testMatchIntegerAsDouble
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees 
+| where emp_no:10004.0
+| keep emp_no, first_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchDoubleAsIntegerField
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees
+| where height:2
+| keep emp_no, height;
+ignoreOrder:true
+
+emp_no:integer | height:double
+10037          | 2.0            
+10048          | 2.0            
+10098          | 2.0     
+;
+
+testMatchMultipleFieldTypes
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible 
+| where emp_no::int : 10005 
+| eval emp_as_int = emp_no::int 
+| eval name_as_kw = first_name::keyword 
+| keep emp_as_int, name_as_kw
+;
+
+emp_as_int:integer | name_as_kw:keyword
+10005              | Kyoichi        
+10005              | Kyoichi      
+;
+
+
+testMatchMultipleFieldTypesKeywordText
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible 
+| where first_name::keyword : "Kazuhito" 
+| eval first_name_kwd = first_name::keyword 
+| keep first_name_kwd
+;
+
+first_name_kwd:keyword
+Kazuhito
+Kazuhito      
+;
+
+testMatchMultipleFieldTypesDoubleFloat
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where height::double : 2.03 
+| eval height_dbl = height::double 
+| eval emp_no = emp_no::int 
+| keep emp_no, height_dbl
+;
+ignoreOrder:true
+
+emp_no:integer | height_dbl:double    
+10001          | 2.0299999713897705
+10090          | 2.0299999713897705
+10001          | 2.03              
+10090          | 2.03  
+;
+
+testMatchMultipleFieldTypesBooleanKeyword
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where still_hired::keyword : "true" and height.scaled_float == 2.08
+| eval still_hired_bool = still_hired::boolean
+| keep still_hired_bool
+;
+
+still_hired_bool:boolean    
+true
+true
+true
+true
+;
+
+testMatchMultipleFieldTypesLongUnsignedLong
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible  
+| where avg_worked_seconds::unsigned_long : 200296405 
+| eval avg_worked_seconds_ul = avg_worked_seconds::unsigned_long 
+| keep avg_worked_seconds_ul
+;
+
+avg_worked_seconds_ul:unsigned_long
+200296405            
+200296405            
+;
+
+testMatchMultipleFieldTypesDateNanosDate
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where hire_date::datetime : "1986-06-26T00:00:00.000Z"
+| eval hire_date_nanos = hire_date::date_nanos
+| keep hire_date_nanos
+;
+
+hire_date_nanos:date_nanos
+1986-06-26T00:00:00.000Z            
+1986-06-26T00:00:00.000Z
+;
+
+testMatchWithWrongFieldValue
+required_capability: match_operator_colon
+required_capability: match_additional_types
+
+from employees,employees_incompatible
+| where still_hired::boolean : "Wrong boolean"
+| eval emp_no_bool = emp_no::boolean
+| keep emp_no_bool
+;
+
+emp_no_bool:boolean
+;
+
+testMatchWithSemanticText
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+
+from semantic_text
+| where semantic_text_field:"something"
+| keep semantic_text_field
+| sort semantic_text_field asc
+;
+
+semantic_text_field:text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testMatchWithSemanticTextAndKeyword
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+
+from semantic_text
+| where semantic_text_field:"something" AND host:"host1"
+| keep semantic_text_field, host
+;
+
+semantic_text_field:text | host:keyword
+live long and prosper    | host1
+;
+
+testMatchWithSemanticTextMultiValueField
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+
+from semantic_text metadata _id
+| where st_multi_value:"something" AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where semantic_text_field:"something" AND size > 1 AND match(host, "host1")
+| STATS result = count(*)
+;
+
+result:long
+1
+;
+
+testMatchWithSemanticTextAndKql
+required_capability: match_operator_colon
+required_capability: kql_function
+required_capability: semantic_text_field_caps
+
+from semantic_text
+| where kql("host:host1") AND semantic_text_field:"something"
+| KEEP host, semantic_text_field
+;
+
+host:keyword | semantic_text_field:text
+"host1"      | live long and prosper
+;
+
+testMatchWithNonPushableDisjunctions
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where title:"lord" or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675   
+2714   
+4023   
+7140   
+8678
+;
+
+testMatchWithNonPushableDisjunctionsOnComplexExpressions
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where (title:"lord" and ratings > 4.5) or (author:"dostoevsky" and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
+;
+
+testMatchWithSemanticTextAndLookupJoin
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text METADATA _id
+| where semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP _id, language_name, language_code
+;
+
+ignoreOrder: true
+
+_id:keyword | language_name:keyword | language_code:integer
+1           | English               | 1
+2           | French                | 2
+3           | Spanish               | 3
+;
+
+testMatchWithSemanticTextKqlAndLookupJoin
+required_capability: match_operator_colon
+required_capability: kql_function
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text
+| where kql("host:host1") AND semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP host, semantic_text_field, language_name, language_code
+;
+
+host:keyword | semantic_text_field:text | language_name:keyword | language_code:integer
+"host1"      | live long and prosper    | English               | 1
+;
+
+
+testMatchInStatsNonPushable
+required_capability: match_operator_colon
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where title:"Lord"
+;
+
+c:long
+3
+;
+
+testMatchInStatsPushable
+required_capability: match_operator_colon
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where author:"tolkien"
+;
+
+c:long
+22
+;

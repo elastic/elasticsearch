@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -40,13 +38,11 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 6: manage by data stream lifecycle
     // version 7: version the index template name so we can upgrade existing deployments
     public static final int INDEX_TEMPLATE_VERSION = 7;
-    public static final NodeFeature MANAGED_BY_DATA_STREAM_LIFECYCLE = new NodeFeature("ilm-history-managed-by-dsl");
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
     public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
-    private final FeatureService featureService;
 
     @Override
     protected boolean requiresMasterNode() {
@@ -58,13 +54,12 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     public ILMHistoryTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
         this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
@@ -103,10 +98,5 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ClientHelper.INDEX_LIFECYCLE_ORIGIN;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        return featureService.clusterHasFeature(event.state(), MANAGED_BY_DATA_STREAM_LIFECYCLE);
     }
 }

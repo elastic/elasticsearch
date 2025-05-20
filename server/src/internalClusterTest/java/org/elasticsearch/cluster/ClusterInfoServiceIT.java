@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -206,7 +207,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
+        final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -320,7 +321,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
         }
 
-        RoutingTable routingTable = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
+        RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .get()
+            .getState()
+            .routingTable();
         for (ShardRouting shard : routingTable.allShardsIterator()) {
             assertTrue(
                 infoAfterRecovery.getReservedSpace(shard.currentNodeId(), infoAfterRecovery.getDataPath(shard))

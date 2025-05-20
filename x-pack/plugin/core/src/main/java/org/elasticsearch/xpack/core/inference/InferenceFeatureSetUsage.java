@@ -15,14 +15,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
-public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
+public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
     public static class ModelStats implements ToXContentObject, Writeable {
 
@@ -54,14 +55,30 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
             count++;
         }
 
+        public String service() {
+            return service;
+        }
+
+        public TaskType taskType() {
+            return taskType;
+        }
+
+        public long count() {
+            return count;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            addXContentFragment(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        public void addXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("service", service);
             builder.field("task_type", taskType.name());
             builder.field("count", count);
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -84,6 +101,8 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
             return Objects.hash(service, taskType, count);
         }
     }
+
+    public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
 
     private final Collection<ModelStats> modelStats;
 
@@ -112,5 +131,17 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_12_0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        InferenceFeatureSetUsage that = (InferenceFeatureSetUsage) o;
+        return Objects.equals(modelStats, that.modelStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(modelStats);
     }
 }

@@ -7,6 +7,7 @@ permissions:
 jobs:
   validation:
     name: "Validation"
+    if: github.repository == 'elastic/elasticsearch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

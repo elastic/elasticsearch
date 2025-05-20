@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -23,6 +24,7 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
@@ -60,7 +62,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
         context -> docID -> {
             sourceFetchCount.incrementAndGet();
-            return Collections.<Object>singletonList(context.reader().document(docID).get("body"));
+            return Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
         };
 
     public void testTerm() throws Exception {
@@ -96,6 +98,26 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+            }
+        }
+    }
+
+    public void testMissingPhrase() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+
+            Document doc = new Document();
+            doc.add(new TextField("body", "a b c b a b c", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = newSearcher(reader);
+                PhraseQuery query = new PhraseQuery("missing_field", "b", "c");
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Explanation explanation = searcher.explain(sourceConfirmedPhraseQuery, 0);
+                assertFalse(explanation.isMatch());
+
+                Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE, 1);
+                assertNull(weight.matches(getOnlyLeafReader(reader).getContext(), 0));
             }
         }
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.mapping;
@@ -80,9 +81,10 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     }
 
     public void testGetFieldMappings() throws Exception {
-
-        assertAcked(prepareCreate("indexa").setMapping(getMappingForType()));
-        assertAcked(indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType()));
+        assertAcked(
+            prepareCreate("indexa").setMapping(getMappingForType()),
+            indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType())
+        );
 
         // Get mappings by full name
         GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("indexa").setFields("field1", "obj.subfield").get();
@@ -196,7 +198,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("test", SETTING_BLOCKS_METADATA);
-            assertBlocked(indicesAdmin().prepareGetMappings(), INDEX_METADATA_BLOCK);
+            assertBlocked(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT), INDEX_METADATA_BLOCK);
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }

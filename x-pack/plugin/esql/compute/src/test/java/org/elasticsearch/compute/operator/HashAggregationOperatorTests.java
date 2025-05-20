@@ -41,7 +41,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -54,11 +54,13 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(
-                new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
             ),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
     }
 

@@ -29,6 +29,7 @@ public class FeatureNotEnabledException extends ElasticsearchException {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public FeatureNotEnabledException(Feature feature, String message, Object... args) {
         super(message, args);
         addMetadata(DISABLED_FEATURE_METADATA, feature.featureName);

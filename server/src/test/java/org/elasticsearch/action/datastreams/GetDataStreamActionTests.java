@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams;
@@ -74,7 +75,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             RolloverConfiguration rolloverConfiguration = null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
-            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention, globalRetention);
             String serialized = Strings.toString(builder);
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
         }
@@ -84,18 +85,21 @@ public class GetDataStreamActionTests extends ESTestCase {
         DataStream dataStream = newDataStreamInstance(isSystem, retention);
         return new GetDataStreamAction.Response.DataStreamInfo(
             dataStream,
+            randomBoolean(),
             randomFrom(ClusterHealthStatus.values()),
             null,
             null,
             null,
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            null,
+            null
         );
     }
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(new DataStreamLifecycle.Retention(retention), null, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null);
         return DataStream.builder(randomAlphaOfLength(50), indices)
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())

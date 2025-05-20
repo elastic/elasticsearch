@@ -95,7 +95,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         final Settings settings = Settings.EMPTY;
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );

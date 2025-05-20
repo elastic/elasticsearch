@@ -157,8 +157,8 @@ public class DownsampleAction implements LifecycleAction {
             timeSeriesIndexCheckBranchKey,
             nextStepKey,
             checkNotWriteIndex,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
                 if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
                     return false;
@@ -200,11 +200,10 @@ public class DownsampleAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
         // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client, true);
 
         // Before the downsample action was retry-able, we used to generate a unique downsample index name and delete the previous index in
         // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off, so no
@@ -213,7 +212,7 @@ public class DownsampleAction implements LifecycleAction {
         // upgrade was performed resume the ILM execution and complete the downsample action after upgrade.)
         NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, downsampleKey);
 
-        // Prepare the lifecycleState by generating the name of the target index, that subsequest steps will use.
+        // Prepare the lifecycleState by generating the name of the target index, that subsequent steps will use.
         DownsamplePrepareLifeCycleStateStep generateDownsampleIndexNameStep = new DownsamplePrepareLifeCycleStateStep(
             generateDownsampleIndexNameKey,
             downsampleKey,
@@ -259,8 +258,8 @@ public class DownsampleAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             swapAliasesKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

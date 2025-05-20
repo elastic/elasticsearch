@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -126,6 +127,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexMetadata = clusterState.metadata()
+                    .getProject()
                     .indices()
                     .values()
                     .stream()
@@ -143,7 +145,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             // otherwise resolve shardPath based on the index name and shard id
             String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-            indexMetadata = clusterState.metadata().index(indexName);
+            indexMetadata = clusterState.metadata().getProject().index(indexName);
         }
 
         if (indexMetadata == null) {
@@ -396,7 +398,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 // We can only safely do it because we will generate a new history uuid this shard.
                 final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
                 // Also advances the local checkpoint of the last commit to its max_seqno.
-                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo));
+                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo()));
             }
 
             // commit the new history id

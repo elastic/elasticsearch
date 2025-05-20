@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -30,9 +33,12 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.forecastIndexWriteLoad;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -53,9 +59,15 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     public void testWriteLoadForecastIsAddedToWriteIndex() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
-        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
+        final AtomicInteger licenseCheckCount = new AtomicInteger();
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> {
+            licenseCheckCount.incrementAndGet();
+            return hasValidLicense.get();
+        }, threadPool, maxIndexAge);
 
-        final Metadata.Builder metadataBuilder = Metadata.builder();
+        writeLoadForecaster.refreshLicense();
+
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         final String dataStreamName = "logs-es";
         final int numberOfBackingIndices = 10;
         final int numberOfShards = randomIntBetween(1, 5);
@@ -83,7 +95,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );
@@ -95,7 +107,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         assertThat(forecastedWriteLoad.isPresent(), is(true));
         assertThat(forecastedWriteLoad.getAsDouble(), is(greaterThan(0.0)));
 
+        assertThat(licenseCheckCount.get(), equalTo(1));
         hasValidLicense.set(false);
+
+        writeLoadForecaster.refreshLicense();
+        assertThat(licenseCheckCount.get(), equalTo(2));
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
@@ -103,7 +119,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
     public void testUptimeIsUsedToWeightWriteLoad() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
-        final var metadataBuilder = Metadata.builder();
+        final var metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         final String dataStreamName = "logs-es";
         final int numberOfShards = 5;
         final List<Index> backingIndices = new ArrayList<>();
@@ -112,11 +128,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 0),
             numberOfShards,
             IndexWriteLoad.builder(numberOfShards)
-                .withShardWriteLoad(0, 12, 80)
-                .withShardWriteLoad(1, 24, 5)
-                .withShardWriteLoad(2, 24, 5)
-                .withShardWriteLoad(3, 24, 5)
-                .withShardWriteLoad(4, 24, 5)
+                .withShardWriteLoad(0, 12, 999, 999, 80)
+                .withShardWriteLoad(1, 24, 999, 999, 5)
+                .withShardWriteLoad(2, 24, 999, 999, 5)
+                .withShardWriteLoad(3, 24, 999, 999, 5)
+                .withShardWriteLoad(4, 24, 999, 999, 5)
                 .build(),
             System.currentTimeMillis() - (maxIndexAge.millis() / 2)
         );
@@ -136,8 +152,9 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         metadataBuilder.put(dataStream);
 
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
+        writeLoadForecaster.refreshLicense();
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );
@@ -154,8 +171,9 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
+        writeLoadForecaster.refreshLicense();
 
-        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         final String dataStreamName = "logs-es";
         final int numberOfBackingIndices = 10;
         final int numberOfShards = randomIntBetween(1, 5);
@@ -184,7 +202,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
             metadataBuilder
         );
@@ -197,6 +215,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(0.6)));
 
         hasValidLicense.set(false);
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
@@ -215,7 +234,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
-                List.of(IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 100).build())
+                List.of(IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 999, 999, 100).build())
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
             assertThat(writeLoadForecast.getAsDouble(), is(equalTo(12.0)));
@@ -225,11 +244,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(5)
-                        .withShardWriteLoad(0, 12, 80)
-                        .withShardWriteLoad(1, 24, 5)
-                        .withShardWriteLoad(2, 24, 5)
-                        .withShardWriteLoad(3, 24, 5)
-                        .withShardWriteLoad(4, 24, 5)
+                        .withShardWriteLoad(0, 12, 999, 999, 80)
+                        .withShardWriteLoad(1, 24, 999, 999, 5)
+                        .withShardWriteLoad(2, 24, 999, 999, 5)
+                        .withShardWriteLoad(3, 24, 999, 999, 5)
+                        .withShardWriteLoad(4, 24, 999, 999, 5)
                         .build()
                 )
             );
@@ -241,14 +260,14 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(5)
-                        .withShardWriteLoad(0, 12, 80)
-                        .withShardWriteLoad(1, 24, 5)
-                        .withShardWriteLoad(2, 24, 5)
-                        .withShardWriteLoad(3, 24, 5)
-                        .withShardWriteLoad(4, 24, 4)
+                        .withShardWriteLoad(0, 12, 999, 999, 80)
+                        .withShardWriteLoad(1, 24, 999, 999, 5)
+                        .withShardWriteLoad(2, 24, 999, 999, 5)
+                        .withShardWriteLoad(3, 24, 999, 999, 5)
+                        .withShardWriteLoad(4, 24, 999, 999, 4)
                         .build(),
                     // Since this shard uptime is really low, it doesn't add much to the avg
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 1).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 999, 999, 1).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -258,9 +277,9 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
-                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 12, 25).withShardWriteLoad(1, 12, 25).build(),
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 12, 999, 999, 25).withShardWriteLoad(1, 12, 999, 999, 25).build(),
 
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 50).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 999, 999, 50).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -272,14 +291,14 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(3)
-                        .withShardWriteLoad(0, 25, 1)
-                        .withShardWriteLoad(1, 18, 1)
-                        .withShardWriteLoad(2, 23, 1)
+                        .withShardWriteLoad(0, 25, 999, 999, 1)
+                        .withShardWriteLoad(1, 18, 999, 999, 1)
+                        .withShardWriteLoad(2, 23, 999, 999, 1)
                         .build(),
 
-                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 6, 1).withShardWriteLoad(1, 8, 1).build(),
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 6, 999, 999, 1).withShardWriteLoad(1, 8, 999, 999, 1).build(),
 
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 15, 1).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 15, 999, 999, 1).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -290,7 +309,13 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     private IndexWriteLoad randomIndexWriteLoad(int numberOfShards) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            builder.withShardWriteLoad(shardId, randomDoubleBetween(0, 64, true), randomLongBetween(1, 10));
+            builder.withShardWriteLoad(
+                shardId,
+                randomDoubleBetween(0, 64, true),
+                randomDoubleBetween(0, 64, true),
+                randomDoubleBetween(0, 64, true),
+                randomLongBetween(1, 10)
+            );
         }
         return builder.build();
     }
@@ -326,5 +351,57 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
+    }
+
+    public void testLicenseStateLogging() {
+
+        final var seenMessages = new ArrayList<String>();
+
+        final var collectingLoggingAssertion = new MockLog.SeenEventExpectation(
+            "seen event",
+            LicensedWriteLoadForecaster.class.getCanonicalName(),
+            Level.INFO,
+            "*"
+        ) {
+            @Override
+            public boolean innerMatch(LogEvent event) {
+                final var message = event.getMessage().getFormattedMessage();
+                if (message.startsWith("license state changed, now [")) {
+                    seenMessages.add(message);
+                    return true;
+                }
+
+                return false;
+            }
+        };
+
+        MockLog.assertThatLogger(() -> {
+            final var hasValidLicense = new AtomicBoolean();
+            final var writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, randomTimeValue());
+            assertThat(seenMessages, empty());
+            writeLoadForecaster.refreshLicense();
+            assertThat(seenMessages, empty());
+
+            hasValidLicense.set(true);
+            writeLoadForecaster.refreshLicense();
+            assertThat(seenMessages, contains("license state changed, now [valid]"));
+            writeLoadForecaster.refreshLicense();
+            assertThat(seenMessages, contains("license state changed, now [valid]"));
+
+            hasValidLicense.set(false);
+            writeLoadForecaster.refreshLicense();
+            assertThat(seenMessages, contains("license state changed, now [valid]", "license state changed, now [not valid]"));
+
+            hasValidLicense.set(true);
+            ESTestCase.startInParallel(between(1, 10), ignored -> writeLoadForecaster.refreshLicense());
+            assertThat(
+                seenMessages,
+                contains(
+                    "license state changed, now [valid]",
+                    "license state changed, now [not valid]",
+                    "license state changed, now [valid]"
+                )
+            );
+        }, LicensedWriteLoadForecaster.class, collectingLoggingAssertion);
     }
 }

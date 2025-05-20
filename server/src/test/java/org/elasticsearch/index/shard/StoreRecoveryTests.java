@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -258,7 +258,7 @@ public class StoreRecoveryTests extends ESTestCase {
             BasicFileAttributes sourceAttr = Files.readAttributes(path.resolve("foo.bar"), BasicFileAttributes.class);
             // we won't get here - no permission ;)
             return destAttr.fileKey() != null && destAttr.fileKey().equals(sourceAttr.fileKey());
-        } catch (AccessControlException ex) {
+        } catch (SecurityException ex) {
             return true; // if we run into that situation we know it's supported.
         } catch (UnsupportedOperationException ex) {
             return false;

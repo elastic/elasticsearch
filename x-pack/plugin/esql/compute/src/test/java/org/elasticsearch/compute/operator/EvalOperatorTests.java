@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -66,7 +68,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
             @Override
             public EvalOperator.ExpressionEvaluator get(DriverContext context) {

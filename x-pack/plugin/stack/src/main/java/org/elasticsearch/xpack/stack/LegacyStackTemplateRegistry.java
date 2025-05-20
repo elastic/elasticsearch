@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.stack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
-import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_FEATURE;
 
 @Deprecated(since = "8.12.0", forRemoval = true)
 public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
@@ -48,7 +46,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
 
     private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "true");
@@ -96,11 +93,10 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        FeatureService featureService
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
     }
 
@@ -281,13 +277,5 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
-        // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
-        // in the pipeline processor, which has been introduced only in 8.9.0
-        return featureService.clusterHasFeature(event.state(), STACK_TEMPLATES_FEATURE);
     }
 }

@@ -17,19 +17,28 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SinkOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -41,6 +50,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -62,11 +72,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneSourceOperator.Factory simple() {
-        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+    protected LuceneSourceOperator.Factory simple(SimpleOptions options) {
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100, scoring);
     }
 
-    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit, boolean scoring) {
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -91,44 +101,98 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
+        int taskConcurrency = randomIntBetween(1, 4);
+        return new LuceneSourceOperator.Factory(
+            List.of(ctx),
+            queryFunction,
+            dataPartitioning,
+            taskConcurrency,
+            maxPageSize,
+            limit,
+            scoring
+        );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneSourceOperator\\[maxPageSize = \\d+, remainingDocs = \\d+]");
+        return matchesRegex("LuceneSourceOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs = \\d+]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100]");
+        return matchesRegex(
+            "LuceneSourceOperator\\["
+                + "dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), "
+                + "maxPageSize = \\d+, "
+                + "limit = 100, "
+                + "needsScore = (true|false)]"
+        );
     }
 
-    // TODO tests for the other data partitioning configurations
+    public void testAutoPartitioning() {
+        testSimple(DataPartitioning.AUTO);
+    }
 
-    public void testShardDataPartitioning() {
+    public void testShardPartitioning() {
+        testSimple(DataPartitioning.SHARD);
+    }
+
+    public void testSegmentPartitioning() {
+        testSimple(DataPartitioning.SEGMENT);
+    }
+
+    public void testDocPartitioning() {
+        testSimple(DataPartitioning.DOC);
+    }
+
+    private void testSimple(DataPartitioning partitioning) {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(driverContext(), size, limit);
+        testSimple(driverContext(), partitioning, size, limit);
+    }
+
+    public void testEarlyTermination() {
+        int size = between(1_000, 20_000);
+        int limit = between(0, Integer.MAX_VALUE);
+        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit, scoring);
+        int taskConcurrency = factory.taskConcurrency();
+        final AtomicInteger receivedRows = new AtomicInteger();
+        List<Driver> drivers = new ArrayList<>();
+        for (int i = 0; i < taskConcurrency; i++) {
+            DriverContext driverContext = driverContext();
+            SourceOperator sourceOperator = factory.get(driverContext);
+            SinkOperator sinkOperator = new PageConsumerOperator(p -> {
+                receivedRows.addAndGet(p.getPositionCount());
+                p.releaseBlocks();
+            });
+            Driver driver = new Driver(
+                "driver" + i,
+                "test",
+                "cluster",
+                "node",
+                0,
+                0,
+                driverContext,
+                () -> "test",
+                sourceOperator,
+                List.of(),
+                sinkOperator,
+                TimeValue.timeValueNanos(1),
+                () -> {}
+            );
+            drivers.add(driver);
+        }
+        OperatorTestCase.runDriver(drivers);
+        assertThat(receivedRows.get(), equalTo(Math.min(limit, size)));
     }
 
     public void testEmpty() {
-        testSimple(driverContext(), 0, between(10, 10_000));
-    }
-
-    public void testWithCranky() {
-        try {
-            testSimple(crankyDriverContext(), between(1, 10_000), 100);
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
+        testSimple(driverContext(), randomFrom(DataPartitioning.values()), 0, between(10, 10_000));
     }
 
     public void testEmptyWithCranky() {
         try {
-            testSimple(crankyDriverContext(), 0, between(10, 10_000));
+            testSimple(crankyDriverContext(), randomFrom(DataPartitioning.values()), 0, between(10, 10_000));
             logger.info("cranky didn't break");
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
@@ -136,11 +200,27 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    public void testShardDataPartitioningWithCranky() {
+    public void testAutoPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.AUTO);
+    }
+
+    public void testShardPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.SHARD);
+    }
+
+    public void testSegmentPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.SEGMENT);
+    }
+
+    public void testDocPartitioningWithCranky() {
+        testWithCranky(DataPartitioning.DOC);
+    }
+
+    private void testWithCranky(DataPartitioning partitioning) {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
         try {
-            testSimple(crankyDriverContext(), size, limit);
+            testSimple(crankyDriverContext(), partitioning, size, limit);
             logger.info("cranky didn't break");
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
@@ -148,14 +228,14 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+    private void testSimple(DriverContext ctx, DataPartitioning partitioning, int size, int limit) {
+        LuceneSourceOperator.Factory factory = simple(partitioning, size, limit, scoring);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
 
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 
@@ -164,7 +244,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         for (Page page : results) {
-            LongBlock sBlock = page.getBlock(1);
+            LongBlock sBlock = page.getBlock(initialBlockIndex(page));
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
             }
@@ -172,6 +252,20 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int maxPages = Math.min(size, limit);
         int minPages = (int) Math.ceil(maxPages / factory.maxPageSize());
         assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
+    }
+
+    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
+    private final boolean scoring = randomBoolean();
+
+    // Returns the initial block index, ignoring the score block if scoring is enabled
+    private int initialBlockIndex(Page page) {
+        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        if (scoring) {
+            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
+            return 2;
+        } else {
+            return 1;
+        }
     }
 
     /**
@@ -205,6 +299,20 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public IndexSearcher searcher() {
             return searcher;
+        }
+
+        @Override
+        public SourceLoader newSourceLoader() {
+            return SourceLoader.FROM_STORED_SOURCE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        ) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

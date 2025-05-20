@@ -48,10 +48,12 @@ public interface ExtractedField {
 
     /**
      * Extracts the value from a {@link SearchHit}
-     * @param hit the search hit
+     *
+     * @param hit    the search hit
+     * @param source the source supplier
      * @return the extracted value
      */
-    Object[] value(SearchHit hit);
+    Object[] value(SearchHit hit, SourceSupplier source);
 
     /**
      * @return Whether the field can be fetched from source instead

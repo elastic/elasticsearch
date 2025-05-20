@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -42,7 +43,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -105,9 +105,6 @@ public class PolicyStepsRegistry {
     public void update(IndexLifecycleMetadata meta) {
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
-        // since the policies (may have) changed, the whole steps cache needs to be thrown out
-        cachedSteps.clear();
-
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff = DiffableUtils.diff(
             lifecyclePolicyMap,
             meta.getPolicyMetadatas(),
@@ -163,6 +160,11 @@ public class PolicyStepsRegistry {
                 }
             }
         }
+
+        // Since the policies (may have) changed, the whole steps cache needs to be thrown out.
+        // We do this after we update `lifecyclePolicyMap` to ensure `cachedSteps` does not contain outdated data.
+        // This means we may clear up-to-date data, but that's a lot better than the cache containing outdated entries indefinitely.
+        cachedSteps.clear();
     }
 
     /**
@@ -201,10 +203,10 @@ public class PolicyStepsRegistry {
      */
     private List<Step> getAllStepsForIndex(ClusterState state, Index index) {
         final Metadata metadata = state.metadata();
-        if (metadata.hasIndex(index) == false) {
+        if (metadata.getProject().hasIndex(index) == false) {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
-        final IndexMetadata indexMetadata = metadata.index(index);
+        final IndexMetadata indexMetadata = metadata.getProject().index(index);
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {
@@ -269,9 +271,8 @@ public class PolicyStepsRegistry {
             return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
         } catch (IOException e) {
             logger.trace(
-                () -> String.format(
-                    Locale.ROOT,
-                    "unable to parse steps for policy [{}], phase [{}], and phase definition [{}]",
+                () -> Strings.format(
+                    "unable to parse steps for policy [%s], phase [%s], and phase definition [%s]",
                     policy,
                     currentPhase,
                     phaseDef

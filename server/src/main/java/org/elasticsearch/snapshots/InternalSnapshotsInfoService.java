@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -59,7 +60,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     );
 
     private final ThreadPool threadPool;
-    private final Supplier<RepositoriesService> repositoriesService;
+    private final RepositoriesService repositoriesService;
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
@@ -87,11 +88,11 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final RepositoriesService repositoriesService,
         final Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoriesService = repositoriesServiceSupplier;
+        this.repositoriesService = repositoriesService;
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
@@ -210,9 +211,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
 
         @Override
         protected void doRun() throws Exception {
-            final RepositoriesService repositories = repositoriesService.get();
-            assert repositories != null;
-            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(snapshotShard.snapshot.getRepository());
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(

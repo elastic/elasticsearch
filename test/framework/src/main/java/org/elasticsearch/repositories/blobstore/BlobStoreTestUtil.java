@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -64,6 +65,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
@@ -113,7 +117,7 @@ public final class BlobStoreTestUtil {
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
                 try (
-                    InputStream blob = blobContainer.readBlob(randomNonDataPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
+                    InputStream blob = blobContainer.readBlob(randomNonDataPurpose(), getRepositoryDataBlobName(latestGen));
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), blob)
                 ) {
@@ -179,8 +183,8 @@ public final class BlobStoreTestUtil {
                         final String shardId = Integer.toString(i);
                         assertThat(shardContainers, hasKey(shardId));
                         assertThat(
-                            shardContainers.get(shardId).listBlobsByPrefix(randomPurpose(), BlobStoreRepository.INDEX_FILE_PREFIX),
-                            hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
+                            shardContainers.get(shardId).listBlobsByPrefix(randomPurpose(), BlobStoreRepository.SNAPSHOT_INDEX_PREFIX),
+                            hasKey(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX + generation)
                         );
                     }
                 }
@@ -209,7 +213,7 @@ public final class BlobStoreTestUtil {
                 .listBlobsByPrefix(randomPurpose(), BlobStoreRepository.METADATA_PREFIX)
                 .keySet()
                 .stream()
-                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
+                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(METADATA_BLOB_NAME_SUFFIX, ""))
                 .collect(Collectors.toSet());
             final Set<String> indexMetaGenerationsExpected = new HashSet<>();
             final IndexId idx = repositoryData.getIndices().values().stream().filter(i -> i.getId().equals(indexId)).findFirst().get();
@@ -235,7 +239,7 @@ public final class BlobStoreTestUtil {
                 .keySet()
                 .stream()
                 .filter(p -> p.startsWith(prefix))
-                .map(p -> p.replace(prefix, "").replace(".dat", ""))
+                .map(p -> p.replace(prefix, "").replace(METADATA_BLOB_NAME_SUFFIX, ""))
                 .collect(Collectors.toSet());
             assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
         }
@@ -292,11 +296,7 @@ public final class BlobStoreTestUtil {
                 assertThat(
                     indexContainer.listBlobs(randomPurpose()),
                     hasKey(
-                        String.format(
-                            Locale.ROOT,
-                            BlobStoreRepository.METADATA_NAME_FORMAT,
-                            repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId)
-                        )
+                        Strings.format(METADATA_NAME_FORMAT, repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId))
                     )
                 );
                 final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
@@ -333,7 +333,7 @@ public final class BlobStoreTestUtil {
                         assertThat(
                             shardPathContents.keySet()
                                 .stream()
-                                .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                                .filter(name -> name.startsWith(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX))
                                 .count(),
                             lessThanOrEqualTo(2L)
                         );

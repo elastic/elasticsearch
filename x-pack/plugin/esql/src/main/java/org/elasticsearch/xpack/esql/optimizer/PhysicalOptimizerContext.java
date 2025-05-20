@@ -7,6 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(EsqlConfiguration configuration) {}
+public record PhysicalOptimizerContext(Configuration configuration) {}

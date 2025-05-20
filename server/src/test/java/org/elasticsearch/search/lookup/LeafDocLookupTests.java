@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.lookup;
 
@@ -23,10 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -426,12 +423,7 @@ public class LeafDocLookupTests extends ESTestCase {
     public void testLookupPrivilegesAdvanceDoc() {
         nextDocCallback = i -> SpecialPermission.check();
 
-        // mimic the untrusted codebase, which gets no permissions
-        var restrictedContext = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, null) });
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
-            assertEquals(docValues, fetchedDocValues);
-            return null;
-        }, restrictedContext);
+        ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
+        assertEquals(docValues, fetchedDocValues);
     }
 }

@@ -170,12 +170,13 @@ Then you can skip it by adding a `required_capability` to your test like so:
 ```csv-spec
 mvSlice
 required_capability: mv_sort
+required_capability: mv_slice
 
 row a = [true, false, false, true]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
 ```
 
-That skips nodes that don't have the `mv_sort` capability.
+That skips nodes that don't have both the `mv_sort` and `mv_slice` capabilities.
 
 NOTE: It is also possible to do this by creating a `NodeFeature` in `EsqlFeatures` for your change.
 In that case the feature should be prefixed with `esql.`, but this prefix should
@@ -187,7 +188,7 @@ It is preferable to use `EsqlCapabilities` for new features, although all existi
 
 ### Warnings
 
-Some queries can return warnings, eg. for number overflows or when a multi-value is passed to a funciton
+Some queries can return warnings, eg. for number overflows or when a multi-value is passed to a function
 that does not support it.
 
 Each CSV-SPEC test has to also assert all the expected warnings.

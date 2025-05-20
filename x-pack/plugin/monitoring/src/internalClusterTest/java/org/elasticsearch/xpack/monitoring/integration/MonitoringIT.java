@@ -21,6 +21,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -33,7 +34,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -51,6 +52,7 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -129,7 +131,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse = new MonitoringBulkRequestBuilder(client()).add(
                 system,
-                new BytesArray(createBulkEntity().getBytes("UTF-8")),
+                new BytesArray(createBulkEntity().getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON,
                 System.currentTimeMillis(),
                 interval.millis()
@@ -148,7 +150,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
                 assertResponse(client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*"), response -> {
                     // exactly 3 results are expected
-                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
+                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value(), equalTo(3L));
 
                     final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
                         .map(SearchHit::getSourceAsMap)
@@ -164,20 +166,19 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             assertCheckedResponse(client().prepareSearch(monitoringIndex), response -> {
                 final SearchHits hits = response.getHits();
 
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-                assertThat(
-                    "Monitoring documents must have the same timestamp",
-                    Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),
-                    equalTo(1L)
-                );
-                assertThat(
-                    "Monitoring documents must have the same source_node timestamp",
-                    Arrays.stream(hits.getHits())
-                        .map(hit -> extractValue("source_node.timestamp", hit.getSourceAsMap()))
-                        .distinct()
-                        .count(),
-                    equalTo(1L)
-                );
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
+                Map<String, Object> sourceHit = hits.getHits()[0].getSourceAsMap();
+                Object ts = extractValue("timestamp", sourceHit);
+                Object sn_ts = extractValue("source_node.timestamp", sourceHit);
+                for (int i = 1; i < hits.getHits().length; i++) {
+                    sourceHit = hits.getHits()[i].getSourceAsMap();
+                    assertThat("Monitoring documents must have the same timestamp", extractValue("timestamp", sourceHit), equalTo(ts));
+                    assertThat(
+                        "Monitoring documents must have the same source_node timestamp",
+                        extractValue("source_node.timestamp", sourceHit),
+                        equalTo(sn_ts)
+                    );
+                }
 
                 for (final SearchHit hit : hits.getHits()) {
                     assertMonitoringDoc(toMap(hit), system, interval);
@@ -206,7 +207,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         );
 
         final Settings settings = Settings.builder().put("cluster.metadata.display_name", "my cluster").build();
-        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
             assertBusy(() -> {
@@ -372,7 +373,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .put("xpack.monitoring.exporters._local.enabled", true)
             .build();
 
-        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(true)));
 
@@ -400,7 +401,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .putNull("cluster.metadata.display_name")
             .build();
 
-        assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         assertBusy(() -> assertThat("Exporters are not yet stopped", getMonitoringUsageExportersDefined(), is(false)));
         assertBusy(() -> {
@@ -427,8 +428,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private boolean getMonitoringUsageExportersDefined() throws Exception {
-        final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
+    private boolean getMonitoringUsageExportersDefined() {
+        final XPackUsageResponse usageResponse = safeGet(
+            client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT))
+        );
         final Optional<MonitoringFeatureSetUsage> monitoringUsage = usageResponse.getUsages()
             .stream()
             .filter(usage -> usage instanceof MonitoringFeatureSetUsage)

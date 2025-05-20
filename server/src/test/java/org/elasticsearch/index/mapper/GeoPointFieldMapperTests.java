@@ -1,28 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -38,7 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -192,8 +189,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             new Object[] { new Double[] { pointA.getX(), pointA.getY() }, new Double[] { pointB.getX(), pointB.getY() } },
             new Object[] { pointA.getY() + "," + pointA.getX(), pointB.getY() + "," + pointB.getX() },
             new Object[] { GeoJson.toMap(pointA), GeoJson.toMap(pointB) } };
-        IndexableField expectedPointA = new LatLonPoint("field", pointA.getY(), pointA.getX());
-        IndexableField expectedPointB = new LatLonPoint("field", pointB.getY(), pointB.getX());
+        IndexableField expectedPointA = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointA.getY(), pointA.getX());
+        IndexableField expectedPointB = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointB.getY(), pointB.getX());
 
         // Verify that metric and non-metric mappers behave the same on single valued fields
         for (Object[] values : data) {
@@ -201,7 +198,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 ParsedDocument doc = mapper.parse(source(b -> b.field("field", values[0])));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
                 IndexableField field = doc.rootDoc().getField("field");
-                assertThat(field, instanceOf(LatLonPoint.class));
+                assertThat(field, instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(field.toString(), equalTo(expectedPointA.toString()));
             }
         }
@@ -212,15 +209,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             {
                 ParsedDocument doc = nonMetricMapper.parse(source(b -> b.field("field", values)));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
-                Object[] fields = doc.rootDoc()
-                    .getFields()
-                    .stream()
-                    .filter(f -> f.name().equals("field") && f.fieldType().docValuesType() == DocValuesType.NONE)
-                    .toArray();
+                Object[] fields = doc.rootDoc().getFields().stream().filter(f -> f.name().equals("field")).toArray();
                 assertThat(fields.length, equalTo(2));
-                assertThat(fields[0], instanceOf(LatLonPoint.class));
+                assertThat(fields[0], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[0].toString(), equalTo(expectedPointA.toString()));
-                assertThat(fields[1], instanceOf(LatLonPoint.class));
+                assertThat(fields[1], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[1].toString(), equalTo(expectedPointB.toString()));
             }
             // Metric mapper rejects multi-valued data
@@ -326,7 +319,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     public void testLonLatArrayStored() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
-        assertThat(doc.rootDoc().getFields("field"), hasSize(3));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(2));
     }
 
     public void testLonLatArrayArrayStored() throws Exception {
@@ -535,6 +528,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             ),
             exampleMalformedValue("-,1.3").errorMatches("latitude must be a number"),
             exampleMalformedValue("1.3,-").errorMatches("longitude must be a number"),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).endObject()).errorMatches("Required [lon]"),
+            exampleMalformedValue(b -> b.startObject().field("lon", 1.3).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).errorMatches("Required [lat]"),
             exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).errorMatches("Required [lon]"),
             exampleMalformedValue("NaN,1.3").errorMatches("invalid latitude NaN; must be between -90.0 and 90.0"),
@@ -603,7 +598,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
-        assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
@@ -611,41 +605,53 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
-                    Tuple<Object, GeoPoint> v = generateValue();
-                    if (columnReader) {
-                        return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    Value v = generateValue();
+                    if (v.malformedOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
-                    return new SyntheticSourceExample(v.v1(), v.v2(), v.v2().toWKT(), this::mapping);
+
+                    if (columnReader) {
+                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
+
                 }
-                List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                // For the synthetic source tests, the results are sorted in order of encoded values, but for row-stride reader
-                // they are sorted in order of input, so we sort both input and expected here to support both types of tests
-                List<Tuple<Object, GeoPoint>> sorted = values.stream()
-                    .sorted((a, b) -> Long.compare(encode(a.v2()), encode(b.v2())))
+                List<Value> values = randomList(1, maxVals, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+
+                List<GeoPoint> outputFromDocValues = values.stream()
+                    .filter(v -> v.malformedOutput == null)
+                    .sorted((a, b) -> Long.compare(encode(a.output), encode(b.output)))
+                    .map(Value::output)
                     .toList();
-                List<Object> in = sorted.stream().map(Tuple::v1).toList();
-                List<GeoPoint> outList = sorted.stream().map(Tuple::v2).toList();
+
+                // Malformed values always come last in synthetic source
+                Stream<Object> malformedValues = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                if (columnReader) {
-                    // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = outList.stream().map(this::encode).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                } else {
-                    // When reading row-stride, the block is a list of WKT encoded BytesRefs
-                    List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                }
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
-            private Tuple<Object, GeoPoint> generateValue() {
+            private record Value(Object input, GeoPoint output, Object malformedOutput) {}
+
+            private Value generateValue() {
                 if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, nullValue);
+                    return new Value(null, nullValue, null);
+                }
+                if (ignoreMalformed && randomBoolean()) {
+                    // Different malformed values are tested in #exampleMalformedValues().
+                    // Here the goal is to test inputs that contain mixed valid and malformed values.
+                    List<Supplier<Object>> choices = List.of(
+                        () -> "not a valid geohash " + randomAlphaOfLength(3),
+                        () -> Map.of("one", 1, "two", List.of(2, 22, 222), "three", Map.of("three", 33))
+                    );
+                    Object v = randomFrom(choices).get();
+                    return new Value(v, null, v);
                 }
                 GeoPoint point = randomGeoPoint();
-                return Tuple.tuple(randomGeoPointInput(point), point);
+                return new Value(randomGeoPointInput(point), point, null);
             }
 
             private GeoPoint randomGeoPoint() {
@@ -694,67 +700,25 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 if (rarely()) {
                     b.field("store", false);
                 }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
             }
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "geo_point").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
-                        b -> b.field("type", "geo_point").field("copy_to", "foo")
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it ignores malformed points"),
-                        b -> b.field("type", "geo_point").field("ignore_malformed", true)
-                    )
-                );
+                return List.of();
             }
         };
     }
 
     @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (columnReader) {
-            // When using column reader, we expect the output to be doc-values (which means encoded longs)
-            return v -> asJacksonNumberOutput(((Number) v).longValue());
-        } else {
-            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
-            return v -> asWKT((BytesRef) v);
-        }
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

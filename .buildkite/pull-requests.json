@@ -8,27 +8,13 @@
         "admin",
         "write"
       ],
+      "allowed_list": ["elastic-renovate-prod[bot]"],
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,
       "trigger_comment_regex": "(run\\W+elasticsearch-ci.+)|(^\\s*((buildkite|@elastic(search)?machine)\\s*)?test\\s+this(\\s+please)?)",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false
-    },
-    {
-      "enabled": true,
-      "pipeline_slug": "elasticsearch-pull-request-check-serverless-submodule",
-      "allow_org_users": true,
-      "allowed_repo_permissions": [
-        "admin",
-        "write"
-      ],
-      "set_commit_status": false,
-      "build_on_commit": true,
-      "build_on_comment": false,
-      "labels": [
-        "test-update-serverless"
-      ]
     }
   ]
 }

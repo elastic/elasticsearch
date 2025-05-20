@@ -116,3 +116,100 @@ from employees
 emp_no:integer
 10001
 ;
+
+rangeInteger
+from employees
+| where emp_no > 10001 and emp_no < 10003
+| keep emp_no, first_name
+;
+
+emp_no:integer |first_name:keyword
+10002          |Bezalel
+;
+
+rangeLong
+from employees
+| where languages.long > 1 and languages.long < 3
+| keep emp_no, first_name
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10008          |Saniya
+;
+
+rangeDouble
+from employees
+| where height > 1.4 and height < 2.0
+| keep emp_no, first_name
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer |first_name:keyword
+10003          |Parto
+10004          |Chirstian
+;
+
+rangeUnsignedLong
+from ul_logs
+| where bytes_out >= to_ul(4747671420480199905) and bytes_out <= to_ul(12749081495402663265)
+| keep id
+| sort id
+| limit 2
+;
+
+id:integer
+1
+3
+;
+
+
+rangeKeyword
+from employees
+| where first_name >= "A" and first_name <= "D"
+| keep emp_no, first_name
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer |first_name:keyword
+10002          |Bezalel
+10004          |Chirstian
+;
+
+rangeVersion
+required_capability: string_literal_auto_casting_extended
+from apps
+| where version > "2" and version < "4"
+| keep id, version
+| sort id
+;
+
+id:integer |version:version
+2          |2.1
+3          |2.3.4
+4          |2.12.0
+;
+
+rangeDateTime
+from employees
+| where birth_date >= "1952-01-01" and birth_date <= "1952-12-31"
+| stats cnt = count(*)
+;
+
+cnt:long
+8
+;
+
+rangeMixed
+from employees
+| where birth_date >= "1952-01-01" and birth_date <= "1952-12-31" and hire_date >= "1980-01-01" and hire_date <= "1989-12-31"
+| stats cnt = count(*)
+;
+
+cnt:long
+5
+;

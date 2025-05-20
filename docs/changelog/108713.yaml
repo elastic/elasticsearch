@@ -1,6 +1,0 @@
-pr: 108713
-summary: Rewrite away type converting functions that do not convert types
-area: ES|QL
-type: enhancement
-issues:
- - 107716

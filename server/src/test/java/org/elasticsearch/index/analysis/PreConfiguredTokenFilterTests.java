@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.analysis;
 
@@ -40,7 +41,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 
-        IndexVersion version1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         Settings settings1 = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version1).build();
         TokenFilterFactory tff_v1_1 = pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "singleton", settings1);
         TokenFilterFactory tff_v1_2 = pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "singleton", settings1);
@@ -65,7 +66,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
             }
         );
 
-        IndexVersion version1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         IndexSettings indexSettings1 = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version1).build()
@@ -132,7 +133,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
         );
         assertSame(tff_v1_1, tff_v1_2);
 
-        IndexVersion version2 = IndexVersionUtils.getPreviousMajorVersion(IndexVersionUtils.getFirstVersion());
+        IndexVersion version2 = IndexVersionUtils.getPreviousMajorVersion(IndexVersionUtils.getLowestReadCompatibleVersion());
         IndexSettings indexSettings2 = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version2).build()

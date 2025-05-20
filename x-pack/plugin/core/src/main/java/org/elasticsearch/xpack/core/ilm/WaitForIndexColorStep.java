@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -65,7 +65,7 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.color, this.indexNameSupplier);
+        return Objects.hash(super.hashCode(), this.color);
     }
 
     @Override
@@ -77,21 +77,21 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
             return false;
         }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
-        return super.equals(obj)
-            && Objects.equals(this.color, other.color)
-            && Objects.equals(this.indexNameSupplier, other.indexNameSupplier);
+        return super.equals(obj) && Objects.equals(this.color, other.color);
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata().index(index.getName()).getLifecycleExecutionState();
+        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata()
+            .getProject()
+            .index(index.getName())
+            .getLifecycleExecutionState();
         String indexName = indexNameSupplier.apply(index.getName(), lifecycleExecutionState);
-        IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
+            String errorMessage = Strings.format(
+                "[%s] lifecycle action for index [%s] executed but the target index [%s] does not exist",
                 getKey().action(),
                 index.getName(),
                 indexName

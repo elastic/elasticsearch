@@ -21,7 +21,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -118,20 +117,18 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 );
 
                 RestClient client = client();
-                if (isUpdateApiSupported(client)) {
-                    var updateException = expectThrows(
-                        Exception.class,
-                        () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
-                    );
+                var updateException = expectThrows(
+                    Exception.class,
+                    () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
+                );
 
-                    assertThat(
-                        updateException.getMessage(),
-                        anyOf(
-                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString("remote indices not supported for API keys")
-                        )
-                    );
-                }
+                assertThat(
+                    updateException.getMessage(),
+                    anyOf(
+                        containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                        containsString("remote indices not supported for API keys")
+                    )
+                );
             }
             case MIXED -> {
                 try {
@@ -145,20 +142,18 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
                     // fail when remote_indices are provided:
                     // against old node
-                    if (isUpdateApiSupported(oldVersionClient)) {
-                        Exception e = expectThrows(
-                            Exception.class,
-                            () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
-                        );
-                        assertThat(
-                            e.getMessage(),
-                            anyOf(
-                                containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                                containsString("remote indices not supported for API keys")
-                            )
-                        );
-                    }
-                    Exception e = expectThrows(Exception.class, () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true)));
+                    Exception e = expectThrows(
+                        Exception.class,
+                        () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
+                    );
+                    assertThat(
+                        e.getMessage(),
+                        anyOf(
+                            containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
+                            containsString("remote indices not supported for API keys")
+                        )
+                    );
+                    e = expectThrows(Exception.class, () -> createOrGrantApiKey(oldVersionClient, randomRoleDescriptors(true)));
                     assertThat(
                         e.getMessage(),
                         anyOf(
@@ -263,28 +258,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         updateOrBulkUpdateApiKey(client(), id, roles);
     }
 
-    private boolean isUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY); // Update API was introduced in 8.4.0.
-            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
-    }
-
-    private boolean isBulkUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
-    }
-
     private void updateOrBulkUpdateApiKey(RestClient client, String id, String roles) throws IOException {
-        if (false == isUpdateApiSupported(client)) {
-            return; // Update API is not supported.
-        }
         final Request updateApiKeyRequest;
-        final boolean bulkUpdate = randomBoolean() && isBulkUpdateApiSupported(client);
+        final boolean bulkUpdate = randomBoolean();
         if (bulkUpdate) {
             updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
             updateApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -417,6 +393,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
         final Set<String> excludedPrivileges = Set.of(
+            "read_failure_store",
+            "manage_failure_store",
             "cross_cluster_replication",
             "cross_cluster_replication_internal",
             "manage_data_stream_lifecycle"

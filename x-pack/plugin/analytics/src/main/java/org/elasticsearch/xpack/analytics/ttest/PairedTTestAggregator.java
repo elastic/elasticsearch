@@ -48,7 +48,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
 
     @Override
     protected PairedTTestState getEmptyState() {
-        return new PairedTTestState(new TTestStats(0, 0, 0), tails);
+        return new PairedTTestState(TTestStats.EMPTY, tails);
     }
 
     @Override

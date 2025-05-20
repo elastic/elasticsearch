@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,11 +14,13 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -431,6 +434,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             name,
             name,
             Explicit.EXPLICIT_TRUE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             mappers,
             Explicit.EXPLICIT_FALSE,
@@ -493,9 +497,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         );
 
         FieldTypeLookup lookup = new FieldTypeLookup(
-            List.of(attributeField, resourceAttributeField),
+            randomizedList(attributeField, resourceAttributeField),
             List.of(),
-            List.of(attributes, resourceAttributes),
+            randomizedList(attributes, resourceAttributes),
             List.of()
         );
         assertEquals(attributeField.fieldType(), lookup.get("foo"));
@@ -503,10 +507,26 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testNoRootAliasForPassThroughFieldOnConflictingField() {
         MockFieldMapper attributeFoo = new MockFieldMapper("attributes.foo");
+        MockFieldMapper resourceAttributeFoo = new MockFieldMapper("resource.attributes.foo");
         MockFieldMapper foo = new MockFieldMapper("foo");
         PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Map.of("foo", attributeFoo), 0);
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Map.of("foo", resourceAttributeFoo), 1);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(foo, attributeFoo), List.of(), List.of(attributes), List.of());
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(foo, attributeFoo, resourceAttributeFoo),
+            List.of(),
+            randomizedList(attributes, resourceAttributes),
+            List.of()
+        );
+
         assertEquals(foo.fieldType(), lookup.get("foo"));
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    static <T> List<T> randomizedList(T... values) {
+        ArrayList<T> list = new ArrayList<>(Arrays.asList(values));
+        Collections.shuffle(list, random());
+        return list;
     }
 }

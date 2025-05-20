@@ -27,7 +27,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,10 +55,11 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -131,21 +132,22 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
 
         securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(
             Settings.EMPTY,
             threadPool,
@@ -271,21 +273,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .toArray(SearchHit[]::new);
                 ActionListener.respondAndRelease(
                     l,
-                    new SearchResponse(
-                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        0,
-                        randomAlphaOfLengthBetween(3, 8),
-                        1,
-                        1,
-                        0,
-                        10,
-                        null,
-                        null
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null)
                     )
                 );
             } else if (r instanceof ClearScrollRequest) {
@@ -372,8 +361,9 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testIndexStateIssues() {
         // Index not exists
         Mockito.reset(securityIndex);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(false);
 
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
@@ -391,13 +381,14 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // Index exists but not available
         Mockito.reset(securityIndex);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
+        Mockito.reset(projectIndex);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         final ElasticsearchException e = new ElasticsearchException("fail");
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(e);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(e);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(e);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(e);
 
         final PlainActionFuture<Collection<TokenInfo>> future3 = new PlainActionFuture<>();
         store.findTokensFor(accountId, future3);

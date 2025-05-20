@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -154,19 +154,6 @@ public class DiskThresholdSettings implements Writeable {
     private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
-
-    static {
-        checkAutoReleaseIndexEnabled();
-    }
-
-    @UpdateForV9 // this check is unnecessary in v9
-    private static void checkAutoReleaseIndexEnabled() {
-        final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
-        final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
-        if (property != null) {
-            throw new IllegalArgumentException("system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] may not be set");
-        }
-    }
 
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         setLowWatermark(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings));

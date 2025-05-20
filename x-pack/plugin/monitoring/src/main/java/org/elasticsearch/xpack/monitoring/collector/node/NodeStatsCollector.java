@@ -71,13 +71,13 @@ public class NodeStatsCollector extends Collector {
         request.setIncludeShardsStats(false);
         request.indices(FLAGS);
         request.addMetrics(
-            NodesStatsRequestParameters.Metric.OS.metricName(),
-            NodesStatsRequestParameters.Metric.JVM.metricName(),
-            NodesStatsRequestParameters.Metric.PROCESS.metricName(),
-            NodesStatsRequestParameters.Metric.THREAD_POOL.metricName(),
-            NodesStatsRequestParameters.Metric.FS.metricName()
+            NodesStatsRequestParameters.Metric.OS,
+            NodesStatsRequestParameters.Metric.JVM,
+            NodesStatsRequestParameters.Metric.PROCESS,
+            NodesStatsRequestParameters.Metric.THREAD_POOL,
+            NodesStatsRequestParameters.Metric.FS
         );
-        request.timeout(getCollectionTimeout());
+        request.setTimeout(getCollectionTimeout());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
         ensureNoTimeouts(getCollectionTimeout(), response);

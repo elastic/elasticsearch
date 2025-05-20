@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -24,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
@@ -48,9 +50,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.StoreRecovery;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
@@ -301,18 +301,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
-            ActionListener.run(cleanupOnly.map(v -> {
-                logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
-                indexShard.prepareForIndexRecovery();
-                // Skip unnecessary intermediate stages
-                recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
-                recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-                indexShard.openEngineAndSkipTranslogRecovery();
-                recoveryState.getIndex().setFileDetailsComplete();
-                recoveryState.setStage(RecoveryState.Stage.FINALIZE);
-                onGoingRecoveries.markRecoveryAsDone(recoveryId);
-                return null;
-            }), indexShard::preRecovery);
+            client.execute(
+                StatelessUnpromotableRelocationAction.TYPE,
+                new StatelessUnpromotableRelocationAction.Request(
+                    recoveryId,
+                    indexShard.shardId(),
+                    indexShard.routingEntry().allocationId().getId(),
+                    recoveryTarget.clusterStateVersion()
+                ),
+                cleanupOnly.delegateFailure((l, unused) -> {
+                    ActionListener.completeWith(l, () -> {
+                        onGoingRecoveries.markRecoveryAsDone(recoveryId);
+                        return null;
+                    });
+                })
+            );
             return;
         }
 
@@ -380,28 +383,56 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // run pre-recovery activities
                 .newForked(indexShard::preRecovery)
                 // recover the shard as far as possible based on data held locally
-                .<Long>andThen((l, v) -> {
+                .<Long>andThen(l -> {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        // for archives indices mounted as searchable snapshots, we need to call this
                         indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            StoreRecovery.bootstrap(indexShard, store);
-                        } finally {
-                            store.decRef();
-                        }
                     }
                     indexShard.recoverLocallyUpToGlobalCheckpoint(ActionListener.assertOnce(l));
+                })
+                // peer recovery can consume a lot of disk space, so it's worth cleaning up locally ahead of the attempt
+                // operation runs only if the previous operation succeeded, and returns the previous operation's result.
+                // Failures at this stage aren't fatal, we can attempt to recover and then clean up again at the end. #104473
+                .andThenApply(startingSeqNo -> {
+                    Store.MetadataSnapshot snapshot;
+                    try {
+                        snapshot = indexShard.snapshotStoreMetadata();
+                    } catch (IOException e) {
+                        // We give up on the contents for any checked exception thrown by snapshotStoreMetadata. We don't want to
+                        // allow those to bubble up and interrupt recovery because the subsequent recovery attempt is expected
+                        // to fix up these problems for us if it completes successfully.
+                        if (e instanceof org.apache.lucene.index.IndexNotFoundException) {
+                            // this is the expected case on first recovery, so don't spam the logs with exceptions
+                            logger.debug(() -> format("no snapshot found for shard %s, treating as empty", indexShard.shardId()));
+                        } else {
+                            logger.warn(() -> format("unable to load snapshot for shard %s, treating as empty", indexShard.shardId()), e);
+                        }
+                        snapshot = Store.MetadataSnapshot.EMPTY;
+                    }
+
+                    Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        logger.debug(() -> format("cleaning up index directory for %s before recovery", indexShard.shardId()));
+                        store.cleanupAndVerify("cleanup before peer recovery", snapshot);
+                    } finally {
+                        store.decRef();
+                    }
+                    return startingSeqNo;
                 })
                 // now construct the start-recovery request
                 .andThenApply(startingSeqNo -> {
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
-                    return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    try {
+                        recoveryTarget.incRef();
+                        final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                        return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    } finally {
+                        recoveryTarget.decRef();
+                    }
                 })
                 // finally send the start-recovery request
                 .addListener(toSendListener);
@@ -452,8 +483,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
                 // index.
                 try {
-                    final String expectedTranslogUUID = metadataSnapshot.commitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                    final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                    final long globalCheckpoint = recoveryTarget.indexShard()
+                        .readGlobalCheckpointForRecovery(metadataSnapshot.commitUserData());
                     assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
                 } catch (IOException | TranslogCorruptedException e) {
                     logGlobalCheckpointWarning(logger, startingSeqNo, e);
@@ -517,7 +548,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
+        void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        );
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }
@@ -533,7 +568,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     .handoffPrimaryContext(
                         request.primaryContext(),
                         ActionListener.runBefore(
-                            new ChannelActionListener<>(channel).map(v -> TransportResponse.Empty.INSTANCE),
+                            new ChannelActionListener<>(channel).map(v -> ActionResponse.Empty.INSTANCE),
                             recoveryRef::close
                         )
                     );
@@ -567,7 +602,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+            return v -> {
+                try {
+                    recoveryTarget.incRef();
+                    return new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+                } finally {
+                    recoveryTarget.decRef();
+                }
+            };
         }
 
         private void performTranslogOps(
@@ -606,7 +648,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 });
             };
-            final IndexMetadata indexMetadata = clusterService.state().metadata().index(request.shardId().getIndex());
+            ClusterState state = clusterService.state();
+            final ProjectMetadata project = state.metadata().projectFor(request.shardId().getIndex());
+            final IndexMetadata indexMetadata = project.index(request.shardId().getIndex());
             final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
             recoveryTarget.indexTranslogOperations(
                 request.operations(),
@@ -647,7 +691,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> TransportResponse.Empty.INSTANCE;
+            return v -> ActionResponse.Empty.INSTANCE;
         }
 
         protected abstract void handleRequest(T request, RecoveryTarget target, ActionListener<Void> listener) throws IOException;

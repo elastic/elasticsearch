@@ -66,7 +66,7 @@ public class DownsampleStep extends AsyncActionStep {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
         final String downsampleIndexName = lifecycleState.downsampleIndexName();
-        IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
+        IndexMetadata downsampleIndexMetadata = currentState.metadata().getProject().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()
@@ -90,8 +90,13 @@ public class DownsampleStep extends AsyncActionStep {
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
-        DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, waitTimeout, config)
-            .masterNodeTimeout(TimeValue.MAX_VALUE);
+        DownsampleAction.Request request = new DownsampleAction.Request(
+            TimeValue.MAX_VALUE,
+            indexName,
+            downsampleIndexName,
+            waitTimeout,
+            config
+        );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }

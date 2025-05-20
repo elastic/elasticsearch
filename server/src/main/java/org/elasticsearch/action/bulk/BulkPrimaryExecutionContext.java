@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -18,7 +19,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -63,7 +63,6 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
-    private DocumentSizeObserver documentSizeObserver = DocumentSizeObserver.EMPTY_INSTANCE;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -368,13 +367,5 @@ class BulkPrimaryExecutionContext {
                 break;
         }
         return true;
-    }
-
-    public void setDocumentSizeObserver(DocumentSizeObserver documentSizeObserver) {
-        this.documentSizeObserver = documentSizeObserver;
-    }
-
-    public DocumentSizeObserver getDocumentSizeObserver() {
-        return documentSizeObserver;
     }
 }

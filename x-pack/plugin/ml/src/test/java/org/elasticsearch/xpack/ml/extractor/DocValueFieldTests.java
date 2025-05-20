@@ -25,7 +25,7 @@ public class DocValueFieldTests extends ESTestCase {
 
         ExtractedField field = new DocValueField("a_keyword", Collections.singleton("keyword"));
 
-        assertThat(field.value(hit), equalTo(new String[] { "bar" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
         assertThat(field.getName(), equalTo("a_keyword"));
         assertThat(field.getSearchField(), equalTo("a_keyword"));
         assertThat(field.getTypes(), contains("keyword"));
@@ -41,7 +41,7 @@ public class DocValueFieldTests extends ESTestCase {
 
         ExtractedField field = new DocValueField("array", Collections.singleton("keyword"));
 
-        assertThat(field.value(hit), equalTo(new String[] { "a", "b" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "a", "b" }));
         assertThat(field.getName(), equalTo("array"));
         assertThat(field.getSearchField(), equalTo("array"));
         assertThat(field.getTypes(), contains("keyword"));
@@ -52,7 +52,7 @@ public class DocValueFieldTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
 
         ExtractedField missing = new DocValueField("missing", Collections.singleton("keyword"));
-        assertThat(missing.value(hit), equalTo(new Object[0]));
+        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testMissing() {
@@ -60,7 +60,7 @@ public class DocValueFieldTests extends ESTestCase {
 
         ExtractedField missing = new DocValueField("missing", Collections.singleton("keyword"));
 
-        assertThat(missing.value(hit), equalTo(new Object[0]));
+        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testNewFromSource() {

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.reservedstate;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
@@ -21,25 +20,26 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests that the ReservedRoleMappingAction does validation, can add and remove role mappings
  */
 public class ReservedRoleMappingActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ProjectMetadata> processJSON(
+        ReservedRoleMappingAction action,
+        TransformState<ProjectMetadata> prevState,
+        String json
+    ) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
-            var state = action.transform(content, prevState);
-            assertThat(state.nonStateTransform(), nullValue());
-            return state;
+            return action.transform(content, prevState);
         }
     }
 
     public void testValidation() {
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        ProjectMetadata state = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        TransformState<ProjectMetadata> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String badPolicyJSON = """
             {
@@ -67,13 +67,13 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     }
 
     public void testAddRemoveRoleMapping() throws Exception {
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        ProjectMetadata state = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        TransformState<ProjectMetadata> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, emptyJSON);
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String json = """

@@ -1,0 +1,27 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+
+tasks.named('jar').configure {
+  // guarding for intellij
+  if (sourceSets.findByName("main23")) {
+    from sourceSets.main23.output
+  }
+}
+
+// The bridge only uses things within the jdk, but the checker
+// needs to have many forbidden apis in its signatures. Suppressing
+// each use of forbidden apis would be tedious and not useful.
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  enabled = false
+}

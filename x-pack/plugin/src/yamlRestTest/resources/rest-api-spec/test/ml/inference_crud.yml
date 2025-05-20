@@ -563,9 +563,6 @@ setup:
 
 ---
 "Test delete given model referenced by pipeline":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       ingest.put_pipeline:
         id: "pipeline-using-a-classification-model"
@@ -592,9 +589,6 @@ setup:
 
 ---
 "Test force delete given model referenced by pipeline":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       ingest.put_pipeline:
         id: "pipeline-using-a-classification-model"
@@ -622,9 +616,6 @@ setup:
 
 ---
 "Test delete given model with alias referenced by pipeline":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       ml.put_trained_model_alias:
         model_alias: "alias-to-a-classification-model"
@@ -655,8 +646,6 @@ setup:
 
 ---
 "Test force delete given model with alias referenced by pipeline":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/106652"
   - do:
       ml.put_trained_model_alias:
         model_alias: "alias-to-a-classification-model"
@@ -942,17 +931,7 @@ setup:
   - is_false: trained_model_configs.0.estimated_heap_memory_usage
   - is_false: trained_model_configs.0.estimated_operations
   - is_false: trained_model_configs.0.license_level
----
-"Test deprecation of include model definition param":
-  - skip:
-      features: "warnings"
-  - do:
-      warnings:
-        - "[include_model_definition] parameter is deprecated! Use [include=definition] instead."
-      ml.get_trained_models:
-        model_id: "a-regression-model-1"
-        include_model_definition: true
-        decompress_definition: false
+
 ---
 "Test put model model aliases":
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -33,6 +34,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
+    private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+    }
+
     public void testGetForUpdate() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
@@ -43,7 +48,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(testGet.sourceRef().utf8ToString(), "{\"foo\" : \"bar\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
@@ -53,7 +58,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
@@ -69,19 +74,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         // now again from the reader
         Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         final long primaryTerm = primary.getOperationPrimaryTerm();
-        testGet1 = primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm);
+        testGet1 = getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm);
         assertEquals(testGet1.sourceRef().utf8ToString(), "{\"foo\" : \"baz\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo() + 1, primaryTerm));
-        expectThrows(VersionConflictEngineException.class, () -> primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm + 1));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo() + 1, primaryTerm));
+        expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm + 1));
         closeShards(primary);
     }
 
@@ -91,7 +96,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
     }
 
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
@@ -100,7 +105,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
     }
 
     public void testGetFromTranslogWithSyntheticSource() throws IOException {
@@ -109,10 +114,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         String expectedFetchedSource = """
             {"bar":42,"foo":7}""";
-        String sourceOptions = """
-            "mode": "synthetic"
-            """;
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        runGetFromTranslogWithOptions(docToIndex, "", settings, expectedFetchedSource, "\"long\"", 7L, true);
     }
 
     public void testGetFromTranslogWithDenseVector() throws IOException {
@@ -126,12 +129,13 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", null, docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
     }
 
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings settings,
         String expectedResult,
         String fieldType,
         Object expectedFooVal,
@@ -140,6 +144,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             sourceOptions,
+            settings,
             expectedResult,
             fieldType,
             expectedFooVal,
@@ -151,28 +156,30 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings additionalSettings,
         String expectedResult,
         String fieldTypeFoo,
         Object expectedFooVal,
         String fieldTypeBar,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping(Strings.format("""
-                {
-                  "properties": {
-                    "foo": {
-                      "type": %s,
-                      "store": true
-                    },
-                    "bar": { "type": %s }
-                  },
-                  "_source": { %s }
-                  }
-                }""", fieldTypeFoo, fieldTypeBar, sourceOptions))
-            .settings(indexSettings(IndexVersion.current(), 1, 1))
-            .primaryTerm(0, 1)
-            .build();
+
+        var indexSettingsBuilder = indexSettings(IndexVersion.current(), 1, 1);
+        if (additionalSettings != null) {
+            indexSettingsBuilder.put(additionalSettings);
+        }
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
+            {
+              "properties": {
+                "foo": {
+                  "type": %s,
+                  "store": true
+                },
+                "bar": { "type": %s }
+              },
+              "_source": { %s }
+              }
+            }""", fieldTypeFoo, fieldTypeBar, sourceOptions)).settings(indexSettingsBuilder).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -180,7 +187,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult res = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(res.isCreated());
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet = getForUpdate(primary, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
@@ -191,7 +198,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         indexDoc(primary, "1", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
-        GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(testGet1.sourceRef() == null ? "" : testGet1.sourceRef().utf8ToString(), expectedResult);
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
@@ -249,7 +256,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        GetResult getResult = shard.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        GetResult getResult = getForUpdate(shard, "0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertTrue(getResult.isExists());
 
         closeShards(shard);

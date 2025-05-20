@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
@@ -17,6 +18,7 @@ public abstract class CronnableSchedule implements Schedule {
     private static final Comparator<Cron> CRON_COMPARATOR = Comparator.comparing(Cron::expression);
 
     protected final Cron[] crons;
+    private ZoneId timeZone;
 
     CronnableSchedule(String... expressions) {
         this(crons(expressions));
@@ -26,6 +28,17 @@ public abstract class CronnableSchedule implements Schedule {
         assert crons.length > 0;
         this.crons = crons;
         Arrays.sort(crons, CRON_COMPARATOR);
+    }
+
+    protected void setTimeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+        for (Cron cron : crons) {
+            cron.setTimeZone(timeZone);
+        }
+    }
+
+    public ZoneId getTimeZone() {
+        return timeZone;
     }
 
     @Override
@@ -46,20 +59,21 @@ public abstract class CronnableSchedule implements Schedule {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash((Object[]) crons);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CronnableSchedule that = (CronnableSchedule) o;
+        return Objects.deepEquals(crons, that.crons) && Objects.equals(timeZone, that.timeZone);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final CronnableSchedule other = (CronnableSchedule) obj;
-        return Objects.deepEquals(this.crons, other.crons);
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(crons), timeZone);
+    }
+
+    @Override
+    public String toString() {
+        return "CronnableSchedule{" + "crons=" + Arrays.toString(crons) + ", timeZone=" + timeZone + '}';
     }
 
     static Cron[] crons(String... expressions) {

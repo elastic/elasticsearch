@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 
 import java.util.List;
 

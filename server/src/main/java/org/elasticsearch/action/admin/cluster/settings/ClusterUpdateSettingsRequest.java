@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -35,10 +37,13 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     private static final ParseField PERSISTENT = new ParseField("persistent");
     private static final ParseField TRANSIENT = new ParseField("transient");
 
-    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>(
+    public interface Factory {
+        ClusterUpdateSettingsRequest create();
+    }
+
+    private static final ObjectParser<ClusterUpdateSettingsRequest, Factory> PARSER = ObjectParser.fromBuilder(
         "cluster_update_settings_request",
-        false,
-        ClusterUpdateSettingsRequest::new
+        Factory::create
     );
 
     static {
@@ -55,8 +60,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         persistentSettings = readSettingsFromStream(in);
     }
 
-    public ClusterUpdateSettingsRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public ClusterUpdateSettingsRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
     @Override
@@ -188,7 +193,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return builder;
     }
 
-    public static ClusterUpdateSettingsRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static ClusterUpdateSettingsRequest fromXContent(Factory factory, XContentParser parser) {
+        return PARSER.apply(parser, factory);
     }
 }

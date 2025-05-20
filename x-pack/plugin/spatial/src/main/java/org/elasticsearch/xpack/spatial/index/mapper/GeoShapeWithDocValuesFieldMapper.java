@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -34,9 +33,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -80,13 +79,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Extension of {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper} that supports docValues
- *
  * FieldMapper for indexing {@link LatLonShape}s.
- * <p>
- * Currently Shapes can only be indexed and can only be queried using
- * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
- * a lot of behavior in this Mapper is disabled.
  * <p>
  * Format supported:
  * <p>
@@ -104,8 +97,6 @@ import java.util.function.Function;
 public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
-
     private static Builder builder(FieldMapper in) {
         return ((GeoShapeWithDocValuesFieldMapper) in).builder;
     }
@@ -121,7 +112,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         final Parameter<Explicit<Boolean>> coerce;
         final Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
         private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(m -> builder(m).onScriptError, script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion version;
@@ -162,7 +153,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 coerce,
                 orientation,
                 script,
-                onScriptError,
+                onScriptErrorParam,
                 meta };
         }
 
@@ -173,7 +164,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -181,10 +172,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
-                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [geo_shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(
@@ -194,7 +189,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 hasDocValues.get(),
                 stored.get(),
@@ -202,37 +197,27 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 parser,
                 scriptValues(),
                 geoFormatterFactory,
+                context.isSourceSynthetic(),
                 meta.get()
             );
-            if (script.get() == null) {
-                return new GeoShapeWithDocValuesFieldMapper(
-                    name(),
-                    ft,
-                    multiFieldsBuilder.build(this, context),
-                    copyTo,
-                    new GeoShapeIndexer(orientation.get().value(), ft.name()),
-                    parser,
-                    this
-                );
-            }
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.get();
             return new GeoShapeWithDocValuesFieldMapper(
-                name(),
+                leafName(),
                 ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 new GeoShapeIndexer(orientation.get().value(), ft.name()),
                 parser,
-                onScriptError.get(),
                 this
             );
         }
-
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
+        private final boolean isSyntheticSource;
 
         public GeoShapeWithDocValuesFieldType(
             String name,
@@ -243,11 +228,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoShapeParser parser,
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -320,6 +307,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return geoFormatterFactory.getFormatter(format, Function.identity());
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new GeoBoundsBlockLoader(name());
+            }
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
+        }
+
+        static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {
+
+            GeoBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
+        }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -375,8 +382,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     public GeoShapeWithDocValuesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         GeoShapeIndexer indexer,
         GeoShapeParser parser,
         Builder builder
@@ -384,29 +390,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
-        this.builder = builder;
-        this.indexer = indexer;
-    }
-
-    protected GeoShapeWithDocValuesFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        GeoShapeIndexer indexer,
-        Parser<Geometry> parser,
-        OnScriptError onScriptError,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, builder.coerce.get(), builder.orientation.get(), copyTo, parser, onScriptError);
         this.builder = builder;
         this.indexer = indexer;
     }
@@ -458,7 +448,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             builder.version,
             builder.scriptCompiler,
             builder.ignoreMalformed.getDefaultValue().value(),
@@ -476,7 +466,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
+                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
             );
         }
         super.checkIncomingMergeType(mergeWith);

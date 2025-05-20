@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -47,7 +48,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -84,7 +84,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -294,7 +293,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
-                b.field("@timestamp", randomMillisUpToYear9999());
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
                 b.field("dimension", "dimension1");
             }
         }, null);
@@ -599,7 +598,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
@@ -878,7 +877,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
-            assertEquals(1, td.totalHits.value);
+            assertEquals(1, td.totalHits.value());
         });
 
         Exception e = expectThrows(
@@ -1181,11 +1180,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
-    }
-
-    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
@@ -1248,7 +1242,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("store", true)));
         for (String input : new String[] {
             "foo",       // Won't be tokenized
             "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
@@ -1258,7 +1252,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1275,7 +1269,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1309,7 +1303,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             } : SourceProvider.fromStoredFields();
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext("", null, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
@@ -1319,44 +1313,5 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(dv.advanceExact(2));
             assertFalse(dv.advanceExact(3));
         });
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
-    }
-
-    public void testBlockLoaderFromParentColumnReader() throws IOException {
-        testBlockLoaderFromParent(true, randomBoolean());
-    }
-
-    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
-        testBlockLoaderFromParent(false, randomBoolean());
-    }
-
-    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
-        boolean storeParent = randomBoolean();
-        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
-            null,
-            storeParent,
-            null,
-            false == storeParent
-        );
-        SyntheticSourceExample example = kwdSupport.example(5);
-        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
-            b.startObject("field");
-            {
-                example.mapping().accept(b);
-                b.startObject("fields").startObject("sub");
-                {
-                    b.field("type", "text");
-                }
-                b.endObject().endObject();
-            }
-            b.endObject();
-        };
-        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
-        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
-        testBlockLoader(columnReader, example, blockReaderSupport);
     }
 }

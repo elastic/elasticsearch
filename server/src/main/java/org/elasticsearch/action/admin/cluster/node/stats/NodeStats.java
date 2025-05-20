@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -38,11 +40,12 @@ import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -125,7 +128,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         repositoriesStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(RepositoriesStats::new)
             : null;
-        nodeAllocationStats = in.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS)
+        nodeAllocationStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
             ? in.readOptionalWriteable(NodeAllocationStats::new)
             : null;
     }
@@ -337,56 +340,47 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(repositoriesStats);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(nodeAllocationStats);
         }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(chunk((builder, params) -> {
+            builder.field("name", getNode().getName());
+            builder.field("transport_address", getNode().getAddress().toString());
+            builder.field("host", getNode().getHostName());
+            builder.field("ip", getNode().getAddress());
 
-        return Iterators.concat(
-
-            singleChunk((builder, params) -> {
-                builder.field("name", getNode().getName());
-                builder.field("transport_address", getNode().getAddress().toString());
-                builder.field("host", getNode().getHostName());
-                builder.field("ip", getNode().getAddress());
-
-                builder.startArray("roles");
-                for (DiscoveryNodeRole role : getNode().getRoles()) {
-                    builder.value(role.roleName());
+            builder.startArray("roles");
+            for (DiscoveryNodeRole role : getNode().getRoles()) {
+                builder.value(role.roleName());
+            }
+            builder.endArray();
+            if (getNode().getAttributes().isEmpty() == false) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                    builder.field(attrEntry.getKey(), attrEntry.getValue());
                 }
-                builder.endArray();
+                builder.endObject();
+            }
 
-                if (getNode().getAttributes().isEmpty() == false) {
-                    builder.startObject("attributes");
-                    for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                        builder.field(attrEntry.getKey(), attrEntry.getValue());
-                    }
-                    builder.endObject();
-                }
-
-                return builder;
-            }),
-
+            return builder;
+        }),
             ifPresent(getIndices()).toXContentChunked(outerParams),
-
-            singleChunk(
-                (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
-            ),
-
+            chunk((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)),
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getFs())),
+            singleChunkIfPresent(getFs()),
             ifPresent(getTransport()).toXContentChunked(outerParams),
             ifPresent(getHttp()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getBreaker())),
+            singleChunkIfPresent(getBreaker()),
             ifPresent(getScriptStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getDiscoveryStats())),
+            singleChunkIfPresent(getDiscoveryStats()),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getAdaptiveSelectionStats())),
-            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
-            singleChunk(
+            singleChunkIfPresent(getAdaptiveSelectionStats()),
+            singleChunkIfPresent(getScriptCacheStats()),
+            chunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)
                     .value(ifPresent(getNodeAllocationStats()), p)
@@ -400,5 +394,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     private static ToXContent ifPresent(@Nullable ToXContent toXContent) {
         return Objects.requireNonNullElse(toXContent, ToXContent.EMPTY);
+    }
+
+    private static Iterator<ToXContent> singleChunkIfPresent(ToXContent toXContent) {
+        return toXContent == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(toXContent);
     }
 }

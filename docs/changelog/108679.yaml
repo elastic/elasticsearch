@@ -1,6 +1,0 @@
-pr: 108679
-summary: Suppress deprecation warnings from ingest pipelines when deleting trained model
-area: Machine Learning
-type: bug
-issues:
- - 105004

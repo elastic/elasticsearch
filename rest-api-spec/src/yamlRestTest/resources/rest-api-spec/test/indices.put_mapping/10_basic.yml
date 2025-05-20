@@ -85,32 +85,6 @@
   - match: { error.reason: "Types cannot be provided in put mapping requests" }
 
 ---
-"Put mappings with explicit _doc type bwc":
-  - skip:
-          cluster_features: [ "gte_v8.0.0"]
-          reason:      "old deprecation message for pre 8.0"
-  - requires:
-          test_runner_features: ["node_selector"]
-  - do:
-      indices.create:
-        index: test_index
-
-  - do:
-      node_selector:
-        version: "original"
-      catch: bad_request
-      indices.put_mapping:
-        index: test_index
-        body:
-          _doc:
-            properties:
-              field:
-                type: keyword
-
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true." }
-
----
 "Update per-field metadata":
 
   - requires:
@@ -146,40 +120,18 @@
   - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
 
 ---
-"disabling synthetic source fails":
-  - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason:      "Added in 8.4.0"
-
-  - do:
-      indices.create:
-        index: test_index
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-
-  - do:
-      catch: /Cannot update parameter \[mode\] from \[synthetic\] to \[stored\]/
-      indices.put_mapping:
-        index: test_index
-        body:
-          _source:
-            mode: stored
-
----
 "enabling synthetic source from explicit succeeds":
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason:      "Added in 8.4.0"
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_index
         body:
-          mappings:
-            _source:
-              mode: stored
+          settings:
+            index:
+              mapping.source.mode: stored
 
   - do:
       indices.put_mapping:
@@ -233,3 +185,92 @@
         body:
           _source:
             mode: synthetic
+
+---
+"modify field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              user.id:
+                type: long
+              user.name:
+                type: text
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged
+
+
+---
+"modify nested field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    subobjects: false
+                    properties:
+                      user.id:
+                        type: long
+                      user.name:
+                        type: text
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [path.to.user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged

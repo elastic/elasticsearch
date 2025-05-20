@@ -7,14 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Generic {@link Block#lookup} implementation {@link BooleanBlock}s.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
     private final BooleanBlock values;

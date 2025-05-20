@@ -25,13 +25,13 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -40,7 +40,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.ilm.IndexLifecycleFeatures;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -80,10 +79,10 @@ public class ILMHistoryStoreTests extends ESTestCase {
         ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(
             clusterService.getSettings(),
             clusterService,
-            new FeatureService(List.of(new IndexLifecycleFeatures())),
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            TestProjectResolvers.mustExecuteFirst()
         );
         ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(

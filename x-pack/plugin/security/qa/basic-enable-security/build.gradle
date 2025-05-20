@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
@@ -16,7 +14,7 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

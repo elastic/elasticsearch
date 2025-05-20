@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -34,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +48,50 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestoreServiceTests extends ESTestCase {
+
+    /**
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} does not warn for system
+     * datastreams.
+     */
+    public void testWarnIfIndexTemplateMissingSkipsSystemDataStreams() throws Exception {
+        String dataStreamName = ".test-system-data-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
+
+        var dataStream = DataStream.builder(dataStreamName, indices).setSystem(true).setHidden(true).build();
+        var dataStreamsToRestore = Map.of(dataStreamName, dataStream);
+        var templatePatterns = Set.of("matches_none");
+        var snapshotInfo = createSnapshotInfo(new Snapshot("repository", new SnapshotId("name", "uuid")), Boolean.FALSE);
+
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+
+        ensureNoWarnings();
+    }
+
+    /**
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} warns for non-system datastreams.
+     */
+    public void testWarnIfIndexTemplateMissing() throws Exception {
+        String dataStreamName = ".test-system-data-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
+
+        var dataStream = DataStream.builder(dataStreamName, indices).build();
+        var dataStreamsToRestore = Map.of(dataStreamName, dataStream);
+        var templatePatterns = Set.of("matches_none");
+        var snapshotInfo = createSnapshotInfo(new Snapshot("repository", new SnapshotId("name", "uuid")), Boolean.FALSE);
+
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+
+        assertWarnings(
+            format(
+                "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                    + " rollover to fail until a matching index template is created",
+                snapshotInfo.snapshotId(),
+                dataStreamName
+            )
+        );
+    }
 
     public void testUpdateDataStream() {
         long now = System.currentTimeMillis();
@@ -68,13 +115,13 @@ public class RestoreServiceTests extends ESTestCase {
         Index updatedFailureIndex = new Index(failureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(updatedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest();
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT);
 
         DataStream updateDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(dataStreamName, updateDataStream.getName());
         assertEquals(List.of(updatedBackingIndex), updateDataStream.getIndices());
-        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices());
     }
 
     public void testUpdateDataStreamRename() {
@@ -103,13 +150,14 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement("data-stream-2");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testPrefixNotChanged() {
@@ -138,27 +186,32 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedFailureIndex = new Index(renamedFailureIndexName, randomUUID());
         when(failureIndexMetadata.getIndex()).thenReturn(renamedFailureIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("ds-").renameReplacement("ds2-");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-").renameReplacement("ds2-");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
 
-        request = new RestoreSnapshotRequest().renamePattern("ds-000001").renameReplacement("ds2-000001");
+        request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
         renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         final AtomicBoolean called = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(false, repositoriesService, () -> assertTrue(called.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            false,
+            repositoriesService,
+            () -> assertTrue(called.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(called.get());
         verifyNoMoreInteractions(repositoriesService);
     }
@@ -208,7 +261,12 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
-        RestoreService.refreshRepositoryUuids(true, repositoriesService, () -> assertTrue(completed.compareAndSet(false, true)));
+        RestoreService.refreshRepositoryUuids(
+            true,
+            repositoriesService,
+            () -> assertTrue(completed.compareAndSet(false, true)),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         assertTrue(completed.get());
         assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
@@ -216,7 +274,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
 
-        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).includeGlobalState(true);
         var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
         var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
 
@@ -228,7 +286,7 @@ public class RestoreServiceTests extends ESTestCase {
         );
         assertThat(
             exception.getMessage(),
-            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+            equalTo("[default:name:name/uuid] cannot restore global state since the snapshot was created without global state")
         );
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -15,12 +16,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -72,8 +74,8 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TYPE, TestAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TYPE, TestAction.class));
         }
 
         @Override
@@ -152,7 +154,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
 
         @Inject
         public TestAction(TransportService transportService, ActionFilters actionFilters) {
-            super(TYPE.name(), actionFilters, transportService.getTaskManager());
+            super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             threadPool = transportService.getThreadPool();
         }
 
@@ -166,7 +168,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         }
     }
 
-    private static class Request extends ActionRequest {
+    private static class Request extends LegacyActionRequest {
         private final SubscribableListener<Void> closeListeners = new SubscribableListener<>();
         private final RefCounted refs = LeakTracker.wrap(AbstractRefCounted.of(() -> closeListeners.onResponse(null)));
 

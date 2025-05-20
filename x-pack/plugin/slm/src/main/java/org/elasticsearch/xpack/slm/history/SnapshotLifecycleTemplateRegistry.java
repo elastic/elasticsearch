@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -47,13 +45,11 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // version 6: manage by data stream lifecycle
     // version 7: version the index template name so we can upgrade existing deployments
     public static final int INDEX_TEMPLATE_VERSION = 7;
-    public static final NodeFeature MANAGED_BY_DATA_STREAM_LIFECYCLE = new NodeFeature("slm-history-managed-by-dsl");
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
-    private final FeatureService featureService;
 
     @Override
     protected boolean requiresMasterNode() {
@@ -65,13 +61,12 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public SnapshotLifecycleTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
@@ -112,19 +107,14 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public boolean validate(ClusterState state) {
         boolean allTemplatesPresent = getComposableTemplateConfigs().keySet()
             .stream()
-            .allMatch(name -> state.metadata().templatesV2().containsKey(name));
+            .allMatch(name -> state.metadata().getProject().templatesV2().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
-            state.metadata().custom(IndexLifecycleMetadata.TYPE)
+            state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE)
         ).map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getLifecyclePolicies().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
 
         boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
         return allTemplatesPresent && allPoliciesPresent;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        return featureService.clusterHasFeature(event.state(), MANAGED_BY_DATA_STREAM_LIFECYCLE);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -31,6 +33,8 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -56,7 +60,7 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -72,17 +76,26 @@ public final class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
+        Profiler profiler = context.getProfilers() == null
+            || (context.request().source() != null && context.request().source().rankBuilder() != null)
+                ? Profiler.NOOP
+                : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
         } finally {
-            // Always finish profiling
-            ProfileResult profileResult = profiler.finish();
-            // Only set the shardResults if building search hits was successful
-            if (hits != null) {
-                context.fetchResult().shardResult(hits, profileResult);
-                hits.decRef();
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    hits = null;
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
             }
         }
     }
@@ -97,7 +110,7 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -123,7 +136,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-
+        final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -156,6 +169,11 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
+                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+                    // if we checked the real memory breaker, we restart our local accounting
+                    locallyAccumulatedBytes[0] = 0;
+                }
+
                 HitContext hit = prepareHitContext(
                     context,
                     requiresSource,
@@ -165,7 +183,8 @@ public final class FetchPhase {
                     doc,
                     ctx,
                     leafSourceLoader,
-                    leafIdLoader
+                    leafIdLoader,
+                    rankDocs == null ? null : rankDocs.get(doc)
                 );
                 boolean success = false;
                 try {
@@ -173,6 +192,11 @@ public final class FetchPhase {
                     fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.process(hit);
+                    }
+
+                    BytesReference sourceRef = hit.hit().getSourceRef();
+                    if (sourceRef != null) {
+                        locallyAccumulatedBytes[0] += sourceRef.length();
                     }
                     success = true;
                     return hit.hit();
@@ -184,7 +208,13 @@ public final class FetchPhase {
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
+        SearchHit[] hits = docsIterator.iterate(
+            context.shardTarget(),
+            context.searcher().getIndexReader(),
+            docIdsToLoad,
+            context.request().allowPartialSearchResults(),
+            context.queryResult()
+        );
 
         if (context.isCancelled()) {
             for (SearchHit hit : hits) {
@@ -222,7 +252,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -232,7 +263,8 @@ public final class FetchPhase {
                 docId,
                 subReaderContext,
                 sourceLoader,
-                idLoader
+                idLoader,
+                rankDoc
             );
         } else {
             return prepareNestedHitContext(
@@ -242,7 +274,8 @@ public final class FetchPhase {
                 docId,
                 nestedDocuments,
                 subReaderContext,
-                leafStoredFieldLoader
+                leafStoredFieldLoader,
+                rankDoc
             );
         }
     }
@@ -261,7 +294,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -272,7 +306,7 @@ public final class FetchPhase {
             SearchHit hit = new SearchHit(docId);
             // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
+            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
             SearchHit hit = new SearchHit(docId, id);
             Source source;
@@ -288,7 +322,7 @@ public final class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
+            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
     }
 
@@ -320,7 +354,8 @@ public final class FetchPhase {
         int topDocId,
         LeafNestedDocuments nestedInfo,
         LeafReaderContext subReaderContext,
-        LeafStoredFieldLoader childFieldLoader
+        LeafStoredFieldLoader childFieldLoader,
+        RankDoc rankDoc
     ) throws IOException {
 
         String rootId;
@@ -351,8 +386,8 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
+        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity);
+        return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {

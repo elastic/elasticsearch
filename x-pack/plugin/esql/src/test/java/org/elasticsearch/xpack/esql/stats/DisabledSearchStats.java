@@ -8,14 +8,28 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import static java.util.Collections.emptyList;
+public class DisabledSearchStats implements SearchStats {
 
-public class DisabledSearchStats extends SearchStats {
+    @Override
+    public boolean exists(String field) {
+        return true;
+    }
 
-    public DisabledSearchStats() {
-        super(emptyList());
+    @Override
+    public boolean isIndexed(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasDocValues(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasExactSubfield(String field) {
+        return true;
     }
 
     @Override
@@ -34,11 +48,6 @@ public class DisabledSearchStats extends SearchStats {
     }
 
     @Override
-    public boolean exists(String field) {
-        return true;
-    }
-
-    @Override
     public byte[] min(String field, DataType dataType) {
         return null;
     }
@@ -50,6 +59,11 @@ public class DisabledSearchStats extends SearchStats {
 
     @Override
     public boolean isSingleValue(String field) {
+        return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
         return false;
     }
 }

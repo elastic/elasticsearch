@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.term;
 
@@ -15,13 +16,13 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,7 +47,8 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                 indexReader,
                 suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
-            Text key = new Text(new BytesArray(token.term.bytes()));
+            var termBytes = token.term.bytes();
+            Text key = new Text(ByteBuffer.wrap(termBytes.bytes, termBytes.offset, termBytes.length));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new Text(suggestWord.string);
@@ -95,7 +97,8 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         TermSuggestion termSuggestion = new TermSuggestion(name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort());
         List<Token> tokens = queryTerms(suggestion, spare);
         for (Token token : tokens) {
-            Text key = new Text(new BytesArray(token.term.bytes()));
+            var termBytes = token.term.bytes();
+            Text key = new Text(ByteBuffer.wrap(termBytes.bytes, termBytes.offset, termBytes.length));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             termSuggestion.addTerm(resultEntry);
         }

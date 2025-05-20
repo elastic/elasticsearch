@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
@@ -262,8 +263,7 @@ public class IndexResolver {
     ) {
         if (retrieveIndices || retrieveFrozenIndices) {
             if (clusterIsLocal(clusterWildcard)) { // resolve local indices
-                GetIndexRequest indexRequest = new GetIndexRequest().local(true)
-                    .indices(indexWildcards)
+                GetIndexRequest indexRequest = new GetIndexRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).indices(indexWildcards)
                     .features(Feature.SETTINGS)
                     .includeDefaults(false)
                     .indicesOptions(INDICES_ONLY_OPTIONS);
@@ -694,7 +694,7 @@ public class IndexResolver {
     }
 
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
-        return new GetAliasesRequest().aliases("*")
+        return new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases("*")
             .indices(response.getIndices())
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
@@ -1037,7 +1037,7 @@ public class IndexResolver {
     /**
      * Preserve the properties (sub fields) of an existing field even when marking it as invalid.
      */
-    public static ExistingFieldInvalidCallback PRESERVE_PROPERTIES = (oldField, newField) -> {
+    public static final ExistingFieldInvalidCallback PRESERVE_PROPERTIES = (oldField, newField) -> {
         var oldProps = oldField.getProperties();
         if (oldProps.size() > 0) {
             newField.getProperties().putAll(oldProps);

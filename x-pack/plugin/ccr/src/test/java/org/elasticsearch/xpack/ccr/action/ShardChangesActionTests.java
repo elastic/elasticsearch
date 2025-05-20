@@ -67,7 +67,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 min,
                 size,
                 indexShard.getHistoryUUID(),
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             );
             final List<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toList());
             final List<Long> expectedSeqNos = LongStream.rangeClosed(min, max).boxed().collect(Collectors.toList());
@@ -84,7 +84,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                     numWrites,
                     numWrites + 1,
                     indexShard.getHistoryUUID(),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                 )
             );
             final String message = String.format(
@@ -103,7 +103,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             numWrites - 10,
             numWrites + 10,
             indexShard.getHistoryUUID(),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
         );
         assertThat(operations.length, equalTo(10));
 
@@ -116,7 +116,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 0,
                 10,
                 "different-history-uuid",
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             )
         );
         assertThat(
@@ -136,7 +136,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                     fromSeqNo,
                     batchSize,
                     indexShard.getHistoryUUID(),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                 )
             );
             assertThat(
@@ -159,7 +159,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 0,
                 1,
                 indexShard.getHistoryUUID(),
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             )
         );
     }
@@ -179,7 +179,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             0,
             randomIntBetween(100, 500),
             indexShard.getHistoryUUID(),
-            new ByteSizeValue(256, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(256, ByteSizeUnit.BYTES)
         );
         assertThat(operations.length, equalTo(8));
         assertThat(operations[0].seqNo(), equalTo(0L));

@@ -16,13 +16,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public class SearchApplicationTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            SearchApplication testInstance = SearchApplicationTestUtils.randomSearchApplication();
+            SearchApplication testInstance = EnterpriseSearchModuleTestUtils.randomSearchApplication();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
             assertIndexSerialization(testInstance);
@@ -110,7 +110,7 @@ public class SearchApplicationTests extends ESTestCase {
               "updated_at_millis": 12345
             }""";
         SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);
-        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
+        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON);
         assertNotSame(app, updatedApp);
         assertThat(updatedApp.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
         assertThat(updatedApp.analyticsCollectionName(), equalTo("my_search_app_analytics"));

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,9 +34,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -66,6 +70,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            clusterAlias = in.readOptionalString();
+        } else {
+            clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        }
     }
 
     public FieldCapabilitiesRequest() {}
@@ -89,6 +99,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         this.mergeResults = mergeResults;
     }
 
+    void clusterAlias(String clusterAlias) {
+        this.clusterAlias = clusterAlias;
+    }
+
+    String clusterAlias() {
+        return clusterAlias;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -106,6 +124,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            out.writeOptionalString(clusterAlias);
         }
     }
 
@@ -288,7 +310,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("indices[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", 1024, stringBuilder);
         return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types, includeEmptyFields);
     }
 

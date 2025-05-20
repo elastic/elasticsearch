@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.node;
@@ -434,7 +435,6 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         assertEquals(Version.fromString("5.0.17"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.6.0"), build.getMinNodeVersion());
-        assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());  // doesn't include 1.6.0 observer
         assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());   // doesn't include 2000199 observer
         assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());            // also includes observers
     }

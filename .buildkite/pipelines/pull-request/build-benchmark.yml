@@ -7,16 +7,19 @@ steps:
     command: |
       .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
       .ci/scripts/install-gradle-profiler.sh
-      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-benchmark-{{matrix.part}}.scenarios --project-dir . --output-dir profile-out
-      mkdir build
-      tar -czf build/$BUILDKITE_BUILD_NUMBER.tar.bz2 profile-out
+      .ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-{{matrix.part}}.scenarios --measure-config-time --project-dir . --output-dir profile-out
+      mkdir -p build
+      buildkite-agent artifact upload "profile-out/*"
+      cat << EOF | buildkite-agent annotate --style "info"
+      Benchmark Html Report <a href="artifact://profile-out/benchmark.html">Benchmark Html Report</a>
+      EOF
     matrix:
       setup:
         part:
-          - part1
-          - part2
+          - esql-tests
     env:
       BUILD_PERFORMANCE_TEST: "true"
+
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

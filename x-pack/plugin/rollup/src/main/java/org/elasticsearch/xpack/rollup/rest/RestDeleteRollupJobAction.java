@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -26,7 +25,7 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(DELETE, "/_rollup/job/{id}").replaces(DELETE, "/_xpack/rollup/job/{id}/", RestApiVersion.V_7).build());
+        return List.of(new Route(DELETE, "/_rollup/job/{id}"));
     }
 
     @Override

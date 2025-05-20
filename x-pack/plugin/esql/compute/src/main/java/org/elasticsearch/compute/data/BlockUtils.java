@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -87,6 +88,8 @@ public final class BlockUtils {
                             } else {
                                 wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
                             }
+                        } else if (isAscending(listVal) && random.nextBoolean()) {
+                            wrapper.builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
                         }
                         blocks[i] = wrapper.builder.build();
                     }
@@ -208,6 +211,7 @@ public final class BlockUtils {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
@@ -230,6 +234,7 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -265,12 +270,23 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);
             case NULL -> null;
             case DOC -> {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+            }
+            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
+            case AGGREGATE_METRIC_DOUBLE -> {
+                AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
+                yield new AggregateMetricDoubleLiteral(
+                    aggBlock.minBlock().getDouble(offset),
+                    aggBlock.maxBlock().getDouble(offset),
+                    aggBlock.sumBlock().getDouble(offset),
+                    aggBlock.countBlock().getInt(offset)
+                );
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

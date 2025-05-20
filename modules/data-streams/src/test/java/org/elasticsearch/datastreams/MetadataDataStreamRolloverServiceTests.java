@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -21,10 +22,10 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -72,7 +73,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
@@ -88,7 +90,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 .numberOfReplicas(0)
         );
         builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
@@ -107,7 +109,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                clusterState,
+                clusterState.projectState(projectId),
                 dataStream.getName(),
                 null,
                 createIndexRequest,
@@ -125,7 +127,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
-            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+            ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
@@ -175,7 +177,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
         Settings.Builder indexSettings = settings(IndexVersion.current()).put("index.hidden", true)
             .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID());
@@ -186,7 +189,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMetadata.builder(dataStream.getWriteIndex().getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0)
         );
         builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
@@ -203,7 +206,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                clusterState,
+                clusterState.projectState(projectId),
                 dataStream.getName(),
                 null,
                 createIndexRequest,
@@ -220,7 +223,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
-            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+            ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
 
             // Assert data stream's index_mode has been changed to time_series.
@@ -259,7 +262,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
@@ -275,7 +279,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 .numberOfReplicas(0)
         );
         builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -291,7 +295,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                clusterState,
+                clusterState.projectState(projectId),
                 dataStream.getName(),
                 null,
                 createIndexRequest,
@@ -308,7 +312,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
-            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+            ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
 
             // Assert data stream's index_mode remains time_series.
@@ -340,8 +344,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Instant now = Instant.now();
         String dataStreamName = "metrics-my-app";
         int numberOfBackingIndices = randomIntBetween(1, 3);
-        ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, true);
-        DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = createClusterState(projectId, dataStreamName, numberOfBackingIndices, now, true);
+        DataStream dataStream = clusterState.metadata().getProject(projectId).dataStreams().get(dataStreamName);
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
@@ -360,7 +365,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                clusterState,
+                clusterState.projectState(projectId),
                 dataStream.getName(),
                 null,
                 createIndexRequest,
@@ -378,7 +383,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
-            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+            ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
@@ -398,11 +403,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             for (int i = 0; i < numberOfBackingIndices; i++) {
                 var im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(i));
-                var startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-                var endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-                assertThat(startTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
-                assertThat(endTime1.toEpochMilli(), equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
-                assertThat(im.getIndexMode(), equalTo(null));
+                assertThat(im.getTimeSeriesStart(), nullValue());
+                assertThat(im.getTimeSeriesEnd(), nullValue());
+                assertThat(im.getIndexMode(), nullValue());
             }
             {
                 var im = rolloverMetadata.index(
@@ -423,8 +426,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Instant now = Instant.now();
         String dataStreamName = "metrics-my-app";
         int numberOfBackingIndices = randomIntBetween(1, 3);
-        ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, false);
-        DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = createClusterState(projectId, dataStreamName, numberOfBackingIndices, now, false);
+        DataStream dataStream = clusterState.metadata().getProject(projectId).dataStreams().get(dataStreamName);
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -443,7 +447,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> rolloverService.rolloverClusterState(
-                    clusterState,
+                    clusterState.projectState(projectId),
                     dataStream.getName(),
                     null,
                     createIndexRequest,
@@ -462,7 +466,13 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         }
     }
 
-    private static ClusterState createClusterState(String dataStreamName, int numberOfBackingIndices, Instant now, boolean includeVersion) {
+    private static ClusterState createClusterState(
+        ProjectId projectId,
+        String dataStreamName,
+        int numberOfBackingIndices,
+        Instant now,
+        boolean includeVersion
+    ) {
         List<Index> backingIndices = new ArrayList<>(numberOfBackingIndices);
         for (int i = 1; i <= numberOfBackingIndices; i++) {
             backingIndices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i, now.toEpochMilli()), "uuid" + i));
@@ -475,7 +485,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
 
         for (Index backingIndex : backingIndices) {
@@ -489,7 +499,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             builder.put(IndexMetadata.builder(backingIndex.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0));
         }
         builder.put(dataStream);
-        return ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        return ClusterState.builder(new ClusterName("test")).putProjectMetadata(builder).build();
     }
 
     static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {

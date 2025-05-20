@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Test that ML does not touch unnecessary indices when removing job index aliases
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
     private static final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
@@ -130,7 +132,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         createBuckets(jobIdShared, 1, 10);
 
         // Manually switching over alias info
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
             IndicesAliasesRequest.AliasActions.add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
@@ -195,7 +197,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure dedicated index is gone
         assertThat(
-            indicesAdmin().prepareGetIndex()
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .setIndices(dedicatedIndex)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()

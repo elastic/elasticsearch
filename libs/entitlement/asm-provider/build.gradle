@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compileOnly project(':libs:entitlement')
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:logging')
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-util:9.7.1'
+  implementation 'org.ow2.asm:asm-tree:9.7.1'
+  implementation 'org.ow2.asm:asm-analysis:9.7.1'
+  testImplementation project(":test:framework")
+  testImplementation project(":libs:entitlement:bridge")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+tasks.named('test').configure {
+  systemProperty "tests.security.manager", "false"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+

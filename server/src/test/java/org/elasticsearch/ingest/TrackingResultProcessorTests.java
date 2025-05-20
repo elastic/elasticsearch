@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -305,7 +306,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         })));
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -374,7 +375,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
                 scriptService,
-                factory.create(Map.of(), "pipeline1", null, pipelineConfig2)
+                factory.create(Map.of(), "pipeline1", null, pipelineConfig2, null)
             ),
             new TestProcessor(ingestDocument -> {
                 ingestDocument.setFieldValue(key3, randomInt());
@@ -388,7 +389,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), "pipeline0", null, pipelineConfig0);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), "pipeline0", null, pipelineConfig0, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -467,7 +468,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 null,
                 new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
                 scriptService,
-                factory.create(Map.of(), null, null, pipelineConfig2)
+                factory.create(Map.of(), null, null, pipelineConfig2, null)
             ),
             new TestProcessor(ingestDocument -> {
                 ingestDocument.setFieldValue(key3, randomInt());
@@ -481,7 +482,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig0);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig0, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -544,7 +545,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         ));
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -607,7 +608,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -649,7 +650,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, pipelineConfig2))
+            new CompoundProcessor(factory.create(Map.of(), null, null, pipelineConfig2, null))
         );
 
         Pipeline pipeline2 = new Pipeline(
@@ -657,13 +658,13 @@ public class TrackingResultProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, pipelineConfig1))
+            new CompoundProcessor(factory.create(Map.of(), null, null, pipelineConfig1, null))
         );
 
         when(ingestService.getPipeline(pipelineId1)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipelineId2)).thenReturn(pipeline2);
 
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig0);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig0, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -693,7 +694,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig))
+                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig, null))
             );
             when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         }
@@ -707,7 +708,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String firstPipelineId = "pipeline0";
         Map<String, Object> firstPipelineConfig = new HashMap<>();
         firstPipelineConfig.put("name", firstPipelineId);
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -746,7 +747,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig))
+                new CompoundProcessor(factory.create(Map.of(), null, null, nextPipelineConfig, null))
             );
             when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         }
@@ -760,7 +761,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String firstPipelineId = "pipeline0";
         Map<String, Object> firstPipelineConfig = new HashMap<>();
         firstPipelineConfig.put("name", firstPipelineId);
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, firstPipelineConfig, null);
         CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
@@ -788,7 +789,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
-        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig);
+        PipelineProcessor pipelineProcessor = factory.create(Map.of(), null, null, pipelineConfig, null);
         Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {
             ingestDocument.setFieldValue(key1, randomInt());
         })));

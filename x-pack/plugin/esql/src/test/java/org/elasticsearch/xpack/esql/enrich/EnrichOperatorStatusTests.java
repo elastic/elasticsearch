@@ -41,25 +41,25 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
                 randomValueOtherThan(in.receivedPages(), ESTestCase::randomNonNegativeLong),
                 in.completedPages(),
                 in.totalTerms,
-                in.totalTimeInMillis()
+                in.procesNanos()
             );
             case 1 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 randomValueOtherThan(in.completedPages(), ESTestCase::randomNonNegativeLong),
                 in.totalTerms,
-                in.totalTimeInMillis()
+                in.procesNanos()
             );
             case 2 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
                 randomValueOtherThan(in.totalTerms, ESTestCase::randomNonNegativeLong),
-                in.totalTimeInMillis()
+                in.procesNanos()
             );
             case 3 -> new EnrichLookupOperator.Status(
                 in.receivedPages(),
                 in.completedPages(),
                 in.totalTerms,
-                randomValueOtherThan(in.totalTimeInMillis(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(in.procesNanos(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("unknown ");
         };
@@ -70,10 +70,10 @@ public class EnrichOperatorStatusTests extends AbstractWireSerializingTestCase<E
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
+              "process_nanos" : 10000,
+              "process_time" : "10micros",
               "received_pages" : 100,
               "completed_pages" : 50,
-              "total_time_in_millis" : 10000,
-              "total_time" : "10s",
               "total_terms" : 120
             }"""));
     }

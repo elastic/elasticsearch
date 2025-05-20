@@ -1,9 +1,14 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import groovy.json.JsonSlurper
 
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
@@ -55,7 +60,7 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
   tasks.named("yamlRestTest")configure { finalizedBy "cleanJira" }
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("yamlRestTest").configure{ enabled = false }
 }

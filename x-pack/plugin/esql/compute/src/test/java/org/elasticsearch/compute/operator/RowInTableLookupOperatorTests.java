@@ -8,11 +8,14 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -76,7 +79,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new RowInTableLookupOperator.Factory(
             new RowInTableLookupOperator.Key[] {
                 new RowInTableLookupOperator.Key(

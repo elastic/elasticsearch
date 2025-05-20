@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;

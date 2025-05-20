@@ -11,6 +11,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,17 +38,21 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     private final AtomicBoolean policyUpgradeRequired = new AtomicBoolean(false);
     private final AtomicBoolean applyRollover = new AtomicBoolean(false);
 
-    private final AtomicReference<Collection<RolloverResponse>> rolloverResponses = new AtomicReference<>();
-    private final AtomicReference<Exception> rolloverFailure = new AtomicReference<>();
+    private final Map<ProjectId, AtomicReference<Collection<RolloverResponse>>> rolloverResponses = new ConcurrentHashMap<>();
+    private final Map<ProjectId, AtomicReference<Exception>> rolloverFailure = new ConcurrentHashMap<>();
+
+    private final ThreadPool threadPool;
 
     TestRegistryWithCustomPlugin(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -118,7 +125,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     }
 
     @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+    protected boolean applyRolloverAfterTemplateV2Update() {
         return applyRollover.get();
     }
 
@@ -127,20 +134,20 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     }
 
     @Override
-    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
-        this.rolloverResponses.set(rolloverResponses);
+    void onRolloversBulkResponse(ProjectId projectId, Collection<RolloverResponse> rolloverResponses) {
+        this.rolloverResponses.computeIfAbsent(projectId, k -> new AtomicReference<>()).set(rolloverResponses);
     }
 
-    public AtomicReference<Collection<RolloverResponse>> getRolloverResponses() {
+    public Map<ProjectId, AtomicReference<Collection<RolloverResponse>>> getRolloverResponses() {
         return rolloverResponses;
     }
 
     @Override
-    void onRolloverFailure(Exception e) {
-        rolloverFailure.set(e);
+    void onRolloverFailure(ProjectId projectId, Exception e) {
+        rolloverFailure.computeIfAbsent(projectId, k -> new AtomicReference<>()).set(e);
     }
 
-    public AtomicReference<Exception> getRolloverFailure() {
+    public Map<ProjectId, AtomicReference<Exception>> getRolloverFailure() {
         return rolloverFailure;
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -16,11 +17,10 @@ public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
 
     public StartILMRequest(StreamInput in) throws IOException {
         super(in);
-
     }
 
-    public StartILMRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public StartILMRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
     }
 
     @Override

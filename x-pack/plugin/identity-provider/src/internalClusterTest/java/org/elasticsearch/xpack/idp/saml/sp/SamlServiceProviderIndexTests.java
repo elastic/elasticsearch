@@ -81,7 +81,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
         // Index should not exist yet
-        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         for (int i = 0; i < count; i++) {
             final SamlServiceProviderDocument doc = randomDocument(i);
@@ -89,7 +89,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
             documents.add(doc);
         }
 
-        final IndexMetadata indexMetadata = clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME);
+        final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME);
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
@@ -126,7 +126,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
         indicesAdmin().create(new CreateIndexRequest(customIndexName)).actionGet();
 
-        final IndexMetadata indexMetadata = clusterService.state().metadata().index(customIndexName);
+        final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(customIndexName);
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
@@ -136,7 +136,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         writeDocument(document);
 
         // Index should not exist because we created an alternate index, and the alias points to that.
-        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().getProject().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         refresh();
 
@@ -235,7 +235,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
                 services.clusterService(),
                 services.threadPool(),
                 services.client(),
-                services.xContentRegistry()
+                services.xContentRegistry(),
+                services.projectResolver()
             );
             indexTemplateRegistry.initialize();
             return List.of(indexTemplateRegistry);

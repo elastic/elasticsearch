@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.service;
 
@@ -85,7 +86,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
         });
         assertThat(runnableTasks.size(), equalTo(1));
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
         assertNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
@@ -102,7 +103,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
         publishTask.run();
 
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(1));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(1));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 1));
         assertNotNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
@@ -141,7 +142,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         runnableTasks.remove(0).run();
 
         runnableTasks.remove(0).run(); // publish again
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));
         assertNotNull(publishingCallback.get());
         assertFalse(secondTaskCompleted.get());

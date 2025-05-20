@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -63,10 +64,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         List<MemoryPool> pools = new ArrayList<>();
         for (MemoryPoolMXBean memoryPoolMXBean : memoryPoolMXBeans) {
             try {
-                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
-                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
-                    continue;
-                }
+                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), memoryPoolMXBean.getName());
                 MemoryUsage usage = memoryPoolMXBean.getUsage();
                 MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
                 pools.add(

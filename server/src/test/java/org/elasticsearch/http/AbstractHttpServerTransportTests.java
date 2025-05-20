@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -14,6 +15,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,6 +42,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -268,7 +272,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
             fakeRequest,
-            false,
+            randomBoolean(),
             RestStatus.BAD_REQUEST
         );
 
@@ -352,13 +356,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
         };
-        // the set of headers to copy
-        Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
         // sample request headers to test with
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
+            fakeRequest,
+            randomBoolean(),
+            RestStatus.BAD_REQUEST
+        );
 
         try (
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
@@ -390,7 +396,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
+                    getFakeActionModule(Set.of()).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
                 }
             }
         ) {
@@ -417,15 +423,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testHandlingCompatibleVersionParsingErrors() {
-        // a compatible version exception (v7 on accept and v8 on content-type) should be handled gracefully
+        // a compatible version exception (v8 on accept and v9 on content-type) should be handled gracefully
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (
             AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept", "Content-Type"))
         ) {
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=7"));
-            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=9"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -1171,11 +1177,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             new UsageService(),
             null,
-            null,
+            TelemetryProvider.NOOP,
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            List.of(),
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null),
+            TestProjectResolvers.alwaysThrow()
         );
     }
 

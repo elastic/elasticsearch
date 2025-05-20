@@ -407,7 +407,7 @@ setup:
 ---
 "Test transform where source query is invalid":
   - do:
-      catch: /No handler for type \[bad-type\] declared on runtime field \[rt-field\]/
+      catch: /The mapper type \[bad-type\] declared on runtime field \[rt-field\]/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >

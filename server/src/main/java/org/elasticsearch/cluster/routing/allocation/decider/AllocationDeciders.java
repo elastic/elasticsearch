@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -81,6 +82,10 @@ public class AllocationDeciders {
         );
     }
 
+    /**
+     * Returns whether rebalancing (move shards to improve relative node weights and performance) is allowed right now.
+     * Rebalancing can be disabled via cluster settings, or throttled by cluster settings (e.g. max concurrent shard moves).
+     */
     public Decision canRebalance(RoutingAllocation allocation) {
         return withDeciders(
             allocation,
@@ -99,7 +104,7 @@ public class AllocationDeciders {
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         return withDecidersCheckingShardIgnoredNodes(
             allocation,
             shardRouting,

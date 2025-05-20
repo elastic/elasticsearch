@@ -131,6 +131,8 @@ teardown:
 
 ---
 "Test text expansion search":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       search:
         index: index-with-sparse-vector
@@ -140,13 +142,17 @@ teardown:
               ml.tokens:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
 "Test text expansion search with pruning config":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -161,13 +167,17 @@ teardown:
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
 "Test named, boosted text expansion search with pruning config":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "pruning introduced in 8.13.0"
   - do:
       search:
@@ -181,6 +191,9 @@ teardown:
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
   - match: { hits.hits.0._score: 3.0 }
@@ -199,15 +212,19 @@ teardown:
                   tokens_weight_threshold: 0.4
                 _name: i-like-naming-my-queries
                 boost: 100.0
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
-  - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - match: { hits.hits.0._score: 300.0 }
 
 ---
 "Test text expansion search with default pruning config":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -219,14 +236,18 @@ teardown:
               ml.tokens:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
-                pruning_config: {}
+                pruning_config: { }
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
 "Test text expansion search with weighted tokens rescoring only pruned tokens":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -242,12 +263,16 @@ teardown:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: true
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+
   - match: { hits.total.value: 0 }
 
 ---
 "Test weighted tokens search":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -257,18 +282,22 @@ teardown:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
+                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
                 pruning_config:
                   tokens_freq_ratio_threshold: 1
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: false
+      allowed_warnings:
+        - "weighted_tokens is deprecated and will be removed. Use sparse_vector instead."
+
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
 "Test weighted tokens search with default pruning config":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -278,15 +307,19 @@ teardown:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
-                pruning_config: {}
+                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+                pruning_config: { }
+      allowed_warnings:
+        - "weighted_tokens is deprecated and will be removed. Use sparse_vector instead."
+
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
 "Test weighted tokens search only scoring pruned tokens":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -296,17 +329,21 @@ teardown:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
+                tokens: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: true
+      allowed_warnings:
+        - "weighted_tokens is deprecated and will be removed. Use sparse_vector instead."
+
   - match: { hits.total.value: 0 }
 
 ---
 "Test weighted tokens search that prunes tokens based on frequency":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ "allowed_warnings" ]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -316,9 +353,12 @@ teardown:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}, {"is": 1.0}, {"the": 1.0}, {"best": 1.0}, {"of": 1.0}, {"the": 1.0}, {"bunch": 1.0}]
+                tokens: [ { "the": 1.0 }, { "octopus": 1.0 }, { "comforter": 1.0 }, { "is": 1.0 }, { "the": 1.0 }, { "best": 1.0 }, { "of": 1.0 }, { "the": 1.0 }, { "bunch": 1.0 } ]
                 pruning_config:
                   tokens_freq_ratio_threshold: 3
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: true
+      allowed_warnings:
+        - "weighted_tokens is deprecated and will be removed. Use sparse_vector instead."
+
   - match: { hits.total.value: 0 }

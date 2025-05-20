@@ -1,6 +1,0 @@
-pr: 107435
-summary: '`NoSuchRemoteClusterException` should not be thrown when a remote is configured'
-area: Network
-type: bug
-issues:
- - 107381

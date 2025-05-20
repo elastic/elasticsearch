@@ -77,13 +77,16 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // GIVEN
         final String dataStreamName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         putComposableIndexTemplate("1", List.of(dataStreamName));
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
         indexDocs(dataStreamName, 10, Instant.now().toEpochMilli());
         final RolloverResponse rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
         // (about) two hours in the future. As a result, we need to have documents whose @timestamp is in the future to avoid documents
         // being indexed in the old data stream backing index.
-        final String newIndexStartTime = indicesAdmin().prepareGetSettings(rolloverResponse.getNewIndex())
+        final String newIndexStartTime = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, rolloverResponse.getNewIndex())
             .get()
             .getSetting(rolloverResponse.getNewIndex(), IndexSettings.TIME_SERIES_START_TIME.getKey());
         indexDocs(dataStreamName, 10, Instant.parse(newIndexStartTime).toEpochMilli());
@@ -95,6 +98,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // WHEN (simulate downsampling as done by an ILM action)
         final String downsampleTargetIndex = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-downsample-1h";
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
             TIMEOUT,
@@ -113,6 +117,8 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         ).actionGet();
 
         final ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             List.of(
                 DataStreamAction.removeBackingIndex(dataStreamName, rolloverResponse.getOldIndex()),
                 DataStreamAction.addBackingIndex(dataStreamName, downsampleTargetIndex)
@@ -124,7 +130,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         assertThat(downsampleResponse.isAcknowledged(), equalTo(true));
         final GetDataStreamAction.Response getDataStreamActionResponse = indicesAdmin().execute(
             GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(new String[] { dataStreamName })
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
         ).actionGet();
         assertThat(getDataStreamActionResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(2));
         final List<String> backingIndices = getDataStreamActionResponse.getDataStreams()

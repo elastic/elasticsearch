@@ -69,3 +69,6 @@ testfixtures_shared/
 # Generated
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
+
+# JEnv
+.java-version

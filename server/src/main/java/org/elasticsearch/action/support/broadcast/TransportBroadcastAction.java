@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.broadcast;
@@ -21,19 +22,20 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -107,7 +109,8 @@ public abstract class TransportBroadcastAction<
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
      */
-    protected abstract GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
+    @FixForMultiProject // add ProjectMetadata to this method
+    protected abstract List<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
@@ -120,7 +123,7 @@ public abstract class TransportBroadcastAction<
         final ActionListener<Response> listener;
         final ClusterState clusterState;
         final DiscoveryNodes nodes;
-        final GroupShardsIterator<ShardIterator> shardsIts;
+        final List<ShardIterator> shardsIts;
         final int expectedOps;
         final AtomicInteger counterOps = new AtomicInteger();
         // ShardResponse or Exception

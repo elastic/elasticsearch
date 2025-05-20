@@ -91,7 +91,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final Configuration configuration = context.getConfiguration();
 
         final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
-            .setDataset("deprecation.elasticsearch")
+            .setDataset("elasticsearch.deprecation")
             .setConfiguration(configuration)
             .build();
 
@@ -135,9 +135,9 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         if (event.metadataChanged() == false) {
             return;
         }
-        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
 
-        if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
+        if (event.state().getMetadata().getProject().templatesV2().containsKey(".deprecation-indexing-template-9")
             && indexLifecycleMetadata != null
             && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
             flushEnabled.set(true);

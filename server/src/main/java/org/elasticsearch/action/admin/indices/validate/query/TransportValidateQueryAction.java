@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
@@ -17,22 +18,24 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -58,6 +61,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportValidateQueryAction(
@@ -65,6 +69,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -79,6 +84,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         );
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -86,10 +92,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
+        final ProjectState project = getProjectState();
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            project.metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis
@@ -121,15 +128,26 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
+            Rewriteable.rewriteAndFetch(
+                request.query(),
+                searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                rewriteListener
+            );
         }
+    }
+
+    private ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
     }
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        final ClusterState clusterState = clusterService.state();
-        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases);
+        final ProjectState projectState = getProjectState();
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            projectState.metadata(),
+            request.indices()
+        );
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, shard.getIndexName(), indicesAndAliases);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 
@@ -139,7 +157,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
+    protected List<ShardIterator> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         final String routing;
         if (request.allShards()) {
             routing = null;
@@ -147,8 +165,13 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             // Random routing to limit request to a single shard
             routing = Integer.toString(Randomness.get().nextInt(1000));
         }
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
+        ProjectState project = getProjectState();
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
+            project.metadata(),
+            routing,
+            request.indices()
+        );
+        return clusterService.operationRouting().searchShards(project, concreteIndices, routingMap, "_local");
     }
 
     @Override
@@ -158,7 +181,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ValidateQueryRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override

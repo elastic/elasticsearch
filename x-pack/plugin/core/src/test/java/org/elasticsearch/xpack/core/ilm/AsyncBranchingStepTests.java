@@ -37,7 +37,7 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
             AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c, l) -> l.onResponse(true), client);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
             CountDownLatch latch = new CountDownLatch(1);
-            step.performAction(state.metadata().index(indexName), state, null, new Listener(latch));
+            step.performAction(state.metadata().getProject().index(indexName), state, null, new Listener(latch));
             assertTrue(latch.await(5, TimeUnit.SECONDS));
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnTrue()));
         }
@@ -45,7 +45,7 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
             AsyncBranchingStep step = new AsyncBranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c, l) -> l.onResponse(false), client);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
             CountDownLatch latch = new CountDownLatch(1);
-            step.performAction(state.metadata().index(indexName), state, null, new Listener(latch));
+            step.performAction(state.metadata().getProject().index(indexName), state, null, new Listener(latch));
             assertTrue(latch.await(5, TimeUnit.SECONDS));
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnFalse()));
         }

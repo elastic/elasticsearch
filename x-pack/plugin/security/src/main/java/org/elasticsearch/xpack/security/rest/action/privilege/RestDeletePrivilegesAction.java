@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -41,11 +40,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/privilege/{application}/{privilege}")
-                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(DELETE, "/_security/privilege/{application}/{privilege}"));
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -113,15 +114,9 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "troubleshooting link",
-                    LOGGER_NAME,
-                    Level.WARN,
-                    "* for troubleshooting guidance, see "
-                        + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
-                )
-            );
+            mockLog.addExpectation(new MockLog.SeenEventExpectation("troubleshooting link", LOGGER_NAME, Level.WARN, """
+                * for troubleshooting guidance, see \
+                https://www.elastic.co/docs/troubleshoot/elasticsearch/discovery-troubleshooting?version=*"""));
 
             while (warningCount.get() == 0) {
                 assertTrue(clusterFormationFailureHelper.isRunning());
@@ -174,6 +169,45 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertFalse(clusterFormationFailureHelper.isRunning());
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
+        assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
+
+        // Temporarily disable logging and verify we don't get incremented logging counts.
+        clusterFormationFailureHelper.setLoggingEnabled(false);
+        warningCount.set(0);
+        logLastFailedJoinAttemptWarningCount.set(0);
+        clusterFormationFailureHelper.start();
+        clusterFormationFailureHelper.stop();
+        clusterFormationFailureHelper.start();
+        final long thirdStartTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
+
+        while (deterministicTaskQueue.getCurrentTimeMillis() - thirdStartTimeMillis < 5 * expectedDelayMillis) {
+            assertTrue(clusterFormationFailureHelper.isRunning());
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+
+        assertThat(warningCount.get(), is(0L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(0L));
+
+        // Re-enable logging and verify the logging counts again.
+        clusterFormationFailureHelper.stop();
+        clusterFormationFailureHelper.start();
+        clusterFormationFailureHelper.setLoggingEnabled(true);
+        final long fourthStartTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
+
+        while (warningCount.get() < 5) {
+            assertTrue(clusterFormationFailureHelper.isRunning());
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - fourthStartTimeMillis, equalTo(5 * expectedDelayMillis));
         assertThat(warningCount.get(), is(5L));
         assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }

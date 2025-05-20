@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -27,17 +26,20 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -60,14 +62,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -83,6 +84,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class IndexTemplateRegistryTests extends ESTestCase {
+
+    private final ProjectId projectId = randomProjectIdOrDefault();
+
     private TestRegistryWithCustomPlugin registry;
     private ClusterService clusterService;
     private ThreadPool threadPool;
@@ -93,7 +97,14 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new TestRegistryWithCustomPlugin(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new TestRegistryWithCustomPlugin(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())
+        );
     }
 
     @After
@@ -107,9 +118,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == PutPipelineTransportAction.TYPE) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-final_pipeline");
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -125,16 +137,17 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatDependentPipelinesAreAddedIfDependenciesExist() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == PutPipelineTransportAction.TYPE) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -155,16 +168,17 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatTemplateIsAddedIfAllDependenciesExist() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutComponentTemplate(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -184,16 +198,17 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatTemplateIsNotAddedIfNotAllDependenciesExist() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == PutPipelineTransportAction.TYPE) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -213,16 +228,17 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatComposableTemplateIsAddedIfDependenciesExist() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -240,16 +256,17 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap("custom-plugin-settings", 3), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatComposableTemplateIsAddedIfDependenciesHaveRightVersion() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
@@ -272,26 +289,27 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         // to their version
         ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap("custom-plugin-settings", 2), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
 
         // when a registry requires rollovers after index template updates, the upgrade should occur only if the dependencies are have
         // the required version
         registry.setApplyRollover(true);
-        calledTimes.set(0);
+        calledTimesMap.values().forEach(calledTimes -> calledTimes.set(0));
         registry.clusterChanged(event);
         Thread.sleep(100L);
-        assertThat(calledTimes.get(), equalTo(0));
+        assertCalledTimes(calledTimesMap, event, 0);
         event = createClusterChangedEvent(Collections.singletonMap("custom-plugin-settings", 3), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        assertCalledTimes(calledTimesMap, event, 1);
     }
 
     public void testThatTemplatesAreUpgradedWhenNeeded() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
+            final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
             if (action == PutPipelineTransportAction.TYPE) {
                 assertPutPipelineAction(
                     calledTimes,
@@ -324,7 +342,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(4)));
+        assertCalledTimes(calledTimesMap, event, 4);
     }
 
     public void testAutomaticRollover() throws Exception {
@@ -338,11 +356,12 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         Map<String, ComposableIndexTemplate> composableTemplateConfigs = registry.getComposableTemplateConfigs();
+        final var metadataBuilder = Metadata.builder(state.metadata());
         for (Map.Entry<String, ComposableIndexTemplate> entry : composableTemplateConfigs.entrySet()) {
             ComposableIndexTemplate template = entry.getValue();
-            state = ClusterState.builder(state)
-                .metadata(
-                    Metadata.builder(Objects.requireNonNull(state).metadata())
+            for (var project : state.metadata().projects().values()) {
+                metadataBuilder.put(
+                    metadataBuilder.getProject(project.id())
                         .put(
                             entry.getKey(),
                             ComposableIndexTemplate.builder()
@@ -355,87 +374,103 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                                 .dataStreamTemplate(template.getDataStreamTemplate())
                                 .build()
                         )
-                )
-                .build();
+                );
+            }
         }
-        state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(Objects.requireNonNull(state).metadata())
+        for (var project : state.metadata().projects().values()) {
+            metadataBuilder.put(
+                metadataBuilder.getProject(project.id())
                     .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
                     .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(
                         DataStreamTestHelper.newInstance("traces-my_app-1", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i")))
                     )
-            )
-            .build();
+            );
+        }
+        state = ClusterState.builder(state).metadata(metadataBuilder).build();
         ClusterChangedEvent event = createClusterChangedEvent(nodes, state);
 
-        AtomicInteger rolloverCounter = new AtomicInteger(0);
-        AtomicInteger putIndexTemplateCounter = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> rolloverCounterMap = new ConcurrentHashMap<>();
+        Map<ProjectId, AtomicInteger> putIndexTemplateCounterMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action instanceof RolloverAction) {
+                final var rolloverCounter = rolloverCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
                 assertThat(rolloverRequest.isLazy(), equalTo(true));
             } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                final var putIndexTemplateCounter = putIndexTemplateCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
         });
 
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        assertCalledTimes(putIndexTemplateCounterMap, event, 1);
         // no rollover on upgrade because the test registry doesn't support automatic rollover by default
         Thread.sleep(100L);
-        assertThat(rolloverCounter.get(), equalTo(0));
+        assertCalledTimes(rolloverCounterMap, event, 0);
 
         // test successful rollovers
         registry.setApplyRollover(true);
-        putIndexTemplateCounter.set(0);
+        putIndexTemplateCounterMap.values().forEach(calledTimes -> calledTimes.set(0));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
-        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
-        AtomicReference<Collection<RolloverResponse>> rolloverResponsesRef = registry.getRolloverResponses();
-        assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
-        assertThat(rolloverResponsesRef.get(), hasSize(2));
+        assertCalledTimes(putIndexTemplateCounterMap, event, 1);
+        assertCalledTimes(rolloverCounterMap, event, 2);
+        var rolloverResponsesRef = registry.getRolloverResponses();
+        var projectIds = state.metadata().projects().keySet();
+        assertBusy(() -> {
+            assertThat(rolloverResponsesRef.keySet(), equalTo(projectIds));
+            for (var rolloverResponses : rolloverResponsesRef.values()) {
+                assertNotNull(rolloverResponses.get());
+                assertThat(rolloverResponses.get(), hasSize(2));
+            }
+        });
 
         // test again, to verify that the per-index-template creation lock gets released for reuse
-        putIndexTemplateCounter.set(0);
-        rolloverCounter.set(0);
-        rolloverResponsesRef.set(Collections.emptySet());
+        putIndexTemplateCounterMap.values().forEach(calledTimes -> calledTimes.set(0));
+        rolloverCounterMap.values().forEach(calledTimes -> calledTimes.set(0));
+        rolloverResponsesRef.values().forEach(v -> v.set(Set.of()));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
-        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
-        assertBusy(() -> assertThat(rolloverResponsesRef.get(), hasSize(2)));
+        assertCalledTimes(putIndexTemplateCounterMap, event, 1);
+        assertCalledTimes(rolloverCounterMap, event, 2);
+        assertBusy(() -> rolloverResponsesRef.values().forEach(v -> assertThat(v.get(), hasSize(2))));
 
         // test rollover failures
-        putIndexTemplateCounter.set(0);
-        rolloverCounter.set(0);
-        client.setVerifier((action, request, listener) -> {
+        putIndexTemplateCounterMap.values().forEach(calledTimes -> calledTimes.set(0));
+        rolloverCounterMap.values().forEach(calledTimes -> calledTimes.set(0));
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action instanceof RolloverAction) {
+                final var rolloverCounter = rolloverCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
                 throw new RuntimeException("Failed to rollover " + rolloverRequest.getRolloverTarget());
             } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                final var putIndexTemplateCounter = putIndexTemplateCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
         });
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
-        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
-        AtomicReference<Exception> rolloverFailureRef = registry.getRolloverFailure();
-        assertBusy(() -> assertNotNull(rolloverFailureRef.get()));
-        Exception rolloverFailure = rolloverFailureRef.get();
-        assertThat(rolloverFailure.getMessage(), startsWith("Failed to rollover logs-my_app-"));
-        Throwable[] suppressed = rolloverFailure.getSuppressed();
-        assertThat(suppressed.length, equalTo(1));
-        assertThat(suppressed[0].getMessage(), startsWith("Failed to rollover logs-my_app-"));
+        assertCalledTimes(putIndexTemplateCounterMap, event, 1);
+        assertCalledTimes(rolloverCounterMap, event, 2);
+        var rolloverFailureRefMap = registry.getRolloverFailure();
+        assertBusy(() -> {
+            assertThat(rolloverFailureRefMap.keySet(), equalTo(projectIds));
+            rolloverFailureRefMap.values().forEach(rolloverFailureRef -> {
+                assertNotNull(rolloverFailureRef.get());
+                Exception rolloverFailure = rolloverFailureRef.get();
+                assertThat(rolloverFailure.getMessage(), startsWith("Failed to rollover logs-my_app-"));
+                Throwable[] suppressed = rolloverFailure.getSuppressed();
+                assertThat(suppressed.length, equalTo(1));
+                assertThat(suppressed[0].getMessage(), startsWith("Failed to rollover logs-my_app-"));
+            });
+        });
     }
 
-    public void testNoRolloverForFreshInstalledIndexTemplate() throws Exception {
+    public void testRolloverForFreshInstalledIndexTemplate() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -445,26 +480,30 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
             nodes
         );
-        state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(Objects.requireNonNull(state).metadata())
+        final var metadataBuilder = Metadata.builder(state.metadata());
+        for (var project : state.metadata().projects().values()) {
+            metadataBuilder.put(
+                metadataBuilder.getProject(project.id())
                     .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
                     .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(
                         DataStreamTestHelper.newInstance("traces-my_app-1", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i")))
                     )
-            )
-            .build();
+            );
+        }
+        state = ClusterState.builder(state).metadata(metadataBuilder).build();
         ClusterChangedEvent event = createClusterChangedEvent(nodes, state);
 
-        AtomicInteger rolloverCounter = new AtomicInteger(0);
-        AtomicInteger putIndexTemplateCounter = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> rolloverCounterMap = new ConcurrentHashMap<>();
+        Map<ProjectId, AtomicInteger> putIndexTemplateCounterMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action instanceof RolloverAction) {
+                final var rolloverCounter = rolloverCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
             } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                final var putIndexTemplateCounter = putIndexTemplateCounterMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 putIndexTemplateCounter.incrementAndGet();
             }
             return AcknowledgedResponse.TRUE;
@@ -472,18 +511,18 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         registry.setApplyRollover(true);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
-        // the index component is first installed, not upgraded, therefore rollover should not be triggered
-        Thread.sleep(100L);
-        assertThat(rolloverCounter.get(), equalTo(0));
+        assertCalledTimes(putIndexTemplateCounterMap, event, 1);
+        // rollover should be triggered even for the first installation, since the template
+        // may now take precedence over a data stream's existing index template
+        assertCalledTimes(rolloverCounterMap, event, 2);
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
@@ -503,19 +542,20 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(0)));
+        assertCalledTimes(calledTimesMap, event, 0);
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutLifecycleAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -531,7 +571,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
+        assertCalledTimes(calledTimesMap, event, registry.getLifecyclePolicies().size());
     }
 
     public void testPolicyAlreadyExists() {
@@ -543,7 +583,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
-        client.setVerifier((action, request, listener) -> {
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
@@ -575,7 +615,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
-        client.setVerifier((action, request, listener) -> {
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
@@ -627,12 +667,13 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
+        Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
+        client.setVerifier((projectId, action, request, listener) -> {
             if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
+                final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutLifecycleAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
 
@@ -669,7 +710,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             );
             registry.clusterChanged(event);
             // we've changed one policy that should be upgraded
-            assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+            assertCalledTimes(calledTimesMap, event, 1);
         }
     }
 
@@ -726,7 +767,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             putRequest.getSource(),
             putRequest.getXContentType()
         );
-        List<?> processors = (List<?>) pipelineConfiguration.getConfigAsMap().get("processors");
+        List<?> processors = (List<?>) pipelineConfiguration.getConfig().get("processors");
         assertThat(processors, hasSize(1));
         Map<?, ?> setProcessor = (Map<?, ?>) ((Map<?, ?>) processors.get(0)).get("set");
         assertNotNull(setProcessor.get("field"));
@@ -747,6 +788,18 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(putRequest.getPolicy().getName(), equalTo("custom-plugin-policy"));
         assertNotNull(listener);
         calledTimes.incrementAndGet();
+    }
+
+    private static void assertCalledTimes(Map<ProjectId, AtomicInteger> calledTimesMap, ClusterChangedEvent event, int expectedTimes)
+        throws Exception {
+        assertBusy(() -> {
+            if (expectedTimes > 0) {
+                assertThat(calledTimesMap.keySet(), equalTo(event.state().metadata().projects().keySet()));
+            }
+            for (var calledTimes : calledTimesMap.values()) {
+                assertThat(calledTimes.get(), equalTo(expectedTimes));
+            }
+        });
     }
 
     private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates, DiscoveryNodes nodes) {
@@ -810,10 +863,21 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .componentTemplates(componentTemplates)
                     .transientSettings(Settings.EMPTY)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
+                    .put(
+                        ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+                            .componentTemplates(componentTemplates)
+                            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+                            .build()
+                    )
+                    .put(
+                        ProjectMetadata.builder(projectId)
+                            .componentTemplates(componentTemplates)
+                            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+                            .build()
+                    )
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())
@@ -857,9 +921,12 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .metadata(Metadata.builder(state.metadata()).put("it1", it1).put("it2", it2).put("it5", it5))
             .build();
 
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it1", it1), containsInAnyOrder("ds1", "ds3"));
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it2", it2), contains("ds2"));
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it5", it5), empty());
+        assertThat(
+            IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it1", it1),
+            containsInAnyOrder("ds1", "ds3")
+        );
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it2", it2), contains("ds2"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it5", it5), empty());
     }
 
     // -------------
@@ -869,7 +936,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
      */
     public static class VerifyingClient extends NoOpClient {
 
-        private TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier = (a, r, l) -> {
+        private Verifier verifier = (p, a, r, l) -> {
             fail("verifier not set");
             return null;
         };
@@ -886,15 +953,22 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             try {
-                listener.onResponse((Response) verifier.apply(action, request, listener));
+                final ProjectId projectId = ProjectId.fromId(
+                    threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)
+                );
+                listener.onResponse((Response) verifier.verify(projectId, action, request, listener));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }
 
-        public VerifyingClient setVerifier(TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {
+        public VerifyingClient setVerifier(Verifier verifier) {
             this.verifier = verifier;
             return this;
         }
+    }
+
+    private interface Verifier {
+        ActionResponse verify(ProjectId projectId, ActionType<?> action, ActionRequest request, ActionListener<?> listener);
     }
 }

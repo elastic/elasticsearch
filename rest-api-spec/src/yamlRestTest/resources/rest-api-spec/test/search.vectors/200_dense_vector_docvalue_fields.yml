@@ -1,0 +1,163 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ dense_vector_docvalue_fields ]
+      test_runner_features: [ capabilities, close_to ]
+      reason: Capability required to run test
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector1:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: true
+              vector2:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: false
+              vector3:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: true
+              vector4:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: false
+              vector5:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+              vector6:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: false
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector1: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector2: [130.0, 115.0, -1.02, 15.555, -100.0]
+          vector3: [-1, 100, -13, 15, -128]
+          vector4: [-1, 50, -1, 1, 120]
+          vector5: [1, 111, -13, 15, -128]
+          vector6: [-1, 11, 0, 12, 111]
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          vector1: [-0.5, 100.0, -13, 14.8, -156.0]
+          vector4: [-1, 50, -1, 1, 120]
+          vector5: [1, 111, -13, 15, -128]
+          vector6: null
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector2: [130.0, 115.0, -1.02, 15.555, -100.0]
+          vector3: [-1, 100, -13, 15, -128]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Enable docvalue_fields parameter for dense_vector fields":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ dense_vector_docvalue_fields ]
+      test_runner_features: capabilities
+      reason: "Support for dense vector doc value fields capability required"
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          docvalue_fields: [name, vector1, vector2, vector3, vector4, vector5, vector6]
+          sort: name
+
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - length: {hits.hits.0.fields.vector1.0: 5}
+  - length: {hits.hits.0.fields.vector2.0: 5}
+  - length: {hits.hits.0.fields.vector3.0: 5}
+  - length: {hits.hits.0.fields.vector4.0: 5}
+  - length: {hits.hits.0.fields.vector5.0: 5}
+  - length: {hits.hits.0.fields.vector6.0: 5}
+
+  - close_to: { hits.hits.0.fields.vector1.0.0: { value: 230.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.0.1: { value: 300.33, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.0.2: { value: -34.8988, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.0.3: { value: 15.555, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.0.4: { value: -200.0, error: 0.001 } }
+
+  - close_to: { hits.hits.0.fields.vector2.0.0: { value: 130.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.0.1: { value: 115.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.0.2: { value: -1.02, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.0.3: { value: 15.555, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.0.4: { value: -100.0, error: 0.001 } }
+
+  - match: {hits.hits.0.fields.vector3.0: [-1, 100, -13, 15, -128]}
+  - match: {hits.hits.0.fields.vector4.0: [-1, 50, -1, 1, 120]}
+  - match: {hits.hits.0.fields.vector5.0: [1, 111, -13, 15, -128]}
+  - match: {hits.hits.0.fields.vector6.0: [-1, 11, 0, 12, 111]}
+
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - length: {hits.hits.1.fields.vector1.0: 5}
+  - length: {hits.hits.1.fields.vector4.0: 5}
+  - length: {hits.hits.1.fields.vector5.0: 5}
+  - match: {hits.hits.1.fields.vector2: null}
+  - match: {hits.hits.1.fields.vector3: null}
+  - match: {hits.hits.1.fields.vector6: null}
+
+  - close_to: { hits.hits.1.fields.vector1.0.0: { value: -0.5, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.vector1.0.1: { value: 100.0, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.vector1.0.2: { value: -13, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.vector1.0.3: { value: 14.8, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.vector1.0.4: { value: -156.0, error: 0.001 } }
+
+  - match: {hits.hits.1.fields.vector4.0: [-1, 50, -1, 1, 120]}
+  - match: {hits.hits.1.fields.vector5.0: [1, 111, -13, 15, -128]}
+
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+
+  - length: {hits.hits.2.fields.vector2.0: 5}
+  - length: {hits.hits.2.fields.vector3.0: 5}
+  - match: {hits.hits.2.fields.vector1: null}
+  - match: {hits.hits.2.fields.vector4: null}
+  - match: {hits.hits.2.fields.vector5: null}
+  - match: {hits.hits.2.fields.vector6: null}
+
+  - close_to: { hits.hits.2.fields.vector2.0.0: { value: 130.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.vector2.0.1: { value: 115.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.vector2.0.2: { value: -1.02, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.vector2.0.3: { value: 15.555, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.vector2.0.4: { value: -100.0, error: 0.001 } }
+
+  - match: {hits.hits.2.fields.vector3.0: [-1, 100, -13, 15, -128]}

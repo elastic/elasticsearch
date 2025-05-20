@@ -12,7 +12,7 @@ setup:
                 script:
                   source: |
                     for (date in field('date')) {
-                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                     }
               total_value_double:
                 type: double
@@ -55,7 +55,7 @@ setup:
                   source: |
                     if (doc.containsKey('date')) {
                       for (date in doc['date']) {
-                        emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                        emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                       }
                     }
               doc_total_value_double:
@@ -737,7 +737,7 @@ setup:
               script:
                 source: |
                   for (date in field('date')) {
-                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                   }
           sort: [ { rank: asc } ]
           script_fields:
@@ -758,7 +758,7 @@ setup:
               script:
                 source: |
                   for (date in field('date')) {
-                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                   }
           sort: [ { rank: asc } ]
           script_fields:
@@ -924,7 +924,7 @@ setup:
                 source: |
                   if (doc.containsKey('date')) {
                     for (date in doc['date']) {
-                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                     }
                   }
           sort: [ { rank: asc } ]
@@ -947,7 +947,7 @@ setup:
                 source: |
                   if (doc.containsKey('date')) {
                     for (date in doc['date']) {
-                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                     }
                   }
           sort: [ { rank: asc } ]
@@ -1133,7 +1133,7 @@ setup:
               script:
                 source: |
                   for (date in field('date')) {
-                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                   }
           sort: [ { rank: asc } ]
           script_fields:
@@ -1156,7 +1156,7 @@ setup:
               script:
                 source: |
                   for (date in field('date')) {
-                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                   }
           sort: [ { rank: asc } ]
           script_fields:
@@ -1337,7 +1337,7 @@ setup:
                 source: |
                   if (doc.containsKey('date')) {
                     for (date in doc['date']) {
-                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                     }
                   }
           sort: [ { rank: asc } ]
@@ -1362,7 +1362,7 @@ setup:
                 source: |
                   if (doc.containsKey('date')) {
                     for (date in doc['date']) {
-                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
                     }
                   }
           sort: [ { rank: asc } ]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -39,14 +42,14 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -154,7 +157,7 @@ public class JoinHelper {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
-            TransportRequest.Empty::new,
+            JoinPingRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
         );
     }
@@ -197,7 +200,7 @@ public class JoinHelper {
     /**
      * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
      * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
-     *
+     * <p>
      * Package-private for testing.
      */
     static class FailedJoinAttempt {
@@ -209,7 +212,7 @@ public class JoinHelper {
         /**
          * @param destination the master node targeted by the join request.
          * @param joinRequest the join request that was sent to the perceived master node.
-         * @param exception the error response received in reply to the join request attempt.
+         * @param exception   the error response received in reply to the join request attempt.
          */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
@@ -606,4 +609,12 @@ public class JoinHelper {
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
+
+    static class JoinPingRequest extends AbstractTransportRequest {
+        JoinPingRequest() {}
+
+        JoinPingRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

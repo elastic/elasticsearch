@@ -918,14 +918,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Aggregation agg = createRangeAgg(
             "p_agg",
             List.of(
-                new InternalRange.Bucket(null, Double.NEGATIVE_INFINITY, 10.5, 10, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, 10.5, 19.5, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, 19.5, 200, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, -10, -5, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, -11.0, -6.0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, -11.0, 0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket("custom-0", 0, 10, 777, InternalAggregations.EMPTY, false, DocValueFormat.RAW)
+                new InternalRange.Bucket(null, Double.NEGATIVE_INFINITY, 10.5, 10, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 10.5, 19.5, 30, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 19.5, 200, 30, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -10, -5, 0, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, -6.0, 0, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, 0, 0, InternalAggregations.EMPTY, DocValueFormat.RAW),
+                new InternalRange.Bucket("custom-0", 0, 10, 777, InternalAggregations.EMPTY, DocValueFormat.RAW)
             )
         );
         assertThat(

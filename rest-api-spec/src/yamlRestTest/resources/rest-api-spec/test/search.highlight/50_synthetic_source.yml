@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -9,9 +9,9 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               foo:
                 type: keyword
@@ -21,6 +21,7 @@ setup:
                     index_options: positions
                   vectors:
                     type: text
+                    store: false
                     term_vector: with_positions_offsets
                   positions:
                     type: text

@@ -18,11 +18,10 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -124,10 +123,9 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override

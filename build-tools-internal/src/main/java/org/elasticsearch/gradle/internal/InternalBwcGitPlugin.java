@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -93,13 +94,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         String remoteRepo = remote.get();
                         // for testing only we can override the base remote url
                         String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                            .orElse(
-                                providerFactory.provider(
-                                    () -> addRemote.getExtensions().getExtraProperties().has("remote")
-                                        ? addRemote.getExtensions().getExtraProperties().get("remote").toString()
-                                        : null
-                                )
-                            )
                             .getOrElse("https://github.com/" + remoteRepo + "/" + rootProjectName);
                         spec.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
                     });
@@ -213,6 +207,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
     private void writeFile(File file, String content) {
         try {
+            file.getParentFile().mkdirs();
             Files.writeString(file.toPath(), content, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -45,6 +45,27 @@ setup:
           id: "test-id-3"
 
 ---
+"Refresh can be specified":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2
+        refresh: false
+
+  - match: { result: "deleted" }
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
+
+---
 "Delete synonym rule - missing synonym set":
   - do:
       catch: missing

@@ -236,7 +236,7 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     private BytesReference parseMessages(XContent xContent, BytesReference bytesRef) {
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         int from = 0;
         while (true) {
             int nextMarker = findNextMarker(marker, bytesRef, from);

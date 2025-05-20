@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -94,7 +95,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             0.1 + randomDouble() * 100,
             null,
             null,
-            null
+            null,
+            false,
+            false
         );
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
@@ -219,14 +222,14 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false, null).scalingFactor(100)
+        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
         assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null).scalingFactor(100)
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
             .nullValue(2.71)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();

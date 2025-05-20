@@ -1,5 +1,0 @@
-pr: 107897
-summary: Optimise composite aggregations for single value fields
-area: Aggregations
-type: enhancement
-issues: []

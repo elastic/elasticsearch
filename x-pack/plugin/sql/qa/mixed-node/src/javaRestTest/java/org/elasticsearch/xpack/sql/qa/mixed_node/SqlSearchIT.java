@@ -9,18 +9,16 @@ package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -38,13 +36,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_FIELD_TYPE;
 
 public class SqlSearchIT extends ESRestTestCase {
 
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
 
-    // TODO[lor]: replace this with feature-based checks when we have one
-    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = Version.fromString(BWC_NODES_VERSION).onOrAfter(Version.V_8_4_0);
+    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlVersion.fromString(BWC_NODES_VERSION)
+        .onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
 
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
@@ -63,14 +62,7 @@ public class SqlSearchIT extends ESRestTestCase {
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build(),
-            mappings
-        );
+        createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
     }
 
     @After

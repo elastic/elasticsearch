@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -17,14 +18,16 @@ public class EmptyPayload implements Payload {
 
     private final Type type;
     private final TimeValue timeTook;
+    private final ShardSearchFailure[] shardFailures;
 
     public EmptyPayload(Type type) {
-        this(type, TimeValue.ZERO);
+        this(type, TimeValue.ZERO, ShardSearchFailure.EMPTY_ARRAY);
     }
 
-    public EmptyPayload(Type type, TimeValue timeTook) {
+    public EmptyPayload(Type type, TimeValue timeTook, ShardSearchFailure[] shardFailures) {
         this.type = type;
         this.timeTook = timeTook;
+        this.shardFailures = shardFailures;
     }
 
     @Override
@@ -46,4 +49,10 @@ public class EmptyPayload implements Payload {
     public List<?> values() {
         return emptyList();
     }
+
+    @Override
+    public ShardSearchFailure[] shardFailures() {
+        return shardFailures;
+    }
+
 }

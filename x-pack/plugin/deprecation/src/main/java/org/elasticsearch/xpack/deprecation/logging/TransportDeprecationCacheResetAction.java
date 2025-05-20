@@ -14,9 +14,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.RateLimitingFilter;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -28,7 +28,8 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
     DeprecationCacheResetAction.Request,
     DeprecationCacheResetAction.Response,
     DeprecationCacheResetAction.NodeRequest,
-    DeprecationCacheResetAction.NodeResponse> {
+    DeprecationCacheResetAction.NodeResponse,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeprecationCacheResetAction.class);
 

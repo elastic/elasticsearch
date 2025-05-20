@@ -32,7 +32,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
 
     public void testAddByte() {
         testAgainstOracle(() -> new TestIteration() {
-            byte b = randomByte();
+            final byte b = randomByte();
 
             @Override
             public int size() {
@@ -53,7 +53,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
 
     public void testAddBytesRef() {
         testAgainstOracle(() -> new TestIteration() {
-            BytesRef ref = new BytesRef(randomAlphaOfLengthBetween(1, 100));
+            final BytesRef ref = new BytesRef(randomAlphaOfLengthBetween(1, 100));
 
             @Override
             public int size() {
@@ -72,10 +72,23 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         });
     }
 
+    public void testCopyBytes() {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(300));
+        try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "test")) {
+            String initialValue = randomAlphaOfLengthBetween(1, 50);
+            builder.copyBytes(new BytesRef(initialValue));
+            assertThat(builder.bytesRefView().utf8ToString(), equalTo(initialValue));
+
+            String newValue = randomAlphaOfLengthBetween(350, 500);
+            Exception e = expectThrows(CircuitBreakingException.class, () -> builder.copyBytes(new BytesRef(newValue)));
+            assertThat(e.getMessage(), equalTo("over test limit"));
+        }
+    }
+
     public void testGrow() {
         testAgainstOracle(() -> new TestIteration() {
-            int length = between(1, 100);
-            byte b = randomByte();
+            final int length = between(1, 100);
+            final byte b = randomByte();
 
             @Override
             public int size() {
@@ -118,10 +131,11 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             assertThat(builder.bytesRefView(), equalTo(oracle.get()));
             while (true) {
                 TestIteration iteration = iterations.get();
-                boolean willResize = builder.length() + iteration.size() >= builder.bytes().length;
+                int targetSize = builder.length() + iteration.size();
+                boolean willResize = targetSize >= builder.bytes().length;
                 if (willResize) {
                     long resizeMemoryUsage = BreakingBytesRefBuilder.SHALLOW_SIZE + ramForArray(builder.bytes().length);
-                    resizeMemoryUsage += ramForArray(ArrayUtil.oversize(builder.length() + iteration.size(), Byte.BYTES));
+                    resizeMemoryUsage += ramForArray(ArrayUtil.oversize(targetSize, Byte.BYTES));
                     if (resizeMemoryUsage > limit) {
                         Exception e = expectThrows(CircuitBreakingException.class, () -> iteration.applyToBuilder(builder));
                         assertThat(e.getMessage(), equalTo("over test limit"));

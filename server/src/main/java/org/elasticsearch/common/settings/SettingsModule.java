@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -11,8 +12,8 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.injection.guice.Binder;
+import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -36,10 +37,12 @@ public class SettingsModule implements Module {
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
+    private final Map<String, Setting<?>> projectSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
     private final Set<Setting<?>> consistentSettings = new HashSet<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
+    private final ProjectScopedSettings projectScopedSettings;
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
@@ -79,6 +82,7 @@ public class SettingsModule implements Module {
         }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
         this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
+        this.projectScopedSettings = new ProjectScopedSettings(settings, new HashSet<>(this.projectSettings.values()));
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {
@@ -139,6 +143,7 @@ public class SettingsModule implements Module {
         binder.bind(SettingsFilter.class).toInstance(settingsFilter);
         binder.bind(ClusterSettings.class).toInstance(clusterSettings);
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
+        binder.bind(ProjectScopedSettings.class).toInstance(projectScopedSettings);
     }
 
     /**
@@ -175,8 +180,15 @@ public class SettingsModule implements Module {
                     }
                 }
                 nodeSettings.put(setting.getKey(), setting);
+
+                if (setting.getProperties().contains(Setting.Property.ProjectScope)) {
+                    projectSettings.put(setting.getKey(), setting);
+                }
             }
             if (setting.hasIndexScope()) {
+                if (setting.getProperties().contains(Setting.Property.ProjectScope)) {
+                    throw new IllegalStateException("setting [" + setting.getKey() + "] cannot be both project and index scoped");
+                }
                 Setting<?> existingSetting = indexSettings.get(setting.getKey());
                 if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
@@ -222,6 +234,10 @@ public class SettingsModule implements Module {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public ProjectScopedSettings getProjectScopedSettings() {
+        return projectScopedSettings;
     }
 
     public Set<Setting<?>> getConsistentSettings() {

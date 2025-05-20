@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -205,21 +206,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // initially the service isn't ready
         assertFalse(readinessService.ready());
 
-        ClusterState emptyState = ClusterState.builder(new ClusterName("cluster"))
-            .nodes(
-                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
-            )
-            .build();
-
-        ClusterState noFileSettingsState = ClusterState.builder(emptyState)
-            .nodes(
-                DiscoveryNodes.builder(emptyState.nodes())
-                    .add(httpTransport.node)
-                    .masterNodeId(httpTransport.node.getId())
-                    .localNodeId(httpTransport.node.getId())
-            )
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState);
+        ClusterState noFileSettingsState = noFileSettingsState();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
         readinessService.clusterChanged(event);
 
         // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
@@ -255,6 +243,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                                 httpTransport.node.getId(),
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(httpTransport.node.getId())
+                                    .setNodeEphemeralId(httpTransport.node.getEphemeralId())
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                                     .setStartedAtMillis(randomNonNegativeLong())
@@ -306,14 +295,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(21L)
             .errorMetadata(new ReservedStateErrorMetadata(22L, TRANSIENT, List.of("dummy error")));
-        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
-                    .add(httpTransport.node)
-                    .masterNodeId(httpTransport.node.getId())
-                    .localNodeId(httpTransport.node.getId())
-            )
+        ClusterState state = ClusterState.builder(noFileSettingsState())
             .metadata(new Metadata.Builder().put(fileSettingsState.build()))
             .build();
 
@@ -323,5 +305,25 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         readinessService.stop();
         readinessService.close();
+    }
+
+    private ClusterState emptyState() {
+        return ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
+            )
+            .build();
+    }
+
+    private ClusterState noFileSettingsState() {
+        ClusterState emptyState = emptyState();
+        return ClusterState.builder(emptyState)
+            .nodes(
+                DiscoveryNodes.builder(emptyState.nodes())
+                    .add(httpTransport.node)
+                    .masterNodeId(httpTransport.node.getId())
+                    .localNodeId(httpTransport.node.getId())
+            )
+            .build();
     }
 }

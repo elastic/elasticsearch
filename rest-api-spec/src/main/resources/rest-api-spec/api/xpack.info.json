@@ -20,6 +20,12 @@
       ]
     },
     "params":{
+      "human":{
+        "type":"boolean",
+        "required":false,
+        "description":"Defines whether additional human-readable information is included in the response. In particular, it adds descriptions and a tag line. The default value is true.",
+        "default":true
+      },
       "categories":{
         "type":"list",
         "description":"Comma-separated list of info categories. Can be any of: build, license, features"

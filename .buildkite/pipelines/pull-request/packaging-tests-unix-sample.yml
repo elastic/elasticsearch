@@ -24,4 +24,5 @@ steps:
           diskSizeGb: 350
           machineType: custom-16-32768
         env:
+          USE_PROD_DOCKER_CREDENTIALS: "true"
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

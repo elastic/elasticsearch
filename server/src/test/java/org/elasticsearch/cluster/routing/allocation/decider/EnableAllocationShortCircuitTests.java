@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -23,7 +24,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -114,7 +117,9 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata[]::new));
+        final IndexMetadata indexMetadata = randomFrom(
+            clusterState.metadata().getProject().indices().values().toArray(IndexMetadata[]::new)
+        );
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -141,7 +146,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values());
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().getProject().indices().values());
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -185,7 +190,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -207,7 +212,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         return new MockAllocationService(
             new AllocationDeciders(deciders),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(clusterSettings),
+            new BalancedShardsAllocator(new BalancerSettings(clusterSettings), WriteLoadForecaster.DEFAULT),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );

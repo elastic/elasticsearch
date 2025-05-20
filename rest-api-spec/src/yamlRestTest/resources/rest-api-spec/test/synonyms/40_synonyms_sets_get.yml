@@ -9,6 +9,7 @@ setup:
           synonyms_set:
             - synonyms: "hello, hi"
             - synonyms: "goodbye, bye"
+
   - do:
       synonyms.put_synonym:
         id: test-synonyms-1
@@ -23,20 +24,7 @@ setup:
         body:
           synonyms_set:
             - synonyms: "pc, computer"
-  # set logging to debug for issue: https://github.com/elastic/elasticsearch/issues/102261
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch.synonyms: DEBUG
 
----
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch.synonyms: null
 ---
 "List synonyms set":
   - do:

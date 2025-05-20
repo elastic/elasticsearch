@@ -24,7 +24,7 @@ import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 
 public final class StringUtils {
 
@@ -82,7 +82,7 @@ public final class StringUtils {
 
     // This method doesn't support compatibility with older JDBC drivers
     public static String toString(Object value) {
-        return toString(value, DATE_NANOS_SUPPORT_VERSION);
+        return toString(value, INTRODUCING_DATE_NANOS);
     }
 
     public static String toString(Object value, SqlVersion sqlVersion) {
@@ -91,14 +91,14 @@ public final class StringUtils {
         }
 
         if (value instanceof ZonedDateTime) {
-            if (SqlVersion.supportsDateNanos(sqlVersion)) {
+            if (VersionCompatibility.supportsDateNanos(sqlVersion)) {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_NANOS);
             } else {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_MILLIS);
             }
         }
         if (value instanceof OffsetTime) {
-            if (SqlVersion.supportsDateNanos(sqlVersion)) {
+            if (VersionCompatibility.supportsDateNanos(sqlVersion)) {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
             } else {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);

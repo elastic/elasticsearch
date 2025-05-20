@@ -23,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
-import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -45,7 +44,6 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * task according to the policy's schedule.
  */
 public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
-
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 
@@ -138,14 +136,14 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Schedule all non-scheduled snapshot jobs contained in the cluster state
      */
     public void scheduleSnapshotJobs(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             snapMeta.getSnapshotConfigurations().values().forEach(this::maybeScheduleSnapshot);
         }
     }
 
     public void cleanupDeletedPolicies(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             // Retrieve all of the expected policy job ids from the policies in the metadata
             final Set<String> policyJobIds = snapMeta.getSnapshotConfigurations()
@@ -193,15 +191,13 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // is identical to an existing job (meaning the version has not changed) then this does
         // not reschedule it.
         scheduledTasks.computeIfAbsent(jobId, id -> {
-            final SchedulerEngine.Job job = new SchedulerEngine.Job(
-                jobId,
-                new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule())
-            );
             if (existingJobsFoundAndCancelled) {
                 logger.info("rescheduling updated snapshot lifecycle job [{}]", jobId);
             } else {
                 logger.info("scheduling snapshot lifecycle job [{}]", jobId);
             }
+
+            final SchedulerEngine.Job job = snapshotLifecyclePolicy.buildSchedulerJob(jobId);
             scheduler.add(job);
             return job;
         });
@@ -249,7 +245,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      */
     public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
         TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
-        TimeValue next = lifecycle.calculateNextInterval();
+        TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());
         if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
             throw new IllegalArgumentException(
                 "invalid schedule ["

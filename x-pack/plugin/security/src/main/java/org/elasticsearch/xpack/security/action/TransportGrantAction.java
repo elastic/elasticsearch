@@ -7,23 +7,33 @@
 
 package org.elasticsearch.xpack.security.action;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.GrantRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+
+import static org.elasticsearch.xpack.core.security.action.Grant.ACCESS_TOKEN_GRANT_TYPE;
+import static org.elasticsearch.xpack.core.security.action.Grant.PASSWORD_GRANT_TYPE;
 
 public abstract class TransportGrantAction<Request extends GrantRequest, Response extends ActionResponse> extends TransportAction<
     Request,
@@ -41,7 +51,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         AuthorizationService authorizationService,
         ThreadContext threadContext
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
         this.threadContext = threadContext;
@@ -50,7 +60,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
     @Override
     public final void doExecute(Task task, Request request, ActionListener<Response> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            final AuthenticationToken authenticationToken = request.getGrant().getAuthenticationToken();
+            final AuthenticationToken authenticationToken = getAuthenticationToken(request.getGrant());
             assert authenticationToken != null : "authentication token must not be null";
 
             final String runAsUsername = request.getGrant().getRunAsUsername();
@@ -109,4 +119,30 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         Authentication authentication,
         ActionListener<Response> listener
     );
+
+    public static AuthenticationToken getAuthenticationToken(Grant grant) {
+        assert grant.validate(null) == null : "grant is invalid";
+        return switch (grant.getType()) {
+            case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
+            case ACCESS_TOKEN_GRANT_TYPE -> {
+                SecureString clientAuthentication = grant.getClientAuthentication() != null
+                    ? grant.getClientAuthentication().value()
+                    : null;
+                AuthenticationToken token = JwtAuthenticationToken.tryParseJwt(grant.getAccessToken(), clientAuthentication);
+                if (token != null) {
+                    yield token;
+                }
+                if (clientAuthentication != null) {
+                    clientAuthentication.close();
+                    throw new ElasticsearchSecurityException(
+                        "[client_authentication] not supported with the supplied access_token type",
+                        RestStatus.BAD_REQUEST
+                    );
+                }
+                // here we effectively assume it's an ES access token (from the {@code TokenService})
+                yield new BearerToken(grant.getAccessToken());
+            }
+            default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", grant.getType());
+        };
+    }
 }

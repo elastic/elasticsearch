@@ -1,0 +1,560 @@
+###############################################
+# Tests for scoring support
+#
+
+singleQstrBoostScoringSorted
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings^2")
+| eval c_score = ceil(_score)  
+| keep book_no, title, c_score 
+| sort c_score desc, book_no asc
+| LIMIT 2;
+
+book_no:keyword | title:text                                | c_score:double
+1463            | Realms of Tolkien: Images of Middle-earth | 6.0           
+2675            | The Lord of the Rings - Boxed Set         | 6.0
+;
+
+singleMatchWithKeywordFieldScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score 
+| where author.keyword:"William Faulkner" 
+| keep book_no, author, _score 
+| sort book_no;
+
+book_no:keyword | author:text | _score:double
+2713            | William Faulkner | 1.7589385509490967
+2883            | William Faulkner | 1.7589385509490967
+4724            | William Faulkner | 1.7589385509490967
+4977            | William Faulkner | 2.6145541667938232
+5119            | William Faulkner | 2.513157367706299 
+5404            | William Faulkner | 1.7589385509490967
+5578            | William Faulkner | 2.513157367706299 
+8077            | William Faulkner | 1.7589385509490967
+9896            | William Faulkner | 2.6145541667938232
+;
+
+qstrWithFieldAndScoringSortedEval
+required_capability: qstr_function
+required_capability: metadata_score
+
+from books metadata _score
+| where qstr("title:rings")
+| sort _score desc
+| eval _score::long
+| keep book_no, title, _score
+| limit 3;
+
+book_no:keyword | title:text                                                                 | _score:double 
+2675            | The Lord of the Rings - Boxed Set                                          | 2.5619282722473145
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9245924949645996
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.746896743774414
+;
+
+qstrWithFieldAndScoringSorted
+required_capability: qstr_function
+required_capability: metadata_score
+
+from books metadata _score
+| where qstr("title:rings")
+| sort _score desc, book_no desc
+| keep book_no, title, _score
+| limit 3;
+
+book_no:keyword | title:text                                                                 | _score:double 
+2675            | The Lord of the Rings - Boxed Set                                          | 2.5619282722473145
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9245924949645996
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.746896743774414
+;
+
+singleQstrScoringManipulated
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| eval add_score = ceil(_score) + 1 
+| keep book_no, author, add_score 
+| sort book_no 
+| LIMIT 2;
+
+book_no:keyword | author:text                                        | add_score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 3.0
+2713            | William Faulkner                                   | 6.0
+;
+
+testMultiValuedFieldWithConjunctionWithScore
+required_capability: match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where match(author, "Keith Faulkner") and match(author, "Rory Tyger")
+| keep book_no, title, author, _score;
+
+book_no:keyword | title:text                                                                            | author:text                  | _score:double
+6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger] | 8.5822172164917
+;
+
+testMatchAndQueryStringFunctionsWithScore
+required_capability: match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where match(author, "Keith Faulkner") and qstr("author:Rory or author:Beverlie")
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                                            | author:text                       | _score:double
+3535            | Rainbow's End: A Magical Story and Moneybox                                           | [Beverlie Manson, Keith Faulkner] | 6.5579609870910645
+6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
+;
+
+testMultiMatchWithScore
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Mark", author, title, {"fuzziness": 1})
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                            | author:text      | _score:double
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 1.9662091732025146
+;
+
+testMultiMatchWithScore1
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Hobbit", description, title, {"type": "best_fields"})
+| sort book_no
+| eval _score = round(_score)
+| keep book_no, _score;
+ignoreOrder:true
+
+book_no:keyword | _score:double
+1463            | 2.0          
+2301            | 2.0          
+2675            | 2.0          
+2714            | 2.0          
+2936            | 1.0          
+4023            | 2.0          
+4289            | 3.0          
+5335            | 2.0          
+5996            | 2.0          
+6405            | 2.0          
+6760            | 2.0          
+7350            | 2.0          
+7480            | 3.0  
+;
+
+testMultiMatchWithScore2
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Hobbit", description, title, {"type": "most_fields"})
+| sort book_no
+| eval _score = round(_score)
+| keep book_no, _score;
+ignoreOrder:true
+
+book_no:keyword | _score:double
+1463            | 2.0          
+2301            | 2.0          
+2675            | 2.0          
+2714            | 2.0          
+2936            | 1.0          
+4023            | 2.0          
+4289            | 6.0          
+5335            | 2.0          
+5996            | 2.0          
+6405            | 2.0          
+6760            | 2.0          
+7350            | 2.0          
+7480            | 3.0 
+;
+
+multipleWhereWithMatchScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
+| keep book_no, title, author, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text                                | author:text        | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 11.193471908569336
+;
+
+multipleWhereWithMatchScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
+| keep book_no, title, author, _score
+| sort book_no;
+
+book_no:keyword | title:text                                | author:text        | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 11.193471908569336
+;
+
+combinedMatchWithFunctionsScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score
+| sort book_no;
+
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 3.733664035797119
+;
+
+singleQstrScoring
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| keep book_no, author, _score 
+| sort book_no 
+| LIMIT 2;
+
+book_no:keyword | author:text                                        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 1.3697924613952637
+2713            | William Faulkner                                   | 4.631696701049805
+;
+
+singleQstrScoringGrok
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| GROK title "%{WORD:title} %{WORD}" 
+| sort _score desc 
+| keep book_no, title, _score 
+| LIMIT 3;
+
+book_no:keyword | title:keyword | _score:double
+8875            | The           | 2.769660472869873 
+1463            | Realms        | 2.6714818477630615
+2675            | The           | 2.5619282722473145
+;
+
+combinedMatchWithScoringEvalNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.0
+;
+
+singleQstrScoringRename
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| rename _score as rank 
+| sort rank desc 
+| keep book_no, rank 
+| LIMIT 3;
+
+book_no:keyword | rank:double
+8875            | 2.769660472869873 
+1463            | 2.6714818477630615
+2675            | 2.5619282722473145
+;
+
+singleMatchWithTextFieldScoring
+required_capability: metadata_score
+required_capability: match_operator_colon
+
+from books metadata _score 
+| where author:"William Faulkner" 
+| sort book_no 
+| keep book_no, author, _score 
+| limit 5;
+
+book_no:keyword | author:text                                        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 1.3697924613952637
+2713            | William Faulkner                                   | 3.2750158309936523
+2847            | Colleen Faulkner                                   | 1.593343734741211 
+2883            | William Faulkner                                   | 3.2750158309936523
+3293            | Danny Faulkner                                     | 1.593343734741211
+;
+
+combinedMatchWithFunctionsScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 3.733664035797119
+;
+
+combinedMatchWithScoringEval
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score
+| sort book_no;
+
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.0
+;
+
+singleQstrScoringEval
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| eval c_score = ceil(_score) 
+| keep book_no, c_score 
+| sort book_no desc 
+| LIMIT 3;
+
+book_no:keyword | c_score:double
+8875            | 3.0
+7350            | 1.0
+7140            | 3.0
+;
+
+QstrScoreManipulation
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("title:gentle") 
+| eval _score = _score + 1 
+| keep book_no, title, _score
+| limit 10
+;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                                                                                     | _score:double
+2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | 3.158426523208618
+5948            | That We Are Gentle Creatures                                                                                                   | 3.727346897125244 
+;
+
+QstrScoreOverride
+required_capability: metadata_score
+required_capability: qstr_function
+
+from books metadata _score 
+| where qstr("title:gentle") 
+| eval _score = "foobar"
+| keep book_no, title, _score 
+| limit 10
+;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                                                                                     | _score:keyword
+2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | foobar        
+5948            | That We Are Gentle Creatures                                                                                                   | foobar
+;
+
+
+semanticTextMatch
+required_capability: metadata_score
+required_capability: semantic_text_field_caps
+required_capability: match_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
+1
+;
+
+semanticTextMatchWithAllTheTextFunctions
+
+required_capability: metadata_score
+required_capability: semantic_text_field_caps
+required_capability: match_function
+required_capability: kql_function
+required_capability: qstr_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+        AND match(description, "some")
+        AND kql("description:some*")
+        AND NOT qstr("host:host1")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
+;
+
+scoresNonPushableFunctions
+
+required_capability: metadata_score
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score 
+| where length(title) > 100
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2924            | 0.0
+8678            | 0.0
+;
+
+scoresPushableFunctions
+
+required_capability: metadata_score
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score 
+| where year >= 2017
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword | _score:double
+6818            | 0.0
+7400            | 0.0
+8480            | 0.0
+8534            | 0.0
+8615            | 0.0
+;
+
+conjunctionScoresPushableNonPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_function
+
+from books metadata _score 
+| where match(title, "Lord") and length(title) > 20
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2675            | 2.5619282722473145
+2714            | 1.9245924949645996
+7140            | 1.746896743774414 
+4023            | 1.5062403678894043
+;
+
+conjunctionScoresPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_function
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score 
+| where match(title, "Lord") and ratings > 4.6
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+7140            | 1.746896743774414 
+4023            | 1.5062403678894043
+;
+
+disjunctionScoresPushableNonPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_score
+required_capability: non_full_text_functions_scoring
+
+from books metadata _score 
+| where match(title, "Lord") or length(title) > 100
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2675            | 2.5619282722473145
+2714            | 1.9245924949645996
+7140            | 1.746896743774414
+4023            | 1.5062403678894043
+2924            | 0.0
+8678            | 0.0
+;
+
+disjunctionScoresMultipleClauses
+
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_score
+
+from books metadata _score 
+| where (title: "Lord" and length(title) > 40) or (author: "Dostoevsky" and length(title) > 40) 
+| keep book_no, _score 
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+8086            | 2.786686897277832 
+9801            | 2.786686897277832 
+1937            | 2.1503653526306152
+8534            | 2.1503653526306152
+2714            | 1.9245924949645996
+7140            | 1.746896743774414 
+4023            | 1.5062403678894043
+2924            | 1.2732219696044922
+;
+
+statsScores
+
+required_capability: metadata_score
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books metadata _score 
+| where match(title, "Lord Rings", {"operator": "AND"})
+| stats avg_score = avg(_score), max_score = max(_score), min_score = min(_score)
+;
+
+avg_score:double   | max_score:double   | min_score:double
+3.869828939437866  | 5.123856544494629  | 3.0124807357788086
+;

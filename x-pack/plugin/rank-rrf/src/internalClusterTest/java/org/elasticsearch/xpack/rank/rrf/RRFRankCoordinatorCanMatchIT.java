@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -125,7 +126,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         client().admin().indices().prepareOpen("time_index").get();
 
         assertBusy(() -> {
-            IndexLongFieldRange timestampRange = clusterService().state().metadata().index("time_index").getTimestampRange();
+            IndexLongFieldRange timestampRange = clusterService().state().metadata().getProject().index("time_index").getTimestampRange();
             assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
         });
 
@@ -206,10 +207,10 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
                 )
                 .setSize(5),
             response -> {
-                assertNull(response.getHits().getTotalHits());
+                assertEquals(new TotalHits(0, TotalHits.Relation.EQUAL_TO), response.getHits().getTotalHits());
                 assertEquals(0, response.getHits().getHits().length);
                 assertEquals(5, response.getSuccessfulShards());
-                assertEquals(4, response.getSkippedShards());
+                assertEquals(5, response.getSkippedShards());
             }
         );
 

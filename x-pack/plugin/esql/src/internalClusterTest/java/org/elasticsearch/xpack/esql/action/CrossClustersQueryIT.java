@@ -1058,6 +1058,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .setPersistentSettings(settingsBuilder.build())
             .get();
     }
+
     public void testMultiTypes() throws Exception {
         Client remoteClient = client(REMOTE_CLUSTER_1);
         int totalDocs = 0;

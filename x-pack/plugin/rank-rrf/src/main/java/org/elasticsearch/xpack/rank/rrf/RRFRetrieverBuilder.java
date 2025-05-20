@@ -21,6 +21,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverInfo;
+import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -45,6 +46,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
     @SuppressWarnings("unchecked")
@@ -52,16 +55,43 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         NAME,
         false,
         args -> {
-            List<RetrieverBuilder> childRetrievers = (List<RetrieverBuilder>) args[0];
-            List<RetrieverSource> innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
-            int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
-            int rankConstant = args[2] == null ? DEFAULT_RANK_CONSTANT : (int) args[2];
+            List<RetrieverBuilder> childRetrievers = args[0] == null ? List.of() : (List<RetrieverBuilder>) args[0];
+            List<String> fields = args[1] == null ? List.of() : (List<String>) args[1];
+            String query = (String) args[2];
+            if (childRetrievers.isEmpty() == false && fields.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Cannot specify both [" + RETRIEVERS_FIELD.getPreferredName() + "] and [" + FIELDS_FIELD.getPreferredName() + "]"
+                );
+            }
+
+            List<RetrieverSource> innerRetrievers;
+            if (childRetrievers.isEmpty() == false) {
+                innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
+            } else if (fields.isEmpty() == false) {
+                if (query == null) {
+                    throw new IllegalArgumentException(
+                        "[" + QUERY_FIELD.getPreferredName() + "] must be specified when [" + FIELDS_FIELD.getPreferredName() + "] is used"
+                    );
+                }
+
+                List<SimplifiedInnerRetrieverInfo> simplifiedInnerRetrieverInfo = SimplifiedInnerRetrieverParser.parse(fields, query, w -> {
+                    if (w != 1.0f) {
+                        throw new IllegalArgumentException("[" + NAME + "] does not support per-field weights");
+                    }
+                });
+                innerRetrievers = SimplifiedInnerRetrieverParser.convertToRetrievers(simplifiedInnerRetrieverInfo);
+            } else {
+                innerRetrievers = List.of();
+            }
+
+            int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
+            int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
             return new RRFRetrieverBuilder(innerRetrievers, rankWindowSize, rankConstant);
         }
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> {
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
             p.nextToken();
             String name = p.currentName();
             RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
@@ -69,6 +99,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareString(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);

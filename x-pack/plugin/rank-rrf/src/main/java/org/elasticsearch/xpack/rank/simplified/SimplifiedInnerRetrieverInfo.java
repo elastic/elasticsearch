@@ -7,5 +7,4 @@
 
 package org.elasticsearch.xpack.rank.simplified;
 
-public record SimplifiedInnerRetrieverInfo(String field, float weight, String query) {
-}
+public record SimplifiedInnerRetrieverInfo(String field, float weight, String query) {}

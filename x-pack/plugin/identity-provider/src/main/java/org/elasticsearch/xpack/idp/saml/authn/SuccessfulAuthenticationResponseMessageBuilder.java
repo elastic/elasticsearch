@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
@@ -66,7 +67,11 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         this.idp = idp;
     }
 
-    public Response build(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
+    public Response build(
+        UserServiceAuthentication user,
+        @Nullable SamlAuthenticationState authnState,
+        @Nullable SamlInitiateSingleSignOnAttributes customAttributes
+    ) {
         logger.debug("Building success response for [{}] from [{}]", user, authnState);
         final Instant now = clock.instant();
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
@@ -87,10 +92,13 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         assertion.setIssueInstant(now);
         assertion.setConditions(buildConditions(now, serviceProvider));
         assertion.setSubject(buildSubject(now, user, authnState));
-        assertion.getAuthnStatements().add(buildAuthnStatement(now, user));
-        final AttributeStatement attributes = buildAttributes(user);
-        if (attributes != null) {
-            assertion.getAttributeStatements().add(attributes);
+
+        final AuthnStatement authnStatement = buildAuthnStatement(now, user);
+        assertion.getAuthnStatements().add(authnStatement);
+
+        final AttributeStatement attributeStatement = buildAttributes(user, customAttributes);
+        if (attributeStatement != null) {
+            assertion.getAttributeStatements().add(attributeStatement);
         }
         response.getAssertions().add(assertion);
         return sign(response);
@@ -179,7 +187,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         }
     }
 
-    private AttributeStatement buildAttributes(UserServiceAuthentication user) {
+    private AttributeStatement buildAttributes(
+        UserServiceAuthentication user,
+        @Nullable SamlInitiateSingleSignOnAttributes customAttributes
+    ) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
         final List<Attribute> attributes = new ArrayList<>();
@@ -199,6 +210,16 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (name != null) {
             attributes.add(name);
         }
+        // Add custom attributes if provided
+        if (customAttributes != null && customAttributes.getAttributes().isEmpty() == false) {
+            for (SamlInitiateSingleSignOnAttributes.Attribute customAttr : customAttributes.getAttributes()) {
+                Attribute attribute = buildAttribute(customAttr.getKey(), customAttr.getKey(), customAttr.getValues());
+                if (attribute != null) {
+                    attributes.add(attribute);
+                }
+            }
+        }
+
         if (attributes.isEmpty()) {
             return null;
         }

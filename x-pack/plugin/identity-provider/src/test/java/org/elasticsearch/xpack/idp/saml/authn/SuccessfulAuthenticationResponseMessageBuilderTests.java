@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.Response;
 
-import java.net.URL;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Set;
@@ -59,7 +59,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         final String baseServiceUrl = "https://" + randomAlphaOfLength(32) + ".us-east-1.aws.found.io/";
         final String acs = baseServiceUrl + "api/security/saml/callback";
         when(sp.getEntityId()).thenReturn(baseServiceUrl);
-        when(sp.getAssertionConsumerService()).thenReturn(new URL(acs));
+        when(sp.getAssertionConsumerService()).thenReturn(URI.create(acs).toURL());
         when(sp.getAuthnExpiry()).thenReturn(Duration.ofMinutes(10));
         when(sp.getAttributeNames()).thenReturn(new SamlServiceProvider.AttributeNames("principal", null, null, null));
 
@@ -75,7 +75,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
             clock,
             idp
         );
-        return builder.build(user, null);
+        return builder.build(user, null, null);
     }
 
 }

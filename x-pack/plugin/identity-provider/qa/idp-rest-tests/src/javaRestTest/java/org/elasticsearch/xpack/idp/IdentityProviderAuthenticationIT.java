@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
@@ -25,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,47 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         final String samlResponse = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        authenticateWithSamlResponse(samlResponse, null);
+    }
+
+    public void testCustomAttributesInIdpInitiatedSso() throws Exception {
+        final Map<String, Object> request = Map.ofEntries(
+            Map.entry("name", "Test SP With Custom Attributes"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
+        checkIndexDoc(docVersion);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        // Create custom attributes
+        List<Map<String, Object>> attributesList = new ArrayList<>();
+        Map<String, Object> attr1 = Map.of("key", "department", "values", List.of("engineering", "product"));
+        Map<String, Object> attr2 = Map.of("key", "region", "values", List.of("APAC"));
+        attributesList.add(attr1);
+        attributesList.add(attr2);
+
+        final Map<String, Object> requestAttributes = Map.of("attributes", attributesList);
+
+        // Generate SAML response with custom attributes
+        final String samlResponse = generateSamlResponseWithAttributes(SP_ENTITY_ID, SP_ACS, null, requestAttributes);
+
+        // Verify the response includes our custom attributes
+        assertThat(samlResponse, containsString("department"));
+        assertThat(samlResponse, containsString("engineering"));
+        assertThat(samlResponse, containsString("product"));
+        assertThat(samlResponse, containsString("region"));
+        assertThat(samlResponse, containsString("APAC"));
+
         authenticateWithSamlResponse(samlResponse, null);
     }
 
@@ -125,17 +168,37 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         }
     }
 
-    private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
+    private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws IOException {
+        return generateSamlResponseWithAttributes(entityId, acs, authnState, null);
+    }
+
+    private String generateSamlResponseWithAttributes(
+        String entityId,
+        String acs,
+        @Nullable Map<String, Object> authnState,
+        @Nullable Map<String, Object> attributes
+    ) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init");
-        if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity(Strings.format("""
-                {"entity_id":"%s", "acs":"%s","authn_state":%s}
-                """, entityId, acs, Strings.toString(JsonXContent.contentBuilder().map(authnState))));
-        } else {
-            request.setJsonEntity(Strings.format("""
-                {"entity_id":"%s", "acs":"%s"}
-                """, entityId, acs));
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("entity_id", entityId);
+        builder.field("acs", acs);
+
+        if (authnState != null) {
+            builder.field("authn_state");
+            builder.map(authnState);
         }
+
+        if (attributes != null) {
+            builder.field("attributes");
+            builder.map(attributes);
+        }
+
+        builder.endObject();
+        String jsonEntity = Strings.toString(builder);
+
+        request.setJsonEntity(jsonEntity);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("es-secondary-authorization", basicAuthHeaderValue("idp_user", new SecureString("idp-password".toCharArray())))

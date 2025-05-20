@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 
 import java.io.IOException;
 
@@ -22,12 +23,14 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
     private String spEntityId;
     private String assertionConsumerService;
     private SamlAuthenticationState samlAuthenticationState;
+    private SamlInitiateSingleSignOnAttributes attributes;
 
     public SamlInitiateSingleSignOnRequest(StreamInput in) throws IOException {
         super(in);
         spEntityId = in.readString();
         assertionConsumerService = in.readString();
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
+        attributes = in.readOptionalWriteable(SamlInitiateSingleSignOnAttributes::new);
     }
 
     public SamlInitiateSingleSignOnRequest() {}
@@ -68,17 +71,36 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         this.samlAuthenticationState = samlAuthenticationState;
     }
 
+    public SamlInitiateSingleSignOnAttributes getAttributes() {
+        return attributes;
+    }
+
+    public void setAttributes(SamlInitiateSingleSignOnAttributes attributes) {
+        this.attributes = attributes;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(spEntityId);
         out.writeString(assertionConsumerService);
         out.writeOptionalWriteable(samlAuthenticationState);
+        out.writeOptionalWriteable(attributes);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{spEntityId='" + spEntityId + "', acs='" + assertionConsumerService + "'}";
+        return getClass().getSimpleName()
+            + "{"
+            + "spEntityId='"
+            + spEntityId
+            + "', "
+            + "acs='"
+            + assertionConsumerService
+            + "', "
+            + "attributes="
+            + attributes
+            + "'}";
     }
 
 }

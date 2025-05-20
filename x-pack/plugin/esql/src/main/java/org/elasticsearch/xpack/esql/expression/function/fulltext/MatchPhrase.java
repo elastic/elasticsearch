@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -55,8 +53,6 @@ import static org.elasticsearch.index.query.MatchPhraseQueryBuilder.ZERO_TERMS_Q
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -199,7 +195,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions()).and(checkParamCompatibility());
+        return resolveField().and(resolveQuery()).and(resolveOptions(options())).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveField() {
@@ -226,25 +222,9 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
     }
 
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                matchPhraseQueryOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+    @Override
+    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
+        return matchPhraseQueryOptions();
     }
 
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
@@ -336,24 +316,6 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
-    }
-
-    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
-        String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
-        }
-        return fieldName;
-    }
-
-    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
-        Expression fieldExpression = field;
-        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
-            fieldExpression = convertFunction.field();
-        }
-        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 
     private FieldAttribute fieldAsFieldAttribute() {

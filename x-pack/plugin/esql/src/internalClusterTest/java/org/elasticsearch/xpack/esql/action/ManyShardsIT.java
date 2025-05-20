@@ -122,7 +122,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                     logger.warn("Query failed with exception", e);
                     throw e;
                 }
-            }, "testConcurrentQueries");
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();

@@ -1385,6 +1385,57 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
+    public void testKeepAfterEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | inlinestats max(salary) by l
+            | stats min = min(salary) by l
+            | eval x = min + 1
+            | keep x, l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testKeepBeforeEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | keep l, salary, emp_no
+            | inlinestats max(salary) by l
+            | eval x = `max(salary)` + 1
+            | stats min = min(salary) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testStatsBeforeEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | stats min = min(salary) by l
+            | eval salary = min + 1
+            | inlinestats max(salary) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testStatsBeforeInlinestats() {
+        assertFieldNames("""
+            from test
+            | stats min = min(salary) by languages
+            | inlinestats max(min) by languages
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testKeepBeforeInlinestats() {
+        assertFieldNames("""
+            from test
+            | keep languages, salary
+            | inlinestats max(salary) by languages
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
     public void testCountStar() {
         assertFieldNames("""
             from test

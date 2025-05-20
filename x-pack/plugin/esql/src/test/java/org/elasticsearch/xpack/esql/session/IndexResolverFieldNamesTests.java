@@ -1355,9 +1355,56 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     /**
+     * Fix alias removal in regex extraction with JOIN
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
+      */
+    public void testAvoidGrokAttributesRemoval() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("message", "x", "x.*", "message.*")));
+    }
+
+    public void testAvoidGrokAttributesRemoval2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from sample_data
+            | dissect message "%{type}"
+            | drop type
+            | lookup join message_types_lookup on message
+            | stats count = count(*) by type
+            | keep count
+            | sort count""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("type", "message", "count", "message.*", "type.*", "count.*")));
+    }
+
+    public void testAvoidGrokAttributesRemoval3() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from sample_data
+            | grok message "%{WORD:type}"
+            | drop type
+            | lookup join message_types_lookup on message
+            | stats max = max(event_duration) by type
+            | keep max
+            | sort max""", Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(Set.of("type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*"))
+        );
+
+    }
+
+    /**
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
-    public void testAvoidGrokAttributesRemoval() {
+    public void testAvoidGrokAttributesRemoval4() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         Set<String> fieldNames = fieldNames("""
             from message_types
@@ -1373,7 +1420,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     /**
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
-    public void testAvoidGrokAttributesRemoval2() {
+    public void testAvoidGrokAttributesRemoval5() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         Set<String> fieldNames = fieldNames("""
             FROM sample_data, employees

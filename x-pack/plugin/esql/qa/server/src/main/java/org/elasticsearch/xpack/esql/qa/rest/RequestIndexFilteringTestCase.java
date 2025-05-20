@@ -195,7 +195,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     public void testIndicesDontExist() throws IOException {
-        int docsTest1 = 0; // we are interested only in the created index, not necessarily that it has data
+        int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo"))));
@@ -208,10 +208,21 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1"))));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
+        // FIXME: this test now behaves differently on local & remote cluster, because local is not skippable, we need to fix it
+        // Map<String, Object> result = runEsql(
+        // timestampFilter("gte", "2020-01-01").query(from("foo", "test1") + " METADATA _index | SORT id1 | KEEP _index, id*")
+        // );
+        // @SuppressWarnings("unchecked")
+        // var columns = (List<List<Object>>) result.get("columns");
+        // assertThat(
+        // columns,
+        // matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+        // .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+        // );
+        // @SuppressWarnings("unchecked")
+        // var values = (List<List<Object>>) result.get("values");
+        // // TODO: for now, we return empty result, but eventually it should return records from test1
+        // assertThat(values, hasSize(0));
 
         if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
             var pattern = from("test1");

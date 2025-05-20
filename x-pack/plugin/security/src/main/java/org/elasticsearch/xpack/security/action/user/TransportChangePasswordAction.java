@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -92,10 +93,9 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                 if (ClientReservedRealm.isReserved(username, settings) == false && user == null) {
                     List<Realm> nonNativeRealms = realms.getActiveRealms()
                         .stream()
-                        .filter(
-                            t -> NativeRealmSettings.TYPE.equalsIgnoreCase(t.type()) == false
-                                && ReservedRealm.TYPE.equalsIgnoreCase(t.name()) == false
-                        ) // Reserved realm is implemented in the native store
+                        .filter(t -> Set.of(NativeRealmSettings.TYPE, ReservedRealm.TYPE).contains(t.type()) == false) // Reserved realm is
+                                                                                                                       // implemented in the
+                                                                                                                       // native store
                         .toList();
                     if (nonNativeRealms.isEmpty()) {
                         listener.onFailure(createUserNotFoundException());

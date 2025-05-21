@@ -47,6 +47,12 @@ public class ClusterConnectionManager implements ConnectionManager {
         .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
+    record NodeConnectionHistory(String ephemeralId, long disconnectTime) {}
+
+    // map of nodeId -> NodeConnectionHistory entries updated on connection close, with any error
+    private final ConcurrentMap<String, NodeConnectionHistory> nodeHistory = ConcurrentCollections.newConcurrentMap();
+    private long nodeHistoryLastGC = 0;
+
     private final Transport transport;
     private final ThreadContext threadContext;
     private final ConnectionProfile defaultProfile;
@@ -226,6 +232,19 @@ public class ClusterConnectionManager implements ConnectionManager {
                         } else {
                             logger.debug("connected to node [{}]", node);
                             managerRefs.mustIncRef();
+
+                            // log case where remote has same ephemeralId as previous connection (the network was disrupted, but not the
+                            // remote process), and update history with removal (we just connected successfully)
+                            final DiscoveryNode connNode = conn.getNode();
+                            NodeConnectionHistory hist = nodeHistory.remove(connNode.getId());
+                            if (hist != null && hist.ephemeralId.equals(connNode.getEphemeralId())) {
+                                logger.warn(
+                                    """
+                                        transport connection to [{}] reopened, with same ephemeralId found.""",
+                                    node.descriptionWithoutAttributes()
+                                );
+                            }
+
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
@@ -235,25 +254,75 @@ public class ClusterConnectionManager implements ConnectionManager {
                                     managerRefs.decRef();
                                 }));
 
-                                conn.addCloseListener(ActionListener.running(() -> {
-                                    if (connectingRefCounter.hasReferences() == false) {
-                                        logger.trace("connection manager shut down, closing transport connection to [{}]", node);
-                                    } else if (conn.hasReferences()) {
-                                        logger.info(
-                                            """
-                                                transport connection to [{}] closed by remote; \
-                                                if unexpected, see [{}] for troubleshooting guidance""",
-                                            node.descriptionWithoutAttributes(),
-                                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                conn.addCloseListener(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void ignored) {
+                                        final NodeConnectionHistory hist = new NodeConnectionHistory(
+                                            node.getEphemeralId(),
+                                            System.currentTimeMillis()
                                         );
-                                        // In production code we only close connections via ref-counting, so this message confirms that a
-                                        // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
-                                        // node leaves the cluster with "reason: disconnected" but without this message being logged then
-                                        // that's a bug.
-                                    } else {
-                                        logger.debug("closing unused transport connection to [{}]", node);
+                                        nodeHistory.put(conn.getNode().getId(), hist);
                                     }
-                                }));
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        final NodeConnectionHistory hist = new NodeConnectionHistory(
+                                            node.getEphemeralId(),
+                                            System.currentTimeMillis()
+                                        );
+                                        nodeHistory.put(conn.getNode().getId(), hist);
+                                    }
+                                });
+
+                                conn.addCloseListener(ActionListener.running(ClusterConnectionManager.this::collectHistoryGarbage));
+
+                                conn.addCloseListener(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void ignored) {
+                                        if (connectingRefCounter.hasReferences() == false) {
+                                            logger.trace("connection manager shut down, closing transport connection to [{}]", node);
+                                        } else if (conn.hasReferences()) {
+                                            // the connection is closing down, but hasn't been released by the client/library side
+                                            // this is an event coming up from the network side
+                                            logger.info(
+                                                """
+                                                    transport connection to [{}] closed by remote; \
+                                                    if unexpected, see [{}] for troubleshooting guidance""",
+                                                node.descriptionWithoutAttributes(),
+                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                            );
+                                            // In production code we only close connections via ref-counting, so this message confirms that
+                                            // a 'node-left ... reason: disconnected' event was caused by external factors. Put
+                                            // differently, if a node leaves the cluster with "reason: disconnected" but without this
+                                            // message being logged then that's a bug.
+                                        } else {
+                                            logger.debug("closing unused transport connection to [{}]", node);
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        if (conn.hasReferences()) {
+                                            logger.warn(
+                                                """
+                                                    transport connection to [{}] closed by remote with exception [{}]; \
+                                                    if unexpected, see [{}] for troubleshooting guidance""",
+                                                node.descriptionWithoutAttributes(),
+                                                e,
+                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                            );
+                                        } else {
+                                            logger.warn(
+                                                """
+                                                    transport connection to [{}] closed with exception [{}]; \
+                                                    if unexpected, see [{}] for troubleshooting guidance""",
+                                                node.descriptionWithoutAttributes(),
+                                                e,
+                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                            );
+                                        }
+                                    }
+                                });
                             }
                         }
                     } finally {
@@ -274,6 +343,26 @@ public class ClusterConnectionManager implements ConnectionManager {
                 }
             )
         );
+    }
+
+    /**
+     * Removes entries in the nodeHistory table that are too old
+     */
+    private void collectHistoryGarbage() {
+        final long now = System.currentTimeMillis();
+        final long hour = 60 * 60 * 1000;
+
+        if (now - hour > nodeHistoryLastGC) {
+            final int startSize = nodeHistory.size();
+            nodeHistoryLastGC = now;
+            final long expire = now - hour;
+            for (Map.Entry<String, NodeConnectionHistory> entry : nodeHistory.entrySet()) {
+                if (expire > entry.getValue().disconnectTime) {
+                    nodeHistory.remove(entry.getKey(), entry.getValue());
+                }
+            }
+            logger.trace("ClusterConnectionManager GCed connection history from {} to {} entries", startSize, nodeHistory.size());
+        }
     }
 
     /**

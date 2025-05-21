@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -33,7 +33,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public enum RequestModelType {
             INFERENCE_SERVICE_MODEL,
@@ -41,7 +41,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             BOOSTED_TREE_MODEL,
             NLP_MODEL,  // Either an inference service model or ml pytorch model but not a boosted tree model
             UNKNOWN
-        };
+        }
 
         public static Request forTextInput(
             String modelId,

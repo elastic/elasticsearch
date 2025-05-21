@@ -1428,6 +1428,7 @@ docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS total_salary_changes = SUM(MV_MAX(salary_change))
 // end::docsStatsSumNestedExpression[]
+| EVAL total_salary_changes = ROUND(total_salary_changes, 2)
 ;
 
 // tag::docsStatsSumNestedExpression-result[]

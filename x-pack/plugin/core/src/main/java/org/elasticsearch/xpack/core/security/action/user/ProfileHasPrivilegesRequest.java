@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -28,7 +28,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ProfileHasPrivilegesRequest extends ActionRequest {
+public class ProfileHasPrivilegesRequest extends LegacyActionRequest {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ProfileHasPrivilegesRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -36,6 +36,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         false,
         argv -> new ProfileHasPrivilegesRequest((List<String>) argv[0], (PrivilegesToCheck) argv[1])
     );
+
     static {
         PARSER.declareStringArray(constructorArg(), Fields.UIDS);
         PARSER.declareField(

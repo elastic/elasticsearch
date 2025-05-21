@@ -579,8 +579,7 @@ public class EsqlSession {
         }
 
         if (false == parsed.anyMatch(
-            plan -> plan instanceof Project
-                || (plan instanceof Aggregate agg && (inlinestatsAggs.isEmpty() || inlinestatsAggs.contains(agg) == false))
+            plan -> plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false)
         )) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"

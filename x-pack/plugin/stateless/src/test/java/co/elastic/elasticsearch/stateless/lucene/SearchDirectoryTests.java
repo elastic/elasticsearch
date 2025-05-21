@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -345,18 +346,31 @@ public class SearchDirectoryTests extends ESTestCase {
         });
     }
 
-    public void testGetHighestOffsetBlobRanges() throws IOException {
+    public void testGetHighestOffsetSegmentInfos() throws IOException {
         try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             {
-                assertEquals(0, searchDirectory.getHighestOffsetBlobRanges().size());
+                assertEquals(0, searchDirectory.getHighestOffsetSegmentInfos().size());
             }
 
             {
                 searchDirectory.retainFiles(Set.of());
                 List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
-                searchDirectory.updateCommit(createCommit(searchDirectory.shardId, blobLocations));
-                Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetBlobRanges();
+                searchDirectory.updateCommit(
+                    createCommit(
+                        searchDirectory.shardId,
+                        blobLocations,
+                        List.of(
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            // last file is the segment info so the last location should be returned
+                            randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension()
+                        )
+                    )
+                );
+                Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetSegmentInfos();
                 assertEquals(1, blobFilesAndHighesRanges.size());
                 BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
                 assertEquals("blob1", range.blobName());
@@ -371,16 +385,46 @@ public class SearchDirectoryTests extends ESTestCase {
                 for (int i = 0; i < numBlobs; i++) {
                     String blobName = "blob_" + i;
                     List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
-                    expectedLocations.put(blobName, blobLocations.getLast());
-                    searchDirectory.updateCommit(createCommit(searchDirectory.shardId, blobLocations));
+                    expectedLocations.put(blobName, blobLocations.getFirst());
+                    searchDirectory.updateCommit(
+                        createCommit(
+                            searchDirectory.shardId,
+                            blobLocations,
+                            List.of(
+                                randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension(),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10),
+                                randomAlphaOfLength(10)
+                            )
+                        )
+                    );
                 }
-                Collection<BlobFileRanges> highestOffsetBlobRanges = searchDirectory.getHighestOffsetBlobRanges();
+                Collection<BlobFileRanges> highestOffsetBlobRanges = searchDirectory.getHighestOffsetSegmentInfos();
                 assertEquals(expectedLocations.size(), highestOffsetBlobRanges.size());
                 for (BlobFileRanges range : highestOffsetBlobRanges) {
                     assertEquals(expectedLocations.get(range.blobName()).offset(), range.blobLocation().offset());
                 }
             }
         }
+    }
+
+    private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations, List<String> files) {
+        Map<String, BlobLocation> commitFiles = new HashMap<>(commitLocations.size(), 1.0f);
+        for (int i = 0; i < commitLocations.size(); i++) {
+            commitFiles.put(files.get(i), commitLocations.get(i));
+        }
+        return new StatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1L, 1L),
+            1L,
+            "_na_",
+            commitFiles,
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            commitFiles.keySet(),
+            0L,
+            InternalFilesReplicatedRanges.EMPTY
+        );
     }
 
     private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations) {

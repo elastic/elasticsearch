@@ -60,6 +60,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSamp
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
@@ -788,6 +789,10 @@ public class Stateless extends Plugin
         return Objects.requireNonNull(sharedBlobCacheWarmingService.get());
     }
 
+    public StatelessSharedBlobCacheService getStatelessSharedBlobCacheService() {
+        return Objects.requireNonNull(sharedBlobCacheService.get());
+    }
+
     // Can be overridden by tests
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -1134,7 +1139,8 @@ public class Stateless extends Plugin
             StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
-            TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING
+            TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
+            StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED
         );
     }
 

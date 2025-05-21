@@ -37,6 +37,7 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.recovery to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.commits to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.objectstore to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.cache to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.cache.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.metering.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.reshard to org.elasticsearch.server;
@@ -50,4 +51,8 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.autoscaling.search.load;
     exports co.elastic.elasticsearch.stateless.engine to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.multiproject to org.elasticsearch.server; // For PrimaryTermAndGeneration
+
+    provides org.elasticsearch.action.search.OnlinePrewarmingServiceProvider
+        with
+            co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
 }

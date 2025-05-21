@@ -49,6 +49,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -312,6 +313,32 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         );
     }
 
+    /**
+     * Returns a CacheBlobReader for reading a specific file from the blob store
+     * for search online prewarming purposes (i.e. as a result of an incoming
+     * search request targeting this shard)
+     *
+     * We allow creating this reader from any thread but the actual downloading of
+     * bytes will happen on the stateless_prewarm pool.
+     *
+     * @param fileName the name of the file to be read
+     * @param blobLocation the location of the blob containing the file
+     * @return a CacheBlobReader for reading the specified file
+     */
+    public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(String fileName, BlobLocation blobLocation) {
+        return cacheBlobReaderService.getCacheBlobReader(
+            shardId,
+            this::getBlobContainer,
+            blobLocation,
+            objectStoreUploadTracker,
+            totalBytesWarmedFromObjectStore::add,
+            totalBytesWarmedFromIndexing::add,
+            BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            fileName
+        );
+    }
+
     public long totalBytesReadFromIndexing() {
         return totalBytesReadFromIndexing.sum();
     }
@@ -321,16 +348,30 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * For each blob file referenced by this directory, get the @{@link BlobFileRanges} with the highest offset
+     * Returns the total number of bytes the search directory has read from both
+     * the object store and the indexing tier for cache warming purposes.
      */
-    public Collection<BlobFileRanges> getHighestOffsetBlobRanges() {
+    public long totalBytesWarmed() {
+        return totalBytesWarmedFromIndexing() + totalBytesWarmedFromObjectStore();
+    }
+
+    /**
+     * For each blob file referenced by this directory, get the @{@link BlobFileRanges} representing the {@link LuceneFilesExtensions#SI}
+     * file with the highest offset
+     */
+    public Collection<BlobFileRanges> getHighestOffsetSegmentInfos() {
         if (this.currentMetadata.isEmpty()) {
             return Set.of();
         }
         Map<String, BlobFileRanges> highestBlobRanges = new HashMap<>();
-        for (var fileRange : this.currentMetadata.values()) {
-            BlobFileRanges current = highestBlobRanges.computeIfAbsent(fileRange.blobName(), k -> fileRange);
-            if (current.fileOffset() < fileRange.fileOffset()) {
+        for (Map.Entry<String, BlobFileRanges> entry : this.currentMetadata.entrySet()) {
+            if (entry.getKey().endsWith(LuceneFilesExtensions.SI.getExtension()) == false) {
+                continue;
+            }
+
+            var fileRange = entry.getValue();
+            BlobFileRanges existing = highestBlobRanges.putIfAbsent(fileRange.blobName(), fileRange);
+            if (existing != null && existing.fileOffset() < fileRange.fileOffset()) {
                 highestBlobRanges.put(fileRange.blobName(), fileRange);
             }
         }

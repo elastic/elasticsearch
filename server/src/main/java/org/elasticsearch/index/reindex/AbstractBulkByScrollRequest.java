@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
-public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
+public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends LegacyActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
@@ -117,8 +117,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Constructor for actual use.
      *
      * @param searchRequest the search request to execute to get the documents to process
-     * @param setDefaults should this request set the defaults on the search request? Usually set to true but leave it false to support
-     *        request slicing
+     * @param setDefaults   should this request set the defaults on the search request? Usually set to true but leave it false to support
+     *                      request slicing
      */
     public AbstractBulkByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
         this.searchRequest = searchRequest;

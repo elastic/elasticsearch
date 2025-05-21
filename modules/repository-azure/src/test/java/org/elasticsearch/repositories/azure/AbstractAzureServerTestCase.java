@@ -76,7 +76,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         serverlessMode = false;
         threadPool = new TestThreadPool(
             getTestClass().getName(),
-            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);

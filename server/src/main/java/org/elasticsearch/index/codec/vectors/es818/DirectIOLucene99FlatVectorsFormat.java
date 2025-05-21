@@ -27,14 +27,8 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.store.FlushInfo;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.MergeInfo;
-import org.apache.lucene.store.ReadAdvice;
 
 import java.io.IOException;
-import java.util.Optional;
-import java.util.Set;
 
 /**
  * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
@@ -67,50 +61,13 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
-    private static final IOContext DIRECT_IO_CONTEXT = new IOContext() {
-        @Override
-        public Context context() {
-            return Context.DEFAULT;
-        }
-
-        @Override
-        public MergeInfo mergeInfo() {
-            return null;
-        }
-
-        @Override
-        public FlushInfo flushInfo() {
-            return null;
-        }
-
-        @Override
-        public Set<FileOpenHint> hints() {
-            return Set.of(DirectIOHint.INSTANCE);
-        }
-
-        @Override
-        public IOContext withHints(FileOpenHint... hints) {
-            return this;
-        }
-
-        @Override
-        public Optional<ReadAdvice> readAdvice() {
-            return Optional.empty();
-        }
-
-        @Override
-        public IOContext withReadAdvice(ReadAdvice advice) {
-            return this;
-        }
-    };
-
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         SegmentReadState directIOState = new SegmentReadState(
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
-            DIRECT_IO_CONTEXT,
+            state.context.withHints(DirectIOHint.INSTANCE),
             state.segmentSuffix
         );
         // Use mmap for merges and direct I/O for searches.

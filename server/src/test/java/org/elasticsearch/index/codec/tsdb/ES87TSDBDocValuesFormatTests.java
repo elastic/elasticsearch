@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesConsumer;
-import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -34,9 +33,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,13 +73,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         }
     }
 
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
-
-        @Override
-        public DocValuesFormat getDocValuesFormatForField(String field) {
-            return new TestES87TSDBDocValuesFormat();
-        }
-    };
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
 
     @Override
     protected Codec getCodec() {

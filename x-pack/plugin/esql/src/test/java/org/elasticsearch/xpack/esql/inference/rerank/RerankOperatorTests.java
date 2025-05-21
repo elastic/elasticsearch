@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -22,14 +20,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,29 +32,20 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
-    private int scoreChannel;
-
-    @Before
-    public void initScoreChannel() {
-        Set<Integer> doubleChannels = IntStream.range(1, channelCount)
-            .mapToObj(channel -> elementTypes.get(channel) == ElementType.DOUBLE ? channel : channelCount)
-            .collect(Collectors.toSet());
-        scoreChannel = randomFrom(doubleChannels);
-    }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> fieldEvaluators = IntStream.range(0, channelCount)
-            .filter(i -> i != scoreChannel)
-            .mapToObj(Integer::valueOf)
-            .collect(Collectors.toMap(this::columnInfo, this::evaluatorFactory));
+        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> fieldEvaluators = Map.of(
+            new ColumnInfoImpl(randomIdentifier(), DataType.TEXT, List.of()),
+            evaluatorFactory(0)
+        );
 
         return new RerankOperator.Factory(
             mockedSimpleInferenceRunner(),
             SIMPLE_INFERENCE_ID,
             SIMPLE_QUERY,
             XContentRowEncoder.yamlRowEncoderFactory(fieldEvaluators),
-            scoreChannel
+            1
         );
     }
 
@@ -73,7 +58,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             Page resultPage = resultPages.get(pageId);
 
             assertThat(resultPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
+            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(2, inputPage.getBlockCount())));
 
             for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
                 Block inputBlock = inputPage.getBlock(channel);
@@ -82,12 +67,12 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                 assertThat(resultBlock.getPositionCount(), equalTo(resultPage.getPositionCount()));
                 assertThat(resultBlock.elementType(), equalTo(inputBlock.elementType()));
 
-                if (channel != scoreChannel) {
+                if (channel != 1) {
                     assertBlockContentEquals(inputBlock, resultBlock);
                 }
 
                 if (channel == 0) {
-                    assertExpectedScore((BytesRefBlock) inputBlock, resultPage.getBlock(scoreChannel));
+                    assertExpectedScore((BytesRefBlock) inputBlock, resultPage.getBlock(1));
                 }
             }
         }
@@ -110,7 +95,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + scoreChannel + "]]"
+            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + 1 + "]]"
         );
     }
 
@@ -126,17 +111,5 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     private float score(int rank) {
         return 1f / (rank % 20);
-    }
-
-    private ColumnInfoImpl columnInfo(int channel) {
-        DataType dataType = switch (elementTypes.get(channel)) {
-            case BOOLEAN -> DataType.BOOLEAN;
-            case INT -> DataType.INTEGER;
-            case LONG -> DataType.LONG;
-            case DOUBLE -> DataType.DOUBLE;
-            case BYTES_REF -> DataType.KEYWORD;
-            default -> throw new AssertionError(LoggerMessageFormat.format("Unexpected element type {}", elementTypes.get(channel)));
-        };
-        return new ColumnInfoImpl(randomAlphaOfLengthBetween(10, 20), dataType, List.of());
     }
 }

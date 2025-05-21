@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,8 +28,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -41,11 +38,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -57,14 +51,6 @@ import static org.mockito.Mockito.when;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
     private ThreadPool threadPool;
-    protected List<ElementType> elementTypes;
-    protected int channelCount;
-
-    @Before
-    public void initChannels() {
-        channelCount = between(2, 10);
-        elementTypes = randomElementTypes(channelCount);
-    }
 
     @Before
     public void setThreadPool() {
@@ -100,31 +86,15 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             @Override
             protected Page createPage(int positionOffset, int length) {
-                currentPosition += length;
-                Block[] blocks = new Block[channelCount];
-                try {
-                    for (int channel = 0; channel < channelCount; channel++) {
-                        blocks[channel] = createInputBlock(blockFactory, elementTypes.get(channel), channel, length);
+                try (var builder = blockFactory.newBytesRefVectorBuilder(length)) {
+                    for (int i = 0; i < length; i++) {
+                        builder.appendBytesRef(new BytesRef(randomIdentifier()));
                     }
-                    return new Page(blocks);
-                } catch (Exception e) {
-                    Releasables.closeExpectNoException(blocks);
-                    throw (e);
+                    currentPosition += length;
+                    return new Page(builder.build().asBlock());
                 }
             }
         };
-    }
-
-    private Block createInputBlock(BlockFactory blockFactory, ElementType elementType, int channel, int size) {
-        return RandomBlock.randomBlock(blockFactory, elementType, size, false, channel == 0 ? false : randomBoolean(), 1, 2, 1, 3).block();
-    }
-
-    private List<ElementType> randomElementTypes(int channelCount) {
-        return IntStream.range(0, channelCount).mapToObj(this::randomElementType).collect(Collectors.toList());
-    }
-
-    protected ElementType randomElementType(int channel) {
-        return channel == 0 ? ElementType.BYTES_REF : randomValueOtherThan(ElementType.FLOAT, RandomBlock::randomElementType);
     }
 
     @Override

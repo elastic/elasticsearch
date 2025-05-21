@@ -341,7 +341,8 @@ final class CefParser {
                 throw new IllegalArgumentException(INCOMPLETE_CEF_HEADER);
             }
             processHeaders(headers, event);
-            processExtensions(cefString, extensionStart, event);
+            final String extensionString = cefString.substring(extensionStart);
+            processExtensions(extensionString, event);
             return event;
         } else {
             throw new IllegalArgumentException(INVALID_CEF_FORMAT);
@@ -375,8 +376,7 @@ final class CefParser {
         }
     }
 
-    private void processExtensions(String cefString, int extensionStart, CefEvent event) {
-        String extensionString = cefString.substring(extensionStart);
+    private void processExtensions(String extensionString, CefEvent event) {
         final Map<String, String> parsedExtensions = parseExtensions(extensionString);
         // Cleanup empty values in extensions
         if (removeEmptyValues) {

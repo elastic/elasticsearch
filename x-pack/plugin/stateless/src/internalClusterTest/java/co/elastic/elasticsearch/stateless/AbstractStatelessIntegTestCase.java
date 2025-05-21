@@ -90,6 +90,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -106,8 +107,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -510,48 +514,68 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     /**
      * Waits for all the nodes flagged for shutdown to no longer be master.
      * Asserts that there is at least one master eligible node NOT in shutdown.
-     * It is safe to call this method when no nodes are in shutdown: it will simply return.
+     * It is safe to call this method when no nodes are in shutdown and {@code expectNodesInShutdown=false}: it will simply return once an
+     * elected master node is detected.
+     * @param expectNodesInShutdown true if the caller expects one or more nodes to be in shutdown, false if there might be nodes in
+     *                              shutdown, but it is ok if there are none.
+     * @return The elected master node name.
      */
-    public void waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster() throws Exception {
-        NodesShutdownMetadata shutdownMetadata = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
-            .state()
-            .metadata()
-            .nodeShutdowns();
-        var shuttingDownNodeIds = shutdownMetadata.getAllNodeIds();
-        if (shuttingDownNodeIds.size() == 0) {
-            return;
-        }
+    public String waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster(boolean expectNodesInShutdown) throws Exception {
+        final var masterName = new AtomicReference<String>();
+        final var allMasterEligibleNodesInShutdownErrorString = new AtomicReference<String>();
+        final var nodeIdsToNamesMap = nodeIdsToNames();
+        final var masterNodeNames = internalCluster().masterEligibleNodeNames();
 
-        var nodeIdsToNamesMap = nodeIdsToNames();
-        var masterNodeNames = internalCluster().masterEligibleNodeNames();
-        var shuttingDownNodesNames = shuttingDownNodeIds.stream()
-            .map(shuttingDownNodeId -> nodeIdsToNamesMap.get(shuttingDownNodeId))
-            .collect(Collectors.toSet());
-        var shuttingDownMasterNodeNames = shuttingDownNodesNames.stream()
-            .filter(shuttingDownNodeName -> masterNodeNames.contains(shuttingDownNodeName))
-            .collect(Collectors.toSet());
+        final Function<Set<String>, Boolean> allMasterEligibleNodesInShutdown = (shuttingDownNodeIds) -> {
+            final var shuttingDownNodesNames = shuttingDownNodeIds.stream().map(nodeIdsToNamesMap::get).collect(Collectors.toSet());
+            final var shuttingDownMasterNodeNames = shuttingDownNodesNames.stream()
+                .filter(masterNodeNames::contains)
+                .collect(Collectors.toSet());
 
-        // Ensure that there is at least one master-eligible node not in shutdown.
-        assertThat(
-            Strings.format("""
+            // Ensure that there is at least one master-eligible node not in shutdown.
+            if (masterNodeNames.size() > shuttingDownMasterNodeNames.size()) {
+                return false;
+            }
+
+            allMasterEligibleNodesInShutdownErrorString.set(Strings.format("""
                     Master node(s) cannot abdicate gracefully on shutdown when there are no other master-eligible nodes.
                     Nodes with shutdown set [%s]. All nodes with master role [%s]. Master nodes with shutdown set [%s].
-                """, shuttingDownNodesNames, masterNodeNames, shuttingDownMasterNodeNames),
-            masterNodeNames.size(),
-            greaterThan(shuttingDownMasterNodeNames.size())
-        );
+                """, shuttingDownNodesNames, masterNodeNames, shuttingDownMasterNodeNames));
+            return true;
+        };
 
-        logger.info("--> Checking that master nodes with shutdown [{}] are no longer master", shuttingDownMasterNodeNames);
-        assertBusy(() -> {
-            assertTrue(
-                Strings.format(
-                    "Ensuring all master eligible nodes with shutdown are no longer master. Shutting down nodes [%s]. Current master [%s]",
-                    shuttingDownNodesNames,
-                    internalCluster().getMasterName()
-                ),
-                shuttingDownMasterNodeNames.stream().noneMatch(name -> name.equals(internalCluster().getMasterName()))
-            );
+        // Wait for an elected master that is not shutting down.
+        final var newMasterListener = ClusterServiceUtils.addTemporaryStateListener(state -> {
+            final var shuttingDownNodeIds = state.metadata().nodeShutdowns().getAllNodeIds();
+
+            if (expectNodesInShutdown) {
+
+                if (shuttingDownNodeIds.isEmpty()) {
+                    return false;
+                }
+
+                // Exit from the state listener early if we detect that all master eligible nodes are in shutdown.
+                if (allMasterEligibleNodesInShutdown.apply(shuttingDownNodeIds)) {
+                    return true;
+                }
+            }
+
+            final var newMasterNode = state.nodes().getMasterNode();
+            if (Optional.ofNullable(newMasterNode).map(m -> shuttingDownNodeIds.contains(m.getId()) == false).orElse(false)) {
+                masterName.set(newMasterNode.getName());
+                return true;
+            }
+
+            return false;
         });
+
+        safeAwait(newMasterListener);
+
+        if (allMasterEligibleNodesInShutdownErrorString.get() != null) {
+            fail(allMasterEligibleNodesInShutdownErrorString.get());
+        }
+
+        return masterName.get();
     }
 
     /**

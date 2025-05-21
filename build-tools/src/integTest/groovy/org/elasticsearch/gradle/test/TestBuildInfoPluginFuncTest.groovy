@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
+class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
     def "works"() {
         given:
         file("src/main/java/com/example/Example.java") << """
@@ -35,6 +35,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
 
         tasks.withType(GenerateTestBuildInfoTask.class) {
             componentName = 'example-component'
+            outputFile = new File('build/generated-build-info/plugin-test-build-info.json')
         }
         """
 
@@ -46,18 +47,17 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
         then:
         task.outcome == TaskOutcome.SUCCESS
 
-        def output = file("build/generated-build.info/test-build-info.json")
+        def output = file("build/generated-build-info/plugin-test-build-info.json")
         output.exists() == true
 
         def location = Map.of(
             "module", "com.example",
-            "representativeClass", "com/example/Example.class"
+            "representative_class", "com/example/Example.class"
         )
         def expectedOutput = Map.of(
             "component", "example-component",
             "locations", List.of(location)
         )
         new ObjectMapper().readValue(output, Map.class) == expectedOutput
-
     }
 }

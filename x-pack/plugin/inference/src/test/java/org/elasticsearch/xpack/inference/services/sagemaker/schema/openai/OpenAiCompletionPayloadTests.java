@@ -11,6 +11,7 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -172,8 +173,8 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
     }
 
     public void testStreamResponse() throws Exception {
-        var responseJson = """
-            data: {
+        var responseJson = dataPayload("""
+            {
                 "id":"12345",
                 "object":"chat.completion.chunk",
                 "created":123456789,
@@ -190,12 +191,16 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
                     }
                 ]
             }
-            """.replaceAll("\\s+", "").replaceAll("\\n+", "") + "\n\n";
+            """);
 
-        var streamingResults = payload.streamResponseBody(mockModel(), SdkBytes.fromUtf8String(responseJson));
+        var streamingResults = payload.streamResponseBody(mockModel(), responseJson);
 
         assertThat(streamingResults.results().size(), is(1));
         assertThat(streamingResults.results().iterator().next().delta(), is("test"));
+    }
+
+    private SdkBytes dataPayload(String json) throws IOException {
+        return SdkBytes.fromUtf8String("data: " + XContentHelper.stripWhitespace(json) + "\n\n");
     }
 
     private SageMakerModel mockModel() {
@@ -260,12 +265,9 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
                             "total_tokens": 15
                           }
                         }
-            """.replaceAll("\\s+", "").replaceAll("\\n+", "");
+            """;
 
-        var chatCompletionResponse = payload.chatCompletionResponseBody(
-            mockModel(),
-            SdkBytes.fromUtf8String("data:" + responseJson + "\n\n")
-        );
+        var chatCompletionResponse = payload.chatCompletionResponseBody(mockModel(), dataPayload(responseJson));
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         chatCompletionResponse.toXContentChunked(null).forEachRemaining(xContent -> {
@@ -276,6 +278,6 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
             }
         });
 
-        assertEquals(responseJson, Strings.toString(builder).trim());
+        assertEquals(XContentHelper.stripWhitespace(responseJson), Strings.toString(builder).trim());
     }
 }

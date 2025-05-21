@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerStoredTaskSchema {
-    static final String NAME = "sagemaker_openai_text_embeddings_task_settings"; // also used for completion and chat completion
+    static final String NAME = "sagemaker_openai_task_settings";
     private static final String USER_FIELD = "user";
 
     SageMakerOpenAiTaskSettings(StreamInput in) throws IOException {
@@ -37,7 +37,7 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER;
+        return TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
     }
 
     @Override

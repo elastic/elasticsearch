@@ -282,7 +282,7 @@ class Elasticsearch {
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir(),
                 args.pidFile(),
-                Set.of(EntitlementSelfTester.class)
+                Set.of(EntitlementSelfTester.class.getPackage())
             );
             EntitlementSelfTester.entitlementSelfTest();
         } else {

@@ -192,8 +192,8 @@
  * implementation (normally on {@link org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker}, unless it is a
  * version-specific method) calls the appropriate methods on {@link org.elasticsearch.entitlement.runtime.policy.PolicyManager},
  * forwarding the caller class and a specific set of arguments. These methods all start with check, roughly matching an entitlement type
- * (e.g. {@link org.elasticsearch.entitlement.runtime.policy.PolicyManager#checkInboundNetworkAccess},
- * {@link org.elasticsearch.entitlement.runtime.policy.PolicyManager#checkFileRead}).
+ * (e.g. {@link org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkInboundNetworkAccess},
+ * {@link org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkFileRead}).
  * </p>
  * <p>
  * Most of the entitlements are "flag" entitlements: when present, it grants the caller the right to perform an action (or a set of

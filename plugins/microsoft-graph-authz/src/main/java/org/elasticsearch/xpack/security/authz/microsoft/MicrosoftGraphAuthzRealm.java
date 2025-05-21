@@ -9,6 +9,11 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
+import com.azure.identity.ClientSecretCredentialBuilder;
+import com.microsoft.graph.core.tasks.PageIterator;
+import com.microsoft.graph.models.Group;
+import com.microsoft.graph.models.GroupCollectionResponse;
+import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.nimbusds.jose.util.JSONObjectUtils;
 
 import org.apache.http.client.HttpClient;
@@ -21,7 +26,6 @@ import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
@@ -80,9 +84,12 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     @Override
     public void lookupUser(String principal, ActionListener<User> listener) {
         try {
-            final var token = fetchAccessToken();
-            final var userProperties = fetchUserProperties(principal, token);
-            final var groups = fetchGroupMembership(principal, token);
+//            final var token = fetchAccessToken();
+//            final var userProperties = fetchUserProperties(principal, token);
+//            final var groups = fetchGroupMembership(principal, token);
+            final var client = buildClient();
+            final var userProperties = sdkFetchUserProperties(client, principal);
+            final var groups = sdkFetchGroupMembership(client, principal);
 
             final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
 
@@ -131,6 +138,14 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         return token;
     }
 
+    private GraphServiceClient buildClient() {
+        final var credentialProvider = new ClientSecretCredentialBuilder().clientId(
+            config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
+        ).clientSecret(clientSecret.toString()).tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID)).build();
+
+        return new GraphServiceClient(credentialProvider, "https://graph.microsoft.com/.default");
+    }
+
     private Tuple<String, String> fetchUserProperties(String userId, String token) throws IOException, ParseException {
         var request = new HttpGet(
             Strings.format(
@@ -150,6 +165,15 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         logger.trace("User [{}] has email [{}]", name, email);
 
         return Tuple.tuple(name, email);
+    }
+
+    private Tuple<String, String> sdkFetchUserProperties(GraphServiceClient client, String userId) {
+        var response = client.usersWithUserPrincipalName(userId)
+            .get(requestConfig -> requestConfig.queryParameters.select = new String[] { "displayName", "email" });
+
+        logger.trace("User [{}] has email [{}]", response.getDisplayName(), response.getMail());
+
+        return Tuple.tuple(response.getDisplayName(), response.getMail());
     }
 
     private List<String> fetchGroupMembership(String userId, String token) throws IOException, ParseException, URISyntaxException {
@@ -180,4 +204,31 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         return groups;
     }
 
+    private List<String> sdkFetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
+        List<String> groups = new ArrayList<>();
+
+        var groupMembership = client.users().byUserId(userId).memberOf().graphGroup().get(requestConfig -> {
+            requestConfig.queryParameters.select = new String[] { "id" };
+            requestConfig.queryParameters.top = 999;
+        });
+
+        var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>()
+            .client(client)
+            .collectionPage(groupMembership)
+            .collectionPageFactory(GroupCollectionResponse::createFromDiscriminatorValue)
+            .requestConfigurator(requestInfo -> {
+                requestInfo.addQueryParameter("%24select", new String[] { "id" });
+                requestInfo.addQueryParameter("%24top", "999");
+                return requestInfo;
+            })
+            .processPageItemCallback(group -> {
+                groups.add(group.getId());
+                return true;
+            })
+            .build();
+
+        pageIterator.iterate();
+
+        return groups;
+    }
 }

@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
-    private static final String TENANT_ID = "tenant_id";
+    private static final String TENANT_ID = "tenant-id";
     private static final String CLIENT_ID = "client_id";
     private static final String CLIENT_SECRET = "client_secret";
     private static final String USERNAME = "Thor";

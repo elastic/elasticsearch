@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
+
+dependencies {
+  implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-http-okHttp:1.8.4"
+}
+
+tasks.named('shadowJar').configure {
+  manifest {
+    attributes 'Automatic-Module-Name': 'com.microsoft.kiota'
+  }
+}

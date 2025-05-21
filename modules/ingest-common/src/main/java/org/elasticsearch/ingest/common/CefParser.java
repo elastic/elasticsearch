@@ -373,6 +373,7 @@ final class CefParser {
                 }
                 case 5 -> event.addCefMapping("name", value);
                 case 6 -> event.addCefMapping("severity", value);
+                default -> throw new IllegalArgumentException(INVALID_CEF_FORMAT);
             }
         }
     }

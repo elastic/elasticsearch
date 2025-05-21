@@ -212,7 +212,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         }
 
         try {
-            XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY,
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
                 pruningConfigMap,
                 XContentType.JSON

@@ -343,7 +343,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .executionHint("map")
             .subAggregation(groupByHostId);
         TermsAggregationBuilder groupByExecutableName = new TermsAggregationBuilder("group_by")
-            // 'size' specifies the max number of host ID we support per request.
+            // 'size' specifies the max number of host IDs we support per request.
             .size(MAX_TRACE_EVENTS_RESULT_SIZE)
             .field("process.executable.name")
             // missing("") is used to include documents where the field is missing.

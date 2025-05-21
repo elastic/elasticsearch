@@ -38,14 +38,12 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -75,14 +73,12 @@ public class S3ClientsManagerTests extends ESTestCase {
     private S3Service s3Service;
     private S3ClientsManager s3ClientsManager;
     private final AtomicReference<CountDownLatch> clientRefsCloseLatchRef = new AtomicReference<>();
-    private final AtomicBoolean closeInternalInvoked = new AtomicBoolean(false);
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         s3SecretsIdGenerators = ConcurrentCollections.newConcurrentMap();
         clientRefsCloseLatchRef.set(null);
-        closeInternalInvoked.set(false);
         clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
 
         final Settings.Builder builder = Settings.builder();
@@ -111,28 +107,7 @@ public class S3ClientsManagerTests extends ESTestCase {
             TestProjectResolvers.allProjects(),
             mock(ResourceWatcherService.class),
             () -> Region.of("es-test-region")
-        ) {
-            @Override
-            protected AmazonS3Reference buildClientReference(S3ClientSettings clientSettings) {
-                final var original = super.buildClientReference(clientSettings);
-                final var closeLatch = clientRefsCloseLatchRef.get();
-                if (closeLatch == null) {
-                    return original;
-                }
-
-                original.decRef();
-                final AmazonS3Reference proxy = new AmazonS3Reference(original.client(), DummySdkHttpClient.INSTANCE) {
-                    @Override
-                    protected void closeInternal() {
-                        closeInternalInvoked.set(true);
-                        safeAwait(closeLatch);
-                        original.close();
-                    }
-                };
-                proxy.mustIncRef();
-                return proxy;
-            }
-        };
+        );
         s3Service.refreshAndClearCache(S3ClientSettings.load(settings));
         s3ClientsManager = s3Service.getS3PerProjectClientManager();
         assertNotNull(s3ClientsManager);
@@ -145,8 +120,6 @@ public class S3ClientsManagerTests extends ESTestCase {
         s3Service.close();
         clusterService.close();
         threadPool.close();
-        final var clientsCloseListener = s3ClientsManager.getClientsCloseListener();
-        assertTrue(clientsCloseListener == null || clientsCloseListener.isDone());
         s3ClientsManager.getClientsHolders().forEach((projectId, clientsHolder) -> assertTrue(clientsHolder.isClosed()));
     }
 
@@ -277,42 +250,6 @@ public class S3ClientsManagerTests extends ESTestCase {
         for (var thread : threads) {
             assertTrue(thread.join(Duration.ofSeconds(10)));
         }
-    }
-
-    public void testWaitForAsyncClientClose() throws Exception {
-        final CountDownLatch closeLatch = new CountDownLatch(1);
-        clientRefsCloseLatchRef.set(closeLatch);
-
-        final List<ProjectId> projectIds = randomList(1, 3, ESTestCase::randomUniqueProjectId);
-        final int iterations = between(3, 8);
-
-        final List<AmazonS3Reference> clientRefs = new ArrayList<>();
-        for (int i = 0; i < iterations; i++) {
-            for (var projectId : projectIds) {
-                final List<String> subsetOfClientNames = randomNonEmptySubsetOf(clientNames);
-                updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, subsetOfClientNames.toArray(String[]::new)));
-                subsetOfClientNames.forEach(clientName -> {
-                    final var newClient = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
-                    clientRefs.add(newClient);
-                    newClient.decRef();
-                });
-                if (randomBoolean() && randomBoolean()) {
-                    removeProjectFromClusterState(projectId);
-                }
-            }
-        }
-
-        final Thread thread = new Thread(() -> s3Service.close());
-        thread.start();
-
-        assertBusy(() -> assertTrue(closeInternalInvoked.get()));
-        Thread.sleep(between(0, 100));
-        assertFalse(s3ClientsManager.getClientsCloseListener().isDone());
-
-        closeLatch.countDown();
-        assertTrue(thread.join(Duration.ofSeconds(10)));
-        assertTrue(s3ClientsManager.getClientsCloseListener().isDone());
-        clientRefs.forEach(clientRef -> assertFalse(clientRef.hasReferences()));
     }
 
     public void testClusterAndProjectClients() {

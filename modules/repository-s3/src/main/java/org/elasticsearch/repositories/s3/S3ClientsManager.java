@@ -9,8 +9,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -22,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -33,9 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -53,8 +48,6 @@ public class S3ClientsManager implements ClusterStateApplier {
     private final Executor executor;
     // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
     private final Map<ProjectId, ClientsHolder<?>> clientsHolders;
-    // Listener for tracking ongoing async closing of obsolete clients. Updated only in the applier thread.
-    private volatile SubscribableListener<Void> clientsCloseListener = null;
 
     S3ClientsManager(
         Settings nodeSettings,
@@ -142,31 +135,20 @@ public class S3ClientsManager implements ClusterStateApplier {
         }
         // Close stale clients asynchronously without blocking the applier thread
         if (clientsHoldersToClose.isEmpty() == false) {
-            final var currentClientsCloseListener = new SubscribableListener<Void>();
-            final var previousClientsCloseListener = clientsCloseListener;
-            clientsCloseListener = currentClientsCloseListener;
-            if (previousClientsCloseListener != null && previousClientsCloseListener.isDone() == false) {
-                previousClientsCloseListener.addListener(
-                    ActionListener.running(() -> closeClientsAsync(clientsHoldersToClose, currentClientsCloseListener))
-                );
-            } else {
-                closeClientsAsync(clientsHoldersToClose, currentClientsCloseListener);
-            }
+            closeClientsAsync(clientsHoldersToClose);
         }
     }
 
-    private void closeClientsAsync(List<PerProjectClientsHolder> clientsHoldersToClose, ActionListener<Void> listener) {
+    private void closeClientsAsync(List<PerProjectClientsHolder> clientsHoldersToClose) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 IOUtils.closeWhileHandlingException(clientsHoldersToClose);
-                listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn("Failed to close s3 clients", e);
-                listener.onFailure(e);
             }
         });
     }
@@ -224,25 +206,6 @@ public class S3ClientsManager implements ClusterStateApplier {
      */
     void close() {
         IOUtils.closeWhileHandlingException(clientsHolders.values());
-        final var currentClientsCloseListener = clientsCloseListener;
-        if (currentClientsCloseListener != null && currentClientsCloseListener.isDone() == false) {
-            // Wait for async clients closing to be completed
-            final CountDownLatch latch = new CountDownLatch(1);
-            currentClientsCloseListener.addListener(ActionListener.running(latch::countDown));
-            try {
-                if (latch.await(1, TimeUnit.MINUTES) == false) {
-                    logger.warn("Waiting for async closing of s3 clients timed out");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
-    // visible for tests
-    @Nullable
-    SubscribableListener<Void> getClientsCloseListener() {
-        return clientsCloseListener;
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, S3ClientSettings> currentClientSettings) {

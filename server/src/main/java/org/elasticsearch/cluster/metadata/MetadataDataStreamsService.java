@@ -155,10 +155,8 @@ public class MetadataDataStreamsService {
                 ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
                 projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
                 projectMetadataBuilder.put(dataStream);
-                return new Tuple<>(
-                    ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build(),
-                    updateSettingsTask
-                );
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+                return new Tuple<>(updatedClusterState, updateSettingsTask);
             }
         };
         this.updateSettingsTaskQueue = clusterService.createTaskQueue(
@@ -413,6 +411,10 @@ public class MetadataDataStreamsService {
         ActionListener<DataStream> listener
     ) {
         if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
             try {
                 DataStream updatedDataStream = createDataStreamForUpdatedDataStreamSettings(
                     projectId,
@@ -437,6 +439,10 @@ public class MetadataDataStreamsService {
         }
     }
 
+    /*
+     * This method validates that the settings won't cause any validation problems with existing templates. If successful, a copy of the
+     * data stream is returned with the new settings applied.
+     */
     private DataStream createDataStreamForUpdatedDataStreamSettings(
         ProjectId projectId,
         String dataStreamName,
@@ -722,21 +728,13 @@ public class MetadataDataStreamsService {
             TimeValue ackTimeout,
             ActionListener<DataStream> listener
         ) {
-            super(ackTimeout, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse response) {
-                    if (response.isAcknowledged()) {
-                        listener.onResponse(clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName));
-                    } else {
-                        listener.onFailure(new ElasticsearchException("Updating settings not accepted for unknown reasons"));
-                    }
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating settings not accepted for unknown reasons");
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.settingsOverrides = settingsOverrides;

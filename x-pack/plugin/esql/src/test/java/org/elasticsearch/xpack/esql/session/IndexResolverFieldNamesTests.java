@@ -604,7 +604,20 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | eval language = concat(x, "-", lang)
                 | keep emp_no, x, lang, language
                 | sort emp_no desc | limit 3""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*", "lang", "lang.*")
+            Set.of(
+                "emp_no",
+                "x",
+                "lang",
+                "language",
+                "language_name",
+                "languages",
+                "x.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*",
+                "lang.*",
+                "language.*"
+            )
         );
     }
 
@@ -1339,6 +1352,62 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect first_name "%{first_name} %{more}"
             | keep emp_no, first_name, more""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values,
+     * found expression [type] type [INTEGER]</a>
+     */
+    public void testAvoidGrokAttributesRemoval4() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
+    }
+
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values,
+     * found expression [type] type [INTEGER]</a>
+     */
+    public void testAvoidGrokAttributesRemoval5() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            FROM sample_data, employees
+            | EVAL client_ip = client_ip::keyword
+            | RENAME languages AS language_code
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | EVAL type = 1::keyword
+            | EVAL type = 2
+            | LOOKUP JOIN message_types_lookup ON message
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DISSECT type "%{type_as_text}"
+            | KEEP message
+            | WHERE message IS NOT NULL
+            | SORT message DESC
+            | LIMIT 1""", Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "message",
+                    "type",
+                    "languages",
+                    "client_ip",
+                    "language_code",
+                    "language_code.*",
+                    "client_ip.*",
+                    "message.*",
+                    "type.*",
+                    "languages.*"
+                )
+            )
+        );
     }
 
     public void testEnrichOnDefaultField() {

@@ -644,7 +644,7 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {
@@ -707,7 +707,8 @@ public class EsqlSession {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof Rename
-            || p instanceof TopN) == false;
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

@@ -740,7 +740,14 @@ public class EsqlCapabilities {
          * Support for keeping `DROP` attributes when resolving field names.
          * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
          */
-        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL;
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
+         * found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES;
 
         private final boolean enabled;
 

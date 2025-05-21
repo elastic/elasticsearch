@@ -1,5 +1,12 @@
 pr: 128163
 summary: Make `skip_unavailable` catch all errors
 area: CCS
-type: enhancement
+type: "breaking, enhancement"
 issues: []
+breaking:
+  title: Make `skip_unavailable` catch all errors
+  area: CCS
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

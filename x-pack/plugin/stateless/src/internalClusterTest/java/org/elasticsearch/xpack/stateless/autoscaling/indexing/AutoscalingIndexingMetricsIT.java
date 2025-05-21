@@ -773,9 +773,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             );
         });
 
-        waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster();
+        final var newMasterName = waitForAnyShuttingDownMasterNodesToAbdicateAndElectANewMaster(true);
         for (var node : shuttingDownNodes) {
-            assertThat(node.getName(), not(equalTo(internalCluster().getMasterName())));
+            assertThat(node.getName(), not(equalTo(newMasterName)));
             logger.info("--> stopping node {}", node.getName());
             internalCluster().stopNode(node.getName());
         }

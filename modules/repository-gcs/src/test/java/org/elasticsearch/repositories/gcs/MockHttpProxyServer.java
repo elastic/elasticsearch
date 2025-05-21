@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 import org.apache.http.HttpException;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.impl.bootstrap.HttpServer;
 import org.apache.http.impl.bootstrap.ServerBootstrap;
 import org.apache.http.protocol.HttpContext;
@@ -52,6 +53,7 @@ abstract class MockHttpProxyServer implements Closeable {
         httpServer = ServerBootstrap.bootstrap()
             .setLocalAddress(InetAddress.getLoopbackAddress())
             .setListenerPort(portNumber)
+            .setSocketConfig(portNumber == 0 ? SocketConfig.DEFAULT : SocketConfig.custom().setSoReuseAddress(true).build())
             .registerHandler("*", this::handle)
             .create();
         try {

@@ -16,8 +16,11 @@ import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.language.jvm.tasks.ProcessResources;
+
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -70,12 +73,19 @@ public class PluginBuildPlugin implements Plugin<Project> {
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
-            var componentName = project.getExtensions().getByType(PluginPropertiesExtension.class).getName();
-            var pluginProperties = project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties");
-            task.into("META-INF/es-plugins/" + componentName + "/", copy -> {
-                copy.from(pluginProperties);
-                copy.from(project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml"));
-            });
+            task.into(
+                (Callable<String>) () -> "META-INF/es-plugins/"
+                    + project.getExtensions().getByType(PluginPropertiesExtension.class).getName()
+                    + "/",
+                copy -> {
+                    copy.from(
+                        (Callable<TaskProvider<GeneratePluginPropertiesTask>>) () -> project.getTasks()
+                            .withType(GeneratePluginPropertiesTask.class)
+                            .named("pluginProperties")
+                    );
+                    copy.from(project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml"));
+                }
+            );
         });
     }
 }

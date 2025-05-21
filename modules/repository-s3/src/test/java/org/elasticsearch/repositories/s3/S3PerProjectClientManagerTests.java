@@ -374,7 +374,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
     private void assertProjectClientSettings(ProjectId projectId, String... clientNames) {
         final var clientsHolder = s3PerProjectClientManager.getProjectClientsHolders().get(projectId);
         assertNotNull(clientsHolder);
-        final Map<String, S3ClientSettings> s3ClientSettingsMap = clientsHolder.clientSettings();
+        final Map<String, S3ClientSettings> s3ClientSettingsMap = clientsHolder.allClientSettings();
         assertThat(s3ClientSettingsMap.keySet(), containsInAnyOrder(clientNames));
 
         for (var clientName : clientNames) {

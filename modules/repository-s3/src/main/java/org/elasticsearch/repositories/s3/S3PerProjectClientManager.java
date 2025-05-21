@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -47,7 +48,7 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
     private final Function<S3ClientSettings, AmazonS3Reference> clientBuilder;
     private final Executor executor;
     // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
-    private final Map<ProjectId, ClientsHolder> projectClientsHolders;
+    private final Map<ProjectId, ClientsHolder<?>> projectClientsHolders;
     // Listener for tracking ongoing async closing of obsolete clients. Updated only in the applier thread.
     private volatile SubscribableListener<Void> clientsCloseListener = null;
 
@@ -62,7 +63,7 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
     }
 
     // visible for tests
-    Map<ProjectId, ClientsHolder> getProjectClientsHolders() {
+    Map<ProjectId, ClientsHolder<?>> getProjectClientsHolders() {
         return Map.copyOf(projectClientsHolders);
     }
 
@@ -70,16 +71,17 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
     public void applyClusterState(ClusterChangedEvent event) {
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
-        final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();
-        final List<ClientsHolder> clientsHoldersToClose = new ArrayList<>();
+        final var updatedPerProjectClients = new HashMap<ProjectId, PerProjectClientsHolder>();
+        final List<PerProjectClientsHolder> clientsHoldersToClose = new ArrayList<>();
         for (var project : currentProjects.values()) {
             final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
             // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith("s3."))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
-                final ClientsHolder removed = projectClientsHolders.remove(project.id());
+                final var removed = projectClientsHolders.remove(project.id());
                 if (removed != null) {
-                    clientsHoldersToClose.add(removed);
+                    assert removed instanceof PerProjectClientsHolder;
+                    clientsHoldersToClose.add((PerProjectClientsHolder) removed);
                 }
                 continue;
             }
@@ -109,7 +111,7 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
             // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
             // and avoid building the clientSettings
             if (newOrUpdated(project.id(), clientSettings)) {
-                updatedPerProjectClients.put(project.id(), new ClientsHolder(project.id(), clientSettings));
+                updatedPerProjectClients.put(project.id(), new PerProjectClientsHolder(project.id(), clientSettings));
             }
         }
 
@@ -117,15 +119,16 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
         for (var projectId : updatedPerProjectClients.keySet()) {
             final var old = projectClientsHolders.put(projectId, updatedPerProjectClients.get(projectId));
             if (old != null) {
-                clientsHoldersToClose.add(old);
+                assert old instanceof PerProjectClientsHolder;
+                clientsHoldersToClose.add((PerProjectClientsHolder) old);
             }
         }
         // removed projects
         for (var projectId : projectClientsHolders.keySet()) {
             if (currentProjects.containsKey(projectId) == false) {
                 final var removed = projectClientsHolders.remove(projectId);
-                assert removed != null;
-                clientsHoldersToClose.add(removed);
+                assert removed instanceof PerProjectClientsHolder;
+                clientsHoldersToClose.add((PerProjectClientsHolder) removed);
             }
         }
         // Close stale clients asynchronously without blocking the applier thread
@@ -143,7 +146,7 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
         }
     }
 
-    private void closeClientsAsync(List<ClientsHolder> clientsHoldersToClose, ActionListener<Void> listener) {
+    private void closeClientsAsync(List<PerProjectClientsHolder> clientsHoldersToClose, ActionListener<Void> listener) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -165,7 +168,9 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
         if (clientsHolder == null) {
             throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
         }
-        return clientsHolder.client(clientName);
+        return clientsHolder.client(
+            new RepositoryMetadata("repo", S3Repository.TYPE, Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build())
+        );
     }
 
     /**
@@ -212,46 +217,44 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
         if (old == null) {
             return true;
         }
-        return currentClientSettings.equals(old.clientSettings()) == false;
+        return currentClientSettings.equals(old.allClientSettings()) == false;
     }
 
-    /**
-     * Holder class of s3 clients for a single project. It is instantiated in the cluster state thread with client
-     * settings. The clients are created and cached lazily when the {@link #client(String)} method is called.
-     * Cached clients are closed and cleared out when the {@link #clearCache()} method is called. Subsequent calls to
-     * {@link #client(String)} will recreate them. The call to {@link #close()} method clears the cache as well but
-     * also flags the holder to be closed so that no new clients can be created.
-     */
-    final class ClientsHolder implements Closeable {
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final ProjectId projectId;
-        private final Map<String, S3ClientSettings> clientSettings;
-        // Client name -> client reference
-        private volatile Map<String, AmazonS3Reference> clientsCache = Collections.emptyMap();
+    abstract class ClientsHolder<K> implements Closeable {
+        protected final ProjectId projectId;
+        protected final AtomicBoolean closed = new AtomicBoolean(false);
+        protected volatile Map<K, AmazonS3Reference> clientsCache = Collections.emptyMap();
 
-        ClientsHolder(ProjectId projectId, Map<String, S3ClientSettings> clientSettings) {
+        ClientsHolder(ProjectId projectId) {
             this.projectId = projectId;
-            this.clientSettings = clientSettings;
         }
 
-        Map<String, S3ClientSettings> clientSettings() {
-            return clientSettings;
-        }
+        abstract K clientKey(RepositoryMetadata repositoryMetadata);
 
-        AmazonS3Reference client(String clientName) {
-            final var clientReference = clientsCache.get(clientName);
+        abstract String clientName(K clientKey);
+
+        abstract S3ClientSettings singleClientSettings(K clientKey);
+
+        abstract Map<String, S3ClientSettings> allClientSettings();
+
+        AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
+            final var clientKey = clientKey(repositoryMetadata);
+
+            final var clientReference = clientsCache.get(clientKey);
             // It is ok to retrieve an existing client when the cache is being cleared or the holder is closing.
             // As long as there are paired incRef/decRef calls, the client will be closed when the last reference is released
             // by either the caller of this method or the clearCache() method.
             if (clientReference != null && clientReference.tryIncRef()) {
                 return clientReference;
             }
-            final var settings = clientSettings.get(clientName);
+            final var settings = singleClientSettings(clientKey);
             if (settings == null) {
-                throw new IllegalArgumentException("s3 client [" + clientName + "] does not exist for project [" + projectId + "]");
+                throw new IllegalArgumentException(
+                    "s3 client [" + clientName(clientKey) + "] does not exist for project [" + projectId + "]"
+                );
             }
             synchronized (this) {
-                final var existing = clientsCache.get(clientName);
+                final var existing = clientsCache.get(clientKey);
                 if (existing != null && existing.tryIncRef()) {
                     return existing;
                 }
@@ -262,13 +265,13 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
                 // The clearCache() will clear the newly added client.
                 final var newClientReference = clientBuilder.apply(settings);
-                clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientName, newClientReference);
+                clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientKey, newClientReference);
                 return newClientReference;
             }
         }
 
         /**
-         * Clear the cache by closing and clear out all clients. Subsequent {@link #client(String)} calls will recreate
+         * Clear the cache by closing and clear out all clients. Subsequent {@link #client(RepositoryMetadata)} calls will recreate
          * the clients and populate the cache again.
          */
         synchronized void clearCache() {
@@ -288,6 +291,52 @@ public class S3PerProjectClientManager implements ClusterStateApplier {
         // visible for tests
         boolean isClosed() {
             return closed.get();
+        }
+    }
+
+    /**
+     * Holder class of s3 clients for a single project. It is instantiated in the cluster state thread with client
+     * settings. The clients are created and cached lazily when the {@link #client(String)} method is called.
+     * Cached clients are closed and cleared out when the {@link #clearCache()} method is called. Subsequent calls to
+     * {@link #client(String)} will recreate them. The call to {@link #close()} method clears the cache as well but
+     * also flags the holder to be closed so that no new clients can be created.
+     */
+    final class PerProjectClientsHolder extends ClientsHolder<String> {
+        private final Map<String, S3ClientSettings> clientSettings;
+
+        PerProjectClientsHolder(ProjectId projectId, Map<String, S3ClientSettings> clientSettings) {
+            super(projectId);
+            this.clientSettings = clientSettings;
+        }
+
+        @Override
+        Map<String, S3ClientSettings> allClientSettings() {
+            return clientSettings;
+        }
+
+        @Override
+        String clientKey(RepositoryMetadata repositoryMetadata) {
+            return S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
+        }
+
+        @Override
+        String clientName(String clientKey) {
+            return clientKey;
+        }
+
+        @Override
+        S3ClientSettings singleClientSettings(String clientKey) {
+            return clientSettings.get(clientKey);
+        }
+
+        AmazonS3Reference client(String clientName) {
+            return client(
+                new RepositoryMetadata(
+                    "repo",
+                    S3Repository.TYPE,
+                    Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
+                )
+            );
         }
     }
 }

@@ -184,8 +184,7 @@ class S3Service extends AbstractLifecycleComponent {
         return projectId == null ? ProjectId.DEFAULT : projectId;
     }
 
-    // visible for tests
-    protected AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
+    private AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
         final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
         Releasable toRelease = httpClient::close;
         try {
@@ -198,8 +197,13 @@ class S3Service extends AbstractLifecycleComponent {
         }
     }
 
+    @FixForMultiProject(description = "can be removed once blobstore is project aware")
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        return s3ClientsManager.settingsForClient(ProjectId.DEFAULT, repositoryMetadata);
+        return settings(ProjectId.DEFAULT, repositoryMetadata);
+    }
+
+    S3ClientSettings settings(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        return s3ClientsManager.settingsForClient(effectiveProjectId(projectId), repositoryMetadata);
     }
 
     // proxy for testing

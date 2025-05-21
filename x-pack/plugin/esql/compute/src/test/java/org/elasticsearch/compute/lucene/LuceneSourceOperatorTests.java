@@ -324,5 +324,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         public String shardIdentifier() {
             return "test";
         }
+
+        @Override
+        public MappedFieldType fieldType(String name) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

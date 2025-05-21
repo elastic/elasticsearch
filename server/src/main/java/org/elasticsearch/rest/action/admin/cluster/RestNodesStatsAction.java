@@ -188,7 +188,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .nodesStats(nodesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel, xContentParamsForRequest(request)));
+            .nodesStats(
+                nodesStatsRequest,
+                new RestRefCountedChunkedToXContentListener<>(channel, xContentParamsForRequest(channel.request()))
+            );
     }
 
     private ToXContent.DelegatingMapParams xContentParamsForRequest(RestRequest request) {

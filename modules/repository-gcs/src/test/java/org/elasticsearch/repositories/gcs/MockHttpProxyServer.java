@@ -26,19 +26,16 @@ import java.util.concurrent.TimeUnit;
  */
 abstract class MockHttpProxyServer implements Closeable {
 
-    private final HttpServer httpServer;
+    private HttpServer httpServer;
 
     MockHttpProxyServer() {
-        httpServer = ServerBootstrap.bootstrap()
-            .setLocalAddress(InetAddress.getLoopbackAddress())
-            .setListenerPort(0)
-            .registerHandler("*", this::handle)
-            .create();
-        try {
-            httpServer.start();
-        } catch (IOException e) {
-            throw new RuntimeException("Unable to start HTTP proxy server", e);
-        }
+        startHttpServer(0);
+    }
+
+    public void restart() {
+        int originalPort = httpServer.getLocalPort();
+        httpServer.shutdown(0, TimeUnit.SECONDS);
+        startHttpServer(originalPort);
     }
 
     public abstract void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException;
@@ -49,6 +46,19 @@ abstract class MockHttpProxyServer implements Closeable {
 
     String getHost() {
         return NetworkAddress.format(httpServer.getInetAddress());
+    }
+
+    private void startHttpServer(int portNumber) {
+        httpServer = ServerBootstrap.bootstrap()
+            .setLocalAddress(InetAddress.getLoopbackAddress())
+            .setListenerPort(portNumber)
+            .registerHandler("*", this::handle)
+            .create();
+        try {
+            httpServer.start();
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to start HTTP proxy server", e);
+        }
     }
 
     @Override

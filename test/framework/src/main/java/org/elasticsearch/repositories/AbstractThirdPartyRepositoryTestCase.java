@@ -465,6 +465,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected BlobStoreRepository getRepository() {
-        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
+        return getRepository(TEST_REPO_NAME);
+    }
+
+    protected BlobStoreRepository getRepository(String name) {
+        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(name);
     }
 }

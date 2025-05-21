@@ -83,12 +83,25 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        // Only partial searchable snapshots use the shared blob cache. Only force-evict if we know the shard won't be coming back.
-        if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && indexRemovalReason == IndexRemovalReason.DELETED) {
-            final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
-                SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
-            assert sharedBlobCacheService != null : "frozen cache service not initialized";
-            sharedBlobCacheService.forceEvictAsync(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+        // Only partial searchable snapshots use the shared blob cache.
+        if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot()) {
+            switch (indexRemovalReason) {
+                // The index was deleted, it's not coming back - we can evict asynchronously
+                case DELETED -> {
+                    final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
+                        SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
+                    assert sharedBlobCacheService != null : "frozen cache service not initialized";
+                    sharedBlobCacheService.forceEvictAsync(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                }
+                // An error occurred - we should eagerly clear the state
+                case FAILURE -> {
+                    final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
+                        SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
+                    assert sharedBlobCacheService != null : "frozen cache service not initialized";
+                    sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                }
+                // Any other reason - we let the cache entries expire naturally
+            }
         }
     }
 }

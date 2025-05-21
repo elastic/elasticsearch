@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -93,7 +93,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRequestValidationFailureScenarios() throws IOException {
-        class Dummy extends ActionRequest {
+        class Dummy extends LegacyActionRequest {
             String realm;
             String user;
             String apiKeyId;

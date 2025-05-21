@@ -571,12 +571,8 @@ public class EsqlSession {
     }
 
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
-        if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
+        if (false == parsed.anyMatch(EsqlSession::shouldCollectReferencedFields)) {
             // no explicit columns selection, for example "from employees"
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
-
-        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
@@ -587,6 +583,33 @@ public class EsqlSession {
             }
             projectAll.set(true);
         });
+
+        if (projectAll.get()) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+
+        Holder<Boolean> projectAfterFork = new Holder<>(false);
+        Holder<Boolean> hasFork = new Holder<>(false);
+
+        parsed.forEachDown(plan -> {
+            if (projectAll.get()) {
+                return;
+            }
+
+            if (hasFork.get() == false && shouldCollectReferencedFields(plan)) {
+                projectAfterFork.set(true);
+            }
+
+            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
+                hasFork.set(true);
+                fork.children().forEach(child -> {
+                    if (child.anyMatch(EsqlSession::shouldCollectReferencedFields) == false) {
+                        projectAll.set(true);
+                    }
+                });
+            }
+        });
+
         if (projectAll.get()) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
@@ -656,7 +679,7 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {
@@ -704,6 +727,13 @@ public class EsqlSession {
     }
 
     /**
+     * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
+     */
+    private static boolean shouldCollectReferencedFields(LogicalPlan plan) {
+        return plan instanceof Aggregate || plan instanceof Project;
+    }
+
+    /**
      * Could a plan "accidentally" override aliases?
      * Examples are JOIN and ENRICH, that _could_ produce fields with the same
      * name of an existing alias, based on their index mapping.
@@ -726,7 +756,8 @@ public class EsqlSession {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof Rename
-            || p instanceof TopN) == false;
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

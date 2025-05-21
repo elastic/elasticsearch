@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -325,6 +326,7 @@ public class EsqlFunctionRegistry {
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
+                def(RoundTo.class, RoundTo::new, "round_to"),
                 def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
@@ -1034,6 +1036,24 @@ public class EsqlFunctionRegistry {
 
     protected interface UnaryVariadicBuilder<T> {
         T build(Source source, Expression exp, List<Expression> variadic);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for functions with two mandatory arguments followed by a varidic list.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, BinaryVariadicBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (children.size() < 3) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.subList(2, children.size()));
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface BinaryVariadicBuilder<T> {
+        T build(Source source, Expression exp1, Expression exp2, List<Expression> variadic);
     }
 
     protected interface BinaryVariadicWithOptionsBuilder<T> {

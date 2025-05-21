@@ -142,42 +142,47 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     public void testResumeAfterUpdate() {
         createRepository(PROXIED_TEST_REPO, PROXIED_CLIENT);
 
-        // The blob needs to be large enough that it won't be entirely buffered on the first request
-        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(10).getBytes());
+        try {
+            // The blob needs to be large enough that it won't be entirely buffered on the first request
+            final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(10).getBytes());
 
-        final BlobStoreRepository repo = getRepository(PROXIED_TEST_REPO);
-        final String blobKey = randomIdentifier();
-        final byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
-        executeOnBlobStore(repo, container -> {
-            container.writeBlob(randomPurpose(), blobKey, new BytesArray(initialValue), true);
+            final BlobStoreRepository repo = getRepository(PROXIED_TEST_REPO);
+            final String blobKey = randomIdentifier();
+            final byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+            executeOnBlobStore(repo, container -> {
+                container.writeBlob(randomPurpose(), blobKey, new BytesArray(initialValue), true);
 
-            try (InputStream inputStream = container.readBlob(randomPurpose(), blobKey)) {
-                // Trigger the first request for the blob, partially read it
-                int read = inputStream.read();
-                assert read != -1;
+                try (InputStream inputStream = container.readBlob(randomPurpose(), blobKey)) {
+                    // Trigger the first request for the blob, partially read it
+                    int read = inputStream.read();
+                    assert read != -1;
 
-                // Restart the server (this triggers a retry)
-                proxyServer.restart();
+                    // Restart the server (this triggers a retry)
+                    proxyServer.restart();
 
-                // Update the file
-                byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
-                container.writeBlob(randomPurpose(), blobKey, new BytesArray(updatedValue), false);
+                    // Update the file
+                    byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+                    container.writeBlob(randomPurpose(), blobKey, new BytesArray(updatedValue), false);
 
-                // Read the rest of the stream, it should throw because the contents changed
-                String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
-                assertThat(
-                    message,
-                    startsWith(
-                        "Blob object ["
-                            + container.path().buildAsString()
-                            + blobKey
-                            + "] generation [1] unavailable on resume (contents changed, or object deleted):"
-                    )
-                );
-            } catch (Exception e) {
-                fail(e);
-            }
-            return null;
-        });
+                    // Read the rest of the stream, it should throw because the contents changed
+                    String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+                    assertThat(
+                        message,
+                        startsWith(
+                            "Blob object ["
+                                + container.path().buildAsString()
+                                + blobKey
+                                + "] generation [1] unavailable on resume (contents changed, or object deleted):"
+                        )
+                    );
+                } catch (Exception e) {
+                    fail(e);
+                }
+                return null;
+            });
+        } finally {
+            final BlobStoreRepository repository = getRepository(PROXIED_TEST_REPO);
+            deleteAndAssertEmpty(repository, repository.basePath());
+        }
     }
 }

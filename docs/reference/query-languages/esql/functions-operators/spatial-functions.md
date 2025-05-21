@@ -57,9 +57,6 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_geotile_to_long.md
 :::
 
-:::{include} ../_snippets/functions/layout/st_geotile_to_geoshape.md
-:::
-
 :::{include} ../_snippets/functions/layout/st_geohex.md
 :::
 
@@ -69,9 +66,6 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_geohex_to_long.md
 :::
 
-:::{include} ../_snippets/functions/layout/st_geohex_to_geoshape.md
-:::
-
 :::{include} ../_snippets/functions/layout/st_geohash.md
 :::
 
@@ -79,7 +73,4 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/st_geohash_to_long.md
-:::
-
-:::{include} ../_snippets/functions/layout/st_geohash_to_geoshape.md
 :::

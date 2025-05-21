@@ -162,9 +162,6 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
      */
     public boolean assertBeginRunLoop() {
         activeThread = Thread.currentThread();
-        if (breaker instanceof LocalCircuitBreaker local) {
-            local.assertBeginRunLoop();
-        }
         return true;
     }
 
@@ -174,9 +171,6 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
      */
     public boolean assertEndRunLoop() {
         activeThread = null;
-        if (breaker instanceof LocalCircuitBreaker local) {
-            local.assertEndRunLoop();
-        }
         return true;
     }
 }

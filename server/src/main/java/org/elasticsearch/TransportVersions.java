@@ -261,6 +261,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = def(9_077_0_00);
     public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED = def(9_078_0_00);
     public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);
+    public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_080_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

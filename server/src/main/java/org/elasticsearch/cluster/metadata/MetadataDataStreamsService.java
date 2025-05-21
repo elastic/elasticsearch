@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -59,6 +60,7 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
     private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
+    private final MasterServiceTaskQueue<UpdateMappingsTask> updateMappingsTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
@@ -176,6 +178,39 @@ public class MetadataDataStreamsService {
             "update-data-stream-settings",
             Priority.NORMAL,
             updateSettingsExecutor
+        );
+        ClusterStateTaskExecutor<UpdateMappingsTask> updateMappingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateMappingsTask updateMappingsTask,
+                ClusterState clusterState
+            ) throws Exception {
+
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateMappingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+                DataStream dataStream = dataStreamMap.get(updateMappingsTask.dataStreamName);
+
+                final ComposableIndexTemplate template = lookupTemplateForDataStream(updateMappingsTask.dataStreamName, projectMetadata);
+                ComposableIndexTemplate mergedTemplate = template.mergeMappings(updateMappingsTask.mappingsOverrides);
+                MetadataIndexTemplateService.validateTemplate(
+                    mergedTemplate.template().settings(),
+                    mergedTemplate.template().mappings(),
+                    indicesService
+                );
+                DataStream.Builder dataStreamBuilder = dataStream.copy().setMappings(updateMappingsTask.mappingsOverrides);
+                projectMetadataBuilder.removeDataStream(updateMappingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStreamBuilder.build());
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+                return new Tuple<>(updatedClusterState, updateMappingsTask);
+            }
+        };
+        this.updateMappingsTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-settings",
+            Priority.NORMAL,
+            updateMappingsExecutor
         );
     }
 
@@ -425,6 +460,15 @@ public class MetadataDataStreamsService {
         updateSettingsTaskQueue.submitTask(
             "updating settings on data stream",
             new UpdateSettingsTask(projectId, dataStreamName, settingsOverrides, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    public void updateMappings(ProjectId projectId, TimeValue masterNodeTimeout, TimeValue ackTimeout, String dataStreamName,
+                               CompressedXContent mappingsOverrides, ActionListener<AcknowledgedResponse> listener) {
+        updateMappingsTaskQueue.submitTask(
+            "updating mappings on data stream",
+            new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, ackTimeout, listener),
             masterNodeTimeout
         );
     }
@@ -690,6 +734,25 @@ public class MetadataDataStreamsService {
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.settingsOverrides = settingsOverrides;
+        }
+    }
+
+    static class UpdateMappingsTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String dataStreamName;
+        private final CompressedXContent mappingsOverrides;
+
+        UpdateMappingsTask(
+            ProjectId projectId,
+            String dataStreamName,
+            CompressedXContent mappingsOverrides,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.dataStreamName = dataStreamName;
+            this.mappingsOverrides = mappingsOverrides;
         }
     }
 }

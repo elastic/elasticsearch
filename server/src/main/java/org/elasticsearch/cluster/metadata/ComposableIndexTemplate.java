@@ -19,18 +19,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -336,6 +342,62 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         mergedTemplateBuilder.settings(templateSettings == null ? settings : templateSettings.merge(settings));
         mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
         return mergedIndexTemplateBuilder.build();
+    }
+
+    public ComposableIndexTemplate mergeMappings(CompressedXContent mappings) throws IOException {
+        Objects.requireNonNull(mappings);
+        if (Mapping.EMPTY.toCompressedXContent().equals(mappings)) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        CompressedXContent templateMappings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateMappings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateMappings = this.template().mappings();
+        }
+        mergedTemplateBuilder.mappings(templateMappings == null ? mappings : merge(templateMappings, mappings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private CompressedXContent merge(CompressedXContent originalMapping, CompressedXContent mappingAddition) throws IOException {
+        Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
+        Map<String, Object> combinedMappingMap = new HashMap<>();
+        if (originalMapping != null) {
+            combinedMappingMap.putAll((Map<? extends String, ?>) XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2().get("_doc"));
+        }
+        XContentHelper.update(combinedMappingMap, mappingAdditionMap, true);
+        if (combinedMappingMap.isEmpty()) {
+            return null;
+        } else {
+            return convertMappingMapToXContent(combinedMappingMap);
+        }
+    }
+
+    private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+        CompressedXContent compressedXContent;
+        if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
+            compressedXContent = null;
+        } else {
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
+                compressedXContent = mappingFromXContent(parser);
+            }
+        }
+        return compressedXContent;
+    }
+
+    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Override

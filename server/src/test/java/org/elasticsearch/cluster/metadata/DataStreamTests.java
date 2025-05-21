@@ -98,6 +98,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var generation = instance.getGeneration();
         var metadata = instance.getMetadata();
         var settings = instance.getSettings();
+        var mappings = instance.getMappings();
         var isHidden = instance.isHidden();
         var isReplicated = instance.isReplicated();
         var isSystem = instance.isSystem();
@@ -110,7 +111,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var autoShardingEvent = instance.getAutoShardingEvent();
         var failureRolloverOnWrite = instance.getFailureComponent().isRolloverOnWrite();
         var failureAutoShardingEvent = instance.getDataComponent().getAutoShardingEvent();
-        switch (between(0, 16)) {
+        switch (between(0, 17)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -179,6 +180,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : new DataStreamAutoShardingEvent(indices.getLast().getName(), randomIntBetween(1, 10), randomMillisUpToYear9999());
             case 16 -> settings = randomValueOtherThan(settings, DataStreamTestHelper::randomSettings);
+            case 17 -> mappings = randomValueOtherThan(mappings, ComponentTemplateTests::randomMappings);
         }
 
         return new DataStream(
@@ -186,6 +188,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             generation,
             metadata,
             settings,
+            mappings,
             isHidden,
             isReplicated,
             isSystem,
@@ -1953,6 +1956,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             generation,
             metadata,
             randomSettings(),
+            randomMappings(),
             isSystem,
             randomBoolean(),
             isSystem,
@@ -2146,6 +2150,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2165,6 +2170,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2191,6 +2197,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2216,6 +2223,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2239,6 +2247,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2271,6 +2280,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2673,5 +2683,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .build();
             builder.put(im, false);
         }
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        if (randomBoolean()) {
+            return ToXContent.EMPTY_PARAMS;
+        }
+        return new ToXContent.MapParams(Map.of("binary", randomFrom("true", "false"), Metadata.CONTEXT_MODE_PARAM,
+            randomFrom(Metadata.XContentContext.values()).toString()));
     }
 }

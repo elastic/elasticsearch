@@ -322,6 +322,10 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                 return;
             }
             if (dryRun) {
+                /*
+                 * This is as far as we go with dry run mode. We get the benefit of having checked that all the indices that will be touced
+                 * are not blocked, but there is no value in going behond this. So just respond to the listener and move on.
+                 */
                 listener.onResponse(null);
             } else {
                 updateSettingsService.updateSettings(

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -590,6 +591,46 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, requestJson);
     }
 
+    public void testParseFunctionCallWithBadJson() throws IOException {
+        int someNumber = 1;
+        var illegalArguments = List.of("\"order_id\": \"order_12345\"}", "[]", Integer.toString(someNumber), "\"a\"");
+        for (var illegalArgument : illegalArguments) {
+
+            var requestContentObject = new UnifiedCompletionRequest(
+                List.of(
+                    new UnifiedCompletionRequest.Message(
+                        new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("", "text"))),
+                        "assistant",
+                        null,
+                        List.of(
+                            new UnifiedCompletionRequest.ToolCall(
+                                "call_62136354",
+                                new UnifiedCompletionRequest.ToolCall.FunctionField(illegalArgument, "get_delivery_date"),
+                                "function"
+                            )
+                        )
+                    )
+                ),
+                "gemini-2.0",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            UnifiedChatInput unifiedChatInput = new UnifiedChatInput(requestContentObject, true);
+            GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+                unifiedChatInput
+            );
+
+            XContentBuilder builder = JsonXContent.contentBuilder();
+
+            assertThrows(ParsingException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        }
+
+    }
     public void testParseFunctionCallWithEmptyStringContent() throws IOException {
         String requestJson = """
             {
@@ -613,7 +654,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var requestContentObject = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    // new UnifiedCompletionRequest.ContentObject("", "text"),
                     new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("", "text"))),
                     "assistant",
                     null,

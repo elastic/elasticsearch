@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
@@ -120,9 +121,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, jsonString)) {
             XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new IOException("Expected JSON object to start with '{', but found " + token);
-            }
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             return parser.mapStrings();
         }
     }

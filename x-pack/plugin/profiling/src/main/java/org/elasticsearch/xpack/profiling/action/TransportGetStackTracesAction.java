@@ -377,8 +377,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
+                // The count values for events are scaled up to the highest sampling frequency.
+                // For example, if the highest sampling frequency is 100, an event with frequency=20 and count=1
+                // will be upscaled to count=5 (100/20 * count).
+                // For this, we need to find the highest frequency in the result set.
                 long maxSamplingFrequency = 0;
-
                 Terms samplingFrequencies = searchResponse.getAggregations().get("group_by");
                 for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
                     final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
@@ -387,6 +390,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     }
                 }
 
+                // Calculate a scaled-up total count (scaled up to the highest sampling frequency).
                 long totalCount = 0;
                 for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
                     InternalNumericMetricsAggregation.SingleValue count = samplingFrequencyBucket.getAggregations().get("total_count");
@@ -398,17 +402,16 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
 
                 // Sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+                // The term dictionary is lexicographically sorted, and using the same order reduces the number of page faults
                 // needed to load it.
                 long totalFinalCount = 0;
                 Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(MAX_TRACE_EVENTS_RESULT_SIZE);
 
+                // Walk over all nested aggregations.
+                // The outermost aggregation is the sampling frequency.
+                // The next level is the executable name, followed by the thread name, host ID and stacktrace ID.
+                // the innermost aggregation contains the count of samples for each stacktrace ID.
                 for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
-                    log.debug(
-                        "Using sampling frequency [{}] for [{}] stacktrace events.",
-                        samplingFrequencyBucket.getKeyAsString(),
-                        totalCount
-                    );
                     final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
                     final double samplingFactor = maxSamplingFrequency / samplingFrequency;
 

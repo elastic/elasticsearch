@@ -66,7 +66,7 @@ public class GoogleVertexAiCompletionRequestManager extends GoogleVertexAiReques
         ActionListener<InferenceServiceResults> listener
     ) {
 
-        var chatInputs = (UnifiedChatInput) inferenceInputs;
+        var chatInputs = inferenceInputs.castTo(UnifiedChatInput.class);
         var request = new GoogleVertexAiUnifiedChatCompletionRequest(chatInputs, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

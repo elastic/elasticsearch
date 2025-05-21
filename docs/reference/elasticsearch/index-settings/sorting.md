@@ -35,7 +35,7 @@ PUT my-index-000001
 ```
 
 1. This index is sorted by the `date` field
-2. …​ in descending order.
+2. …  in descending order.
 
 
 It is also possible to sort the index by more than one field:
@@ -64,7 +64,7 @@ PUT my-index-000001
 ```
 
 1. This index is sorted by `username` first then by `date`
-2. …​ in ascending order for the `username` field and in descending order for the `date` field.
+2. …  in ascending order for the `username` field and in descending order for the `date` field.
 
 
 Index sorting supports the following settings:

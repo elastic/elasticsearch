@@ -21,7 +21,7 @@
 
 FROM ${base_image} AS builder
 
-RUN microdnf install -y findutils tar gzip
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -31,45 +31,46 @@ RUN microdnf install -y findutils tar gzip
 # build. Instead, we check the binary against the published checksum.
 RUN set -eux ; \\
     tini_bin="" ; \\
-    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \
     case "\$(arch)" in \\
         aarch64) tini_bin='tini-arm64' ;; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$arch" ; echo >&2 ; exit 1 ;; \\
+        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
-    curl -f --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl -f --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod 0555 /bin/tini
 
 WORKDIR /usr/share/elasticsearch
-RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
-RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
-# Configure the distribution for Docker
-    sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
-# Create required directory
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
+
+# The distribution includes a `config` directory, no need to create it
+COPY ${config_dir}/elasticsearch.yml config/
+COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
+
+#  1. Configure the distribution for Docker
+#  2. Create required directory
+#  3. Move the distribution's default logging config aside
+#  4. Move the generated docker logging config so that it is the default
+#  5. Reset permissions on all directories
+#  6. Reset permissions on all files
+#  7. Make CLI tools executable
+#  8. Make some directories writable. `bin` must be writable because
+#     plugins can install their own CLI utilities.
+#  9. Make some files writable
+RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
-# Reset permissions on all directories
-    find . -type d -exec chmod 0555 {} + && \\
-# keep default elasticsearch log4j config
     mv config/log4j2.properties config/log4j2.file.properties && \\
-# Reset permissions on all files
+    mv config/log4j2.docker.properties config/log4j2.properties && \\
+    find . -type d -exec chmod 0555 {} + && \\
     find . -type f -exec chmod 0444 {} + && \\
-# Make CLI tools executable
     chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
-# Make some directories writable. `bin` must be writable because
-# plugins can install their own CLI utilities.
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-# Make some files writable
-    find config -type f -exec chmod 0664 {} + && \\
-# Tighten up permissions on the ES home dir (the permissions of the contents are handled below)
-    chmod 0775 . && \\
-# You can't install plugins that include configuration when running as `elasticsearch` and the `config`
-# dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
-# config directory.
-    chown 1000:1000 bin config config/jvm.options.d data logs plugins
+    find config -type f -exec chmod 0664 {} +
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -84,12 +85,19 @@ COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 
 FROM ${base_image}
 
-RUN microdnf install --setopt=tsflags=nodocs -y \\
-    nc shadow-utils zip unzip findutils procps-ng && \\
-    microdnf clean all
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+      export DEBIAN_FRONTEND=noninteractive && \\
+      apt-get update && \\
+      apt-get upgrade -y && \\
+      apt-get install -y --no-install-recommends \\
+        ca-certificates curl netcat p11-kit unzip zip  && \\
+      apt-get clean && \\
+      rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
+    adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
+    adduser elasticsearch root && \\
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
@@ -100,10 +108,10 @@ WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
-# Replace OpenJDK's built-in CA certificate keystore with the one from the OS
-# vendor. The latter is superior in several ways.
-# REF: https://github.com/elastic/elasticsearch-docker/issues/171
-RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts jdk/lib/security/cacerts
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 ENV SHELL=/bin/bash

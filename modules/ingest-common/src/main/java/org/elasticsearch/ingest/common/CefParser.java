@@ -335,18 +335,19 @@ final class CefParser {
             }
         }
 
-        if (headers.isEmpty() == false && headers.getFirst().startsWith("CEF:")) {
-            CefEvent event = new CefEvent();
-            if (headers.size() != 7) {
-                throw new IllegalArgumentException(INCOMPLETE_CEF_HEADER);
-            }
-            processHeaders(headers, event);
-            final String extensionString = cefString.substring(extensionStart);
-            processExtensions(extensionString, event);
-            return event;
-        } else {
+        if (headers.isEmpty() || headers.getFirst().startsWith("CEF:") == false) {
             throw new IllegalArgumentException(INVALID_CEF_FORMAT);
         }
+
+        if (headers.size() != 7) {
+            throw new IllegalArgumentException(INCOMPLETE_CEF_HEADER);
+        }
+        String extensionString = cefString.substring(extensionStart);
+
+        CefEvent event = new CefEvent();
+        processHeaders(headers, event);
+        processExtensions(extensionString, event);
+        return event;
     }
 
     private static void processHeaders(List<String> headers, CefEvent event) {

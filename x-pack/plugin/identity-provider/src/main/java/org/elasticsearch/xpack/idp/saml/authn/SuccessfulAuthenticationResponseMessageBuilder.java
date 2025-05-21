@@ -45,6 +45,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
@@ -231,8 +232,8 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         }
         // Add custom attributes if provided
         if (customAttributes != null && customAttributes.getAttributes().isEmpty() == false) {
-            for (SamlInitiateSingleSignOnAttributes.Attribute customAttr : customAttributes.getAttributes()) {
-                Attribute attribute = buildAttribute(customAttr.getKey(), customAttr.getKey(), customAttr.getValues());
+            for (Map.Entry<String, List<String>> entry : customAttributes.getAttributes().entrySet()) {
+                Attribute attribute = buildAttribute(entry.getKey(), entry.getKey(), entry.getValue());
                 if (attribute != null) {
                     attributes.add(attribute);
                 }

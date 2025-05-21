@@ -4,123 +4,127 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
 
-    public void testConstructors() {
+    public void testConstructors() throws Exception {
         // Test default constructor
         final SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes();
-        assertThat(attributes1.getAttributes(), hasSize(0));
+        assertThat(attributes1.getAttributes(), Matchers.anEmptyMap());
 
-        // Test with empty attribute list
+        // Test a second instance is also empty (not holding state)
         final SamlInitiateSingleSignOnAttributes attributes2 = new SamlInitiateSingleSignOnAttributes();
-        attributes2.setAttributes(Collections.emptyList());
-        assertThat(attributes2.getAttributes(), hasSize(0));
+        assertThat(attributes2.getAttributes(), Matchers.anEmptyMap());
 
-        // Test with non-empty attribute list
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Collections.singletonList("value1")));
+        // Test adding attributes
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("key1", Collections.singletonList("value1"));
         final SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes();
-        attributes3.setAttributes(attributeList);
-        assertThat(attributes3.getAttributes(), hasSize(1));
-        assertThat(attributes3.getAttributes().get(0).getKey(), equalTo("key1"));
+        attributes3.setAttributes(attributeMap);
+        assertThat(attributes3.getAttributes().size(), equalTo(1));
     }
 
-    public void testEmptyAttributes() throws IOException {
+    public void testEmptyAttributes() throws Exception {
         final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
-        assertThat(attributes.getAttributes(), hasSize(0));
 
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        // Test toXContent
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         attributes.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final String json = Strings.toString(builder);
-        assertThat(json, equalTo("{\"attributes\":[]}"));
+        builder.endObject();
+        String json = BytesReference.bytes(builder).utf8ToString();
 
         final SamlInitiateSingleSignOnAttributes parsedAttributes = parseFromJson(json);
-        assertThat(parsedAttributes.getAttributes(), hasSize(0));
+        assertThat(parsedAttributes.getAttributes(), Matchers.anEmptyMap());
 
-        // Test wire serialization
+        // Test serialization
         SamlInitiateSingleSignOnAttributes serialized = copySerialize(attributes);
-        assertThat(serialized.getAttributes(), hasSize(0));
+        assertThat(serialized.getAttributes(), Matchers.anEmptyMap());
     }
 
-    public void testWithAttributes() throws IOException {
+    public void testWithAttributes() throws Exception {
         final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
 
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Arrays.asList("value1", "value2")));
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Collections.singletonList("value3")));
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("key1", Arrays.asList("value1", "value2"));
+        attributeMap.put("key2", Collections.singletonList("value3"));
+        attributes.setAttributes(attributeMap);
 
-        attributes.setAttributes(attributeList);
+        // Test getAttributes
+        Map<String, List<String>> returnedAttributes = attributes.getAttributes();
+        assertThat(returnedAttributes.size(), equalTo(2));
+        assertThat(returnedAttributes.get("key1").size(), equalTo(2));
+        assertThat(returnedAttributes.get("key1").get(0), equalTo("value1"));
+        assertThat(returnedAttributes.get("key1").get(1), equalTo("value2"));
+        assertThat(returnedAttributes.get("key2").size(), equalTo(1));
+        assertThat(returnedAttributes.get("key2").get(0), equalTo("value3"));
 
-        assertThat(attributes.getAttributes(), hasSize(2));
-        assertThat(attributes.getAttributes().get(0).getKey(), equalTo("key1"));
-        assertThat(attributes.getAttributes().get(0).getValues(), hasSize(2));
-        assertThat(attributes.getAttributes().get(0).getValues().get(0), equalTo("value1"));
-        assertThat(attributes.getAttributes().get(0).getValues().get(1), equalTo("value2"));
+        // Test immutability of returned attributes
+        expectThrows(UnsupportedOperationException.class, () -> returnedAttributes.put("newKey", Collections.singletonList("value")));
+        expectThrows(UnsupportedOperationException.class, () -> returnedAttributes.get("key1").add("value3"));
 
-        assertThat(attributes.getAttributes().get(1).getKey(), equalTo("key2"));
-        assertThat(attributes.getAttributes().get(1).getValues(), hasSize(1));
-        assertThat(attributes.getAttributes().get(1).getValues().get(0), equalTo("value3"));
+        // Test validate
+        ActionRequestValidationException validationException = attributes.validate();
+        assertNull(validationException);
 
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        // Test toXContent
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         attributes.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final String json = Strings.toString(builder);
+        builder.endObject();
+        String json = BytesReference.bytes(builder).utf8ToString();
 
-        // Check that JSON contains expected values
-        assertThat(json, containsString("key1"));
-        assertThat(json, containsString("value1"));
-        assertThat(json, containsString("value2"));
-        assertThat(json, containsString("key2"));
-        assertThat(json, containsString("value3"));
-
-        // Check that parsed JSON matches original attributes
+        // Test parsing from JSON
         final SamlInitiateSingleSignOnAttributes parsedAttributes = parseFromJson(json);
-        assertThat(parsedAttributes.getAttributes(), hasSize(2));
-        assertThat(parsedAttributes.getAttributes().get(0).getKey(), equalTo("key1"));
-        assertThat(parsedAttributes.getAttributes().get(0).getValues(), hasSize(2));
-        assertThat(parsedAttributes.getAttributes().get(1).getKey(), equalTo("key2"));
-        assertThat(parsedAttributes.getAttributes().get(1).getValues(), hasSize(1));
+        assertThat(parsedAttributes.getAttributes().size(), equalTo(2));
+        assertThat(parsedAttributes.getAttributes().get("key1").size(), equalTo(2));
+        assertThat(parsedAttributes.getAttributes().get("key1").get(0), equalTo("value1"));
+        assertThat(parsedAttributes.getAttributes().get("key1").get(1), equalTo("value2"));
+        assertThat(parsedAttributes.getAttributes().get("key2").size(), equalTo(1));
+        assertThat(parsedAttributes.getAttributes().get("key2").get(0), equalTo("value3"));
 
-        // Test equals/hashCode
-        assertThat(attributes, equalTo(parsedAttributes));
-        assertThat(attributes.hashCode(), equalTo(parsedAttributes.hashCode()));
-
-        // Test wire serialization
+        // Test serialization
         SamlInitiateSingleSignOnAttributes serialized = copySerialize(attributes);
-        assertThat(serialized.getAttributes(), hasSize(2));
-        assertThat(serialized.getAttributes().get(0).getKey(), equalTo("key1"));
-        assertThat(serialized.getAttributes().get(0).getValues(), hasSize(2));
-        assertThat(serialized.getAttributes().get(1).getKey(), equalTo("key2"));
-        assertThat(serialized.getAttributes().get(1).getValues(), hasSize(1));
+        assertThat(serialized.getAttributes().size(), equalTo(2));
+        assertThat(serialized.getAttributes().get("key1").size(), equalTo(2));
+        assertThat(serialized.getAttributes().get("key1").get(0), equalTo("value1"));
+        assertThat(serialized.getAttributes().get("key1").get(1), equalTo("value2"));
+        assertThat(serialized.getAttributes().get("key2").size(), equalTo(1));
+        assertThat(serialized.getAttributes().get("key2").get(0), equalTo("value3"));
     }
 
     public void testToString() {
         final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Arrays.asList("value1", "value2")));
-        attributes.setAttributes(attributeList);
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("key1", Arrays.asList("value1", "value2"));
+        attributes.setAttributes(attributeMap);
 
         String toString = attributes.toString();
         assertThat(toString, containsString("SamlInitiateSingleSignOnAttributes"));
@@ -128,171 +132,102 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         assertThat(toString, containsString("value1"));
         assertThat(toString, containsString("value2"));
 
-        // Test with multiple attributes
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Collections.singletonList("value3")));
-        attributes.setAttributes(attributeList);
+        // Add another attribute
+        attributeMap.put("key2", Collections.singletonList("value3"));
+        attributes.setAttributes(attributeMap);
+
         toString = attributes.toString();
-        assertThat(toString, containsString("key1"));
         assertThat(toString, containsString("key2"));
         assertThat(toString, containsString("value3"));
 
-        // Test with empty attributes
+        // Test empty attributes
         final SamlInitiateSingleSignOnAttributes emptyAttributes = new SamlInitiateSingleSignOnAttributes();
         toString = emptyAttributes.toString();
         assertThat(toString, containsString("SamlInitiateSingleSignOnAttributes"));
-        assertThat(toString, containsString("attributes=[]"));
+        assertThat(toString, containsString("attributes={}"));
     }
 
-    public void testAttributeClass() throws IOException {
-        SamlInitiateSingleSignOnAttributes.Attribute attribute = new SamlInitiateSingleSignOnAttributes.Attribute(
-            "testKey",
-            Arrays.asList("val1", "val2")
-        );
+    public void testValidation() throws Exception {
+        // Test validation with empty key
+        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("", Arrays.asList("value1", "value2"));
+        attributes.setAttributes(attributeMap);
 
-        assertThat(attribute.getKey(), equalTo("testKey"));
-        assertThat(attribute.getValues(), hasSize(2));
-        assertThat(attribute.getValues().get(0), equalTo("val1"));
-        assertThat(attribute.getValues().get(1), equalTo("val2"));
+        ActionRequestValidationException validationException = attributes.validate();
+        assertNotNull(validationException);
+        assertThat(validationException.getMessage(), containsString("attribute key cannot be null or empty"));
 
-        // Test equals/hashCode
-        SamlInitiateSingleSignOnAttributes.Attribute attribute2 = new SamlInitiateSingleSignOnAttributes.Attribute(
-            "testKey",
-            Arrays.asList("val1", "val2")
-        );
-        assertThat(attribute, equalTo(attribute2));
-        assertThat(attribute.hashCode(), equalTo(attribute2.hashCode()));
+        // Test validation with null key
+        attributeMap = new HashMap<>();
+        attributeMap.put(null, Collections.singletonList("value"));
+        attributes.setAttributes(attributeMap);
 
-        SamlInitiateSingleSignOnAttributes.Attribute attribute3 = new SamlInitiateSingleSignOnAttributes.Attribute(
-            "differentKey",
-            Arrays.asList("val1", "val2")
-        );
-        assertThat(attribute, not(equalTo(attribute3)));
-
-        SamlInitiateSingleSignOnAttributes.Attribute attribute4 = new SamlInitiateSingleSignOnAttributes.Attribute(
-            "testKey",
-            Arrays.asList("differentValue")
-        );
-        assertThat(attribute, not(equalTo(attribute4)));
-
-        // Test equals with different object types
-        assertThat(attribute.equals("someString"), equalTo(false));
-        assertThat(attribute.equals(null), equalTo(false));
-
-        // Test setter methods
-        SamlInitiateSingleSignOnAttributes.Attribute mutableAttr = new SamlInitiateSingleSignOnAttributes.Attribute(
-            "testKey",
-            Collections.emptyList()
-        );
-        mutableAttr.setKey("newKey");
-        mutableAttr.setValues(Arrays.asList("newVal1", "newVal2"));
-        assertThat(mutableAttr.getKey(), equalTo("newKey"));
-        assertThat(mutableAttr.getValues(), hasSize(2));
-        assertThat(mutableAttr.getValues().get(0), equalTo("newVal1"));
-        assertThat(mutableAttr.getValues().get(1), equalTo("newVal2"));
-
-        // Test toString
-        String toString = attribute.toString();
-        assertThat(toString, containsString("Attribute"));
-        assertThat(toString, containsString("testKey"));
-        assertThat(toString, containsString("val1"));
+        validationException = attributes.validate();
+        assertNotNull(validationException);
+        assertThat(validationException.getMessage(), containsString("attribute key cannot be null or empty"));
     }
 
     public void testEqualsAndHashCode() {
-        // Create attributes objects with the same content
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList1 = new ArrayList<>();
-        attributeList1.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Arrays.asList("value1", "value2")));
-        attributeList1.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Collections.singletonList("value3")));
+        Map<String, List<String>> attributeMap1 = new HashMap<>();
+        attributeMap1.put("key1", Arrays.asList("value1", "value2"));
+        attributeMap1.put("key2", Collections.singletonList("value3"));
 
         SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes();
-        attributes1.setAttributes(attributeList1);
+        attributes1.setAttributes(attributeMap1);
 
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList2 = new ArrayList<>();
-        attributeList2.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Arrays.asList("value1", "value2")));
-        attributeList2.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Collections.singletonList("value3")));
+        Map<String, List<String>> attributeMap2 = new HashMap<>();
+        attributeMap2.put("key1", Arrays.asList("value1", "value2"));
+        attributeMap2.put("key2", Collections.singletonList("value3"));
 
         SamlInitiateSingleSignOnAttributes attributes2 = new SamlInitiateSingleSignOnAttributes();
-        attributes2.setAttributes(attributeList2);
+        attributes2.setAttributes(attributeMap2);
 
-        // Test equals and hashCode for identical objects
-        assertThat(attributes1, equalTo(attributes2));
+        // Test equals
+        assertTrue(attributes1.equals(attributes2));
+        assertTrue(attributes2.equals(attributes1));
+
+        // Test hashCode
         assertThat(attributes1.hashCode(), equalTo(attributes2.hashCode()));
 
-        // Test equals with self
-        assertThat(attributes1.equals(attributes1), equalTo(true));
+        // Test with different values
+        Map<String, List<String>> attributeMap3 = new HashMap<>();
+        attributeMap3.put("key1", Arrays.asList("different", "value2"));
+        attributeMap3.put("key2", Collections.singletonList("value3"));
 
-        // Test different objects
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList3 = new ArrayList<>();
-        attributeList3.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Arrays.asList("value1", "different")));
         SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes();
-        attributes3.setAttributes(attributeList3);
+        attributes3.setAttributes(attributeMap3);
 
-        assertThat(attributes1.equals(attributes3), equalTo(false));
+        assertFalse(attributes1.equals(attributes3));
 
-        // Test equals with null and different object types
-        assertThat(attributes1.equals(null), equalTo(false));
-        assertThat(attributes1.equals("string"), equalTo(false));
-    }
+        // Test with missing key
+        Map<String, List<String>> attributeMap4 = new HashMap<>();
+        attributeMap4.put("key1", Arrays.asList("value1", "value2"));
 
-    public void testValidate() {
-        // Test with valid attributes - should pass validation
-        final SamlInitiateSingleSignOnAttributes validAttributes = new SamlInitiateSingleSignOnAttributes();
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Collections.singletonList("value1")));
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Arrays.asList("value2A", "value2B")));
-        validAttributes.setAttributes(attributeList);
+        SamlInitiateSingleSignOnAttributes attributes4 = new SamlInitiateSingleSignOnAttributes();
+        attributes4.setAttributes(attributeMap4);
 
-        ActionRequestValidationException validationException = validAttributes.validate();
-        assertNull("Valid attributes should pass validation", validationException);
-
-        // Test with null key - should fail validation
-        final SamlInitiateSingleSignOnAttributes nullKeyAttributes = new SamlInitiateSingleSignOnAttributes();
-        attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute(null, Collections.singletonList("value1")));
-        nullKeyAttributes.setAttributes(attributeList);
-
-        validationException = nullKeyAttributes.validate();
-        assertNotNull("Null key should fail validation", validationException);
-        assertThat(validationException.validationErrors().size(), equalTo(1));
-        assertThat(validationException.validationErrors().get(0), containsString("attribute key cannot be null or empty"));
-
-        // Test with empty key - should fail validation
-        final SamlInitiateSingleSignOnAttributes emptyKeyAttributes = new SamlInitiateSingleSignOnAttributes();
-        attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("", Collections.singletonList("value1")));
-        emptyKeyAttributes.setAttributes(attributeList);
-
-        validationException = emptyKeyAttributes.validate();
-        assertNotNull("Empty key should fail validation", validationException);
-        assertThat(validationException.validationErrors().size(), equalTo(1));
-        assertThat(validationException.validationErrors().get(0), containsString("attribute key cannot be null or empty"));
-
-        // Test with duplicate keys - should fail validation
-        final SamlInitiateSingleSignOnAttributes duplicateKeyAttributes = new SamlInitiateSingleSignOnAttributes();
-        attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("duplicate_key", Collections.singletonList("value1")));
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("unique_key", Collections.singletonList("value2")));
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("duplicate_key", Arrays.asList("value3", "value4")));
-        duplicateKeyAttributes.setAttributes(attributeList);
-
-        validationException = duplicateKeyAttributes.validate();
-        assertNotNull("Duplicate keys should fail validation", validationException);
-        assertThat(validationException.validationErrors().size(), equalTo(1));
-        assertThat(validationException.validationErrors().get(0), containsString("duplicate attribute key [duplicate_key] found"));
+        assertFalse(attributes1.equals(attributes4));
     }
 
     private SamlInitiateSingleSignOnAttributes parseFromJson(String json) throws IOException {
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+        try (
+            InputStream stream = new ByteArrayInputStream(json.getBytes("UTF-8"));
+            XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, stream)
+        ) {
             parser.nextToken(); // Start object
             return SamlInitiateSingleSignOnAttributes.fromXContent(parser);
         }
     }
 
-    private SamlInitiateSingleSignOnAttributes copySerialize(SamlInitiateSingleSignOnAttributes attributes) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            attributes.writeTo(out);
-            try (var in = out.bytes().streamInput()) {
-                return new SamlInitiateSingleSignOnAttributes(in);
-            }
-        }
+    private SamlInitiateSingleSignOnAttributes copySerialize(SamlInitiateSingleSignOnAttributes original) throws IOException {
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        original.writeTo(out);
+        out.flush();
+
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        return new SamlInitiateSingleSignOnAttributes(in);
     }
 }

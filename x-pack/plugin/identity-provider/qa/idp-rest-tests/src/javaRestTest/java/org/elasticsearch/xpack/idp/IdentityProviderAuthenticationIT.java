@@ -109,16 +109,10 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
 
         // Create custom attributes
-        List<Map<String, Object>> attributesList = new ArrayList<>();
-        Map<String, Object> attr1 = Map.of("key", "department", "values", List.of("engineering", "product"));
-        Map<String, Object> attr2 = Map.of("key", "region", "values", List.of("APJ"));
-        attributesList.add(attr1);
-        attributesList.add(attr2);
-
-        final Map<String, Object> requestAttributes = Map.of("attributes", attributesList);
+        Map<String, List<String>> attributesMap = Map.of("department", List.of("engineering", "product"), "region", List.of("APJ"));
 
         // Generate SAML response with custom attributes
-        final String samlResponse = generateSamlResponseWithAttributes(SP_ENTITY_ID, SP_ACS, null, requestAttributes);
+        final String samlResponse = generateSamlResponseWithAttributes(SP_ENTITY_ID, SP_ACS, null, attributesMap);
 
         // Parse XML directly from samlResponse (it's not base64 encoded at this point)
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -229,7 +223,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         String entityId,
         String acs,
         @Nullable Map<String, Object> authnState,
-        @Nullable Map<String, Object> attributes
+        @Nullable Map<String, List<String>> attributes
     ) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init");
 

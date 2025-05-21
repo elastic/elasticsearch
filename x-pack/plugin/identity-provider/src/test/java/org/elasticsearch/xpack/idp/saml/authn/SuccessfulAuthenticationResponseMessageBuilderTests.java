@@ -25,7 +25,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -61,15 +63,15 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
     public void testSignedResponseWithCustomAttributes() throws Exception {
         // Create custom attributes
         SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
-        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("customAttr1", Collections.singletonList("value1")));
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("customAttr1", Collections.singletonList("value1"));
 
         List<String> multipleValues = new ArrayList<>();
         multipleValues.add("value2A");
         multipleValues.add("value2B");
-        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("customAttr2", multipleValues));
+        attributeMap.put("customAttr2", multipleValues);
 
-        attributes.setAttributes(attributeList);
+        attributes.setAttributes(attributeMap);
 
         // Build response with custom attributes
         final Response response = buildResponse(attributes);

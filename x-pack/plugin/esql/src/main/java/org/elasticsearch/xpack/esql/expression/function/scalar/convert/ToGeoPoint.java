@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
 public class ToGeoPoint extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -91,6 +91,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return stringToSpatial(in.utf8ToString());
+        return stringToGeo(in.utf8ToString());
     }
 }

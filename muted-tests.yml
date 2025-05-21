@@ -459,6 +459,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test121CanUseStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128165
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  method: testForkFieldsWithKeepAfterFork
+  issue: https://github.com/elastic/elasticsearch/issues/128271
 
 # Examples:
 #

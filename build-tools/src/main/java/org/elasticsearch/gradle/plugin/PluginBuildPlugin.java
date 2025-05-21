@@ -16,7 +16,6 @@ import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
@@ -78,11 +77,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                     + project.getExtensions().getByType(PluginPropertiesExtension.class).getName()
                     + "/",
                 copy -> {
-                    copy.from(
-                        (Callable<TaskProvider<GeneratePluginPropertiesTask>>) () -> project.getTasks()
-                            .withType(GeneratePluginPropertiesTask.class)
-                            .named("pluginProperties")
-                    );
+                    copy.from(project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties"));
                     copy.from(project.getLayout().getProjectDirectory().file("src/main/plugin-metadata/entitlement-policy.yaml"));
                 }
             );

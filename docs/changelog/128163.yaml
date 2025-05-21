@@ -1,0 +1,5 @@
+pr: 128163
+summary: Make `skip_unavailable` catch all errors
+area: CCS
+type: enhancement
+issues: []

@@ -431,8 +431,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStream.getSettings().toXContent(builder, params);
                 builder.endObject();
 
-                Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(dataStream.getMappings().uncompressed(), true, XContentType.JSON)
-                    .v2();
+                Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(
+                    dataStream.getMappings().uncompressed(),
+                    true,
+                    XContentType.JSON
+                ).v2();
                 if (uncompressedMapping.isEmpty() == false) {
                     builder.field(MAPPINGS_FIELD.getPreferredName());
                     builder.map(uncompressedMapping);

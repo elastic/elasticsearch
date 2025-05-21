@@ -2690,7 +2690,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (randomBoolean()) {
             return ToXContent.EMPTY_PARAMS;
         }
-        return new ToXContent.MapParams(Map.of("binary", randomFrom("true", "false"), Metadata.CONTEXT_MODE_PARAM,
-            randomFrom(Metadata.XContentContext.values()).toString()));
+        return new ToXContent.MapParams(
+            Map.of(
+                "binary",
+                randomFrom("true", "false"),
+                Metadata.CONTEXT_MODE_PARAM,
+                randomFrom(Metadata.XContentContext.values()).toString()
+            )
+        );
     }
 }

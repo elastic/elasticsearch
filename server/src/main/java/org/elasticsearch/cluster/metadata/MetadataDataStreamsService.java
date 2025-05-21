@@ -464,8 +464,14 @@ public class MetadataDataStreamsService {
         );
     }
 
-    public void updateMappings(ProjectId projectId, TimeValue masterNodeTimeout, TimeValue ackTimeout, String dataStreamName,
-                               CompressedXContent mappingsOverrides, ActionListener<AcknowledgedResponse> listener) {
+    public void updateMappings(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         updateMappingsTaskQueue.submitTask(
             "updating mappings on data stream",
             new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, ackTimeout, listener),

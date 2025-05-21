@@ -369,7 +369,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
         Map<String, Object> combinedMappingMap = new HashMap<>();
         if (originalMapping != null) {
-            combinedMappingMap.putAll((Map<? extends String, ?>) XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON).v2().get("_doc"));
+            combinedMappingMap.putAll(
+                (Map<? extends String, ?>) XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON)
+                    .v2()
+                    .get("_doc")
+            );
         }
         XContentHelper.update(combinedMappingMap, mappingAdditionMap, true);
         if (combinedMappingMap.isEmpty()) {

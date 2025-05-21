@@ -18,27 +18,34 @@ import java.util.Objects;
 
 /**
  * A registry for {@link org.elasticsearch.common.io.stream.Writeable.Reader} readers of {@link NamedWriteable}.
- *
+ * <p>
  * The registration is keyed by the combination of the category class of {@link NamedWriteable}, and a name unique
  * to that category.
  */
 public class NamedWriteableRegistry {
-
     static boolean ignoreDeserializationErrors; // disable assertions just to test production behaviour
 
     /** An entry in the registry, made up of a category class and name, and a reader for that category class. */
     public static class Entry {
 
-        /** The superclass of a {@link NamedWriteable} which will be read by {@link #reader}. */
+        /**
+         * The superclass of a {@link NamedWriteable} which will be read by {@link #reader}.
+         */
         public final Class<?> categoryClass;
 
-        /** A name for the writeable which is unique to the {@link #categoryClass}. */
+        /**
+         * A name for the writeable which is unique to the {@link #categoryClass}.
+         */
         public final String name;
 
-        /** A reader capability of reading*/
+        /**
+         * A reader capability of reading
+         */
         public final Writeable.Reader<?> reader;
 
-        /** Creates a new entry which can be stored by the registry. */
+        /**
+         * Creates a new entry which can be stored by the registry.
+         */
         public <T extends NamedWriteable> Entry(Class<T> categoryClass, String name, Writeable.Reader<? extends T> reader) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
@@ -50,7 +57,7 @@ public class NamedWriteableRegistry {
      * The underlying data of the registry maps from the category to an inner
      * map of name unique to that category, to the actual reader.
      */
-    private final Map<Class<?>, Map<String, Writeable.Reader<?>>> registry;
+    private final Map<Class<?>, Map<Symbol, Writeable.Reader<?>>> registry;
 
     /**
      * Constructs a new registry from the given entries.
@@ -64,8 +71,8 @@ public class NamedWriteableRegistry {
         entries = new ArrayList<>(entries);
         entries.sort(Comparator.comparing(e -> e.categoryClass.getName()));
 
-        Map<Class<?>, Map<String, Writeable.Reader<?>>> registry = new HashMap<>();
-        Map<String, Writeable.Reader<?>> readers = null;
+        Map<Class<?>, Map<Symbol, Writeable.Reader<?>>> registry = new HashMap<>();
+        Map<Symbol, Writeable.Reader<?>> readers = null;
         Class currentCategory = null;
         for (Entry entry : entries) {
             if (currentCategory != entry.categoryClass) {
@@ -77,7 +84,7 @@ public class NamedWriteableRegistry {
                 currentCategory = entry.categoryClass;
             }
 
-            Writeable.Reader<?> oldReader = readers.put(entry.name, entry.reader);
+            Writeable.Reader<?> oldReader = readers.put(Symbol.ofConstant(entry.name), entry.reader);
             if (oldReader != null) {
                 throw new IllegalArgumentException(
                     "NamedWriteable ["
@@ -102,39 +109,40 @@ public class NamedWriteableRegistry {
 
     /**
      * Returns a reader for a {@link NamedWriteable} object identified by the
-     * name provided as argument and its category.
+     * symbol provided as argument and its category.
      */
-    public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
-        Map<String, Writeable.Reader<?>> readers = getReaders(categoryClass);
-        return getReader(categoryClass, name, readers);
+    public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, Symbol symbol) {
+        Map<Symbol, Writeable.Reader<?>> readers = getReaders(categoryClass);
+        return getReader(categoryClass, symbol, readers);
     }
 
     /**
      * @param categoryClass category of the reader
-     * @param name          name of the writeable
+     * @param symbol        symbol of the writeable
      * @param readers       map of readers for the category
      * @return reader for the named writable of the given {@code name}
      */
     public static <T> Writeable.Reader<? extends T> getReader(
         Class<T> categoryClass,
-        String name,
-        Map<String, Writeable.Reader<?>> readers
+        Symbol symbol,
+        Map<Symbol, Writeable.Reader<?>> readers
     ) {
         @SuppressWarnings("unchecked")
-        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) readers.get(name);
+        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) readers.get(symbol);
         if (reader == null) {
-            throwOnUnknownWritable(categoryClass, name);
+            throwOnUnknownWritable(categoryClass, symbol.toString());
         }
         return reader;
     }
 
     /**
      * Gets the readers map keyed by name for the given category
+     *
      * @param categoryClass category to get readers map for
      * @return map of readers for the category
      */
-    public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
-        Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
+    public <T> Map<Symbol, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
+        Map<Symbol, Writeable.Reader<?>> readers = registry.get(categoryClass);
         if (readers == null) {
             throwOnUnknownCategory(categoryClass);
         }

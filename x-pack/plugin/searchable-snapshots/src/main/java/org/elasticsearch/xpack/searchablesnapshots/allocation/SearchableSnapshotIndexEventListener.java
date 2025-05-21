@@ -115,7 +115,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                     }
                     if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && sharedBlobCacheService != null) {
                         switch (reason) {
-                            // Shards we know are not coming back - we can evict asynchronously
+                            // This index was deleted, it's not coming back - we can evict asynchronously
                             case DELETED -> sharedBlobCacheService.forceEvictAsync(
                                 SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
                             );

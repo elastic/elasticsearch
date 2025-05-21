@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
@@ -67,17 +68,20 @@ final class CefParser {
     );
 
     // Comprehensive regex pattern to match various MAC address formats
-    private static final String MAC_ADDRESS_REGEX = "^(" +
-    // Combined colon and hyphen separated 6-group patterns
-        "(([0-9A-Fa-f]{2}[:|-]){5}[0-9A-Fa-f]{2})|" +
+    private static final List<String> MAC_ADDRESS_REGEXES = List.of(
+        // Combined colon and hyphen separated 6-group patterns
+        "(([0-9A-Fa-f]{2}[:|-]){5}[0-9A-Fa-f]{2})",
         // Dot-separated 6-group pattern
-        "([0-9A-Fa-f]{4}\\.){2}[0-9A-Fa-f]{4}|" +
+        "([0-9A-Fa-f]{4}\\.){2}[0-9A-Fa-f]{4}",
         // Combined colon and hyphen separated 8-group patterns
-        "([0-9A-Fa-f]{2}[:|-]){7}[0-9A-Fa-f]{2}|" +
+        "([0-9A-Fa-f]{2}[:|-]){7}[0-9A-Fa-f]{2}",
         // Dot-separated EUI-64
-        "([0-9A-Fa-f]{4}\\.){3}[0-9A-Fa-f]{4}" + ")$";
+        "([0-9A-Fa-f]{4}\\.){3}[0-9A-Fa-f]{4}"
+    );
 
-    private static final Pattern MAC_ADDRESS_PATTERN = Pattern.compile(MAC_ADDRESS_REGEX);
+    private static final Pattern MAC_ADDRESS_PATTERN = Pattern.compile(
+        MAC_ADDRESS_REGEXES.stream().collect(Collectors.joining("|", "^(", ")$"))
+    );
     private static final int EUI48_HEX_LENGTH = 48 / 4;
     private static final int EUI64_HEX_LENGTH = 64 / 4;
     private static final int EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH = EUI64_HEX_LENGTH + EUI64_HEX_LENGTH / 2 - 1;

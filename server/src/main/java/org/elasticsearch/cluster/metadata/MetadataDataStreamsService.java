@@ -145,13 +145,18 @@ public class MetadataDataStreamsService {
                 UpdateSettingsTask updateSettingsTask,
                 ClusterState clusterState
             ) throws Exception {
+                DataStream dataStream = createDataStreamForUpdatedDataStreamSettings(
+                    updateSettingsTask.projectId,
+                    updateSettingsTask.dataStreamName,
+                    updateSettingsTask.settingsOverrides,
+                    clusterState
+                );
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStream);
                 return new Tuple<>(
-                    createClusterStateForUpdatedDataStreamSettings(
-                        updateSettingsTask.projectId,
-                        updateSettingsTask.dataStreamName,
-                        updateSettingsTask.settingsOverrides,
-                        clusterState
-                    ),
+                    ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build(),
                     updateSettingsTask
                 );
             }
@@ -409,13 +414,13 @@ public class MetadataDataStreamsService {
     ) {
         if (dryRun) {
             try {
-                ClusterState newState = createClusterStateForUpdatedDataStreamSettings(
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamSettings(
                     projectId,
                     dataStreamName,
                     settingsOverrides,
                     clusterService.state()
                 );
-                listener.onResponse(newState.projectState(projectId).metadata().dataStreams().get(dataStreamName));
+                listener.onResponse(updatedDataStream);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -432,15 +437,13 @@ public class MetadataDataStreamsService {
         }
     }
 
-    private ClusterState createClusterStateForUpdatedDataStreamSettings(
+    private DataStream createDataStreamForUpdatedDataStreamSettings(
         ProjectId projectId,
         String dataStreamName,
         Settings settingsOverrides,
         ClusterState clusterState
     ) throws Exception {
-
         ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
         Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
         DataStream dataStream = dataStreamMap.get(dataStreamName);
         Settings existingSettings = dataStream.getSettings();
@@ -458,10 +461,7 @@ public class MetadataDataStreamsService {
         );
 
         templateBuilder.settings(mergedSettingsBuilder);
-        DataStream.Builder dataStreamBuilder = dataStream.copy().setSettings(mergedSettings);
-        projectMetadataBuilder.removeDataStream(dataStreamName);
-        projectMetadataBuilder.put(dataStreamBuilder.build());
-        return ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+        return dataStream.copy().setSettings(mergedSettings).build();
     }
 
     private static void addBackingIndex(

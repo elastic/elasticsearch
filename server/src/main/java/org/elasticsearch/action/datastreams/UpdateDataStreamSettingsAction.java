@@ -122,13 +122,14 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             Request request = (Request) o;
             return Arrays.equals(dataStreamNames, request.dataStreamNames)
                 && settings.equals(request.settings)
+                && dryRun == request.dryRun
                 && Objects.equals(masterNodeTimeout(), request.masterNodeTimeout())
                 && Objects.equals(ackTimeout(), request.ackTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(dataStreamNames), settings, masterNodeTimeout(), ackTimeout());
+            return Objects.hash(Arrays.hashCode(dataStreamNames), settings, dryRun, masterNodeTimeout(), ackTimeout());
         }
 
     }

@@ -99,6 +99,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             throw new IllegalStateException("PIT is required");
         }
 
+        if (doRewrite(ctx)) {
+            return clone(innerRetrievers, preFilterQueryBuilders);
+        }
+
         // Rewrite prefilters
         // We eagerly rewrite prefilters, because some of the innerRetrievers
         // could be compound too, so we want to propagate all the necessary filter information to them
@@ -314,6 +318,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         return sourceBuilder;
+    }
+
+    /**
+     * Perform any custom rewrite logic necessary
+     *
+     * @param ctx The query rewrite context
+     * @return true if the retriever changed, false otherwise
+     */
+    protected boolean doRewrite(QueryRewriteContext ctx) {
+        return false;
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

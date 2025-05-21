@@ -26,7 +26,7 @@ When adding a field dynamically, the first value in the array determines the fie
 
 Arrays with a mixture of data types are *not* supported: [ `10`, `"some string"` ]
 
-An array may contain `null` values, which are either replaced by the configured [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md) or skipped entirely. An empty array `[]` is treated as a missing field — a field with no values.
+An array may contain `null` values, which are either replaced by the configured [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md) or skipped entirely. An empty array `[]` is treated as a missing field — a field with no values.
 
 Nothing needs to be pre-configured in order to use arrays in documents, they are supported out of the box:
 

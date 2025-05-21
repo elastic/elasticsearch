@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class EsqlListQueriesRequest extends ActionRequest {
+public class EsqlListQueriesRequest extends LegacyActionRequest {
     public EsqlListQueriesRequest() {}
 
     public EsqlListQueriesRequest(StreamInput streamInput) throws IOException {

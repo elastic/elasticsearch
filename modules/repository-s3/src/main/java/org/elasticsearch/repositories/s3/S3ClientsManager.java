@@ -257,13 +257,6 @@ public class S3ClientsManager implements ClusterStateApplier {
         abstract ProjectId projectId();
 
         /**
-         * Determine the client name from the given repository metadata.
-         */
-        String clientName(RepositoryMetadata repositoryMetadata) {
-            return S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
-        }
-
-        /**
          * Similar to {@link #singleClientSettings(K)} but from the given repository metadata.
          */
         S3ClientSettings singleClientSettings(RepositoryMetadata repositoryMetadata) {
@@ -290,12 +283,6 @@ public class S3ClientsManager implements ClusterStateApplier {
             }
 
             final var settings = singleClientSettings(clientKey);
-            if (settings == null) {
-                throw new IllegalArgumentException(
-                    "s3 client [" + clientName(repositoryMetadata) + "] does not exist for project [" + projectId() + "]"
-                );
-            }
-
             synchronized (this) {
                 final var existing = clientsCache.get(clientKey);
                 if (existing != null && existing.tryIncRef()) {
@@ -303,7 +290,7 @@ public class S3ClientsManager implements ClusterStateApplier {
                 }
                 if (closed.get()) {
                     // Not adding a new client once the manager is closed since there won't be anything to close it
-                    throw new IllegalStateException("client manager is closed");
+                    throw new IllegalStateException("clients holder is closed");
                 }
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
                 // The clearCache() will clear the newly added client.
@@ -350,6 +337,7 @@ public class S3ClientsManager implements ClusterStateApplier {
         private final Map<String, S3ClientSettings> clientSettings;
 
         PerProjectClientsHolder(ProjectId projectId, Map<String, S3ClientSettings> clientSettings) {
+            assert ProjectId.DEFAULT.equals(projectId) == false;
             this.projectId = projectId;
             this.clientSettings = clientSettings;
         }
@@ -366,7 +354,11 @@ public class S3ClientsManager implements ClusterStateApplier {
 
         @Override
         S3ClientSettings singleClientSettings(String clientKey) {
-            return clientSettings.get(clientKey);
+            final S3ClientSettings settings = clientSettings.get(clientKey);
+            if (settings == null) {
+                throw new IllegalArgumentException("s3 client [" + clientKey + "] does not exist for project [" + projectId + "]");
+            }
+            return settings;
         }
 
         @Override

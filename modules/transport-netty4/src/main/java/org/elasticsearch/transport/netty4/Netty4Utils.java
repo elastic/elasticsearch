@@ -17,6 +17,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
+import io.netty.channel.EventLoop;
 import io.netty.util.NettyRuntime;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ImmediateEventExecutor;
@@ -194,18 +195,27 @@ public class Netty4Utils {
      * if the event loop is concurrently shutting down since Netty does not offer this guarantee.
      */
     public static void safeWriteAndFlush(Channel channel, Object message, ActionListener<Void> listener) {
+        final var promise = asChannelPromise(listener, channel);
+        channel.writeAndFlush(message, promise);
+        handleTerminatedEventLoop(channel.eventLoop(), promise);
+    }
+
+    static DefaultChannelPromise asChannelPromise(ActionListener<Void> listener, Channel channel) {
         // Use ImmediateEventExecutor.INSTANCE since we want to be able to complete this promise, and any waiting listeners, even if the
         // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
-        // can only be completed by some network event from this point on. However...
+        // can only be completed by some network event from this point on.
         final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
         addListener(promise, listener);
-        assert assertCorrectPromiseListenerThreading(promise);
-        channel.writeAndFlush(message, promise);
-        if (channel.eventLoop().isShuttingDown()) {
+        assert Netty4Utils.assertCorrectPromiseListenerThreading(promise);
+        return promise;
+    }
+
+    static void handleTerminatedEventLoop(EventLoop eventLoop, DefaultChannelPromise promise) {
+        if (eventLoop.isShuttingDown()) {
             // ... if we get here then the event loop may already have terminated, and https://github.com/netty/netty/issues/8007 means that
             // we cannot know if the preceding writeAndFlush made it onto its queue before shutdown or whether it will just vanish without a
             // trace, so to avoid a leak we must double-check that the final listener is completed.
-            channel.eventLoop().terminationFuture().addListener(ignored ->
+            eventLoop.terminationFuture().addListener(ignored ->
             // NB the promise executor is ImmediateEventExecutor.INSTANCE which means this call to tryFailure() will ensure its completion,
             // and the completion of any waiting listeners, without forking away from the current thread. The current thread might be the
             // thread that was running the event loop since that's where the terminationFuture is completed, or it might be a thread which
@@ -214,7 +224,7 @@ public class Netty4Utils {
         }
     }
 
-    private static boolean assertCorrectPromiseListenerThreading(ChannelPromise promise) {
+    static boolean assertCorrectPromiseListenerThreading(ChannelPromise promise) {
         addListener(promise, future -> {
             var eventLoop = future.channel().eventLoop();
             assert eventLoop.inEventLoop() || future.cause() instanceof RejectedExecutionException || eventLoop.isTerminated()

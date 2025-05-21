@@ -43,7 +43,6 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 import static java.util.Map.entry;
 import static org.elasticsearch.ingest.common.CefParser.DataType.DoubleType;
-import static org.elasticsearch.ingest.common.CefParser.DataType.FloatType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.IPType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.IntegerType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.LongType;
@@ -95,10 +94,8 @@ final class CefParser {
     enum DataType {
         IntegerType,
         LongType,
-        FloatType,
         DoubleType,
         StringType,
-        BooleanType,
         IPType,
         MACAddressType,
         TimestampType
@@ -465,9 +462,7 @@ final class CefParser {
             case StringType -> value;
             case IntegerType -> Integer.parseInt(value);
             case LongType -> Long.parseLong(value);
-            case FloatType -> Float.parseFloat(value);
             case DoubleType -> Double.parseDouble(value);
-            case BooleanType -> Boolean.valueOf(value);
             case TimestampType -> toTimestamp(value);
             case MACAddressType -> toMACAddress(value);
             case IPType -> toIP(value);

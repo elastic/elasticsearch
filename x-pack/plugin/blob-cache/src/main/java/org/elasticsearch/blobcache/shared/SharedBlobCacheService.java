@@ -500,6 +500,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ActionListener<Void> listener
     ) {
         int finalRegion = getEndingRegion(length);
+        // TODO freeRegionCount uses freeRegions.size() which is is NOT a constant-time operation. Can we do better?
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
             listener.onResponse(null);
@@ -571,7 +572,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -619,7 +620,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -671,7 +672,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         throw new AlreadyClosedException(message);
     }
 
-    // used by tests
+    /**
+     * NOTE: Method is package private mostly to allow checking the number of fee regions in tests.
+     * However, it is also used by {@link SharedBlobCacheService#maybeFetchFullEntry} but we should try
+     * to move away from that because calling "size" on a ConcurrentLinkedQueue is not a constant time operation.
+     */
     int freeRegionCount() {
         return freeRegions.size();
     }

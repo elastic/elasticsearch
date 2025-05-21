@@ -1,0 +1,6 @@
+pr: 128259
+summary: Added geometry validation for GEO types to exit early on invalid latitudes
+area: Geo
+type: bug
+issues:
+ - 128234

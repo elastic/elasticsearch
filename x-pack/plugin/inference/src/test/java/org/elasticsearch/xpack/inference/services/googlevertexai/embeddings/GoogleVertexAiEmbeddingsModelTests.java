@@ -31,7 +31,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         var projectId = "project";
         var modelId = "model";
 
-        URI uri = GoogleVertexAiEmbeddingsModel.buildUri(location, projectId, modelId);
+        URI uri = GoogleVertexAiEmbeddingsModel.buildUri(location, projectId, modelId, null, null);
 
         assertThat(
             uri,
@@ -98,7 +98,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             uri,
-            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null),
+            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, null, null, false, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, null),
             new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
         );
@@ -117,6 +117,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 randomAlphaOfLength(8),
                 modelId,
+                null,
+                null,
                 false,
                 null,
                 null,
@@ -138,6 +140,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 "location",
                 "projectId",
                 modelId,
+                null,
+                null,
                 false,
                 null,
                 null,
@@ -163,6 +167,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 randomAlphaOfLength(8),
                 modelId,
+                null,
+                null,
                 false,
                 null,
                 null,

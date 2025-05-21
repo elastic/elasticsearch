@@ -66,6 +66,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
             }
             var propertiesExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
             task.getComponentName().set(providerFactory.provider(propertiesExtension::getName));
+            task.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/plugin-test-build-info.json"));
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {

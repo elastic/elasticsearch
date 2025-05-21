@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.plugin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.gradle.api.DefaultTask;
@@ -31,6 +32,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.module.ModuleFinder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,7 +56,9 @@ import java.util.zip.ZipEntry;
 public abstract class GenerateTestBuildInfoTask extends DefaultTask {
 
     public static final String DESCRIPTION = "generates plugin test dependencies file";
+
     public static final String META_INF_VERSIONS_PREFIX = "META-INF/versions/";
+    public static final String JAR_DESCRIPTOR_SUFFIX = ".jar";
 
     public GenerateTestBuildInfoTask() {
         setDescription(DESCRIPTION);
@@ -79,7 +83,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         Files.createDirectories(outputFile.getParent());
 
         try (var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
-            ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true);
+            ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true)
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
             mapper.writeValue(writer, new OutputFileContents(getComponentName().get(), buildLocationList()));
         }
     }
@@ -114,7 +119,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         List<Location> locations = new ArrayList<>();
         for (File file : getCodeLocations().get().getFiles()) {
             if (file.exists()) {
-                if (file.getName().endsWith(".jar")) {
+                if (file.getName().endsWith(JAR_DESCRIPTOR_SUFFIX)) {
                     extractLocationsFromJar(file, locations);
                 } else if (file.isDirectory()) {
                     extractLocationsFromDirectory(file, locations);
@@ -158,8 +163,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the jar for the module name with
-     * each step commented inline
+     * look through the jar for the module name with each step commented inline;
+     * the algorithm used here is based on the described in {@link ModuleFinder#of}
      */
     private String extractModuleNameFromJar(File file, JarFile jarFile) throws IOException {
         String moduleName = null;
@@ -229,7 +234,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
         // if the jar does not have module-info.class and no module name in the manifest
         // default to the jar name without .jar and no versioning
         if (moduleName == null) {
-            String jn = file.getName().substring(0, file.getName().length() - ".jar".length());
+            String jn = file.getName().substring(0, file.getName().length() - JAR_DESCRIPTOR_SUFFIX.length());
             Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
             if (matcher.find()) {
                 jn = jn.substring(0, matcher.start());
@@ -244,9 +249,9 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     /**
      * find the first class and module when the class path entry is a directory
      */
-    private void extractLocationsFromDirectory(File dir, List<Location> locations) throws IOException {
-        String className = extractClassNameFromDirectory(dir);
-        String moduleName = extractModuleNameFromDirectory(dir);
+    private void extractLocationsFromDirectory(File directory, List<Location> locations) throws IOException {
+        String className = extractClassNameFromDirectory(directory);
+        String moduleName = extractModuleNameFromDirectory(directory);
 
         if (className != null && moduleName != null) {
             locations.add(new Location(moduleName, className));
@@ -257,15 +262,15 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * look through the directory to find the first unique class that isn't
      * module-info.class (which may not be unique) and avoid anonymous classes
      */
-    private String extractClassNameFromDirectory(File dir) {
-        List<File> files = new ArrayList<>(List.of(dir));
+    private String extractClassNameFromDirectory(File directory) throws IOException {
+        List<File> files = new ArrayList<>(List.of(directory));
         while (files.isEmpty() == false) {
             File find = files.removeFirst();
             if (find.exists()) {
                 if (find.getName().endsWith(".class")
                     && find.getName().equals("module-info.class") == false
                     && find.getName().contains("$") == false) {
-                    return find.getAbsolutePath().substring(dir.getAbsolutePath().length() + 1);
+                    return find.getAbsolutePath().substring(directory.getAbsolutePath().length() + 1);
                 } else if (find.isDirectory()) {
                     files.addAll(Arrays.asList(find.listFiles()));
                 }
@@ -293,7 +298,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                 }
             }
         }
-        return getModuleName().isPresent() ? getModuleName().get() : null;
+        return getModuleName().getOrNull();
     }
 
     /**

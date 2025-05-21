@@ -15,8 +15,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.RegularFile;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -50,8 +48,6 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
             var sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             codeLocations = codeLocations.plus(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput().getClassesDirs());
             task.getCodeLocations().set(codeLocations);
-            Provider<RegularFile> directory = project.getLayout().getBuildDirectory().file("generated-build.info/test-build-info.json");
-            task.getOutputFile().set(directory);
         });
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {

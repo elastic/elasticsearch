@@ -295,8 +295,7 @@ public class S3ClientsManagerTests extends ESTestCase {
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of("es-test-region")
-        ) {
-        };
+        );
         s3ServiceWithNoProjectSupport.refreshAndClearCache(S3ClientSettings.load(clusterService.getSettings()));
         s3ServiceWithNoProjectSupport.start();
         assertNotNull(s3ServiceWithNoProjectSupport.getS3PerProjectClientManager());
@@ -317,6 +316,7 @@ public class S3ClientsManagerTests extends ESTestCase {
 
     private Map<ProjectId, S3ClientsManager.ClientsHolder<?>> getClientsHoldersExcludeDefaultProject() {
         final var holders = s3ClientsManager.getClientsHolders();
+        // Clients holder for the default project always exists
         assertThat(holders, hasKey(ProjectId.DEFAULT));
         return holders.entrySet()
             .stream()

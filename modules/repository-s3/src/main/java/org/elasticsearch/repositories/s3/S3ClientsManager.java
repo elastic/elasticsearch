@@ -38,6 +38,13 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * The S3ClientsManager is responsible for managing Amazon S3 clients associated with either the cluster or projects.
+ * To use a single data structure for all clients, the cluster clients are stored against the default project-id.
+ * Note that the cluster level clients are created and refreshed based on the ReloadablePlugin interface, while
+ * the project level clients are created and refreshed by cluster state updates. All clients are released when
+ * the manager itself is closed.
+ */
 public class S3ClientsManager implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(S3ClientsManager.class);
@@ -188,8 +195,8 @@ public class S3ClientsManager implements ClusterStateApplier {
     }
 
     /**
-     * Similar to S3Service#releaseCachedClients but only clears the cache for the given project.
-     * All clients for the project are closed and will be recreated on next access, also similar to S3Service#releaseCachedClients
+     * Clears the cache for the given project (default project-id is for the cluster level clients).
+     * All clients for the project are closed and will be recreated on next access.
      */
     void releaseCachedClients(ProjectId projectId) {
         final var old = clientsHolders.get(Objects.requireNonNull(projectId));
@@ -202,7 +209,6 @@ public class S3ClientsManager implements ClusterStateApplier {
 
     /**
      * Shutdown the manager by closing all clients holders. This is called when the node is shutting down.
-     * It attempts to wait (1 min) for any async client closing to complete.
      */
     void close() {
         IOUtils.closeWhileHandlingException(clientsHolders.values());

@@ -169,14 +169,19 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     /**
-     * Attempts to retrieve a project client from the project client manager. Throws if project-id or the client name does not exist.
-     * THe client maybe initialized lazily.
-     * Delegates to {@link #client(RepositoryMetadata)} when either of the followings is true:
-     * 1. Per-project client is disabled
-     * 2. Blobstore is cluster level (projectId = null)
+     * Attempts to retrieve either a cluster or project client from the client manager. Throws if project-id or
+     * the client name does not exist. The client maybe initialized lazily.
+     * @param projectId The project associated with the client, or null if the client is cluster level
      */
     public AmazonS3Reference client(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        return s3ClientsManager.client(projectId == null ? ProjectId.DEFAULT : projectId, repositoryMetadata);
+        return s3ClientsManager.client(effectiveProjectId(projectId), repositoryMetadata);
+    }
+
+    /**
+     * We use the default project-id for cluster level clients.
+     */
+    ProjectId effectiveProjectId(@Nullable ProjectId projectId) {
+        return projectId == null ? ProjectId.DEFAULT : projectId;
     }
 
     // visible for tests
@@ -418,13 +423,10 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     /**
-     * Release all project clients.
-     * Delegates to {@link #onBlobStoreClose()} when either of the followings is true:
-     * 1. Per-project client is disabled
-     * 2. Blobstore is cluster level (projectId = null)
+     * Release clients for the specified project.
      */
     public void onBlobStoreClose(@Nullable ProjectId projectId) {
-        s3ClientsManager.releaseCachedClients(projectId == null ? ProjectId.DEFAULT : projectId);
+        s3ClientsManager.releaseCachedClients(effectiveProjectId(projectId));
     }
 
     @Override

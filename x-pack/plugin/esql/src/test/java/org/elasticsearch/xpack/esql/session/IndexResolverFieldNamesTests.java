@@ -1905,6 +1905,12 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "z", "z.*"));
     }
 
+    public void testForkWithStatsAndWhere() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

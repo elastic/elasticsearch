@@ -571,7 +571,7 @@ public class EsqlSession {
     }
 
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
-        if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
+        if (false == parsed.anyMatch(EsqlSession::shouldCollectReferencedFields)) {
             // no explicit columns selection, for example "from employees"
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
@@ -592,14 +592,18 @@ public class EsqlSession {
         Holder<Boolean> hasFork = new Holder<>(false);
 
         parsed.forEachDown(plan -> {
-            if (hasFork.get() == false && (plan instanceof Project || plan instanceof Aggregate)) {
+            if (projectAll.get()) {
+                return;
+            }
+
+            if (hasFork.get() == false && shouldCollectReferencedFields(plan)) {
                 projectAfterFork.set(true);
             }
 
             if (plan instanceof Fork fork && projectAfterFork.get() == false) {
                 hasFork.set(true);
                 fork.children().forEach(child -> {
-                    if (child.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
+                    if (child.anyMatch(EsqlSession::shouldCollectReferencedFields) == false) {
                         projectAll.set(true);
                     }
                 });
@@ -720,6 +724,13 @@ public class EsqlSession {
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return result.withFieldNames(fieldNames);
         }
+    }
+
+    /**
+     * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
+     */
+    private static boolean shouldCollectReferencedFields(LogicalPlan plan) {
+        return plan instanceof Aggregate || plan instanceof Project;
     }
 
     /**

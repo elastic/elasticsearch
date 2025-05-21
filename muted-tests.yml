@@ -453,6 +453,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test041AmazonCaCertsAreInTheKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128006
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/128174
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test600Interrupt
+  issue: https://github.com/elastic/elasticsearch/issues/128144
 
 # Examples:
 #

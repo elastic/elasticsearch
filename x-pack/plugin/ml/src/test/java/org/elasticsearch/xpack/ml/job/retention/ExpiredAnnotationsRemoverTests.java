@@ -11,12 +11,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +51,6 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
     private OriginSettingClient originSettingClient;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
-    private ClusterService clusterService;
-    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     @SuppressWarnings("unchecked")
@@ -65,7 +60,6 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
-        clusterService = mock(ClusterService.class);
         when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
@@ -158,6 +152,21 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(latest.getTime(), expectedCutoffTime)));
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
+        );
+
+        // annotationIndexWritable = false
+        createExpiredAnnotationsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // No DBQ requests should be made, but listener should still be called with true
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+        verify(listener).onResponse(true);
+    }
+
     private void givenDBQRequestsSucceed() {
         givenDBQRequest(true);
     }
@@ -191,7 +200,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
-    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator) {
+    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator, boolean annotationIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -203,13 +212,27 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
+        WritableIndexExpander writableIndexExpander = mock(WritableIndexExpander.class);
+        if (annotationIndexWritable) {
+            when(writableIndexExpander.getWritableIndices(AnnotationIndex.READ_ALIAS_NAME)).thenReturn(
+                new ArrayList<>(Collections.singletonList(AnnotationIndex.READ_ALIAS_NAME))
+            );
+        } else {
+            when(writableIndexExpander.getWritableIndices(AnnotationIndex.READ_ALIAS_NAME)).thenReturn(
+                new ArrayList<>(Collections.emptyList())
+            );
+        }
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            writableIndexExpander,
             mock(AnomalyDetectionAuditor.class),
             threadPool
         );
+    }
+
+    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator) {
+        return createExpiredAnnotationsRemover(jobIterator, true);
     }
 }

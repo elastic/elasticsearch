@@ -1402,7 +1402,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     /**
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values,
+     * found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval4() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
@@ -1418,7 +1419,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     /**
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values,
+     * found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval5() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());

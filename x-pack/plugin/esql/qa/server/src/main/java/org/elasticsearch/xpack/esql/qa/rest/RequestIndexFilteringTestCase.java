@@ -208,21 +208,10 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        // FIXME: this test now behaves differently on local & remote cluster, because local is not skippable, we need to fix it
-        // Map<String, Object> result = runEsql(
-        // timestampFilter("gte", "2020-01-01").query(from("foo", "test1") + " METADATA _index | SORT id1 | KEEP _index, id*")
-        // );
-        // @SuppressWarnings("unchecked")
-        // var columns = (List<List<Object>>) result.get("columns");
-        // assertThat(
-        // columns,
-        // matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-        // .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-        // );
-        // @SuppressWarnings("unchecked")
-        // var values = (List<List<Object>>) result.get("values");
-        // // TODO: for now, we return empty result, but eventually it should return records from test1
-        // assertThat(values, hasSize(0));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("index_not_found_exception"));
+        assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
 
         if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
             var pattern = from("test1");
@@ -242,7 +231,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
-    private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
+    protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
         return requestObjectBuilder().filter(b -> {
             b.startObject("range");
             {

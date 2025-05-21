@@ -28,7 +28,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new CompletionOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
     }
 

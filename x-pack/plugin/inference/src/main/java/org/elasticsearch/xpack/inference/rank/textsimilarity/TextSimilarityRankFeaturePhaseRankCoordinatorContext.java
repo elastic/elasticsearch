@@ -56,6 +56,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+
+        // Reconcile the input strings with the documents that they belong to. Input size 6.
+        // Let's say we have 6 snippets that we reranked from 2 documents (3 snippets each)
+
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
         final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
@@ -76,7 +80,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                     )
                 );
             } else {
-                float[] scores = extractScoresFromRankedDocs(rankedDocs);
+                float[] scores = extractScoresFromRankedDocs(rankedDocs); // Return is size 2
                 l.onResponse(scores);
             }
         });
@@ -177,7 +181,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             scores[rankedDoc.index()] = rankedDoc.relevanceScore();
         }
-        return scores;
+        return scores; // Return a float of size 2 (max score index per doc)
     }
 
     private static float normalizeScore(float score) {

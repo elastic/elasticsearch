@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -77,19 +76,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleLargeInput() {
         assertSimple(driverContext(), between(1_000, 10_000));
-    }
-
-    /**
-     * Test with a local breaker
-     */
-    public final void testWithLocalBreaker() {
-        BlockFactory blockFactory = blockFactory();
-        final int overReservedBytes = between(0, 1024 * 1024);
-        final int maxOverReservedBytes = between(overReservedBytes, 1024 * 1024);
-        var localBreaker = new LocalCircuitBreaker(blockFactory.breaker(), overReservedBytes, maxOverReservedBytes);
-        BlockFactory localBlockFactory = blockFactory.newChildFactory(localBreaker);
-        DriverContext driverContext = new DriverContext(localBlockFactory.bigArrays(), localBlockFactory);
-        assertSimple(driverContext, between(10, 10_000));
     }
 
     /**
@@ -269,6 +255,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 }
             }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
             if (operator instanceof AsyncOperator<?> || randomBoolean()) {
                 driverContext.finish();
                 PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();

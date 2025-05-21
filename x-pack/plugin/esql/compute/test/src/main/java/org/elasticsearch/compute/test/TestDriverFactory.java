@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -14,6 +17,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -29,11 +33,7 @@ public class TestDriverFactory {
         List<Operator> intermediateOperators,
         SinkOperator sink
     ) {
-        return create(driverContext, source, intermediateOperators, sink, () -> {
-            if (driverContext.breaker() instanceof LocalCircuitBreaker localBreaker) {
-                localBreaker.close();
-            }
-        });
+        return create(driverContext, source, intermediateOperators, sink, () -> {});
     }
 
     public static Driver create(
@@ -43,6 +43,19 @@ public class TestDriverFactory {
         SinkOperator sink,
         Releasable releasable
     ) {
+        // Do not wrap the local breaker for small local breakers, as the output mights not match expectations.
+        if (driverContext.breaker() instanceof LocalCircuitBreaker == false
+            && driverContext.breaker().getLimit() >= ByteSizeValue.ofMb(100).getBytes()
+            && Randomness.get().nextBoolean()) {
+            final int overReservedBytes = Randomness.get().nextInt(1024 * 1024);
+            final int maxOverReservedBytes = overReservedBytes + Randomness.get().nextInt(1024 * 1024);
+            var localBreaker = new LocalCircuitBreaker(driverContext.breaker(), overReservedBytes, maxOverReservedBytes);
+            BlockFactory localBlockFactory = driverContext.blockFactory().newChildFactory(localBreaker);
+            driverContext = new DriverContext(localBlockFactory.bigArrays(), localBlockFactory);
+        }
+        if (driverContext.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            releasable = Releasables.wrap(releasable, localBreaker);
+        }
         return new Driver(
             "unset",
             "test-task",

@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -283,8 +284,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private static boolean comparableTypes(Attribute left, Attribute right) {
-        // TODO: Consider allowing more valid types
-        // return left.dataType().noText() == right.dataType().noText() || left.dataType().isNumeric() == right.dataType().isNumeric();
-        return left.dataType().noText() == right.dataType().noText();
+        if (left.dataType().isNumeric() && right.dataType().isNumeric()) {
+            // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
+            DataType commonType = commonType(left.dataType(), right.dataType());
+            return commonType != null && commonType != UNSIGNED_LONG;
+        } else {
+            return left.dataType().noText() == right.dataType().noText();
+        }
     }
 }

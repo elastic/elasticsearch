@@ -1091,7 +1091,12 @@ public class EsqlCapabilities {
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
          * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
          */
-        FIX_JOIN_MASKING_REGEX_EXTRACT;
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;
 
         private final boolean enabled;
 

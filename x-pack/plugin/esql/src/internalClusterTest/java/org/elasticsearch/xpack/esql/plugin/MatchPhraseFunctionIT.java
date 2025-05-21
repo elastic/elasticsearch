@@ -71,7 +71,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+            assertValues(resp.values(), List.of(List.of(6)));
         }
     }
 
@@ -87,7 +87,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function cannot be used after LIMIT"));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after LIMIT"));
     }
 
     public void testNotWhereMatchPhrase() {
@@ -101,7 +101,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(5)));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
         }
     }
 
@@ -117,7 +117,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248723268508911)));
         }
     }
 
@@ -134,7 +134,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(6, 0.9114001989364624), List.of(1, 1.156558871269226)));
+            assertValues(resp.values(), List.of(List.of(6, 1.1248723268508911), List.of(1, 1.4274532794952393)));
         }
     }
 
@@ -150,7 +150,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248723268508911)));
         }
     }
 
@@ -165,7 +165,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValuesInAnyOrder(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248723268508911)));
         }
     }
 
@@ -190,7 +190,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[MATCH_PHRASE] function cannot operate on [upper_content], which is not a field from an index mapping")
+            containsString("[MatchPhrase] function cannot operate on [upper_content], which is not a field from an index mapping")
         );
     }
 
@@ -205,7 +205,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[MATCH_PHRASE] function cannot operate on [content], which is not a field from an index mapping")
+            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
         );
     }
 
@@ -223,7 +223,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     public void testWhereMatchPhraseNotPushedDown() {
         var query = """
             FROM test
-            | WHERE match(content, "brown fox") OR length(content) < 20
+            | WHERE match_phrase(content, "brown fox") OR length(content) < 20
             | KEEP id
             | SORT id
             """;
@@ -238,24 +238,24 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     public void testWhereMatchPhraseWithRow() {
         var query = """
             ROW content = "a brown fox"
-            | WHERE match(content, "brown fox")
+            | WHERE match_phrase(content, "brown fox")
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("line 2:15: [MATCH_PHRASE] function cannot operate on [content], which is not a field from an index mapping")
+            containsString("line 2:22: [MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
         );
     }
 
-    public void testMatchPhraseithStats() {
+    public void testMatchPhraseWithStats() {
         var errorQuery = """
             FROM test
             | STATS c = count(*) BY match_phrase(content, "brown fox")
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
-        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
 
         var query = """
             FROM test
@@ -265,7 +265,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("c", "d"));
             assertColumnTypes(resp.columns(), List.of("long", "long"));
-            assertValues(resp.values(), List.of(List.of(2L, 4L)));
+            assertValues(resp.values(), List.of(List.of(2L, 1L)));
         }
 
         query = """
@@ -291,7 +291,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
     }
 
     private void createAndPopulateIndex() {

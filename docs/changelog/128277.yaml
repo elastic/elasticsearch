@@ -1,0 +1,5 @@
+pr: 128277
+summary: Improve get-snapshots behaviour for unreadable repositories
+area: Snapshot/Restore
+type: enhancement
+issues: []

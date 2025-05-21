@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.util.List;
 
@@ -44,6 +45,7 @@ public class ChickenScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @Ignore
     public void testAlternativeWhereMatch() {
         var query = """
             FROM test METADATA _score

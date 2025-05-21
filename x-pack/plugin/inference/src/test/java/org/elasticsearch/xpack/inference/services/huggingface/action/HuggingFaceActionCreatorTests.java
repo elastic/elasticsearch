@@ -358,11 +358,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     private void assertRerankActionCreator(List<String> documents, String query, int topN, boolean returnText) throws IOException {
         assertThat(webServer.requests(), hasSize(1));
-        assertNull(webServer.requests().getFirst().getUri().getQuery());
-        assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-        assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertThat(
+            webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+            equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+        );
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-        var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+        var requestMap = entityAsMap(webServer.requests().get(0).getBody());
         assertThat(requestMap.size(), is(4));
         assertThat(requestMap.get("texts"), is(documents));
         assertThat(requestMap.get("query"), is(query));

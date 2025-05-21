@@ -95,6 +95,6 @@ public class HuggingFaceRerankResponseEntityTests extends ESTestCase {
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
-        assertThat(thrownException.getMessage(), is("Required [%s]".formatted(missingField)));
+        assertThat(thrownException.getMessage(), is("Required [" + missingField + "]"));
     }
 }

@@ -178,6 +178,7 @@ import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAct
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
+import org.elasticsearch.xpack.application.rules.retriever.RuleQueryRankDoc;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -358,10 +359,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return Collections.unmodifiableList(actionHandlers);
     }
 
-    // @Override
-    // public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-    // return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
-    // }
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
+    }
 
     @Override
     public List<RestHandler> getRestHandlers(

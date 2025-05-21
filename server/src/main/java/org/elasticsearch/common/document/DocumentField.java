@@ -140,12 +140,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         return (builder, params) -> {
             builder.startArray(name);
             for (Object value : values) {
-                try {
-                    builder.value(value);
-                } catch (RuntimeException e) {
-                    // if the value cannot be serialized, we catch here and return a placeholder value
-                    builder.value("<unserializable>");
-                }
+                builder.value(value);
             }
             builder.endArray();
             return builder;

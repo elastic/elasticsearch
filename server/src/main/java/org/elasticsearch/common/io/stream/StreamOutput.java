@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -844,6 +845,11 @@ public abstract class StreamOutput extends OutputStream {
             }
             o.writeByte((byte) 30);
             o.writeNamedWriteable(genericNamedWriteable);
+        }),
+        entry(IPAddress.class, (o, v) -> {
+            o.writeByte((byte) 30);
+            final IPAddress address = (IPAddress) v;
+            address.writeTo(o);
         })
     );
 

@@ -1,0 +1,5 @@
+pr: 94877
+summary: Check field scripts return serializable object
+area: Search
+type: bug
+issues: []

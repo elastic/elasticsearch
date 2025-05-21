@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.xcontent.Text;
 
 import java.io.EOFException;
@@ -906,6 +907,7 @@ public abstract class StreamInput extends InputStream {
             case 28 -> readDuration();
             case 29 -> readPeriod();
             case 30 -> readNamedWriteable(GenericNamedWriteable.class);
+            case 31 -> readIPAddress();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -954,6 +956,10 @@ public abstract class StreamInput extends InputStream {
         final int months = readInt();
         final int days = readInt();
         return Period.of(years, months, days);
+    }
+
+    private IPAddress readIPAddress() throws IOException {
+        return new IPAddress(this);
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];

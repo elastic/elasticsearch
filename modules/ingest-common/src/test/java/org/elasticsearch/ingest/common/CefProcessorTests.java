@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -27,11 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class CefProcessorTests extends ESTestCase {
 
     private IngestDocument document;
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();

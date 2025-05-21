@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-ingest-processor-context.html
+products:
+  - id: painless
 ---
 
 # Ingest processor context [painless-ingest-processor-context]

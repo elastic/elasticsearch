@@ -33,6 +33,8 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
             this.includeUserInIndexing = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING);
         }
 
+        SecuritySlowLogFields() {}
+
         @Override
         public Map<String, String> indexFields() {
             if (includeUserInIndexing) {
@@ -48,6 +50,11 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
             }
             return Map.of();
         }
+
+        @Override
+        public Map<String, String> queryFields() {
+            return plugin.getAuthContextForSlowLog();
+        }
     }
 
     public SecuritySlowLogFieldProvider() {
@@ -61,5 +68,10 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
     @Override
     public SlowLogFields create(IndexSettings indexSettings) {
         return new SecuritySlowLogFields(indexSettings);
+    }
+
+    @Override
+    public SlowLogFields create() {
+        return new SecuritySlowLogFields();
     }
 }

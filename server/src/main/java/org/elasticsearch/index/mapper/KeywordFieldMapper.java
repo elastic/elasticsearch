@@ -85,6 +85,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -95,7 +96,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
-    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -439,26 +439,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
 
-            var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
-            String offsetsFieldName;
-            if (context.isSourceSynthetic()
-                && sourceKeepMode == SourceKeepMode.ARRAYS
-                && hasDocValues()
-                && fieldtype.stored() == false
-                && copyTo.copyToFields().isEmpty()
-                && multiFieldsBuilder.hasMultiFields() == false
-                && indexVersionSupportStoringArraysNatively()) {
-                // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
-                // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
-                // logging use cases
-
-                // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
-                // (if field is stored then there is no point of doing this)
-                offsetsFieldName = context.buildFullName(leafName() + OFFSETS_FIELD_NAME_SUFFIX);
-            } else {
-                offsetsFieldName = null;
-            }
-
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSourceKeepMode,
+                hasDocValues.getValue(),
+                stored.getValue(),
+                this,
+                indexCreatedVersion,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
+            );
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
@@ -470,14 +459,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 offsetsFieldName,
                 indexSourceKeepMode
             );
-        }
-
-        private boolean indexVersionSupportStoringArraysNatively() {
-            return indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)
-                || indexCreatedVersion.between(
-                    IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X,
-                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
-                );
         }
 
         private FieldType resolveFieldType(
@@ -767,14 +748,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -789,7 +771,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueBytes) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
                     String stringValue = ((BytesRef) value).utf8ToString();
@@ -825,7 +807,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             }
-            if (isIndexed() || isStored()) {
+            if (hasDocValues() == false && (isIndexed() || isStored())) {
+                // We only write the field names field if there aren't doc values or norms
                 return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             }
             return BlockSourceReader.lookupMatchingAll();
@@ -1077,6 +1060,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean useDocValuesSkipper;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final String originalName;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1108,6 +1092,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.useDocValuesSkipper = useDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
+        this.originalName = isSyntheticSource ? fullPath() + "._original" : null;
     }
 
     @Override
@@ -1127,7 +1112,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value);
             } else if (value == null) {
@@ -1274,7 +1259,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      * for synthetic source.
      */
     private String originalName() {
-        return fullPath() + "._original";
+        return originalName;
     }
 
     @Override
@@ -1295,7 +1280,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
         assert fieldType.stored() || hasDocValues;
 
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
                 @Override

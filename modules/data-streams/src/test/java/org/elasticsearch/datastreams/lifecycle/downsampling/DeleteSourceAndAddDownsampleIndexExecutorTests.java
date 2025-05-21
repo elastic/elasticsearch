@@ -25,6 +25,7 @@ import static org.mockito.Mockito.verify;
 public class DeleteSourceAndAddDownsampleIndexExecutorTests extends ESTestCase {
 
     public void testExecutorNotifiesListenerAndReroutesAllocationService() {
+        final var projectId = randomUniqueProjectId();
         String dataStreamName = randomAlphaOfLengthBetween(10, 100);
         String sourceIndex = randomAlphaOfLengthBetween(10, 100);
         String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
@@ -34,18 +35,25 @@ public class DeleteSourceAndAddDownsampleIndexExecutorTests extends ESTestCase {
 
         AtomicBoolean taskListenerCalled = new AtomicBoolean(false);
         executor.taskSucceeded(
-            new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, sourceIndex, downsampleIndex, new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    taskListenerCalled.set(true);
-                }
+            new DeleteSourceAndAddDownsampleToDS(
+                Settings.EMPTY,
+                projectId,
+                dataStreamName,
+                sourceIndex,
+                downsampleIndex,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        taskListenerCalled.set(true);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(e.getMessage(), e);
-                    fail("unexpected exception: " + e.getMessage());
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(e.getMessage(), e);
+                        fail("unexpected exception: " + e.getMessage());
+                    }
                 }
-            }),
+            ),
             null
         );
         assertThat(taskListenerCalled.get(), is(true));

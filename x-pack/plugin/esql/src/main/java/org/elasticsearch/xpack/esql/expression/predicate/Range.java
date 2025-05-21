@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -31,18 +33,21 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction implements TranslationAware.SingleValueTranslationAware {
+    private static final Logger logger = LogManager.getLogger(Range.class);
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
@@ -110,6 +115,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
      */
     @Override
     public boolean foldable() {
+        // NB: this is likely dead code. See note in areBoundariesInvalid
         if (lower.foldable() && upper.foldable()) {
             if (value().foldable()) {
                 return true;
@@ -125,6 +131,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public Object fold(FoldContext ctx) {
+        // NB: this is likely dead code. See note in areBoundariesInvalid
         Object lowerValue = lower.fold(ctx);
         Object upperValue = upper.fold(ctx);
         if (areBoundariesInvalid(lowerValue, upperValue)) {
@@ -144,6 +151,19 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
      * If they are, the value does not have to be evaluated.
      */
     protected boolean areBoundariesInvalid(Object lowerValue, Object upperValue) {
+        /*
+        NB: I am reasonably sure this code is dead.  It can only be reached from foldable(), and as far as I can tell
+        we never fold ranges. There's no ES|QL syntax for ranges, so they can never be created by the parser.  The
+        PropagateEquals optimizer rule can in theory create ranges, but only from existing ranges.  The fact that this
+        class is not serializable (note that writeTo throws UnsupportedOperationException) is a clear indicator that
+        logical planning cannot output Range nodes.
+
+        PushFiltersToSource can also create ranges, but that is a Physical optimizer rule. Folding happens in the
+        Logical optimization layer, and should be done by the time we are calling PushFiltersToSource.
+
+        That said, if somehow you have arrived here while debugging something, know that this method is likely
+        completely broken for date_nanos, and possibly other types.
+         */
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {
@@ -195,12 +215,12 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable();
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return translate(handler);
     }
 
@@ -210,10 +230,24 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
-        if (DataType.isDateTime(dataType) && DataType.isDateTime(lower.dataType()) && DataType.isDateTime(upper.dataType())) {
-            l = dateTimeToString((Long) l);
-            u = dateTimeToString((Long) u);
+        logger.trace(
+            "Translating Range into lucene query.  dataType is [{}] upper is [{}<{}>]  lower is [{}<{}>]",
+            dataType,
+            lower,
+            lower.dataType(),
+            upper,
+            upper.dataType()
+        );
+        if (dataType == DataType.DATETIME) {
+            l = dateWithTypeToString((Long) l, lower.dataType());
+            u = dateWithTypeToString((Long) u, upper.dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        }
+
+        if (dataType == DATE_NANOS) {
+            l = dateWithTypeToString((Long) l, lower.dataType());
+            u = dateWithTypeToString((Long) u, upper.dataType());
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 
         if (dataType == IP) {
@@ -244,6 +278,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
                 u = unsignedLongAsNumber(ul);
             }
         }
+        logger.trace("Building range query with format string [{}]", format);
         return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 

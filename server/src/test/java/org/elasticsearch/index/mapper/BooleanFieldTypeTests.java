@@ -81,6 +81,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
             true,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         assertEquals(List.of(true), fetchSourceValue(nullFieldType, null));

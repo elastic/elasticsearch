@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 80;
@@ -480,6 +482,10 @@ public final class CsvTestUtils {
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        AGGREGATE_METRIC_DOUBLE(
+            x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
+        ),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -561,6 +567,7 @@ public final class CsvTestUtils {
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
@@ -660,8 +667,6 @@ public final class CsvTestUtils {
 
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
-        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
-        double scalingFactorInverse = 1d / scalingFactor;
-        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
     }
 }

@@ -42,6 +42,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlSecurityIT extends ESRestTestCase {
     @ClassRule
@@ -69,6 +70,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021", "x-pack-test-password", "logs_foo_after_2021", false)
         .user("logs_foo_after_2021_pattern", "x-pack-test-password", "logs_foo_after_2021_pattern", false)
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
+        .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
+        .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
         .build();
 
     @Override
@@ -309,7 +312,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         json.endObject();
         Request searchRequest = new Request("GET", "/index-user1,index-user2/_search");
         searchRequest.setJsonEntity(Strings.toString(json));
-        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "metadata1_read2"));
+        setUser(searchRequest, "metadata1_read2");
 
         // ES|QL query on the same index pattern
         var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
@@ -429,13 +432,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testFieldLevelSecurityAllowPartial() throws Exception {
         Request request = new Request("GET", "/index*/_field_caps");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        setUser(request, "fls_user");
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
         request.addParameter("fields", "*");
 
         request = new Request("GET", "/index*/_search");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", "fls_user"));
+        setUser(request, "fls_user");
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
 
@@ -761,6 +764,36 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
+    public void testListQueryAllowed() throws Exception {
+        Request request = new Request("GET", "_query/queries");
+        setUser(request, "user_with_monitor_privileges");
+        var resp = client().performRequest(request);
+        assertOK(resp);
+    }
+
+    public void testListQueryForbidden() throws Exception {
+        Request request = new Request("GET", "_query/queries");
+        setUser(request, "user_without_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
+    }
+
+    public void testGetQueryAllowed() throws Exception {
+        // This is a bit tricky, since there is no such running query. We just make sure it didn't fail on forbidden privileges.
+        Request request = new Request("GET", "_query/queries/foo:1234");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), not(equalTo(404)));
+    }
+
+    public void testGetQueryForbidden() throws Exception {
+        Request request = new Request("GET", "_query/queries/foo:1234");
+        setUser(request, "user_without_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
+    }
+
     private void createEnrichPolicy() throws Exception {
         createIndex("songs", Settings.EMPTY, """
             "properties":{"song_id": {"type": "keyword"}, "title": {"type": "keyword"}, "artist": {"type": "keyword"} }
@@ -837,9 +870,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         json.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(json));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        setUser(request, user);
         request.addParameter("error_trace", "true");
         return client().performRequest(request);
+    }
+
+    private static void setUser(Request request, String user) {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {
@@ -853,7 +891,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
-    static Settings randomPragmas() {
+    private static Settings randomPragmas() {
         Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
             settings.put("page_size", between(1, 5));
@@ -957,7 +995,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     private void createDataStreamAlias() throws IOException {
-        Request request = new Request("PUT", "_alias");
+        Request request = new Request("POST", "_aliases");
         request.setJsonEntity("""
             {
               "actions": [

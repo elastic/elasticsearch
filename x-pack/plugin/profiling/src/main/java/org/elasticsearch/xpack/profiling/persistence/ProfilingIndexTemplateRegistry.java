@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +57,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 13: Added 'container.id' keyword mapping to profiling-events
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
+    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
     public static final int INDEX_TEMPLATE_VERSION = 15;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
@@ -78,9 +80,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
     }
 
     public void setTemplatesEnabled(boolean templatesEnabled) {
@@ -315,19 +318,19 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      */
     public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
         for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().componentTemplates().get(name);
+            ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().templatesV2().get(name);
+            ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         if (isDataStreamsLifecycleOnlyMode(settings) == false) {
-            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata ilmMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (ilmMetadata == null) {
                 return false;
             }

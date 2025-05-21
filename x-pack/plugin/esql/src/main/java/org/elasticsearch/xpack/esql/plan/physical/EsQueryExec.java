@@ -21,6 +21,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -204,6 +205,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return DOC_ID_FIELD.getName().equals(attr.name());
     }
 
+    public boolean hasScoring() {
+        for (Attribute a : attrs()) {
+            if (a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     protected NodeInfo<EsQueryExec> info() {
         return NodeInfo.create(
@@ -294,6 +304,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }
         return Objects.equals(this.sorts, sorts)
+            ? this
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+    }
+
+    public EsQueryExec withQuery(QueryBuilder query) {
+        return Objects.equals(this.query, query)
             ? this
             : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }

@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -24,6 +26,8 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -54,8 +58,11 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -86,7 +93,12 @@ public class IndexLifecycleService
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
     private final ClusterService clusterService;
+    private final ThreadPool threadPool;
     private final LongSupplier nowSupplier;
+    private final ExecutorService managementExecutor;
+    /** A reference to the last seen cluster state. If it's not null, we're currently processing a cluster state. */
+    private final AtomicReference<ClusterState> lastSeenState = new AtomicReference<>();
+
     private SchedulerEngine.Job scheduledJob;
 
     @SuppressWarnings("this-escape")
@@ -104,12 +116,14 @@ public class IndexLifecycleService
         super();
         this.settings = settings;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
+        this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
@@ -152,7 +166,12 @@ public class IndexLifecycleService
         // when moving to an arbitrary step key (to avoid race conditions between the
         // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(currentState.getMetadata().index(index), currentStepKey, newStepKey, policyRegistry);
+        IndexLifecycleTransition.validateTransition(
+            currentState.getMetadata().getProject().index(index),
+            currentStepKey,
+            newStepKey,
+            policyRegistry
+        );
         return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey, nowSupplier, policyRegistry, true);
     }
 
@@ -168,9 +187,12 @@ public class IndexLifecycleService
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
 
-        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        // TODO multi-project: this probably needs a per-project iteration
+        @FixForMultiProject
+        final ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
-            OperationMode currentMode = currentILMMode(clusterState);
+            OperationMode currentMode = currentILMMode(projectMetadata);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
@@ -179,8 +201,8 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-                if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+            for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+                if (projectMetadata.isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -317,29 +339,100 @@ public class IndexLifecycleService
         if (this.isMaster) {
             // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
             // the deleted indices becomes expensive for larger cluster states
-            if (event.state().metadata().indices() != event.previousState().metadata().indices()) {
-                clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
-                    for (Index index : event.indicesDeleted()) {
+            // ClusterChangedEvent.indicesDeleted uses an equality check to skip computation if necessary.
+            final List<Index> indicesDeleted = event.indicesDeleted();
+            if (indicesDeleted.isEmpty() == false) {
+                managementExecutor.execute(() -> {
+                    for (Index index : indicesDeleted) {
                         policyRegistry.delete(index);
                     }
                 });
             }
 
-            triggerPolicies(event.state(), true);
+            // Only start processing the new cluster state if we're not already processing one.
+            // Note that we might override the last seen state with a new one, even if the previous one hasn't been processed yet.
+            // This means that when ILM's cluster state processing takes longer than the overall cluster state application or when
+            // the forked thread is waiting in the thread pool queue (e.g. when the master node is swamped), we might skip some
+            // cluster state updates. Since ILM does not depend on "deltas" in cluster states, we can skip some cluster states just fine.
+            if (lastSeenState.getAndSet(event.state()) == null) {
+                processClusterState();
+            } else {
+                logger.trace("ILM state processor still running, not starting new thread");
+            }
         }
+    }
+
+    /**
+     * Instead of processing cluster state updates on the cluster state applier thread, we fork to a different thread where
+     * ILM's runtime of processing the cluster state update does not affect the speed at which the cluster can apply new cluster states.
+     * That does not mean we don't need to optimize ILM's cluster state processing, as the overall amount of processing is generally
+     * unaffected by this fork approach (unless we skip some cluster states), but it does mean we're saving a significant amount
+     * of processing on the critical cluster state applier thread.
+     */
+    private void processClusterState() {
+        managementExecutor.execute(new AbstractRunnable() {
+
+            private final SetOnce<ClusterState> currentState = new SetOnce<>();
+
+            @Override
+            protected void doRun() throws Exception {
+                final ClusterState currentState = lastSeenState.get();
+                // This should never be null, but we're checking anyway to be sure.
+                if (currentState == null) {
+                    assert false : "Expected current state to non-null when processing cluster state in ILM";
+                    return;
+                }
+                this.currentState.set(currentState);
+                triggerPolicies(currentState, true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("ILM failed to process cluster state", e);
+            }
+
+            @Override
+            public void onAfter() {
+                // If the last seen state is unchanged, we set it to null to indicate that processing has finished and we return.
+                if (lastSeenState.compareAndSet(currentState.get(), null)) {
+                    return;
+                }
+                // If the last seen cluster state changed while this thread was running, it means a new cluster state came in and we need to
+                // process it. We do that by kicking off a new thread, which will pick up the new cluster state when the thread gets
+                // executed.
+                processClusterState();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                // Without force execution, we risk ILM state processing being postponed arbitrarily long, which in turn could cause
+                // thundering herd issues if there's significant time between ILM runs.
+                return true;
+            }
+        });
     }
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) { // only act if we are master, otherwise
-            // keep idle until elected
-            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-            // only update the policy registry if we just became the master node or if the ilm metadata changed
-            if (ilmMetadata != null
-                && (event.previousState().nodes().isLocalNodeElectedMaster() == false
-                    || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
-                policyRegistry.update(ilmMetadata);
-            }
+        // only act if we are master, otherwise keep idle until elected
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+
+        @FixForMultiProject
+        final IndexLifecycleMetadata ilmMetadata = event.state()
+            .metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .custom(IndexLifecycleMetadata.TYPE);
+        if (ilmMetadata == null) {
+            return;
+        }
+        final IndexLifecycleMetadata previousIlmMetadata = event.previousState()
+            .metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .custom(IndexLifecycleMetadata.TYPE);
+        if (event.previousState().nodes().isLocalNodeElectedMaster() == false || ilmMetadata != previousIlmMetadata) {
+            policyRegistry.update(ilmMetadata);
         }
     }
 
@@ -371,10 +464,13 @@ public class IndexLifecycleService
      * @param clusterState the current cluster state
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
+    @FixForMultiProject
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        @FixForMultiProject
+        final var projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
 
-        OperationMode currentMode = currentILMMode(clusterState);
+        OperationMode currentMode = currentILMMode(projectMetadata);
         if (currentMetadata == null) {
             if (currentMode == OperationMode.STOPPING) {
                 // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
@@ -392,8 +488,8 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-            if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+        for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -502,10 +598,13 @@ public class IndexLifecycleService
             return Set.of();
         }
 
+        // Returning a set of strings will cause weird behavior with multiple projects
+        @FixForMultiProject
         Set<String> indicesPreventingShutdown = state.metadata()
-            .indices()
-            .entrySet()
+            .projects()
+            .values()
             .stream()
+            .flatMap(project -> project.indices().entrySet().stream())
             // Filter out to only consider managed indices
             .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecyclePolicyName()))
             // Only look at indices in the shrink action

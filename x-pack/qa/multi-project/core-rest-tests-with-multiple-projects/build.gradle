@@ -1,0 +1,86 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+import org.elasticsearch.gradle.util.GradleUtils
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+  testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:rank-eval')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:parent-join')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(':test:external-modules:test-multi-project')
+  restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
+}
+
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
+tasks.named("yamlRestTest").configure {
+  ArrayList<String> blacklist = [
+    /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    '^cat.recovery/*/*',
+    '^cat.snapshots/*/*',
+    '^cluster.desired_balance/10_basic/*',
+    '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
+    '^health/10_basic/*',
+    '^health/40_diagnosis/*',
+    '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
+    '^indices.recovery/*/*',
+    '^indices.resolve_cluster/*/*',
+    '^indices.resolve_cluster/*/*/*',
+    '^indices.shard_stores/*/*',
+    '^test/ingest/15_info_ingest/*', // uses cluster info API
+    '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
+    '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
+    '^migration/*/*',
+    '^snapshot.clone/*/*',
+    '^snapshot.create/*/*',
+    '^snapshot.delete/*/*',
+    '^snapshot.get/*/*',
+    '^snapshot.get_repository/20_repository_uuid/*',
+    '^snapshot.restore/*/*',
+    '^snapshot.status/*/*',
+    '^synonyms/*/*',
+    '^tsdb/30_snapshot/*',
+    '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script', // scripting is not project aware yet
+
+    // The following tests are muted because the functionality that they are testing is not available in a multi-project setup
+
+    // The node removal prevalidation is only available for a Stateful deployment.
+    '^cluster.prevalidate_node_removal/*/*',
+
+    // This behaviour doesn't work with security: https://github.com/elastic/elasticsearch/issues/120252
+    '^reindex/30_search/Sorting deprecated wait_for_completion false',
+
+    // These tests assume we are running on a single node
+    '^delete_by_query/50_wait_for_active_shards/can override wait_for_active_shards',
+    '^update_by_query/50_consistency/can override wait_for_active_shards',
+
+    // Reindex from remote is not supported on Serverless and required additional testing setup
+    '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
+    '^reindex/90_remote/*',
+    '^reindex/95_parent_join/Reindex from remote*'
+  ];
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [];
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "tests.multi_project.enabled", true
+}

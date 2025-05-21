@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -46,11 +47,22 @@ public class AllocationStatsService {
      * Returns a map of node IDs to node allocation stats.
      */
     public Map<String, NodeAllocationStats> stats() {
+        return stats(() -> {});
+    }
+
+    /**
+     * Returns a map of node IDs to node allocation stats, promising to execute the provided {@link Runnable} during the computation to
+     * test for cancellation.
+     */
+    public Map<String, NodeAllocationStats> stats(Runnable ensureNotCancelled) {
+        assert Transports.assertNotTransportThread("too expensive for a transport worker");
+
         var clusterState = clusterService.state();
         var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
             clusterState.metadata(),
             clusterState.getRoutingNodes(),
             clusterInfoService.getClusterInfo(),
+            ensureNotCancelled,
             desiredBalanceSupplier.get()
         );
         return nodesStatsAndWeights.entrySet()

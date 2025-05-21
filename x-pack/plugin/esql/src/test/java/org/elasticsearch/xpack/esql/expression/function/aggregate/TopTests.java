@@ -48,8 +48,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.booleanCases(1, 1000),
                     MultiRowTestCaseSupplier.ipCases(1, 1000),
                     MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+                    MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
                 )
                     .flatMap(List::stream)
                     .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))
@@ -126,7 +125,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.IP),
+                    List.of(DataType.IP, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             TestCaseSupplier.TypedData.multiRow(
@@ -215,7 +214,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.IP),
+                    List.of(DataType.IP, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             TestCaseSupplier.TypedData.multiRow(

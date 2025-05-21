@@ -113,7 +113,10 @@ setup:
         snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
-          { "indices": "test_synthetic" }
+          { 
+            "indices": "test_synthetic",
+            "include_global_state": false
+          }
 
   - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : PARTIAL }
@@ -130,7 +133,10 @@ setup:
         snapshot: test_snapshot_3
         wait_for_completion: true
         body: |
-          { "indices": "test_*" }
+          { 
+            "indices": "test_*",
+            "include_global_state": false
+          }
 
   - match: { snapshot.snapshot: test_snapshot_3 }
   - match: { snapshot.state : PARTIAL }

@@ -117,6 +117,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();
+        if (types.size() != supplied.getData().size()) {
+            throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
+        }
         for (int i = 0; i < types.size(); i++) {
             if (supplied.getData().get(i).type() != types.get(i)) {
                 throw new IllegalStateException(

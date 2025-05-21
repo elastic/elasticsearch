@@ -12,6 +12,7 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -100,7 +101,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
                 Index index = shardRouting.index();
-                IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+                IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
@@ -140,6 +141,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
                             Set<String> inSyncIds = state.metadata()
+                                .getProject()
                                 .index(shard.shardId().getIndex())
                                 .inSyncAllocationIds(shard.shardId().id());
                             assertThat(
@@ -165,7 +167,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 fail("Index service " + index + " should be removed from indicesService due to disabled state persistence");
             }
 
-            assertTrue(state.metadata().getIndexSafe(index) != null);
+            assertTrue(state.metadata().getProject().getIndexSafe(index) != null);
 
             boolean shardsFound = false;
             for (Shard shard : indexService) {
@@ -212,7 +214,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState) {
+        public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ProjectMetadata currentProject) {
 
         }
 

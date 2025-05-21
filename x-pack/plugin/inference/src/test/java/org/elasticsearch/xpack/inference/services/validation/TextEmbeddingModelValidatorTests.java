@@ -9,17 +9,18 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.EmptyTaskSettingsTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
-import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -37,6 +38,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class TextEmbeddingModelValidatorTests extends ESTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
+
     @Mock
     private ServiceIntegrationValidator mockServiceIntegrationValidator;
     @Mock
@@ -64,14 +68,14 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
         doThrow(ElasticsearchStatusException.class).when(mockServiceIntegrationValidator)
-            .validate(eq(mockInferenceService), eq(mockModel), any());
+            .validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
+            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
         );
 
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
@@ -89,7 +93,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_RetrievingEmbeddingSizeThrowsIllegalStateException() {
-        InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(List.of());
+        TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(List.of());
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(randomNonNegativeInt());
@@ -102,7 +106,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
-        InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
         var dimensions = randomValueOtherThan(results.getFirstEmbeddingSize(), ESTestCase::randomNonNegativeInt);
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
@@ -126,7 +130,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     private void mockSuccessfulValidation(Boolean dimensionsSetByUser) {
-        InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
         when(mockModel.getConfigurations()).thenReturn(ModelConfigurationsTests.createRandomInstance());
         when(mockModel.getTaskSettings()).thenReturn(EmptyTaskSettingsTests.createRandom());
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(dimensionsSetByUser);
@@ -143,14 +147,14 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
     private void mockCallToServiceIntegrationValidator(InferenceServiceResults results) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(2);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(results);
             return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
 
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
     }
 }

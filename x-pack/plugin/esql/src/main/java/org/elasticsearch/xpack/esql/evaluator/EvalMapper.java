@@ -177,7 +177,7 @@ public final class EvalMapper {
     static class Nots extends ExpressionMapper<Not> {
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout);
+            var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
                 expEval.get(dvrCtx),
@@ -281,7 +281,7 @@ public final class EvalMapper {
 
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
-            var field = toEvaluator(foldCtx, isNull.field(), layout);
+            var field = toEvaluator(foldCtx, isNull.field(), layout, shardContexts);
             return new IsNullEvaluatorFactory(field);
         }
 
@@ -329,7 +329,7 @@ public final class EvalMapper {
 
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
-            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
+            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout, shardContexts));
         }
 
         record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {

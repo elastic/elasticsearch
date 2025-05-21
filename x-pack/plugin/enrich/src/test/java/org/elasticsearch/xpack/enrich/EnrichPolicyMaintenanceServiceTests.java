@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -160,12 +161,26 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         createSourceIndices(client(), policy);
         doSyncronously(
-            (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer)
+            (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(
+                Metadata.DEFAULT_PROJECT_ID,
+                policyName,
+                policy,
+                clusterService,
+                resolver,
+                exceptionConsumer
+            )
         );
     }
 
     private void removePolicy(String policyName) throws InterruptedException {
-        doSyncronously((clusterService, exceptionConsumer) -> EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
+        doSyncronously(
+            (clusterService, exceptionConsumer) -> EnrichStore.deletePolicy(
+                Metadata.DEFAULT_PROJECT_ID,
+                policyName,
+                clusterService,
+                exceptionConsumer
+            )
+        );
     }
 
     private void doSyncronously(BiConsumer<ClusterService, Consumer<Exception>> function) throws InterruptedException {
@@ -210,7 +225,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
             .indices()
             .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, enrichIndexBase))
             .actionGet();
-        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));

@@ -1,5 +1,0 @@
-pr: 118634
-summary: "Add undeclared Azure settings, modify test to exercise them"
-area: Snapshot/Restore
-type: bug
-issues: []

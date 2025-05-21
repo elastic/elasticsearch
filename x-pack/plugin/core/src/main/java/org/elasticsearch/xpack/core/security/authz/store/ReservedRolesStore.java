@@ -78,6 +78,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
+                // TODO add read_failure_store when failures authorization is implemented
                 .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                 .allowRestrictedIndices(true)
                 .build() },
@@ -95,6 +96,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new RoleDescriptor.RemoteIndicesPrivileges(
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
+                    // TODO add read_failure_store when failures authorization is implemented
                     .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -494,7 +496,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + "This role grants monitor_ml cluster privileges, read access to the .ml-notifications and .ml-anomalies* indices "
                         + "(which store machine learning results), and write access to .ml-annotations* indices. "
                         + "Machine learning users also need index privileges for source and destination indices "
-                        + "and roles that grant access to Kibana. "
+                        + "and roles that grant access to Kibana."
                 )
             ),
             entry(

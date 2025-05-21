@@ -75,7 +75,7 @@ steps:
             ES_VERSION:
               - "9.0.0"
             ES_COMMIT:
-              - "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
+              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

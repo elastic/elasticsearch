@@ -77,7 +77,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static TextSimilarityRankRetrieverBuilder fromXContent(
@@ -191,10 +191,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     public String inferenceId() {
         return inferenceId;
-    }
-
-    public int rankWindowSize() {
-        return rankWindowSize;
     }
 
     public boolean failuresAllowed() {

@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation "com.nimbusds:nimbus-jose-jwt:10.0.2"
+  clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(':modules:analysis-common')
+}
+
+tasks.named('javaRestTest') {
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+}
+
+tasks.withType(Test).configureEach {
+  it.systemProperty "tests.multi_project.enabled", true
+}

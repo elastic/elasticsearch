@@ -18,11 +18,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
     public void testWithMultipleInferenceIds() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
         String query = """
             from test-semantic1,test-semantic2
@@ -36,7 +37,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
     }
 
     public void testWithInferenceNotConfigured() {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
         String query = """
             from test-semantic3
@@ -88,16 +89,22 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
                   {
-                   "service": "test_service",
+                   "service": "text_embedding_test_service",
                    "service_settings": {
                      "model": "my_model",
-                     "api_key": "abc64"
+                     "api_key": "abc64",
+                     "dimensions": 128
                    },
                    "task_settings": {
                    }
                  }
             """);
-        adminClient().performRequest(request);
+        try {
+            adminClient().performRequest(request);
+        } catch (ResponseException exc) {
+            // in case the removal failed
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
     }
 
     @After

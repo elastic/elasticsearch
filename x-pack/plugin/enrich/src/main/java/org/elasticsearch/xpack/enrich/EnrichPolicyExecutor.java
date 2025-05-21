@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -115,19 +116,20 @@ public class EnrichPolicyExecutor {
     }
 
     public void runPolicyLocally(
+        ProjectId projectId,
         ExecuteEnrichPolicyTask task,
         String policyName,
         String enrichIndexName,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
         try {
-            EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state());
+            EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state().metadata().getProject(projectId));
             if (policy == null) {
                 throw new ResourceNotFoundException("policy [{}] does not exist", policyName);
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            var policyRunner = createPolicyRunner(policyName, policy, enrichIndexName, task);
+            var policyRunner = createPolicyRunner(projectId, policyName, policy, enrichIndexName, task);
             threadPool.executor(ThreadPool.Names.GENERIC)
                 .execute(ActionRunnable.wrap(ActionListener.assertOnce(listener), policyRunner::run));
         } catch (Exception e) {
@@ -209,12 +211,14 @@ public class EnrichPolicyExecutor {
     }
 
     private EnrichPolicyRunner createPolicyRunner(
+        ProjectId projectId,
         String policyName,
         EnrichPolicy policy,
         String enrichIndexName,
         ExecuteEnrichPolicyTask task
     ) {
         return new EnrichPolicyRunner(
+            projectId,
             policyName,
             policy,
             task,

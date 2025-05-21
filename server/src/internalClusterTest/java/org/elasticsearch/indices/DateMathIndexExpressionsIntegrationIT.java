@@ -179,8 +179,8 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         });
 
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().index(index1), notNullValue());
-        assertThat(clusterState.metadata().index(index2), notNullValue());
-        assertThat(clusterState.metadata().index(index3), notNullValue());
+        assertThat(clusterState.metadata().getProject().index(index1), notNullValue());
+        assertThat(clusterState.metadata().getProject().index(index2), notNullValue());
+        assertThat(clusterState.metadata().getProject().index(index3), notNullValue());
     }
 }

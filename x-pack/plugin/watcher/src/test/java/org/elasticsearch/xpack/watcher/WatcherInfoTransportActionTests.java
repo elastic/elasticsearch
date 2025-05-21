@@ -138,13 +138,12 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();
         assertThat(watcherUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", watcherUsage.stats());

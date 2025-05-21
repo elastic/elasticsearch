@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -195,7 +195,7 @@ public class SimpleRole implements Role {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Metadata metadata,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
         return indices.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);

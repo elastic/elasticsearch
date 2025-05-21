@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,8 +35,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
@@ -96,16 +95,15 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             ),
             Iterators.flatMap(
                 routingTable.entrySet().iterator(),
-                indexEntry -> Iterators.concat(
-                    startObject(indexEntry.getKey()),
+                indexEntry -> ChunkedToXContentHelper.object(
+                    indexEntry.getKey(),
                     Iterators.flatMap(
                         indexEntry.getValue().entrySet().iterator(),
                         shardEntry -> Iterators.concat(
                             chunk((builder, p) -> builder.field(String.valueOf(shardEntry.getKey()))),
                             shardEntry.getValue().toXContentChunked(params)
                         )
-                    ),
-                    endObject()
+                    )
                 )
             ),
             chunk((builder, p) -> builder.endObject().startObject("cluster_info")),

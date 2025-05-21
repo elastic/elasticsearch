@@ -848,7 +848,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         public void write(XContentBuilder b) throws IOException {
             if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
             } else {
                 b.field("field", value);
             }
@@ -943,6 +943,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             IndexVersion.current(),
+            null,
             null
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
@@ -956,6 +957,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             IndexVersion.current(),
+            null,
             null
         ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
@@ -970,6 +972,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             IndexVersion.current(),
+            null,
             null
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         /*

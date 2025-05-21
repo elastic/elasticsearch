@@ -149,13 +149,13 @@ class PushDownUtils {
         Set<String> attributeNamesToRename,
         List<? extends Expression> expressions
     ) {
-        AttributeMap<Alias> aliasesForReplacedAttributes = new AttributeMap<>();
+        AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
         List<Expression> rewrittenExpressions = new ArrayList<>();
 
         for (Expression expr : expressions) {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
-                    Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
+                    Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
                         String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
                         return new Alias(a.source(), tempName, a, null, true);
                     });
@@ -166,7 +166,7 @@ class PushDownUtils {
             }));
         }
 
-        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
+        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributesBuilder.build());
     }
 
     private static Map<String, String> newNamesForConflictingAttributes(

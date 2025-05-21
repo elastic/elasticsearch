@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import java.util.Map;
 
 /**
@@ -40,7 +42,8 @@ public final class DropProcessor extends AbstractProcessor {
             final Map<String, Processor.Factory> processorFactories,
             final String tag,
             final String description,
-            final Map<String, Object> config
+            final Map<String, Object> config,
+            final ProjectId projectId
         ) {
             return new DropProcessor(tag, description);
         }

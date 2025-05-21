@@ -9,33 +9,24 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpResponse;
-import com.google.api.services.storage.Storage.Objects.Get;
 import com.google.cloud.BaseService;
 import com.google.cloud.RetryHelper;
 import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
-import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -50,77 +41,39 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
 
     static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
-    private final Storage client;
-    private final com.google.api.services.storage.Storage storage;
-
+    private final OperationPurpose purpose;
+    private final MeteredStorage client;
     private final BlobId blobId;
-
     private final long start;
     private final long end;
-
     private final int maxAttempts;
-
     private InputStream currentStream;
     private int attempt = 1;
     private List<StorageException> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     private long currentOffset;
     private boolean closed;
 
-    GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId) throws IOException {
-        this(client, blobId, 0, Long.MAX_VALUE - 1);
-    }
-
-    // both start and end are inclusive bounds, following the definition in https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
-    GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId, long start, long end) throws IOException {
-        this(client, () -> getStorage(client), blobId, start, end);
+    // Used for testing only
+    GoogleCloudStorageRetryingInputStream(OperationPurpose purpose, MeteredStorage client, BlobId blobId) throws IOException {
+        this(purpose, client, blobId, 0, Long.MAX_VALUE - 1);
     }
 
     // Used for testing only
-    GoogleCloudStorageRetryingInputStream(
-        com.google.cloud.storage.Storage client,
-        Supplier<com.google.api.services.storage.Storage> storage,
-        BlobId blobId
-    ) throws IOException {
-        this(client, storage, blobId, 0, Long.MAX_VALUE - 1);
-    }
-
-    // Used for testing only
-    GoogleCloudStorageRetryingInputStream(
-        com.google.cloud.storage.Storage client,
-        Supplier<com.google.api.services.storage.Storage> storage,
-        BlobId blobId,
-        long start,
-        long end
-    ) throws IOException {
+    GoogleCloudStorageRetryingInputStream(OperationPurpose purpose, MeteredStorage client, BlobId blobId, long start, long end)
+        throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.purpose = purpose;
         this.client = client;
         this.blobId = blobId;
         this.start = start;
         this.end = end;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
-        SpecialPermission.check();
-        this.storage = storage.get();   // to bypass static init for unit testing
         this.currentStream = openStream();
-    }
-
-    @SuppressForbidden(reason = "need access to storage client")
-    private static com.google.api.services.storage.Storage getStorage(Storage client) {
-        return AccessController.doPrivileged((PrivilegedAction<com.google.api.services.storage.Storage>) () -> {
-            assert client.getOptions().getRpc() instanceof HttpStorageRpc;
-            assert Stream.of(client.getOptions().getRpc().getClass().getDeclaredFields()).anyMatch(f -> f.getName().equals("storage"));
-            try {
-                final Field storageField = client.getOptions().getRpc().getClass().getDeclaredField("storage");
-                storageField.setAccessible(true);
-                return (com.google.api.services.storage.Storage) storageField.get(client.getOptions().getRpc());
-            } catch (Exception e) {
-                throw new IllegalStateException("storage could not be set up", e);
-            }
-        });
     }
 
     private InputStream openStream() throws IOException {
@@ -128,23 +81,21 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             try {
                 return RetryHelper.runWithRetries(() -> {
                     try {
-                        return SocketAccess.doPrivilegedIOException(() -> {
-                            final Get get = storage.objects().get(blobId.getBucket(), blobId.getName());
-                            get.setReturnRawInputStream(true);
+                        final var meteredGet = client.meteredObjectsGet(purpose, blobId.getBucket(), blobId.getName());
+                        meteredGet.setReturnRawInputStream(true);
 
-                            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                if (get.getRequestHeaders() != null) {
-                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
-                                }
+                        if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                            if (meteredGet.getRequestHeaders() != null) {
+                                meteredGet.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
                             }
-                            final HttpResponse resp = get.executeMedia();
-                            final Long contentLength = resp.getHeaders().getContentLength();
-                            InputStream content = resp.getContent();
-                            if (contentLength != null) {
-                                content = new ContentLengthValidatingInputStream(content, contentLength);
-                            }
-                            return content;
-                        });
+                        }
+                        final HttpResponse resp = meteredGet.executeMedia();
+                        final Long contentLength = resp.getHeaders().getContentLength();
+                        InputStream content = resp.getContent();
+                        if (contentLength != null) {
+                            content = new ContentLengthValidatingInputStream(content, contentLength);
+                        }
+                        return content;
                     } catch (IOException e) {
                         throw StorageException.translate(e);
                     }

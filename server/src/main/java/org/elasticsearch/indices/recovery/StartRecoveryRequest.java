@@ -17,14 +17,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Represents a request for starting a peer recovery.
  */
-public class StartRecoveryRequest extends TransportRequest {
+public class StartRecoveryRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -52,11 +52,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
-        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            canDownloadSnapshotFiles = in.readBoolean();
-        } else {
-            canDownloadSnapshotFiles = true;
-        }
+        canDownloadSnapshotFiles = in.readBoolean();
     }
 
     /**
@@ -171,9 +167,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
-        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            out.writeBoolean(canDownloadSnapshotFiles);
-        }
+        out.writeBoolean(canDownloadSnapshotFiles);
     }
 
     @Override

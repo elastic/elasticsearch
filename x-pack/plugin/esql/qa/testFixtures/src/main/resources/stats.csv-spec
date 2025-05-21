@@ -1428,6 +1428,7 @@ docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS total_salary_changes = SUM(MV_MAX(salary_change))
 // end::docsStatsSumNestedExpression[]
+| EVAL total_salary_changes = ROUND(total_salary_changes, 2)
 ;
 
 // tag::docsStatsSumNestedExpression-result[]
@@ -2099,8 +2100,8 @@ FROM employees | STATS min = min(salary) by languages | SORT min + CASE(language
 
 weightedAvg
 required_capability: agg_weighted_avg
-from employees
-| stats w_avg_1 = weighted_avg(salary, 1), avg = avg(salary), w_avg_2 = weighted_avg(salary, height)
+FROM employees
+| STATS w_avg_1 = weighted_avg(salary, 1), avg = avg(salary), w_avg_2 = weighted_avg(salary, height)
 | EVAL w_avg_1 = ROUND(w_avg_1), avg = ROUND(avg), w_avg_2 = ROUND(w_avg_2)
 ;
 
@@ -2112,7 +2113,7 @@ weightedAvgGrouping
 required_capability: agg_weighted_avg
 // tag::weighted-avg[]
 FROM employees
-| STATS w_avg = WEIGHTED_AVG(salary, height) by languages
+| STATS w_avg = WEIGHTED_AVG(salary, height) BY languages
 | EVAL w_avg = ROUND(w_avg)
 | KEEP w_avg, languages
 | SORT languages
@@ -3096,4 +3097,28 @@ ROW a = [1,2,3], b = 5
 
 STD_DEV(a):double | STD_DEV(b):double
 0.816496580927726 | 0.0
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date) BY d = (date == "2025-01-01")
+;
+
+m:datetime               | d:boolean
+1999-04-30T00:00:00.000Z | true
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date), x = d::int + 1 BY d = (date == "2025-01-01")
+;
+
+m:datetime               | x:integer | d:boolean
+1999-04-30T00:00:00.000Z | 2         | true
 ;

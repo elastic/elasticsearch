@@ -11,14 +11,18 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -26,18 +30,20 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestClusterCustomMetadata;
+import org.elasticsearch.test.TestProjectCustomMetadata;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -127,6 +133,100 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
     }
 
+    public void testIndicesDeletionMultiProject() {
+        final ProjectMetadata project1 = createProject(List.of(initialIndices.get(0)));
+        final ProjectMetadata project2 = createProject(List.of(initialIndices.get(1)));
+        // If a cluster recovered from a block, we only look at tombstones.
+        final boolean hasBlock = randomBoolean();
+        final ClusterBlocks blocks = hasBlock
+            ? ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build()
+            : ClusterBlocks.EMPTY_CLUSTER_BLOCK;
+        final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .metadata(Metadata.builder().put(project1).put(project2).build())
+            .blocks(blocks)
+            .build();
+
+        ClusterState newState = ClusterState.builder(originalState).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertTrue(event.indicesDeleted().isEmpty());
+
+        // Remove indices from project
+        newState = ClusterState.builder(originalState)
+            .metadata(Metadata.builder(originalState.metadata()).put(ProjectMetadata.builder(project2.id()).build()).build())
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(hasBlock ? 0 : 1, event.indicesDeleted().size());
+
+        // Remove entire project
+        Metadata metadata = Metadata.builder(originalState.metadata()).removeProject(project2.id()).build();
+        newState = ClusterState.builder(originalState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(hasBlock ? 0 : 1, event.indicesDeleted().size());
+
+        // Remove two projects
+        metadata = Metadata.builder(originalState.metadata()).removeProject(project1.id()).removeProject(project2.id()).build();
+        newState = ClusterState.builder(originalState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(hasBlock ? 0 : 2, event.indicesDeleted().size());
+
+        // Add tombstone in one project
+        newState = ClusterState.builder(originalState)
+            .metadata(
+                Metadata.builder(originalState.metadata())
+                    .put(
+                        ProjectMetadata.builder(project2.id())
+                            .indexGraveyard(IndexGraveyard.builder(project2.indexGraveyard()).addTombstone(initialIndices.get(1)).build())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(1, event.indicesDeleted().size());
+
+        // Add tombstone in two projects
+        newState = ClusterState.builder(originalState)
+            .metadata(
+                Metadata.builder(originalState.metadata())
+                    .put(
+                        ProjectMetadata.builder(project1.id())
+                            .indexGraveyard(IndexGraveyard.builder(project1.indexGraveyard()).addTombstone(initialIndices.get(0)).build())
+                            .build()
+                    )
+                    .put(
+                        ProjectMetadata.builder(project2.id())
+                            .indexGraveyard(IndexGraveyard.builder(project2.indexGraveyard()).addTombstone(initialIndices.get(1)).build())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(2, event.indicesDeleted().size());
+
+        // Combine tombstone and deletion between projects
+        newState = ClusterState.builder(originalState)
+            .metadata(
+                Metadata.builder(originalState.metadata())
+                    .put(
+                        ProjectMetadata.builder(project1.id())
+                            .indexGraveyard(IndexGraveyard.builder(project1.indexGraveyard()).addTombstone(initialIndices.get(0)).build())
+                            .build()
+                    )
+                    .put(ProjectMetadata.builder(project2.id()).build())
+                    .build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, originalState);
+        assertEquals(hasBlock ? 1 : 2, event.indicesDeleted().size());
+    }
+
     /**
      * Test the index metadata change check.
      */
@@ -136,7 +236,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         // test when its not the same IndexMetadata
         final Index index = initialIndices.get(0);
-        final IndexMetadata originalIndexMeta = state.metadata().index(index);
+        final IndexMetadata originalIndexMeta = state.metadata().projects().values().iterator().next().index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetadata for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetadata newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);
@@ -204,19 +304,76 @@ public class ClusterChangedEventTests extends ESTestCase {
         ClusterState newState = ClusterState.builder(originalState).build();
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
         assertFalse("routing tables should be the same object", event.routingTableChanged());
-        assertFalse("index routing table should be the same object", event.indexRoutingTableChanged(initialIndices.get(0).getName()));
+        assertFalse("index routing table should be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
 
         // routing tables and index routing tables aren't same object
         newState = createState(numNodesInCluster, randomBoolean(), initialIndices);
         event = new ClusterChangedEvent("_na_", originalState, newState);
         assertTrue("routing tables should not be the same object", event.routingTableChanged());
-        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0).getName()));
+        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
 
         // index routing tables are different because they don't exist
         newState = createState(numNodesInCluster, randomBoolean(), initialIndices.subList(1, initialIndices.size()));
         event = new ClusterChangedEvent("_na_", originalState, newState);
         assertTrue("routing tables should not be the same object", event.routingTableChanged());
-        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0).getName()));
+        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
+    }
+
+    /**
+     * Test the routing table changes checks in a multi-project setting.
+     */
+    public void testRoutingTableChangesMultiProject() {
+        final ProjectMetadata project1 = createProject(List.of(initialIndices.get(0)));
+        final ProjectMetadata project2 = createProject(List.of(initialIndices.get(1)));
+        final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .metadata(Metadata.builder().put(project1).put(project2).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(project1.id(), createRoutingTable(project1.indices().values()))
+                    .put(project2.id(), createRoutingTable(project2.indices().values()))
+                    .build()
+            )
+            .build();
+
+        // routing tables and index routing tables are same object
+        ClusterState newState = ClusterState.builder(originalState).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertFalse("routing tables should be the same object", event.routingTableChanged());
+        assertFalse("index routing table should be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
+
+        // routing tables and index routing tables aren't same object
+        newState = ClusterState.builder(originalState)
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(project1.id(), createRoutingTable(project1.indices().values()))
+                    .put(project2.id(), createRoutingTable(project2.indices().values()))
+                    .build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertTrue("routing tables should not be the same object", event.routingTableChanged());
+        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
+
+        // index routing tables are different because they don't exist
+        newState = ClusterState.builder(originalState)
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(project1.id(), createRoutingTable(List.of()))
+                    .put(project2.id(), createRoutingTable(project2.indices().values()))
+                    .build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertTrue("routing tables should not be the same object", event.routingTableChanged());
+        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
+
+        // index routing tables are different because the project doesn't exist
+        newState = ClusterState.builder(originalState)
+            .routingTable(GlobalRoutingTable.builder().put(project2.id(), createRoutingTable(project2.indices().values())).build())
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertTrue("routing tables should not be the same object", event.routingTableChanged());
+        assertTrue("index routing table should not be the same object", event.indexRoutingTableChanged(initialIndices.get(0)));
     }
 
     /**
@@ -226,80 +383,212 @@ public class ClusterChangedEventTests extends ESTestCase {
         final int numNodesInCluster = 3;
 
         final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        CustomMetadata1 customMetadata1 = new CustomMetadata1("data");
-        final ClusterState stateWithCustomMetadata = nextState(originalState, Collections.singletonList(customMetadata1));
+        CustomClusterMetadata1 customClusterMetadata1 = new CustomClusterMetadata1("data");
+        final ClusterState stateWithCustomMetadata = nextState(originalState, Collections.singletonList(customClusterMetadata1));
 
         // no custom metadata present in any state
         ClusterState nextState = ClusterState.builder(originalState).build();
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, nextState);
-        assertTrue(event.changedCustomMetadataSet().isEmpty());
+        assertTrue(event.changedCustomClusterMetadataSet().isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has new custom metadata
-        nextState = nextState(originalState, Collections.singletonList(customMetadata1));
+        nextState = nextState(originalState, Collections.singletonList(customClusterMetadata1));
         event = new ClusterChangedEvent("_na_", originalState, nextState);
-        Set<String> changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        Set<String> changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has same custom metadata
-        nextState = nextState(originalState, Collections.singletonList(customMetadata1));
+        nextState = nextState(originalState, Collections.singletonList(customClusterMetadata1));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state has equivalent custom metadata
-        nextState = nextState(originalState, Collections.singletonList(new CustomMetadata1("data")));
+        nextState = nextState(originalState, Collections.singletonList(new CustomClusterMetadata1("data")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state removes custom metadata
         nextState = originalState;
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state updates custom metadata
-        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new CustomMetadata1("data1")));
+        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new CustomClusterMetadata1("data1")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state adds new custom metadata type
-        CustomMetadata2 customMetadata2 = new CustomMetadata2("data2");
-        nextState = nextState(stateWithCustomMetadata, Arrays.asList(customMetadata1, customMetadata2));
+        CustomClusterMetadata2 customClusterMetadata2 = new CustomClusterMetadata2("data2");
+        nextState = nextState(stateWithCustomMetadata, Arrays.asList(customClusterMetadata1, customClusterMetadata2));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state adds two custom metadata type
-        nextState = nextState(originalState, Arrays.asList(customMetadata1, customMetadata2));
+        nextState = nextState(originalState, Arrays.asList(customClusterMetadata1, customClusterMetadata2));
         event = new ClusterChangedEvent("_na_", originalState, nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 2);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
 
         // next state removes two custom metadata type
         nextState = originalState;
-        event = new ClusterChangedEvent("_na_", nextState(originalState, Arrays.asList(customMetadata1, customMetadata2)), nextState);
-        changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
+        event = new ClusterChangedEvent(
+            "_na_",
+            nextState(originalState, Arrays.asList(customClusterMetadata1, customClusterMetadata2)),
+            nextState
+        );
+        changedCustomMetadataTypeSet = event.changedCustomClusterMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 2);
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata2.getWriteableName()));
-        assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata2.getWriteableName()));
+        assertTrue(changedCustomMetadataTypeSet.contains(customClusterMetadata1.getWriteableName()));
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
+
+        CustomProjectMetadata customProjectMetadata = new CustomProjectMetadata("proj");
+        // next state has new project custom
+        nextState = nextState(originalState, List.of(), List.of(customProjectMetadata));
+        event = new ClusterChangedEvent("_na_", originalState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), empty());
+        assertThat(event.changedCustomProjectMetadataSet(), containsInAnyOrder(customProjectMetadata.getWriteableName()));
+
+        // next state has cluster custom + same project custom
+        var prevState = nextState;
+        nextState = nextState(originalState, List.of(customClusterMetadata1), List.of(customProjectMetadata));
+        event = new ClusterChangedEvent("_na_", prevState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), containsInAnyOrder(customClusterMetadata1.getWriteableName()));
+        assertThat(event.changedCustomProjectMetadataSet(), empty());
+
+        // next state has same cluster custom + remove project custom
+        prevState = nextState;
+        nextState = nextState(originalState, List.of(customClusterMetadata1), List.of());
+        event = new ClusterChangedEvent("_na_", prevState, nextState);
+        assertThat(event.changedCustomClusterMetadataSet(), empty());
+        assertThat(event.changedCustomProjectMetadataSet(), containsInAnyOrder(customProjectMetadata.getWriteableName()));
     }
 
-    private static class CustomMetadata2 extends TestCustomMetadata {
-        protected CustomMetadata2(String data) {
+    public void testChangedCustomMetadataSetMultiProject() {
+        final CustomProjectMetadata project1Custom = new CustomProjectMetadata("project1");
+        final CustomProjectMetadata project2Custom = new CustomProjectMetadata("project2");
+        final ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId()).build();
+        final ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId()).build();
+        final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .metadata(Metadata.builder().put(project1).put(project2).build())
+            .build();
+
+        // No changes
+        ClusterState newState = ClusterState.builder(originalState).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertTrue(event.changedCustomProjectMetadataSet().isEmpty());
+
+        // Add one project
+        newState = ClusterState.builder(originalState)
+            .putProjectMetadata(ProjectMetadata.builder(project2).putCustom(project2Custom.getWriteableName(), project2Custom).build())
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertEquals(Set.of(project2Custom.getWriteableName()), event.changedCustomProjectMetadataSet());
+
+        // Add two projects
+        newState = ClusterState.builder(originalState)
+            .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(project1Custom.getWriteableName(), project1Custom).build())
+            .putProjectMetadata(ProjectMetadata.builder(project2).putCustom(project2Custom.getWriteableName(), project2Custom).build())
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertEquals(Set.of(project1Custom.getWriteableName(), project2Custom.getWriteableName()), event.changedCustomProjectMetadataSet());
+
+        // Add custom in completely new project
+        newState = ClusterState.builder(originalState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(randomUniqueProjectId()).putCustom(project2Custom.getWriteableName(), project2Custom).build()
+            )
+            .build();
+        event = new ClusterChangedEvent("_na_", originalState, newState);
+        assertEquals(Set.of(IndexGraveyard.TYPE, project2Custom.getWriteableName()), event.changedCustomProjectMetadataSet());
+    }
+
+    public void testProjectsDelta() {
+        final var state0 = ClusterState.builder(TEST_CLUSTER_NAME).build();
+
+        // No project changes
+        final var state1 = ClusterState.builder(state0)
+            .metadata(Metadata.builder(state0.metadata()).put(ReservedStateMetadata.builder("test").build()))
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", state1, state0);
+        assertTrue(event.projectDelta().isEmpty());
+
+        // Add projects
+        final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
+        Metadata.Builder metadataBuilder = Metadata.builder(state1.metadata());
+        for (ProjectId projectId : projectIds) {
+            metadataBuilder.put(ProjectMetadata.builder(projectId));
+        }
+        final var state2 = ClusterState.builder(state1).metadata(metadataBuilder.build()).build();
+        event = new ClusterChangedEvent("test", state2, state1);
+        assertThat(event.projectDelta().added(), containsInAnyOrder(projectIds.toArray()));
+        assertThat(event.projectDelta().removed(), empty());
+
+        // Add more projects and delete one
+        final var removedProjectIds = randomNonEmptySubsetOf(projectIds);
+        final List<ProjectId> moreProjectIds = randomList(1, 3, ESTestCase::randomUniqueProjectId);
+        metadataBuilder = Metadata.builder(state2.metadata());
+        GlobalRoutingTable.Builder routingTableBuilder = GlobalRoutingTable.builder(state2.globalRoutingTable());
+        for (ProjectId projectId : removedProjectIds) {
+            metadataBuilder.removeProject(projectId);
+            routingTableBuilder.removeProject(projectId);
+        }
+        for (ProjectId projectId : moreProjectIds) {
+            metadataBuilder.put(ProjectMetadata.builder(projectId));
+        }
+
+        final var state3 = ClusterState.builder(state2).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
+
+        event = new ClusterChangedEvent("test", state3, state2);
+        assertThat(event.projectDelta().added(), containsInAnyOrder(moreProjectIds.toArray()));
+        assertThat(event.projectDelta().removed(), containsInAnyOrder(removedProjectIds.toArray()));
+
+        // Remove all projects
+        final List<ProjectId> remainingProjects = state3.metadata()
+            .projects()
+            .keySet()
+            .stream()
+            .filter(projectId -> ProjectId.DEFAULT.equals(projectId) == false)
+            .toList();
+        metadataBuilder = Metadata.builder(state3.metadata());
+        routingTableBuilder = GlobalRoutingTable.builder(state3.globalRoutingTable());
+        for (ProjectId projectId : remainingProjects) {
+            metadataBuilder.removeProject(projectId);
+            routingTableBuilder.removeProject(projectId);
+        }
+        final var state4 = ClusterState.builder(state3).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
+        event = new ClusterChangedEvent("test", state4, state3);
+        assertThat(event.projectDelta().added(), empty());
+        assertThat(event.projectDelta().removed(), containsInAnyOrder(remainingProjects.toArray()));
+    }
+
+    private static class CustomClusterMetadata2 extends TestClusterCustomMetadata {
+        protected CustomClusterMetadata2(String data) {
             super(data);
         }
 
         @Override
         public String getWriteableName() {
-            return "2";
+            return "c2";
         }
 
         @Override
@@ -313,14 +602,38 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
-        protected CustomMetadata1(String data) {
+    private static class CustomClusterMetadata1 extends TestClusterCustomMetadata {
+        protected CustomClusterMetadata1(String data) {
             super(data);
         }
 
         @Override
         public String getWriteableName() {
-            return "1";
+            return "c1";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        }
+    }
+
+    private static class CustomProjectMetadata extends TestProjectCustomMetadata {
+        private final String data;
+
+        protected CustomProjectMetadata(String data) {
+            super(data);
+            this.data = data;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return data;
         }
 
         @Override
@@ -340,11 +653,11 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create a basic cluster state with a given set of indices
     private static ClusterState createState(final int numNodes, final boolean isLocalMaster, final List<Index> indices) {
-        final Metadata metadata = createMetadata(indices);
+        final ProjectMetadata project = createProject(indices);
         return ClusterState.builder(TEST_CLUSTER_NAME)
             .nodes(createDiscoveryNodes(numNodes, isLocalMaster))
-            .metadata(metadata)
-            .routingTable(createRoutingTable(metadata))
+            .metadata(Metadata.builder().clusterUUID(INITIAL_CLUSTER_ID).put(project).build())
+            .routingTable(GlobalRoutingTable.builder().put(project.id(), createRoutingTable(project.indices().values())).build())
             .build();
     }
 
@@ -356,18 +669,22 @@ public class ClusterChangedEventTests extends ESTestCase {
             .build();
     }
 
-    private static ClusterState nextState(final ClusterState previousState, List<TestCustomMetadata> customMetadataList) {
+    private static ClusterState nextState(final ClusterState previousState, List<TestClusterCustomMetadata> customMetadataList) {
+        return nextState(previousState, customMetadataList, List.of());
+    }
+
+    private static ClusterState nextState(
+        final ClusterState previousState,
+        List<TestClusterCustomMetadata> clusterCustoms,
+        List<TestProjectCustomMetadata> projectCustoms
+    ) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
-        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
-            if (customMetadata.getValue() instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.getKey());
-            }
-        }
-        for (TestCustomMetadata testCustomMetadata : customMetadataList) {
-            metadataBuilder.putCustom(testCustomMetadata.getWriteableName(), testCustomMetadata);
-        }
+        metadataBuilder.removeCustomIf((ignore, custom) -> custom instanceof TestClusterCustomMetadata);
+        metadataBuilder.removeProjectCustomIf((ignore, custom) -> custom instanceof TestProjectCustomMetadata);
+        clusterCustoms.forEach(clusterCustom -> metadataBuilder.putCustom(clusterCustom.getWriteableName(), clusterCustom));
+        projectCustoms.forEach(projectCustom -> metadataBuilder.putCustom(projectCustom.getWriteableName(), projectCustom));
         builder.metadata(metadataBuilder);
         return builder.build();
     }
@@ -469,9 +786,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create the metadata for a cluster state.
-    private static Metadata createMetadata(final List<Index> indices) {
-        final Metadata.Builder builder = Metadata.builder();
-        builder.clusterUUID(INITIAL_CLUSTER_ID);
+    private static ProjectMetadata createProject(final List<Index> indices) {
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
         for (Index index : indices) {
             builder.put(createIndexMetadata(index), true);
         }
@@ -499,30 +815,12 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     // Create the routing table for a cluster state.
-    private static RoutingTable createRoutingTable(final Metadata metadata) {
+    private static RoutingTable createRoutingTable(Collection<IndexMetadata> values) {
         final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : values) {
             builder.addAsNew(indexMetadata);
         }
         return builder.build();
-    }
-
-    // Create a list of indices to add
-    private static List<Index> addIndices(final int numIndices, final String id) {
-        final List<Index> list = new ArrayList<>();
-        for (int i = 0; i < numIndices; i++) {
-            list.add(new Index("newIdx_" + id + "_" + i, UUIDs.randomBase64UUID()));
-        }
-        return list;
-    }
-
-    // Create a list of indices to delete from a list that already belongs to a particular cluster state.
-    private static List<Index> delIndices(final int numIndices, final List<Index> currIndices) {
-        final List<Index> list = new ArrayList<>();
-        for (int i = 0; i < numIndices; i++) {
-            list.add(currIndices.get(i));
-        }
-        return list;
     }
 
     // execute the indices changes test by generating random index additions and deletions and
@@ -533,7 +831,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     ) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : previousState.metadata().projects().values().iterator().next().indices().values()) {
             stateIndices.add(indexMetadata.getIndex());
         }
         final int numDel = switch (deletionQuantity) {
@@ -542,22 +840,15 @@ public class ClusterChangedEventTests extends ESTestCase {
             case DELETE_RANDOM -> randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
         };
         final boolean changeClusterUUID = randomBoolean();
-        final List<Index> addedIndices = addIndices(numAdd, randomAlphaOfLengthBetween(5, 10));
-        List<Index> delIndices;
-        if (changeClusterUUID) {
-            delIndices = new ArrayList<>();
-        } else {
-            delIndices = delIndices(numDel, stateIndices);
-        }
+        final List<Index> addedIndices = randomList(numAdd, numAdd, () -> new Index(randomAlphaOfLength(5), randomUUID()));
+        List<Index> delIndices = changeClusterUUID ? List.of() : randomSubsetOf(numDel, stateIndices);
         final ClusterState newState = nextState(previousState, changeClusterUUID, addedIndices, delIndices, 0);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        final List<String> addsFromEvent = ClusterChangedEventUtils.indicesCreated(event);
         List<Index> delsFromEvent = event.indicesDeleted();
-        assertThat(new HashSet<>(addsFromEvent), equalTo(addedIndices.stream().map(Index::getName).collect(Collectors.toSet())));
         assertThat(new HashSet<>(delsFromEvent), equalTo(new HashSet<>(delIndices)));
         assertThat(event.metadataChanged(), equalTo(changeClusterUUID || addedIndices.size() > 0 || delIndices.size() > 0));
-        final IndexGraveyard newGraveyard = event.state().metadata().indexGraveyard();
-        final IndexGraveyard oldGraveyard = event.previousState().metadata().indexGraveyard();
+        final IndexGraveyard newGraveyard = event.state().metadata().projects().values().iterator().next().indexGraveyard();
+        final IndexGraveyard oldGraveyard = event.previousState().metadata().projects().values().iterator().next().indexGraveyard();
         assertThat(((IndexGraveyard.IndexGraveyardDiff) newGraveyard.diff(oldGraveyard)).getAdded().size(), equalTo(delIndices.size()));
         return newState;
     }

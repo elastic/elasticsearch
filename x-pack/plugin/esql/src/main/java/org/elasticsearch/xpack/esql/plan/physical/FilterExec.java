@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class FilterExec extends UnaryExec {
@@ -61,11 +59,6 @@ public class FilterExec extends UnaryExec {
 
     public Expression condition() {
         return condition;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return child().output();
     }
 
     @Override

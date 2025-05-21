@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -26,6 +27,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class ChatCompletionModelValidatorTests extends ESTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
+
     @Mock
     private ServiceIntegrationValidator mockServiceIntegrationValidator;
     @Mock
@@ -48,14 +52,14 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
         doThrow(ElasticsearchStatusException.class).when(mockServiceIntegrationValidator)
-            .validate(eq(mockInferenceService), eq(mockModel), any());
+            .validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
+            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
         );
 
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,
@@ -70,14 +74,14 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         when(mockInferenceService.updateModelWithChatCompletionDetails(mockModel)).thenReturn(mockModel);
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(2);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(mockInferenceServiceResults);
             return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
 
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
         verify(mockActionListener).onResponse(mockModel);
         verify(mockInferenceService).updateModelWithChatCompletionDetails(mockModel);

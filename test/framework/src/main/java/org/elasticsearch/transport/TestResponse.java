@@ -22,7 +22,6 @@ public class TestResponse extends TransportResponse {
     }
 
     public TestResponse(StreamInput in) throws IOException {
-        super(in);
         this.value = in.readString();
     }
 

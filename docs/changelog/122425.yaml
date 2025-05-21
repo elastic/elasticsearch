@@ -1,5 +1,0 @@
-pr: 122425
-summary: Fix synthetic source bug that would mishandle nested `dense_vector` fields
-area: Mapping
-type: bug
-issues: []

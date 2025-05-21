@@ -36,7 +36,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
 
     @Override
@@ -166,7 +166,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> processors = new HashMap<>();
-            processors.put("set", (factories, tag, description, config) -> {
+            processors.put("set", (factories, tag, description, config, projectId) -> {
                 String field = (String) config.remove("field");
                 String value = (String) config.remove("value");
                 return new FakeProcessor("set", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value));

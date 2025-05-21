@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
@@ -27,7 +28,7 @@ public class ReservedSecurityStateHandlerProvider implements ReservedClusterStat
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<?>> handlers() {
-        return plugin.reservedClusterStateHandlers();
+    public Collection<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers() {
+        return plugin.reservedProjectStateHandlers();
     }
 }

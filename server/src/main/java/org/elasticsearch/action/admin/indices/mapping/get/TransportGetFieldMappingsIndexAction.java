@@ -14,10 +14,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -62,6 +63,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -70,6 +72,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             GetFieldMappingsIndexRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
@@ -84,7 +87,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardsIterator shards(ProjectState state, InternalRequest request) {
         // Will balance requests between shards
         return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
     }
@@ -107,8 +110,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ, request.concreteIndex());
     }
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {

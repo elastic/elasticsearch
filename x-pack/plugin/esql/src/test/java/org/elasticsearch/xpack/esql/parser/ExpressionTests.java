@@ -208,21 +208,8 @@ public class ExpressionTests extends ESTestCase {
         assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("a"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/121950")
-    public void testCommandNamesAsIdentifiersWithLimit() {
-        Expression expr = whereExpression("from and limit");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
-
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
-
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
-    }
-
     public void testCommandNamesAsIdentifiers() {
-        for (var commandName : List.of("keep", "drop", "dissect", "eval")) {
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
             Expression expr = whereExpression("from and " + commandName);
             assertThat(expr, instanceOf(And.class));
             And and = (And) expr;

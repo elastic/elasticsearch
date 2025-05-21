@@ -23,7 +23,7 @@ public class LeafQueryTests extends ESTestCase {
         }
 
         @Override
-        public QueryBuilder asBuilder() {
+        protected QueryBuilder asBuilder() {
             return null;
         }
 

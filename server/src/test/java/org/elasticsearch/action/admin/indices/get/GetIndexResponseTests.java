@@ -14,12 +14,11 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,14 +29,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
+public class GetIndexResponseTests extends ESTestCase {
 
-    @Override
-    protected Writeable.Reader<GetIndexResponse> instanceReader() {
-        return GetIndexResponse::new;
-    }
-
-    @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         Map<String, MappingMetadata> mappings = new HashMap<>();
@@ -75,11 +68,6 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
             }
         }
         return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
-    }
-
-    @Override
-    protected GetIndexResponse mutateInstance(GetIndexResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testChunking() throws IOException {

@@ -22,12 +22,12 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -154,7 +154,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotRLike() throws IOException {
-        WildcardLikeTests.renderNot(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d);
+    public static void renderNotRLike() throws Exception {
+        renderNegatedOperator(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d, getTestClass());
     }
 }

@@ -91,9 +91,9 @@ public class StEnvelope extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StEnvelopeFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StEnvelopeFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

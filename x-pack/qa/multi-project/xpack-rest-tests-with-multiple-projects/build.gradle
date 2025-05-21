@@ -1,0 +1,169 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+import org.elasticsearch.gradle.util.GradleUtils
+
+dependencies {
+  testImplementation project(xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':test:yaml-rest-runner')
+  testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
+  testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
+  restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
+}
+
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+
+restResources {
+  restTests {
+    includeXpack '*'
+  }
+}
+
+tasks.named("yamlRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+  ArrayList<String> blacklist = [
+    /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    '^analytics/boxplot/*',
+    '^analytics/histogram/*',
+    '^analytics/moving_percentiles/*',
+    '^analytics/top_metrics/*',
+    '^analytics/usage/*',
+    '^constant_keyword/10_basic/*',
+    '^data_streams/10_data_stream_resolvability/*',
+    '^deprecation/10_basic/*',
+    '^dlm/10_usage/*',
+    '^esql/46_downsample/*',
+    '^esql/60_enrich/*',
+    '^esql/60_usage/*',
+    '^esql/61_enrich_ip/*',
+    '^esql/62_extra_enrich/*',
+    '^esql/63_enrich_int_range/*',
+    '^esql/64_enrich_int_match/*',
+    '^esql/180_match_operator/*',
+    '^esql/190_lookup_join/*',
+    '^esql/191_lookup_join_on_datastreams/*',
+    '^esql/191_lookup_join_text/*',
+    '^health/10_usage/*',
+    '^ilm/10_basic/Test Undeletable Policy In Use',
+    '^ilm/20_move_to_step/*',
+    '^ilm/30_retry/*',
+    '^ilm/60_operation_mode/*',
+    '^ilm/60_remove_policy_for_index/*',
+    '^ilm/70_downsampling/*',
+    '^ilm/80_health/*',
+    '^logsdb/10_usage/*',
+    '^migrate/10_reindex/*',
+    '^migrate/20_reindex_status/*',
+    '^migrate/30_create_from/*',
+    '^migration/10_get_feature_upgrade_status/*',
+    '^migration/20_post_feature_upgrade/*',
+    '^ml/3rd_party_deployment/*',
+    '^ml/bucket_correlation_agg/*',
+    '^ml/bucket_count_ks_test_agg/*',
+    '^ml/calendar_crud/*',
+    '^ml/categorization_agg/*',
+    '^ml/change_point_agg/*',
+    '^ml/custom_all_field/*',
+    '^ml/data_frame_analytics_cat_apis/*',
+    '^ml/data_frame_analytics_crud/*',
+    '^ml/datafeed_cat_apis/*',
+    '^ml/datafeeds_crud/*',
+    '^ml/delete_expired_data/*',
+    '^ml/delete_job_force/*',
+    '^ml/explain_data_frame_analytics/*',
+    '^ml/filter_crud/*',
+    '^ml/forecast/*',
+    '^ml/frequent_item_sets_agg/*',
+    '^ml/get_datafeed_stats/*',
+    '^ml/get_datafeeds/*',
+    '^ml/get_memory_stats/*',
+    '^ml/get_model_snapshots/*',
+    '^ml/get_model_snapshots/*/*',
+    '^ml/get_trained_model_stats/*',
+    '^ml/inference_crud/*',
+    '^ml/inference_processor/*',
+    '^ml/job_cat_apis/*',
+    '^ml/job_groups/*',
+    '^ml/jobs_crud/*',
+    '^ml/jobs_get/*',
+    '^ml/jobs_get_result_buckets/*',
+    '^ml/jobs_get_result_categories/*',
+    '^ml/jobs_get_result_influencers/*',
+    '^ml/jobs_get_result_overall_buckets/*',
+    '^ml/jobs_get_result_records/*',
+    '^ml/jobs_get_stats/*',
+    '^ml/learning_to_rank_rescorer/*',
+    '^ml/ml_anomalies_default_mappings/*',
+    '^ml/ml_info/*',
+    '^ml/p_value_significant_term_score/*',
+    '^ml/pipeline_inference/*',
+    '^ml/post_data/*',
+    '^ml/preview_data_frame_analytics/*',
+    '^ml/preview_datafeed/*',
+    '^ml/reset_job/*',
+    '^ml/revert_model_snapshot/*',
+    '^ml/search_knn_query_vector_builder/*',
+    '^ml/set_upgrade_mode/*',
+    '^ml/sparse_vector_search/*',
+    '^ml/start_data_frame_analytics/*',
+    '^ml/start_stop_datafeed/*',
+    '^ml/stop_data_frame_analytics/*',
+    '^ml/stop_data_frame_analytics/Test stop with inconsistent body/param ids',
+    '^ml/text_embedding_search/*',
+    '^ml/text_expansion_search/*',
+    '^ml/text_expansion_search_rank_features/*',
+    '^ml/text_expansion_search_sparse_vector/*',
+    '^ml/trained_model_cat_apis/*',
+    '^ml/update_trained_model_deployment/*',
+    '^ml/upgrade_job_snapshot/*',
+    '^monitoring/bulk/10_basic/*',
+    '^monitoring/bulk/20_privileges/*',
+    '^profiling/10_basic/*',
+    '^redact/10_redact_processor/*',
+    '^role_mapping/10_basic/*',
+    '^role_mapping/20_get_missing/*',
+    '^role_mapping/30_delete/*',
+    '^rollup/delete_job/*',
+    '^rollup/get_jobs/*',
+    '^rollup/get_rollup_caps/*',
+    '^rollup/get_rollup_index_caps/*',
+    '^rollup/put_job/*',
+    '^rollup/rollup_search/*',
+    '^rollup/start_job/*',
+    '^rollup/stop_job/*',
+    '^searchable_snapshots/10_usage/*',
+    '^searchable_snapshots/20_synthetic_source/*',
+    '^security/authz/14_cat_indices/*',
+    '^security/authz/14_cat_indices/Test explicit request while multiple opened/*',
+    '^security/authz/60_resolve_index/*',
+    '^security/settings/10_update_security_settings/*',
+    '^snapshot/10_basic/*',
+    '^snapshot/20_operator_privileges_disabled/*',
+    '^spatial/50_feature_usage/*',
+    '^spatial/100_geo_grid_ingest/*',
+    '^transform/preview_transforms/*',
+    '^transform/transforms_cat_apis/*',
+    '^transform/transforms_crud/*',
+    '^transform/transforms_force_delete/*',
+    '^transform/transforms_reset/*',
+    '^transform/transforms_start_stop/*',
+    '^transform/transforms_start_stop/Test start/stop only starts/stops specified transform',
+    '^transform/transforms_start_stop/Test start/stop with field alias',
+    '^transform/transforms_start_stop/Test start/stop/start continuous transform',
+    '^transform/transforms_start_stop/Test start/stop/start transform',
+    '^transform/transforms_stats/*',
+    '^transform/transforms_stats_continuous/*',
+    '^transform/transforms_unattended/*',
+    '^transform/transforms_update/*',
+    '^transform/transforms_upgrade/*',
+    '^voting_only_node/10_basic/*'
+  ];
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [];
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "tests.multi_project.enabled", true
+}

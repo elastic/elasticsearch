@@ -89,7 +89,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 0; i < indices; i++) {
-            routingTableBuilder.addAsNew(metadata.index("INDEX_" + i));
+            routingTableBuilder.addAsNew(metadata.getProject().index("INDEX_" + i));
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();

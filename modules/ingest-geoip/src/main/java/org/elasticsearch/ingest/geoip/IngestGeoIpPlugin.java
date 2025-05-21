@@ -10,8 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -182,12 +180,12 @@ public class IngestGeoIpPlugin extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
-            new ActionHandler<>(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
-            new ActionHandler<>(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
-            new ActionHandler<>(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
+            new ActionHandler(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
+            new ActionHandler(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
+            new ActionHandler(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
+            new ActionHandler(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)
         );
     }
 
@@ -214,6 +212,11 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(IngestGeoIpMetadata.TYPE),
+                IngestGeoIpMetadata::fromXContent
+            ),
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
             new NamedXContentRegistry.Entry(
@@ -232,7 +235,7 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),

@@ -25,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,6 +82,11 @@ import java.util.stream.Stream;
  * </pre>
  */
 public class Setting<T> implements ToXContentObject {
+    private static final String DEPRECATED_MESSAGE_TEMPLATE =
+        "[{}] setting was deprecated in Elasticsearch and will be removed in a future release. "
+            + "See the %s documentation for the next major version.";
+    private static final String DEPRECATED_WARN_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "deprecation");
+    private static final String DEPRECATED_CRITICAL_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "breaking changes");
 
     public enum Property {
         /**
@@ -163,12 +167,24 @@ public class Setting<T> implements ToXContentObject {
         IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_9_1_0} and is
+         * forbidden in indices created from V10 onwards.
+         * TODO Should be checked in {@link Setting#isDeprecatedAndRemoved}
+         */
+        IndexSettingDeprecatedInV9AndRemovedInV10,
+
+        /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
          * Users will be allowed to set and see values of this setting.
          * All other settings will be rejected when used on a PUT request
          * and filtered out on a GET
          */
-        ServerlessPublic
+        ServerlessPublic,
+
+        /**
+         * Project-level file-level setting. Not an index setting.
+         */
+        ProjectScope
     }
 
     private final Key key;
@@ -184,7 +200,8 @@ public class Setting<T> implements ToXContentObject {
         Property.Deprecated,
         Property.DeprecatedWarning,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8,
-        Property.IndexSettingDeprecatedInV8AndRemovedInV9
+        Property.IndexSettingDeprecatedInV8AndRemovedInV9,
+        Property.IndexSettingDeprecatedInV9AndRemovedInV10
     );
 
     @SuppressWarnings("this-escape")
@@ -225,6 +242,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV9AndRemovedInV10);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -460,7 +478,8 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
             || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)
-            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
+            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+            || properties.contains(Property.IndexSettingDeprecatedInV9AndRemovedInV10);
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -651,10 +670,8 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/79666
-            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, DEPRECATED_WARN_MESSAGE, key);
             } else if (this.isDeprecatedAndRemoved()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
@@ -663,7 +680,12 @@ public class Setting<T> implements ToXContentObject {
                     key
                 );
             } else {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    key,
+                    DEPRECATED_CRITICAL_MESSAGE,
+                    key
+                );
             }
         }
     }
@@ -1350,8 +1372,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, Property... properties) {
+        return new Setting<>(key, Float.toString(defaultValue), floatParser(key, minValue, properties), properties);
+    }
+
+    public static Setting<Float> floatSetting(String key, Setting<Float> fallbackSetting, float minValue, Property... properties) {
+        return new Setting<>(key, fallbackSetting, floatParser(key, minValue, properties), properties);
+    }
+
+    private static Function<String, Float> floatParser(String key, float minValue, Property... properties) {
         final boolean isFiltered = isFiltered(properties);
-        return new Setting<>(key, Float.toString(defaultValue), (s) -> {
+        return (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
                 String err = "Failed to parse value"
@@ -1363,7 +1393,7 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException(err);
             }
             return value;
-        }, properties);
+        };
     }
 
     private static boolean isFiltered(Property[] properties) {

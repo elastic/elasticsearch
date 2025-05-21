@@ -1,5 +1,7 @@
 config:
-  allow-labels: "Team:Security"
+  allow-labels:
+    - Team:Security
+    - test-fips
 steps:
   - label: part-5-fips
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart5

@@ -223,9 +223,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numShards);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         // skip one to avoid the "all shards failed" failure.
-        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
-        skipIterator.skip(true);
-        action.skipShard(skipIterator);
+        action.onShardResult(new SearchPhaseResult() {
+            @Override
+            public int getShardIndex() {
+                return 0;
+            }
+
+            @Override
+            public SearchShardTarget getSearchShardTarget() {
+                return new SearchShardTarget(null, null, null);
+            }
+        });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());

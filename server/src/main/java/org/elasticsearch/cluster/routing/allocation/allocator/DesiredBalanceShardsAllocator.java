@@ -266,7 +266,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
-        if (allocation.routingTable().indicesRouting().isEmpty()) {
+        if (allocation.globalRoutingTable().hasIndices() == false) {
             logger.debug("No eager reconciliation needed for empty routing table");
             return;
         }
@@ -324,7 +324,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
-                balancerRoundSummaryService.addBalancerRoundSummary(calculateBalancingRoundSummary(oldDesiredBalance, newDesiredBalance));
+                balancerRoundSummaryService.addBalancerRoundSummary(oldDesiredBalance, newDesiredBalance);
                 if (logger.isTraceEnabled()) {
                     var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
                         ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)
@@ -337,13 +337,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 break;
             }
         }
-    }
-
-    /**
-     * Summarizes the work required to move from an old to new desired balance shard allocation.
-     */
-    private BalancingRoundSummary calculateBalancingRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
-        return new BalancingRoundSummary(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
     }
 
     /**
@@ -398,6 +391,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         resetCurrentDesiredBalance = true;
     }
 
+    /**
+     * Used as the argument for the {@code ensureNotCancelled} {@code Runnable} when calling the
+     * {@code nodeAllocationStatsAndWeightsCalculator} since there is no cancellation mechanism when called from
+     * {@code updateDesireBalanceMetrics()}.
+     */
+    private static final Runnable NEVER_CANCELLED = () -> {};
+
     private void updateDesireBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
@@ -407,6 +407,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             routingAllocation.metadata(),
             routingAllocation.routingNodes(),
             routingAllocation.clusterInfo(),
+            NEVER_CANCELLED,
             desiredBalance
         );
         Map<DiscoveryNode, NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights =

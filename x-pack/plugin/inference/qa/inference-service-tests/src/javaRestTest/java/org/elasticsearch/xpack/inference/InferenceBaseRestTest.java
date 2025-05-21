@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -513,5 +514,14 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
         return entityAsMap(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Map<String, Object>> getMinimalConfigs() throws IOException {
+        var endpoint = "_cluster/state?filter_path=metadata.model_registry";
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return (Map<String, Map<String, Object>>) XContentMapValues.extractValue("metadata.model_registry.models", entityAsMap(response));
     }
 }

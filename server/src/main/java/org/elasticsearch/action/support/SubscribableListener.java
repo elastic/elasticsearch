@@ -190,12 +190,19 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
      *                      <p>
-     *                      In other words, if you want to ensure that {@code listener} is completed using a particular executor, then you
-     *                      must do both of:
+     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to ensure that
+     *                      {@code listener} is completed using a particular executor much more cheaply than simply always forking the
+     *                      completion task to the desired executor. To ensure that {@code listener} is completed using a particular
+     *                      executor, do both of the following:
      *                      <ul>
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
      *                      </ul>
+     *                      <p>
+     *                      If you really want to fork the completion task to a specific executor in all circumstances, wrap the supplied
+     *                      {@code listener} in a {@link ThreadedActionListener} yourself. But do note that this can be surprisingly
+     *                      expensive, and it's almost always not the right approach, so it is deliberate that there is no convenient method
+     *                      on {@link SubscribableListener} which does this for you.
      *                      <p>
      *                      If {@code executor} rejects the execution of the completion of the subscribing listener then the result is
      *                      discarded and the subscribing listener is completed with a rejection exception on the thread which completes
@@ -264,6 +271,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      */
     public final boolean isDone() {
         return isDone(state);
+    }
+
+    /**
+     * @return return {@code true} if and only if this listener is done and has been completed successfully
+     */
+    public final boolean isSuccess() {
+        return state instanceof SuccessResult;
     }
 
     /**
@@ -480,12 +494,18 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called. In other words, if you want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
-     * both of:
+     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to ensure that {@code nextStep} runs
+     * using a particular executor much more cheaply than simply always forking its execution. To ensure that {@code nextStep} is invoked
+     * using a particular executor, do both of the following:
      * <ul>
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * If you really want to fork the execution of the next step in the sequence to a specific executor in all circumstances, explicitly
+     * call {@link Executor#execute} within {@code nextStep} yourself. But do note that this can be surprisingly expensive, and it's almost
+     * always not the right approach, so it is deliberate that there is no convenient method on {@link SubscribableListener} which does this
+     * for you.
      * <p>
      * If {@code executor} rejects the execution of {@code nextStep} then the result is discarded and the returned listener is completed
      * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but
@@ -578,5 +598,16 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private Object compareAndExchangeState(Object expectedValue, Object newValue) {
         return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
     }
 }

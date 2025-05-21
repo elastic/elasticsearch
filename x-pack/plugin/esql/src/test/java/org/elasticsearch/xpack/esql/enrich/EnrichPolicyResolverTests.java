@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -38,6 +39,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -428,6 +430,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
+            EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
+            for (String cluster : clusters) {
+                esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
+            }
             if (randomBoolean()) {
                 unresolvedPolicies = new ArrayList<>(unresolvedPolicies);
                 for (Enrich.Mode mode : Enrich.Mode.values()) {
@@ -441,7 +447,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(clusters, unresolvedPolicies, future);
+            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 
@@ -455,7 +461,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             ClusterService clusterService = mock(ClusterService.class);
             EnrichMetadata enrichMetadata = new EnrichMetadata(policies);
             ClusterState state = ClusterState.builder(new ClusterName("test"))
-                .metadata(Metadata.builder().customs(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
+                .metadata(Metadata.builder().projectCustoms(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
                 .build();
             when(clusterService.state()).thenReturn(state);
             return clusterService;
@@ -489,7 +495,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             if (mapping != null) {
                 Map<String, IndexFieldCapabilities> fieldCaps = new HashMap<>();
                 for (Map.Entry<String, String> e : mapping.entrySet()) {
-                    var f = new IndexFieldCapabilities(e.getKey(), e.getValue(), false, false, false, false, null, Map.of());
+                    var f = new IndexFieldCapabilitiesBuilder(e.getKey(), e.getValue()).isSearchable(false).isAggregatable(false).build();
                     fieldCaps.put(e.getKey(), f);
                 }
                 var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);

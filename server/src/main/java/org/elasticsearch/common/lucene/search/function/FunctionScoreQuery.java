@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -81,8 +80,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(new IndexSearcher(reader));
+        protected ScoreFunction rewrite(IndexSearcher searcher) throws IOException {
+            Query newFilter = filter.rewrite(searcher);
             if (newFilter == filter) {
                 return this;
             }
@@ -215,7 +214,7 @@ public class FunctionScoreQuery extends Query {
         ScoreFunction[] newFunctions = new ScoreFunction[functions.length];
         boolean needsRewrite = (newQ != subQuery);
         for (int i = 0; i < functions.length; i++) {
-            newFunctions[i] = functions[i].rewrite(searcher.getIndexReader());
+            newFunctions[i] = functions[i].rewrite(searcher);
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {

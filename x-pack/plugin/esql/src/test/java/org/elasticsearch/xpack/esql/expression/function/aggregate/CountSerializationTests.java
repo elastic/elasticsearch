@@ -21,9 +21,4 @@ public class CountSerializationTests extends AbstractExpressionSerializationTest
     protected Count mutateInstance(Count instance) throws IOException {
         return new Count(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

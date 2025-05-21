@@ -71,8 +71,8 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean shouldSkipTestsWithSemanticTextFields() {
-        return true;
+    protected boolean supportTimeSeriesCommand() {
+        return false;
     }
 
     @Override

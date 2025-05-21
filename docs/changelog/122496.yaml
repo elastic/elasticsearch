@@ -1,5 +1,0 @@
-pr: 122496
-summary: Deduplicate `IngestStats` and `IngestStats.Stats` identity records when deserializing
-area: Ingest Node
-type: bug
-issues: []

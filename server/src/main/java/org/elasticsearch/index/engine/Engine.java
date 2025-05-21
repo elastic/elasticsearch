@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -60,6 +62,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -75,13 +79,16 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,6 +110,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -140,6 +148,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -169,6 +178,9 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
     }
@@ -244,17 +256,45 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+            return shardFieldStats(searcher.getLeafContexts());
+        }
+    }
+
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+        int numSegments = 0;
+        int totalFields = 0;
+        long usages = 0;
+        for (LeafReaderContext leaf : leaves) {
+            numSegments++;
+            var fieldInfos = leaf.reader().getFieldInfos();
+            totalFields += fieldInfos.size();
+            if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                if (usages != -1) {
+                    usages += ft.getTotalUsages();
+                }
+            } else {
+                usages = -1;
+            }
+        }
+        return new ShardFieldStats(numSegments, totalFields, usages);
+    }
+
+    /**
      * Returns the {@link DenseVectorStats} for this engine
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
-            return new DenseVectorStats(0);
+            return new DenseVectorStats();
         }
 
-        List<String> fields = new ArrayList<>();
+        List<DenseVectorFieldMapper> fields = new ArrayList<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof DenseVectorFieldMapper) {
-                fields.add(mapper.fullPath());
+            if (mapper instanceof DenseVectorFieldMapper denseVectorFieldMapper) {
+                fields.add(denseVectorFieldMapper);
             }
         }
         if (fields.isEmpty()) {
@@ -265,24 +305,26 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
-        long valueCount = 0;
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<DenseVectorFieldMapper> fields) {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
+        var stats = new DenseVectorStats();
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
+                stats.add(getDenseVectorStats(readerContext.reader(), fields));
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
-        return new DenseVectorStats(valueCount);
+        return stats;
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
+    private DenseVectorStats getDenseVectorStats(final LeafReader atomicReader, List<DenseVectorFieldMapper> fieldMappers)
+        throws IOException {
         long count = 0;
-        for (var field : fields) {
-            var info = atomicReader.getFieldInfos().fieldInfo(field);
+        Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
+        for (var fieldMapper : fieldMappers) {
+            FieldInfo info = atomicReader.getFieldInfos().fieldInfo(fieldMapper.fullPath());
             if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
@@ -294,9 +336,16 @@ public abstract class Engine implements Closeable {
                         count += values != null ? values.size() : 0;
                     }
                 }
+                SegmentReader reader = Lucene.segmentReader(atomicReader);
+                var vectorsReader = reader.getVectorReader();
+                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorsReader = fieldsReader.getFieldReader(info.name);
+                }
+                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                offHeapStats.put(info.name, offHeap);
             }
         }
-        return count;
+        return new DenseVectorStats(count, Collections.unmodifiableMap(offHeapStats));
     }
 
     /**
@@ -402,11 +451,18 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final PauseLock throttlingLock;
+        private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
+
+        public IndexThrottle(boolean pause) {
+            throttlingLock = new PauseLock(pause ? 0 : 1);
+            lockReference = new ReleasableLock(throttlingLock);
+        }
 
         public Releasable acquireThrottle() {
             return lock.acquire();
@@ -416,12 +472,15 @@ public abstract class Engine implements Closeable {
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
+            throttlingLock.throttle();
             lock = lockReference;
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
+            throttlingLock.unthrottle();
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
@@ -508,6 +567,58 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    /* A lock implementation that allows us to control how many threads can take the lock
+     * In particular, this is used to set the number of allowed threads to 1 or 0
+     * when index throttling is activated.
+     */
+    protected static final class PauseLock implements Lock {
+        private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        private final int allowThreads;
+
+        public PauseLock(int allowThreads) {
+            this.allowThreads = allowThreads;
+        }
+
+        public void lock() {
+            semaphore.acquireUninterruptibly();
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+            semaphore.acquire();
+        }
+
+        @Override
+        public void unlock() {
+            semaphore.release();
+        }
+
+        @Override
+        public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
+
+        public void throttle() {
+            assert semaphore.availablePermits() == Integer.MAX_VALUE;
+            semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
+        }
+
+        public void unthrottle() {
+            assert semaphore.availablePermits() <= allowThreads;
+            semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
     }
 
@@ -928,7 +1039,7 @@ public abstract class Engine implements Closeable {
     public abstract void syncTranslog() throws IOException;
 
     /**
-     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
     public abstract Closeable acquireHistoryRetentionLock();
 
@@ -1214,25 +1325,29 @@ public abstract class Engine implements Closeable {
     public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since we acquire a searcher and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
-                    return searcher.getDirectoryReader().isCurrent() == false;
-                }
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
+        if (store.tryIncRef() == false) {
+            return false;
         }
-        return false;
+        /*
+          we need to inc the store here since we acquire a directory reader and that might open a file on the store.
+          This violates the assumption that all files are closed when the store is closed so we need to make
+          sure we increment it here.
+         */
+        try {
+            var refManager = getReferenceManager(SearcherScope.EXTERNAL);
+            var reader = refManager.acquire();
+            try {
+                return reader.isCurrent() == false;
+            } finally {
+                refManager.release(reader);
+            }
+        } catch (IOException e) {
+            logger.error("failed to access directory reader", e);
+            failEngine("failed to access directory reader", e);
+            throw new EngineException(shardId, "failed to access directory reader", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**
@@ -1254,7 +1369,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes unless another thread is already refreshing the engine concurrently.
+     * changes unless another thread is already refreshing or reseting the engine concurrently.
      */
     @Nullable
     public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
@@ -2337,7 +2452,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(Consumer<Engine>)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).
@@ -2349,5 +2464,37 @@ public abstract class Engine implements Closeable {
 
     public long getLastUnsafeSegmentGenerationForGets() {
         throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
+    }
+
+    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(
+        R referenceManager,
+        EngineConfig engineConfig
+    ) {
+        if (Assertions.ENABLED) {
+            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
+        }
+        return referenceManager;
+    }
+
+    /**
+     * RefreshListener that asserts that the engine read lock is held by the thread refreshing the reference.
+     */
+    private static class AssertRefreshListenerHoldsEngineReadLock implements ReferenceManager.RefreshListener {
+
+        private final EngineResetLock engineLock;
+
+        private AssertRefreshListenerHoldsEngineReadLock(EngineResetLock engineLock) {
+            this.engineLock = Objects.requireNonNull(engineLock);
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
     }
 }

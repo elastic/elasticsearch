@@ -60,6 +60,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+/**
+ * Benchmark for many different kinds of aggregator and groupings.
+ */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
@@ -110,6 +113,12 @@ public class AggregatorBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         try {
             for (String grouping : AggregatorBenchmark.class.getField("grouping").getAnnotationsByType(Param.class)[0].value()) {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {

@@ -9,27 +9,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
@@ -149,59 +139,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return builder;
     }
 
-    static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
-    static {
-        ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status",
-            true,
-            (Object[] parsedObjects, ShardId shard) -> {
-                int i = 0;
-                String rawStage = (String) parsedObjects[i++];
-                String nodeId = (String) parsedObjects[i++];
-                String failure = (String) parsedObjects[i++];
-                SnapshotStats stats = (SnapshotStats) parsedObjects[i];
-
-                SnapshotIndexShardStage stage;
-                try {
-                    stage = SnapshotIndexShardStage.valueOf(rawStage);
-                } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException(
-                        "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
-                        shard.getIndex().getName(),
-                        shard.getId(),
-                        rawStage
-                    );
-                }
-                return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
-            }
-        );
-        innerParser.declareString(constructorArg(), new ParseField(Fields.STAGE));
-        innerParser.declareString(optionalConstructorArg(), new ParseField(Fields.NODE));
-        innerParser.declareString(optionalConstructorArg(), new ParseField(Fields.REASON));
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
-        PARSER = (p, indexId, shardName) -> {
-            // Combine the index name in the context with the shard name passed in for the named object parser
-            // into a ShardId to pass as context for the inner parser.
-            int shard;
-            try {
-                shard = Integer.parseInt(shardName);
-            } catch (NumberFormatException nfe) {
-                throw new ElasticsearchParseException(
-                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
-                    indexId,
-                    shardName
-                );
-            }
-            ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
-            return innerParser.parse(p, shardId);
-        };
-    }
-
-    public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-        return PARSER.parse(parser, indexId, parser.currentName());
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -224,5 +161,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

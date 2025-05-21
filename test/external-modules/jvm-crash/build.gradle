@@ -19,6 +19,6 @@ esplugin {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  usesDefaultDistribution("to be triaged")
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }

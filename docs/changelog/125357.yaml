@@ -1,0 +1,5 @@
+pr: 125357
+summary: Keep ordinals in conversion functions
+area: ES|QL
+type: enhancement
+issues: []

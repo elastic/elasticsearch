@@ -16,12 +16,9 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
 
 public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration) {
 
@@ -45,18 +42,16 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         );
     }
 
-    private static Map<String, Object> toMap(Stream<Map.Entry<String, Object>> stream) {
-        return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
     public static Map<String, Object> modelAttributes(Model model) {
-        var stream = Stream.<Map.Entry<String, Object>>builder()
-            .add(entry("service", model.getConfigurations().getService()))
-            .add(entry("task_type", model.getTaskType().toString()));
-        if (model.getServiceSettings().modelId() != null) {
-            stream.add(entry("model_id", model.getServiceSettings().modelId()));
+        var modelAttributesMap = new HashMap<String, Object>();
+        modelAttributesMap.put("service", model.getConfigurations().getService());
+        modelAttributesMap.put("task_type", model.getTaskType().toString());
+
+        if (Objects.nonNull(model.getServiceSettings().modelId())) {
+            modelAttributesMap.put("model_id", model.getServiceSettings().modelId());
         }
-        return toMap(stream.build());
+
+        return modelAttributesMap;
     }
 
     public static Map<String, Object> routingAttributes(BaseInferenceActionRequest request, String nodeIdHandlingRequest) {
@@ -64,24 +59,18 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
     }
 
     public static Map<String, Object> modelAttributes(UnparsedModel model) {
-        var unknownModelAttributes = Stream.<Map.Entry<String, Object>>builder()
-            .add(entry("service", model.service()))
-            .add(entry("task_type", model.taskType().toString()))
-            .build();
-
-        return toMap(unknownModelAttributes);
+        return Map.of("service", model.service(), "task_type", model.taskType().toString());
     }
 
-    public static Map<String, Object> responseAttributes(@Nullable Throwable t) {
-        var stream = switch (t) {
-            case null -> Stream.<Map.Entry<String, Object>>of(entry("status_code", 200));
-            case ElasticsearchStatusException ese -> Stream.<Map.Entry<String, Object>>builder()
-                .add(entry("status_code", ese.status().getStatus()))
-                .add(entry("error.type", String.valueOf(ese.status().getStatus())))
-                .build();
-            default -> Stream.<Map.Entry<String, Object>>of(entry("error.type", t.getClass().getSimpleName()));
-        };
+    public static Map<String, Object> responseAttributes(@Nullable Throwable throwable) {
+        if (Objects.isNull(throwable)) {
+            return Map.of("status_code", 200);
+        }
 
-        return toMap(stream);
+        if (throwable instanceof ElasticsearchStatusException ese) {
+            return Map.of("status_code", ese.status().getStatus(), "error.type", String.valueOf(ese.status().getStatus()));
+        }
+
+        return Map.of("error.type", throwable.getClass().getSimpleName());
     }
 }

@@ -85,7 +85,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -152,7 +152,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -218,7 +218,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -263,7 +263,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
             final String indexName = "index-" + i;
             createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
             ensureGreen(indexName);
-            leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+            leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().getProject().index(indexName).getIndex();
         }
 
         logger.debug("--> stopping data node [{}], the data left on disk will be injected as left-overs in a newer data node", dataNode);
@@ -282,7 +282,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
 
-        final Index index = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+        final Index index = internalCluster().clusterService(masterNode).state().metadata().getProject().index(indexName).getIndex();
         logger.debug("--> index [{}] created", index);
 
         final List<Path> dataPaths = new ArrayList<>();

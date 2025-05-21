@@ -11,7 +11,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
 
 import java.util.Map;
 

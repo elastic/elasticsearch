@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -72,7 +73,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneMinFactory simple() {
+    protected LuceneMinFactory simple(SimpleOptions options) {
         return simple(getNumberTypeTest(), randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
@@ -166,7 +167,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
-            drivers.add(new Driver("test", ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
+            drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
@@ -194,7 +195,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneMinMaxOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneMinMaxOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override
@@ -202,7 +203,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         return matchesRegex(
             "LuceneMinOperator\\[type = "
                 + getNumberType().name()
-                + ", dataPartitioning = (DOC|SHARD|SEGMENT), fieldName = "
+                + ", dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD_NAME
                 + ", limit = 100]"
         );

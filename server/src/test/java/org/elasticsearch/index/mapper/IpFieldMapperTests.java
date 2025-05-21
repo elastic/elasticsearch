@@ -31,7 +31,6 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -436,7 +435,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> InetAddresses.toAddrString(InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) v).bytes));
+    protected String randomSyntheticSourceKeep() {
+        return "all";
     }
 }

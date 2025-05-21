@@ -83,20 +83,12 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(Iterators.single((builder, innerParam) -> builder.field(name)), value.toXContentChunked(params));
     }
 
-    public static Iterator<ToXContent> array(Iterator<? extends ToXContent> contents) {
-        return Iterators.concat(startArray(), contents, endArray());
-    }
-
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(startArray(name), contents, endArray());
     }
 
     public static <T> Iterator<ToXContent> array(Iterator<T> items, Function<T, ToXContent> toXContent) {
         return Iterators.concat(startArray(), Iterators.map(items, toXContent), endArray());
-    }
-
-    public static <T> Iterator<ToXContent> array(String name, Iterator<T> items, Function<T, ToXContent> toXContent) {
-        return Iterators.concat(startArray(name), Iterators.map(items, toXContent), endArray());
     }
 
     /**
@@ -108,7 +100,7 @@ public enum ChunkedToXContentHelper {
      * @return Iterator composing field name and value serialization
      */
     public static Iterator<ToXContent> array(String name, Iterator<? extends ChunkedToXContentObject> contents, ToXContent.Params params) {
-        return Iterators.concat(startArray(name), Iterators.flatMap(contents, c -> c.toXContentChunked(params)), endArray());
+        return array(name, Iterators.flatMap(contents, c -> c.toXContentChunked(params)));
     }
 
     /**
@@ -129,14 +121,4 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(item);
     }
 
-    /**
-     * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
-     * Iterators#single}, but still useful because it avoids any type ambiguity.
-     *
-     * @param item Item to wrap
-     * @return Singleton iterator for the given item.
-     */
-    public static Iterator<ToXContent> singleChunk(ToXContent item) {
-        return Iterators.single(item);
-    }
 }

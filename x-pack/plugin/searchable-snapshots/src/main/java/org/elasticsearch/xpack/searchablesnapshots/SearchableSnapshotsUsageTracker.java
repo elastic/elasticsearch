@@ -33,11 +33,6 @@ final class SearchableSnapshotsUsageTracker implements Runnable {
     }
 
     private static boolean hasSearchableSnapshotsIndices(ClusterState state) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
-            if (indexMetadata.isSearchableSnapshot()) {
-                return true;
-            }
-        }
-        return false;
+        return state.metadata().getProject().stream().anyMatch(IndexMetadata::isSearchableSnapshot);
     }
 }

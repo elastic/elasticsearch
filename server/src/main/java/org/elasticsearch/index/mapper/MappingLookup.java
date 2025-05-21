@@ -500,13 +500,15 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns if this mapping contains a timestamp field that is of type date, indexed and has doc values.
-     * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
+     * Returns if this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
+     * skipper.
+     * @return {@code true} if contains a timestamp field of type date that has doc values and is either indexed or uses a doc values
+     * skipper, {@code false} otherwise.
      */
     public boolean hasTimestampField() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-            return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
+            return dateMappedFieldType.hasDocValues() && (dateMappedFieldType.isIndexed() || dateMappedFieldType.hasDocValuesSkipper());
         } else {
             return false;
         }

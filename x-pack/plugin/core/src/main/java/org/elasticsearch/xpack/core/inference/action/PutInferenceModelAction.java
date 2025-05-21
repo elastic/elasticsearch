@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -41,13 +43,15 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final String inferenceEntityId;
         private final BytesReference content;
         private final XContentType contentType;
+        private final TimeValue timeout;
 
-        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
+        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType, TimeValue timeout) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -56,6 +60,13 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+                this.timeout = in.readTimeValue();
+            } else {
+                this.timeout = InferenceAction.Request.DEFAULT_TIMEOUT;
+            }
         }
 
         public TaskType getTaskType() {
@@ -74,6 +85,10 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return contentType;
         }
 
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -81,6 +96,11 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+                out.writeTimeValue(timeout);
+            }
         }
 
         @Override
@@ -105,12 +125,13 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
-                && contentType == request.contentType;
+                && contentType == request.contentType
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, content, contentType);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout);
         }
     }
 
@@ -123,7 +144,6 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelConfigurations(in);
         }
 

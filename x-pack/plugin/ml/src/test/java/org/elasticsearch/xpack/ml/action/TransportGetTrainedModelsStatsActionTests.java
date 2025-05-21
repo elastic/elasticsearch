@@ -12,7 +12,11 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +25,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
@@ -82,7 +88,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 Map<String, Processor.Factory> processorFactories,
                 String tag,
                 String description,
-                Map<String, Object> config
+                Map<String, Object> config,
+                ProjectId projectId
             ) {
                 return new NotInferenceProcessor();
             }
@@ -145,7 +152,14 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
     }
 

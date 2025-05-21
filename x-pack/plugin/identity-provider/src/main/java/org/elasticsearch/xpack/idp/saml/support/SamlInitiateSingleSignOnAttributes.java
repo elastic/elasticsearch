@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.idp.saml.support;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,8 +21,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a collection of SAML attributes to be included in the SAML response.
@@ -39,6 +43,33 @@ public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContent
         for (int i = 0; i < size; i++) {
             attributes.add(new Attribute(in));
         }
+    }
+
+    /**
+     * Validates this SAML attributes object to ensure all attribute keys are valid and unique.
+     * @return ActionRequestValidationException containing validation errors, or null if valid
+     */
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+
+        // Check for null/empty attribute keys and duplicate keys
+        if (attributes.isEmpty() == false) {
+            Set<String> keys = new HashSet<>();
+            for (Attribute attribute : attributes) {
+                // Check for null or empty key
+                if (Strings.isNullOrEmpty(attribute.getKey())) {
+                    validationException = ValidateActions.addValidationError("attribute key cannot be null or empty", validationException);
+                } else if (keys.add(attribute.getKey()) == false) {
+                    // Check for duplicate key
+                    validationException = ValidateActions.addValidationError(
+                        "duplicate attribute key [" + attribute.getKey() + "] found",
+                        validationException
+                    );
+                }
+            }
+        }
+
+        return validationException;
     }
 
     public List<Attribute> getAttributes() {
@@ -117,12 +148,6 @@ public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContent
         }
 
         public Attribute(String key, List<String> values) {
-            if (key == null) {
-                throw new IllegalArgumentException("Attribute key cannot be null");
-            }
-            if (key.isEmpty()) {
-                throw new IllegalArgumentException("Attribute key cannot be empty");
-            }
             this.key = key;
             this.values = new ArrayList<>(values);
         }

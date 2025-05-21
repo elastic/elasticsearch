@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.idp.saml.support;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -232,18 +233,51 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         assertThat(attributes1.equals("string"), equalTo(false));
     }
 
-    public void testIllegalArgumentHandling() {
-        // Test null key handling
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamlInitiateSingleSignOnAttributes.Attribute(null, Collections.singletonList("value"))
-        );
+    public void testValidate() {
+        // Test with valid attributes - should pass validation
+        final SamlInitiateSingleSignOnAttributes validAttributes = new SamlInitiateSingleSignOnAttributes();
+        List<SamlInitiateSingleSignOnAttributes.Attribute> attributeList = new ArrayList<>();
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key1", Collections.singletonList("value1")));
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("key2", Arrays.asList("value2A", "value2B")));
+        validAttributes.setAttributes(attributeList);
 
-        // Test empty key handling
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamlInitiateSingleSignOnAttributes.Attribute("", Collections.singletonList("value"))
-        );
+        ActionRequestValidationException validationException = validAttributes.validate();
+        assertNull("Valid attributes should pass validation", validationException);
+
+        // Test with null key - should fail validation
+        final SamlInitiateSingleSignOnAttributes nullKeyAttributes = new SamlInitiateSingleSignOnAttributes();
+        attributeList = new ArrayList<>();
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute(null, Collections.singletonList("value1")));
+        nullKeyAttributes.setAttributes(attributeList);
+
+        validationException = nullKeyAttributes.validate();
+        assertNotNull("Null key should fail validation", validationException);
+        assertThat(validationException.validationErrors().size(), equalTo(1));
+        assertThat(validationException.validationErrors().get(0), containsString("attribute key cannot be null or empty"));
+
+        // Test with empty key - should fail validation
+        final SamlInitiateSingleSignOnAttributes emptyKeyAttributes = new SamlInitiateSingleSignOnAttributes();
+        attributeList = new ArrayList<>();
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("", Collections.singletonList("value1")));
+        emptyKeyAttributes.setAttributes(attributeList);
+
+        validationException = emptyKeyAttributes.validate();
+        assertNotNull("Empty key should fail validation", validationException);
+        assertThat(validationException.validationErrors().size(), equalTo(1));
+        assertThat(validationException.validationErrors().get(0), containsString("attribute key cannot be null or empty"));
+
+        // Test with duplicate keys - should fail validation
+        final SamlInitiateSingleSignOnAttributes duplicateKeyAttributes = new SamlInitiateSingleSignOnAttributes();
+        attributeList = new ArrayList<>();
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("duplicate_key", Collections.singletonList("value1")));
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("unique_key", Collections.singletonList("value2")));
+        attributeList.add(new SamlInitiateSingleSignOnAttributes.Attribute("duplicate_key", Arrays.asList("value3", "value4")));
+        duplicateKeyAttributes.setAttributes(attributeList);
+
+        validationException = duplicateKeyAttributes.validate();
+        assertNotNull("Duplicate keys should fail validation", validationException);
+        assertThat(validationException.validationErrors().size(), equalTo(1));
+        assertThat(validationException.validationErrors().get(0), containsString("duplicate attribute key [duplicate_key] found"));
     }
 
     private SamlInitiateSingleSignOnAttributes parseFromJson(String json) throws IOException {

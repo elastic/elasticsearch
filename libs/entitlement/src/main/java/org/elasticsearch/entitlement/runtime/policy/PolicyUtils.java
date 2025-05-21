@@ -81,6 +81,10 @@ public class PolicyUtils {
         return pluginPolicies;
     }
 
+    /**
+     * @throws PolicyParserException if the supplied policy is formatted incorrectly
+     * @throws IllegalStateException for any other error parsing the patch, such as nonexistent module names
+     */
     public static Policy parseEncodedPolicyIfExists(
         String encodedPolicy,
         String version,
@@ -106,11 +110,8 @@ public class PolicyUtils {
                         version
                     );
                 }
-            } catch (Exception ex) {
-                logger.warn(
-                    Strings.format("Found a policy patch with invalid content. The patch will not be applied. Layer [%s]", layerName),
-                    ex
-                );
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to parse policy patch for layer [" + layerName + "]", e);
             }
         }
         return null;

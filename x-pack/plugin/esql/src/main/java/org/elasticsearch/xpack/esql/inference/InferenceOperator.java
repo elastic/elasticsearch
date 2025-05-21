@@ -67,7 +67,7 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
 
             bulkInferenceExecutor.execute(requests, outputBuilder, completionListener);
         } catch (Exception e) {
-            listener.onFailure(e);
+            completionListener.onFailure(e);
         }
     }
 

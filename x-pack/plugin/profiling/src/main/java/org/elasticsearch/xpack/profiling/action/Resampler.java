@@ -14,7 +14,7 @@ class Resampler {
     private final boolean requiresResampling;
     private final RandomGenerator r;
     private final double adjustedSampleRate;
-    private final double p;
+    public final double p;
 
     Resampler(GetStackTracesRequest request, double sampleRate, long totalCount) {
         // Manually reduce sample count if totalCount exceeds sampleSize by 10%.
@@ -50,7 +50,7 @@ class Resampler {
         }
         // Adjust the sample counts from down-sampled to fully sampled.
         // Be aware that downsampling drops entries from stackTraceEvents, so that
-        // the sum of the upscaled count values is less that totalCount.
-        return (int) Math.floor(rawCount / (p * adjustedSampleRate));
+        // the sum of the upscaled count values is less than totalCount.
+        return (int) Math.round(rawCount / (p * adjustedSampleRate));
     }
 }

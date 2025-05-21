@@ -342,16 +342,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                         context.preProcess();
+                        searchContexts.add(context);
                     } catch (Exception e) {
                         if (addShardLevelFailure(shard.shardId(), e)) {
                             IOUtils.close(context);
-                            continue;
                         } else {
                             IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(searchContexts));
                             throw e;
                         }
                     }
-                    searchContexts.add(context);
                 }
                 return searchContexts;
             });

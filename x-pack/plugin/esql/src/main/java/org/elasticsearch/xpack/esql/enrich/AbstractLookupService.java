@@ -182,7 +182,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         T request,
         SearchExecutionContext context,
         Block inputBlock,
-        DataType inputDataType,
+        @Nullable DataType inputDataType,
         Warnings warnings
     );
 
@@ -200,7 +200,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block block,
-        DataType inputDataType
+        @Nullable DataType inputDataType
     ) {
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);

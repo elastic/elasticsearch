@@ -350,7 +350,7 @@ teardown:
       features: headers
 
   - do:
-      catch: /\[pruning_config\] field \[tokens_freq_ratio_threshold\] field should be a number between 1 and 100/
+      catch: /\[tokens_freq_ratio_threshold\] must be between \[1\] and \[100\]/
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
@@ -381,7 +381,7 @@ teardown:
       features: headers
 
   - do:
-      catch: /\[pruning_config\] field \[tokens_weight_threshold\] field should be a number between 0.0 and 1.0/
+      catch: /\[tokens_weight_threshold\] must be between 0 and 1/
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json

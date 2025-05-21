@@ -212,6 +212,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+            public static final ParseField SETTINGS_FIELD = new ParseField("settings");
             public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
             public static final ParseField MANAGED_BY = new ParseField("managed_by");
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
@@ -432,6 +433,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         builder.endObject();
                     }
                     builder.endArray();
+                    builder.endObject();
+                }
+                if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    dataStream.getSettings().toXContent(builder, params);
                     builder.endObject();
                 }
 

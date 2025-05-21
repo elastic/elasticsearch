@@ -223,6 +223,7 @@ public class TransportVersions {
     public static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = def(8_841_0_32);
     public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM_BACKPORT_8_19 = def(8_841_0_33);
     public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME_8_19 = def(8_841_0_34);
+    public static final TransportVersion RERANKER_FAILURES_ALLOWED_8_19 = def(8_841_0_35);
 
     /*
      * STOP! READ THIS FIRST! No, really,

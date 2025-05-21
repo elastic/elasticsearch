@@ -775,7 +775,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     }
 
     private RankFeaturePhaseRankCoordinatorContext defaultRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
-        return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
+        return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize, false) {
 
             @Override
             protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -785,20 +785,12 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public void computeRankScoresForGlobalResults(
-                List<RankFeatureResult> rankSearchResults,
-                ActionListener<RankFeatureDoc[]> rankListener
-            ) {
-                List<RankFeatureDoc> features = new ArrayList<>();
-                for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                    RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                    features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-                }
-                rankListener.onResponse(features.toArray(new RankFeatureDoc[0]));
+            public void computeRankScoresForGlobalResults(RankFeatureDoc[] featureDocs, ActionListener<RankFeatureDoc[]> rankListener) {
+                rankListener.onResponse(featureDocs);
             }
 
             @Override
-            public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
+            public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs, boolean rerankedScores) {
                 Arrays.sort(rankFeatureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
                 RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocs.length - from))];
                 // perform pagination

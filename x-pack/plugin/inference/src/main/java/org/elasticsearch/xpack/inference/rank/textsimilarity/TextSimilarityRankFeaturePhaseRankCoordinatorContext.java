@@ -43,9 +43,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        Float minScore
+        Float minScore,
+        boolean failuresAllowed
     ) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -126,19 +127,25 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     /**
      * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
     @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        List<RankFeatureDoc> docs = new ArrayList<>();
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
+        if (rerankedScores == false) {
+            // just return, don't normalize or apply minScore to scores that haven't been modified
+            return originalDocs;
+        }
+        List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
         for (RankFeatureDoc doc : originalDocs) {
             if (minScore == null || doc.score >= minScore) {
                 doc.score = normalizeScore(doc.score);
                 docs.add(doc);
             }
         }
-        docs.sort(RankFeatureDoc::compareTo);
-        return docs.toArray(new RankFeatureDoc[0]);
+        docs.sort(null);
+        return docs.toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

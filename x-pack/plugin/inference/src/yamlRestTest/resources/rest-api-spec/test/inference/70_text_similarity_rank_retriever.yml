@@ -210,6 +210,36 @@ setup:
               field: inference_text_field
           size: 10
 
+---
+"Text similarity reranking with allowed failure maintains custom sorting":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+                  sort:
+                    - "subtopic"
+              rank_window_size: 10
+              inference_id: failing-rerank-model
+              inference_text: "science"
+              field: text
+              allow_rerank_failures: true
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
 
 ---
 "text similarity reranking with explain":

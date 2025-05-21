@@ -583,6 +583,29 @@ public class EsqlSession {
             }
             projectAll.set(true);
         });
+
+        if (projectAll.get()) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+
+        Holder<Boolean> projectAfterFork = new Holder<>(false);
+        Holder<Boolean> hasFork = new Holder<>(false);
+
+        parsed.forEachDown(plan -> {
+            if (hasFork.get() == false && (plan instanceof Project || plan instanceof Aggregate)) {
+                projectAfterFork.set(true);
+            }
+
+            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
+                hasFork.set(true);
+                fork.children().forEach(child -> {
+                    if (child.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
+                        projectAll.set(true);
+                    }
+                });
+            }
+        });
+
         if (projectAll.get()) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
@@ -20,7 +20,7 @@ import java.io.IOException;
  * Implements {@link org.elasticsearch.action.IndicesRequest} to ensure index-level privilege support.
  * This class defines the connectors sync job index as the target for all derived action requests.
  */
-public abstract class ConnectorSyncJobActionRequest extends ActionRequest implements IndicesRequest {
+public abstract class ConnectorSyncJobActionRequest extends LegacyActionRequest implements IndicesRequest {
 
     public ConnectorSyncJobActionRequest() {
         super();

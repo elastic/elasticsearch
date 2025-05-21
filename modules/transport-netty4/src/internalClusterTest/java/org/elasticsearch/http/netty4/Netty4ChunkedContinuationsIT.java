@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -337,14 +338,14 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         static final String ROUTE = "/_test/yields_continuations";
         static final String FAIL_INDEX_PARAM = "fail_index";
 
-        private static final ActionType<YieldsContinuationsPlugin.Response> TYPE = new ActionType<>("test:yields_continuations");
+        private static final ActionType<Response> TYPE = new ActionType<>("test:yields_continuations");
 
         @Override
         public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TYPE, TransportYieldsContinuationsAction.class));
         }
 
-        public static class Request extends ActionRequest {
+        public static class Request extends LegacyActionRequest {
             final int failIndex;
 
             public Request(int failIndex) {
@@ -525,7 +526,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             return List.of(new ActionHandler<>(TYPE, TransportInfiniteContinuationsAction.class));
         }
 
-        public static class Request extends ActionRequest {
+        public static class Request extends LegacyActionRequest {
             @Override
             public ActionRequestValidationException validate() {
                 return null;

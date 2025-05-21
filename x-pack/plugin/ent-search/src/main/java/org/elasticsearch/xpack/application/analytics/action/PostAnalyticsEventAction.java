@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,11 +39,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
-    public static final ActionType<PostAnalyticsEventAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private PostAnalyticsEventAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {
+    public static class Request extends LegacyActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 

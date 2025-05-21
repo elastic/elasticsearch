@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -142,7 +143,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

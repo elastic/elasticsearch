@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetStackTracesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");

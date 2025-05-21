@@ -1094,6 +1094,12 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_REGEX_EXTRACT,
 
         /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;

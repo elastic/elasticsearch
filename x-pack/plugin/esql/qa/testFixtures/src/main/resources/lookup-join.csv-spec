@@ -1743,47 +1743,6 @@ max:long
 8268153
 ;
 
-testALL
-required_capability: join_lookup_v12
-required_capability: lookup_join_on_mixed_numeric_fields
-
-FROM languages_mixed_numerics
-| SORT language_code_double
-| KEEP language_code_byte, language_code_short, language_code_integer, language_code_long, language_code_half_float, language_code_scaled_float, language_code_float, language_code_double, language_name
-;
-
-language_code_byte:integer | language_code_short:integer | language_code_integer:integer | language_code_long:long | language_code_half_float:double | language_code_scaled_float:double | language_code_float:double | language_code_double:double | language_name:keyword
-null                       | null                        | null                          | null                    | null                            | null                              | -3.4028234663852886E38     | -3.4028234663852886E38      | min_float
-null                       | null                        | null                          | null                    | null                            | -9.223372036854776E16             | -9.223372036854776E18      | -9.223372036854776E18       | min_long_minus_1
-null                       | null                        | null                          | -9223372036854775808    | null                            | -9.223372036854776E16             | -9.223372036854776E18      | -9.223372036854776E18       | min_long
-null                       | null                        | null                          | -2147483649             | null                            | -2.147483649E9                    | -2.147483648E9             | -2.147483649E9              | min_int_minus_1
-null                       | null                        | -2147483648                   | -2147483648             | null                            | -2.147483648E9                    | -2.147483648E9             | -2.147483648E9              | min_int
-null                       | null                        | -65505                        | -65505                  | -65504.0                        | -65505.0                          | -65505.0                   | -65505.0                    | min_half_float_minus_1
-null                       | null                        | -65504                        | -65504                  | -65504.0                        | -65504.0                          | -65504.0                   | -65504.0                    | min_half_float
-null                       | null                        | -32769                        | -32769                  | -32768.0                        | -32769.0                          | -32769.0                   | -32769.0                    | min_short_minus_1
-null                       | -32768                      | -32768                        | -32768                  | -32768.0                        | -32768.0                          | -32768.0                   | -32768.0                    | min_short
-null                       | -129                        | -129                          | -129                    | -129.0                          | -129.0                            | -129.0                     | -129.0                      | min_byte_minus_1
--128                       | -128                        | -128                          | -128                    | -128.0                          | -128.0                            | -128.0                     | -128.0                      | min_byte
-1                          | 1                           | 1                             | 1                       | 1.0                             | 1.0                               | 1.0                        | 1.0                         | English
-2                          | 2                           | 2                             | 2                       | 2.0                             | 2.0                               | 2.0                        | 2.0                         | French
-3                          | 3                           | 3                             | 3                       | 3.0                             | 3.0                               | 3.0                        | 3.0                         | Spanish
-4                          | 4                           | 4                             | 4                       | 4.0                             | 4.0                               | 4.0                        | 4.0                         | German
-127                        | 127                         | 127                           | 127                     | 127.0                           | 127.0                             | 127.0                      | 127.0                       | max_byte
-null                       | 128                         | 128                           | 128                     | 128.0                           | 128.0                             | 128.0                      | 128.0                       | max_byte_plus_1
-null                       | 32767                       | 32767                         | 32767                   | 32768.0                         | 32767.0                           | 32767.0                    | 32767.0                     | max_short
-null                       | null                        | 32768                         | 32768                   | 32768.0                         | 32768.0                           | 32768.0                    | 32768.0                     | max_short_plus_1
-null                       | null                        | 65504                         | 65504                   | 65504.0                         | 65504.0                           | 65504.0                    | 65504.0                     | max_half_float
-null                       | null                        | 65505                         | 65505                   | 65504.0                         | 65505.0                           | 65505.0                    | 65505.0                     | max_half_float_plus_1
-null                       | null                        | 2147483646                    | 2147483646              | null                            | 2.147483646E9                     | 2.147483648E9              | 2.147483646E9               | max_int_minus_1
-null                       | null                        | 2147483647                    | 2147483647              | null                            | 2.147483647E9                     | 2.147483648E9              | 2.147483647E9               | max_int
-null                       | null                        | null                          | 2147483648              | null                            | 2.147483648E9                     | 2.147483648E9              | 2.147483648E9               | max_int_plus_1
-null                       | null                        | null                          | 9223372036854775807     | null                            | 9.223372036854776E16              | 9.223372036854776E18       | 9.223372036854776E18        | max_long
-null                       | null                        | null                          | 9223372036854775806     | null                            | 9.223372036854776E16              | 9.223372036854776E18       | 9.223372036854776E18        | max_long_minus_1
-null                       | null                        | null                          | null                    | null                            | 9.223372036854776E16              | 9.223372036854776E18       | 9.223372036854776E18        | max_long_plus_1
-null                       | null                        | null                          | null                    | null                            | null                              | 3.4028234663852886E38      | 3.4028234663852886E38       | max_float
-null                       | null                        | null                          | null                    | null                            | null                              | null                       | 3.4028234663852886E39       | double
-;
-
 byteJoinShort
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_mixed_numeric_fields

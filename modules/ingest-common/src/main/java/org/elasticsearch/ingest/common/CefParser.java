@@ -320,7 +320,8 @@ final class CefParser {
         return event;
     }
 
-    private static List<String> parseHeaders(String cefString) {
+    // visible for testing
+    static List<String> parseHeaders(String cefString) {
         List<String> headers = new ArrayList<>();
         int extensionStart = -1;
         final StringBuilder buffer = new StringBuilder();
@@ -388,7 +389,8 @@ final class CefParser {
         }
     }
 
-    private static Map<String, String> parseExtensions(String extensionString) {
+    // visible for testing
+    static Map<String, String> parseExtensions(String extensionString) {
         Map<String, String> extensions = new HashMap<>();
         Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
         int lastEnd = 0;

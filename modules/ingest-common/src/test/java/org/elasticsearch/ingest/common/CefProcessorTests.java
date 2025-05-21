@@ -20,12 +20,40 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
 
     private IngestDocument document;
+
+    public void testParse() {
+        String message;
+        List<String> headers;
+        Map<String, String> extensions;
+        {
+            message = "CEF:0|vendor|product|version|class|name|severity|";
+            headers = CefParser.parseHeaders(message);
+            extensions = CefParser.parseExtensions(headers.removeLast());
+            assertThat(headers, equalTo(List.of("CEF:0", "vendor", "product", "version", "class", "name", "severity")));
+            assertThat(extensions, aMapWithSize(0));
+        }
+        {
+            message = "CEF:1|vendor|product|version|class|name|severity|someExtension=someValue";
+            headers = CefParser.parseHeaders(message);
+            extensions = CefParser.parseExtensions(headers.removeLast());
+            assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product", "version", "class", "name", "severity")));
+            assertThat(extensions, equalTo(Map.of("someExtension", "someValue")));
+        }
+        {
+            message = "CEF:1|vendor|product\\|pipe|version space|class\\\\slash|name|severity|ext1=some value   ext2=pipe|value  ";
+            headers = CefParser.parseHeaders(message);
+            extensions = CefParser.parseExtensions(headers.removeLast());
+            assertThat(headers, equalTo(List.of("CEF:1", "vendor", "product|pipe", "version space", "class\\slash", "name", "severity")));
+            assertMapsEqual(extensions, Map.ofEntries(entry("ext1", "some value  "), entry("ext2", "pipe|value")));
+        }
+    }
 
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();

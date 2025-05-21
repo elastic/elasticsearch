@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.util.List;
 
@@ -44,7 +45,8 @@ public class TestDriverFactory {
         Releasable releasable
     ) {
         // Do not wrap the local breaker for small local breakers, as the output mights not match expectations.
-        if (driverContext.breaker() instanceof LocalCircuitBreaker == false
+        if (driverContext.breaker() instanceof CrankyCircuitBreakerService.CrankyCircuitBreaker == false
+            && driverContext.breaker() instanceof LocalCircuitBreaker == false
             && driverContext.breaker().getLimit() >= ByteSizeValue.ofMb(100).getBytes()
             && Randomness.get().nextBoolean()) {
             final int overReservedBytes = Randomness.get().nextInt(1024 * 1024);

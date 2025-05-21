@@ -41,10 +41,9 @@ public final class LongTopNBlockHash extends BlockHash {
     private LongTopNUniqueSort topValues;
     private final LongHash seenUniqueValues;
     /**
-     * Helper field to keep track of the last top value, and avoid expensive searches.
+     * Helper field to keep track of the last top value, and avoid expensive accesses.
      */
     private long lastTopValue;
-    private int valuesInTop;
 
     /**
      * Have we seen any {@code null} values?
@@ -66,7 +65,6 @@ public final class LongTopNBlockHash extends BlockHash {
         this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
         this.seenUniqueValues = new LongHash(1, blockFactory.bigArrays());
         this.lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
-        this.valuesInTop = 0;
 
         assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
     }
@@ -107,8 +105,8 @@ public final class LongTopNBlockHash extends BlockHash {
         if (nullsFirst) {
             hasNull = true;
             migrateToSmallTop();
-            if (valuesInTop == limit - 1) {
-                if (valuesInTop == 0) {
+            if (topValues.getCount() == limit - 1) {
+                if (topValues.getCount() == 0) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
                     lastTopValue = topValues.getWorstValue();
@@ -117,7 +115,7 @@ public final class LongTopNBlockHash extends BlockHash {
             return true;
         }
 
-        if (valuesInTop < limit) {
+        if (topValues.getCount() < limit) {
             hasNull = true;
             return true;
         }
@@ -141,17 +139,16 @@ public final class LongTopNBlockHash extends BlockHash {
 
         topValues.collect(value);
 
-        valuesInTop = Math.min(valuesInTop + 1, limit - (hasNull && nullsFirst ? 1 : 0));
-        if (valuesInTop == limit) {
+        if (topValues.getCount() == limit) {
             lastTopValue = topValues.getWorstValue();
-        } else if (valuesInTop == 1 || isBetterThan(lastTopValue, value)) {
+        } else if (topValues.getCount() == 1 || isBetterThan(lastTopValue, value)) {
             lastTopValue = value;
         }
 
         // Full top and null, there's an extra value/null we must remove
-        if (valuesInTop == limit && hasNull) {
+        if (topValues.getCount() == limit && hasNull) {
             if (nullsFirst) {
-                if (valuesInTop == 1) {
+                if (topValues.getCount() == 1) {
                     lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
                 } else {
                     lastTopValue = topValues.getWorstValue();
@@ -172,7 +169,6 @@ public final class LongTopNBlockHash extends BlockHash {
         assert topValues.getLimit() == limit : "The top values can't be migrated twice";
 
         topValues.reduceLimitByOne();
-        valuesInTop = topValues.getCount();
     }
 
     private boolean isBetterThan(long value, long other) {
@@ -200,7 +196,7 @@ public final class LongTopNBlockHash extends BlockHash {
      * Returns true if there are {@code limit} values in the blockhash; false otherwise.
      */
     private boolean isTopComplete() {
-        return valuesInTop >= limit - (hasNull ? 1 : 0);
+        return topValues.getCount() >= limit - (hasNull ? 1 : 0);
     }
 
     /**
@@ -296,7 +292,7 @@ public final class LongTopNBlockHash extends BlockHash {
     @Override
     public LongBlock[] getKeys() {
         if (hasNull) {
-            final long[] keys = new long[valuesInTop + 1];
+            final long[] keys = new long[topValues.getCount() + 1];
             int keysIndex = 1;
             for (int i = 1; i < hash.size() + 1; i++) {
                 long value = hash.get(i - 1);
@@ -309,7 +305,7 @@ public final class LongTopNBlockHash extends BlockHash {
             return new LongBlock[] {
                 blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
-        final long[] keys = new long[valuesInTop];
+        final long[] keys = new long[topValues.getCount()];
         int keysIndex = 0;
         for (int i = 0; i < hash.size(); i++) {
             long value = hash.get(i);
@@ -323,7 +319,7 @@ public final class LongTopNBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         int nullOffset = hasNull ? 1 : 0;
-        final int[] ids = new int[valuesInTop + nullOffset];
+        final int[] ids = new int[topValues.getCount() + nullOffset];
         int idsIndex = nullOffset;
         // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
         for (int i = 1; i < hash.size() + 1; i++) {

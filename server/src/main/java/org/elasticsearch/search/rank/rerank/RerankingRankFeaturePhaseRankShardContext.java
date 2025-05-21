@@ -21,10 +21,10 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -43,6 +43,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
         try {
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+            int docIndex = 0;
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
                 SearchHit hit = hits.getHits()[i];
@@ -53,12 +54,16 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 Map<String, HighlightField> highlightFields = hit.getHighlightFields();
                 if (highlightFields != null) {
                     if (highlightFields.containsKey(field)) {
-                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments())
-                            .map(Text::string)
-                            .collect(Collectors.toList());
+                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                        List<Integer> docIndices = new ArrayList<>();
+                        for (String snippet : snippets) {
+                            docIndices.add(docIndex);
+                        }
                         rankFeatureDocs[i].snippets(snippets);
+                        rankFeatureDocs[i].docIndices(docIndices);
                     }
                 }
+                docIndex++;
             }
             return new RankFeatureShardResult(rankFeatureDocs);
         } catch (Exception ex) {

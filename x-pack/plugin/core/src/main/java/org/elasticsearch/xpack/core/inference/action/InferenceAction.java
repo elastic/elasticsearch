@@ -107,7 +107,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             String query,
             Boolean returnDocuments,
             Integer topN,
-            List<String> input, // I think we need to add some metadata to the strings here and return this with each response
+            List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue inferenceTimeout,

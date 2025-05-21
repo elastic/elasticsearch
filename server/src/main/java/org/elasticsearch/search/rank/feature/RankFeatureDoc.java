@@ -30,6 +30,7 @@ public class RankFeatureDoc extends RankDoc {
     // TODO: update to support more than 1 fields; and not restrict to string data
     public String featureData;
     public List<String> snippets;
+    public List<Integer> docIndices;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
@@ -40,6 +41,7 @@ public class RankFeatureDoc extends RankDoc {
         featureData = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             snippets = in.readOptionalStringCollectionAsList();
+            docIndices = in.readOptionalCollectionAsList(StreamInput::readVInt);
         }
     }
 
@@ -56,23 +58,30 @@ public class RankFeatureDoc extends RankDoc {
         this.snippets = snippets;
     }
 
+    public void docIndices(List<Integer> docIndices) {
+        this.docIndices = docIndices;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(featureData);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             out.writeOptionalStringCollection(snippets);
+            out.writeOptionalCollection(docIndices, StreamOutput::writeVInt);
         }
     }
 
     @Override
     protected boolean doEquals(RankDoc rd) {
         RankFeatureDoc other = (RankFeatureDoc) rd;
-        return Objects.equals(this.featureData, other.featureData) && Objects.equals(this.snippets, other.snippets);
+        return Objects.equals(this.featureData, other.featureData)
+            && Objects.equals(this.snippets, other.snippets)
+            && Objects.equals(this.docIndices, other.docIndices);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(featureData, snippets);
+        return Objects.hash(featureData, snippets, docIndices);
     }
 
     @Override
@@ -84,5 +93,6 @@ public class RankFeatureDoc extends RankDoc {
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("featureData", featureData);
         builder.array("snippets", snippets);
+        builder.array("docIndices", docIndices);
     }
 }

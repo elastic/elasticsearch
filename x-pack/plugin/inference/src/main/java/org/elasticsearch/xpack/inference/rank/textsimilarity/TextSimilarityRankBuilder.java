@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -133,7 +134,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
         }
         if (snippets != null) {
-
+            builder.field(SNIPPETS_FIELD.getPreferredName(), snippets);
         }
     }
 

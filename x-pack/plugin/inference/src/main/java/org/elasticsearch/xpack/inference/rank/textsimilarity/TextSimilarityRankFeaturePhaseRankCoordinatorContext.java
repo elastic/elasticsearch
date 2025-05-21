@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTask
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,30 +58,32 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
 
-        // Reconcile the input strings with the documents that they belong to. Input size 6.
-        // Let's say we have 6 snippets that we reranked from 2 documents (3 snippets each)
-
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
         final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
-            // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+            final float[] scores;
+            if (featureDocs.length > 0 && featureDocs[0].snippets != null) {
+                scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
+            } else {
+                scores = extractScoresFromRankedDocs(rankedDocs);
+            }
 
-            if (rankedDocs.size() != featureDocs.length) {
+            // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
+            if (scores.length != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
                         "Reranker input document count and returned score count mismatch: ["
                             + featureDocs.length
                             + "] vs ["
-                            + rankedDocs.size()
+                            + scores.length
                             + "]"
                     )
                 );
             } else {
-                float[] scores = extractScoresFromRankedDocs(rankedDocs); // Return is size 2
                 l.onResponse(scores);
             }
         });
@@ -119,8 +122,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 List<String> inferenceInputs = new ArrayList<>();
                 for (RankFeatureDoc featureDoc : featureDocs) {
                     if (featureDoc.snippets != null && featureDoc.snippets.isEmpty() == false) {
-                        // TODO support reranking multiple snippets
-                        inferenceInputs.add(featureDoc.snippets.get(0));
+                        inferenceInputs.addAll(featureDoc.snippets);
                     } else {
                         inferenceInputs.add(featureDoc.featureData);
                     }
@@ -181,7 +183,33 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             scores[rankedDoc.index()] = rankedDoc.relevanceScore();
         }
-        return scores; // Return a float of size 2 (max score index per doc)
+        return scores;
+    }
+
+    private float[] extractScoresFromRankedSnippets(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
+        int[] docMappings = Arrays.stream(featureDocs).flatMapToInt(f -> f.docIndices.stream().mapToInt(Integer::intValue)).toArray();
+
+        float[] scores = new float[featureDocs.length];
+        boolean[] hasScore = new boolean[featureDocs.length];
+
+        for (int i = 0; i < rankedDocs.size(); i++) {
+            int docId = docMappings[i];
+            float score = rankedDocs.get(i).relevanceScore();
+
+            if (hasScore[docId] == false) {
+                scores[docId] = score;
+                hasScore[docId] = true;
+            } else {
+                scores[docId] = Math.max(scores[docId], score);
+            }
+        }
+
+        float[] result = new float[featureDocs.length];
+        for (int i = 0; i < featureDocs.length; i++) {
+            result[i] = hasScore[i] ? normalizeScore(scores[i]) : 0f;
+        }
+
+        return result;
     }
 
     private static float normalizeScore(float score) {

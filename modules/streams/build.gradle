@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description = 'The module adds support for the wired streams functionality including logs ingest'
+  classname = 'org.elasticsearch.rest.streams.StreamsPlugin'
+}
+
+restResources {
+  restApi {
+    // TODO: Limit this down to just required API's for faster build. See https://github.com/elastic/elasticsearch/blob/fb3149cc664eb7061d55741a87e7e8cf29db4989/TESTING.asciidoc#L443
+    include '*'
+  }
+}
+
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+}

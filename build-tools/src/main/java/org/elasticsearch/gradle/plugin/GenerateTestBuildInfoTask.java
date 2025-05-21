@@ -170,87 +170,111 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the jar for the module name with each step commented inline;
-     * the algorithm used here is based on the described in {@link ModuleFinder#of}
+     * Look through the jar for the module name using a succession of techniques corresponding
+     * to how the JDK itself determines module names,
+     * as documented in {@link java.lang.module.ModuleFinder#of}.
      */
     private String extractModuleNameFromJar(File file, JarFile jarFile) throws IOException {
         String moduleName = null;
 
-        // if the jar is multi-release, there will be a set versions
-        // under the path META-INF/versions/<version number>;
-        // each version will have its own module-info.class if this is a modular jar;
-        // look for the module name in the module-info from the latest version
-        // fewer than or equal to the current JVM version
         if (jarFile.isMultiRelease()) {
-            List<Integer> versions = jarFile.stream()
-                .filter(je -> je.getName().startsWith(META_INF_VERSIONS_PREFIX) && je.getName().endsWith("/module-info.class"))
-                .map(
-                    je -> Integer.parseInt(
-                        je.getName().substring(META_INF_VERSIONS_PREFIX.length(), je.getName().length() - META_INF_VERSIONS_PREFIX.length())
-                    )
-                )
-                .toList();
-            versions = new ArrayList<>(versions);
-            versions.sort(Integer::compareTo);
-            versions = versions.reversed();
-            int major = Runtime.version().feature();
-            StringBuilder path = new StringBuilder("META-INF/versions/");
-            for (int version : versions) {
-                if (version <= major) {
-                    path.append(version);
-                    break;
-                }
-            }
-            if (path.length() > META_INF_VERSIONS_PREFIX.length()) {
-                path.append("/module-info.class");
-                JarEntry moduleEntry = jarFile.getJarEntry(path.toString());
-                if (moduleEntry != null) {
-                    try (InputStream inputStream = jarFile.getInputStream(moduleEntry)) {
-                        moduleName = extractModuleNameFromModuleInfo(inputStream);
-                    }
-                }
+            StringBuilder dir = versionDirectoryIfExists(jarFile);
+            if (dir != null) {
+                dir.append("/module-info.class");
+                moduleName = getModuleNameFromModuleInfoFile(dir.toString(), jarFile);
             }
         }
 
-        // if the jar is *not* multi-release then first look in
-        // module-info.class from the top-level if it exists
         if (moduleName == null) {
-            JarEntry moduleEntry = jarFile.getJarEntry("module-info.class");
-            if (moduleEntry != null) {
-                try (InputStream inputStream = jarFile.getInputStream(moduleEntry)) {
-                    moduleName = extractModuleNameFromModuleInfo(inputStream);
-                }
-            }
+            moduleName = getModuleNameFromModuleInfoFile("module-info.class", jarFile);
         }
 
-        // if the jar does *not* contain module-info.class
-        // check the manifest file for the module name
         if (moduleName == null) {
-            JarEntry manifestEntry = jarFile.getJarEntry("META-INF/MANIFEST.MF");
-            if (manifestEntry != null) {
-                try (InputStream inputStream = jarFile.getInputStream(manifestEntry)) {
-                    Manifest manifest = new Manifest(inputStream);
-                    String amn = manifest.getMainAttributes().getValue("Automatic-Module-Name");
-                    if (amn != null) {
-                        moduleName = amn;
-                    }
-                }
-            }
+            moduleName = getAutomaticModuleNameFromManifest(jarFile);
         }
 
-        // if the jar does not have module-info.class and no module name in the manifest
-        // default to the jar name without .jar and no versioning
         if (moduleName == null) {
-            String jn = file.getName().substring(0, file.getName().length() - JAR_DESCRIPTOR_SUFFIX.length());
-            Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
-            if (matcher.find()) {
-                jn = jn.substring(0, matcher.start());
-            }
-            jn = jn.replaceAll("[^A-Za-z0-9]", ".");
-            moduleName = jn;
+            moduleName = deriveModuleNameFromJarFileName(file);
         }
 
         return moduleName;
+    }
+
+    /**
+     * if the jar is multi-release, there will be a set versions
+     * under the path META-INF/versions/<version number>;
+     * each version will have its own module-info.class if this is a modular jar;
+     * look for the module name in the module-info from the latest version
+     * fewer than or equal to the current JVM version
+     *
+     * @return a {@link StringBuilder} with the {@code META-INF/versions/<version number>} if it exists; otherwise null
+     */
+    private static StringBuilder versionDirectoryIfExists(JarFile jarFile) {
+        List<Integer> versions = jarFile.stream()
+            .filter(je -> je.getName().startsWith(META_INF_VERSIONS_PREFIX) && je.getName().endsWith("/module-info.class"))
+            .map(
+                je -> Integer.parseInt(
+                    je.getName().substring(META_INF_VERSIONS_PREFIX.length(), je.getName().length() - META_INF_VERSIONS_PREFIX.length())
+                )
+            )
+            .toList();
+        versions = new ArrayList<>(versions);
+        versions.sort(Integer::compareTo);
+        versions = versions.reversed();
+        int major = Runtime.version().feature();
+        StringBuilder path = new StringBuilder(META_INF_VERSIONS_PREFIX);
+        for (int version : versions) {
+            if (version <= major) {
+                return path.append(version);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Looks into the specified {@code module-info.class} file, if it exists, and extracts the declared name of the module.
+     * @return the module name, or null if there is no such {@code module-info.class} file.
+     */
+    private String getModuleNameFromModuleInfoFile(String moduleInfoFileName, JarFile jarFile) throws IOException {
+        JarEntry moduleEntry = jarFile.getJarEntry(moduleInfoFileName);
+        if (moduleEntry != null) {
+            try (InputStream inputStream = jarFile.getInputStream(moduleEntry)) {
+                return extractModuleNameFromModuleInfo(inputStream);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Looks into the {@code MANIFEST.MF} file and returns the {@code Automatic-Module-Name} value if there is one.
+     * @return the module name, or null if the manifest is nonexistent or has no {@code Automatic-Module-Name} value
+     */
+    private static String getAutomaticModuleNameFromManifest(JarFile jarFile) throws IOException {
+        JarEntry manifestEntry = jarFile.getJarEntry("META-INF/MANIFEST.MF");
+        if (manifestEntry != null) {
+            try (InputStream inputStream = jarFile.getInputStream(manifestEntry)) {
+                Manifest manifest = new Manifest(inputStream);
+                String amn = manifest.getMainAttributes().getValue("Automatic-Module-Name");
+                if (amn != null) {
+                    return amn;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Compose a module name from the given {@code jarFile} name,
+     * as documented in {@link java.lang.module.ModuleFinder#of}.
+     */
+    private static @NotNull String deriveModuleNameFromJarFileName(File jarFile) {
+        String jn = jarFile.getName().substring(0, jarFile.getName().length() - JAR_DESCRIPTOR_SUFFIX.length());
+        Matcher matcher = Pattern.compile("-(\\d+(\\.|$))").matcher(jn);
+        if (matcher.find()) {
+            jn = jn.substring(0, matcher.start());
+        }
+        jn = jn.replaceAll("[^A-Za-z0-9]", ".");
+        return jn;
     }
 
     /**

@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -165,6 +166,7 @@ public class FakeStatelessNode implements Closeable {
     public final CacheBlobReaderService cacheBlobReaderService;
     public final SharedBlobCacheWarmingService warmingService;
     public final TelemetryProvider telemetryProvider;
+    public final StatelessOnlinePrewarmingService onlinePrewarmingService;
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
@@ -273,6 +275,7 @@ public class FakeStatelessNode implements Closeable {
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
             warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, nodeSettings);
+            onlinePrewarmingService = new StatelessOnlinePrewarmingService(nodeSettings, threadPool, sharedCacheService);
             commitService = createCommitService();
             commitService.start();
             commitService.register(shardId, getPrimaryTerm(), () -> false, (checkpoint, gcpListener, timeout) -> {

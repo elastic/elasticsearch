@@ -339,6 +339,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
                 searchDirectory.updateCommit(compoundCommit);
+                // warming up the latest commit upon recovery will fetch a few regions of every active
+                // segment (the first region of every segment is always fetched)
                 warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory);
                 assert indexShard.store().refCount() > 0 : indexShard.shardId();
                 return null;

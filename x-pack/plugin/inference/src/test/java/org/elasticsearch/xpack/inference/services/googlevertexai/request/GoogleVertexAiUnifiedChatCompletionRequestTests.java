@@ -45,7 +45,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
 
         var uri = URI.create(
             String.format(
-                "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:streamGenerateContent",
+                "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers"
+                    + "/google/models/%s:streamGenerateContent?alt=sse",
                 location,
                 projectId,
                 modelId

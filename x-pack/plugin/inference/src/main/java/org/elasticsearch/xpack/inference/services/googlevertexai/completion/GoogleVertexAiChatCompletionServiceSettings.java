@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -46,6 +47,10 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     // https://cloud.google.com/vertex-ai/docs/quotas#eval-quotas
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
+
+    public GoogleVertexAiChatCompletionServiceSettings(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readString(), new RateLimitSettings(in));
+    }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {

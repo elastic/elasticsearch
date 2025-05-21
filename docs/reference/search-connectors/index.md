@@ -14,14 +14,14 @@ $$$es-connectors-native$$$
 
 
 :::{note}
-This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
+This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::
 
-A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
+A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
 
 Each connector extracts the original files, records, or objects; and transforms them into documents within {{es}}.
 
-These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
+These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
 
 ## Available connectors
 
@@ -87,6 +87,6 @@ In order to set up, configure, and run a connector you’ll be moving between yo
 
 ### Data source prerequisites
 
-The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to {{es}}. See the list of [available connectors](#available-connectors).
+The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to {{es}}. See the list of [available connectors](#available-connectors).
 
-Note that each data source will have specific prerequisites you’ll need to meet to authorize the connector to access its data. For example, certain data sources may require you to create an OAuth application, or create a service account. You’ll need to check the [individual connector documentation](connector-reference.md) for these details.
+Note that each data source will have specific prerequisites you’ll need to meet to authorize the connector to access its data. For example, certain data sources may require you to create an OAuth application, or create a service account. You’ll need to check the [individual connector documentation](connector-reference.md) for these details.

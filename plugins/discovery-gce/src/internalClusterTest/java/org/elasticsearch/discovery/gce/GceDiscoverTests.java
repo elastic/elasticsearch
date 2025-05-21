@@ -14,7 +14,6 @@ import com.google.api.services.compute.model.NetworkInterface;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -138,23 +137,21 @@ public class GceDiscoverTests extends ESIntegTestCase {
             return new GceInstancesService() {
                 @Override
                 public Collection<Instance> instances() {
-                    return Access.doPrivileged(() -> {
-                        final List<Instance> instances = new ArrayList<>();
+                    final List<Instance> instances = new ArrayList<>();
 
-                        for (DiscoveryNode discoveryNode : nodes.values()) {
-                            Instance instance = new Instance();
-                            instance.setName(discoveryNode.getName());
-                            instance.setStatus("STARTED");
+                    for (DiscoveryNode discoveryNode : nodes.values()) {
+                        Instance instance = new Instance();
+                        instance.setName(discoveryNode.getName());
+                        instance.setStatus("STARTED");
 
-                            NetworkInterface networkInterface = new NetworkInterface();
-                            networkInterface.setNetworkIP(discoveryNode.getAddress().toString());
-                            instance.setNetworkInterfaces(singletonList(networkInterface));
+                        NetworkInterface networkInterface = new NetworkInterface();
+                        networkInterface.setNetworkIP(discoveryNode.getAddress().toString());
+                        instance.setNetworkInterfaces(singletonList(networkInterface));
 
-                            instances.add(instance);
-                        }
+                        instances.add(instance);
+                    }
 
-                        return instances;
-                    });
+                    return instances;
                 }
 
                 @Override

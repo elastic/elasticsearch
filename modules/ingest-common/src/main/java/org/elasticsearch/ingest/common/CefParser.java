@@ -311,6 +311,16 @@ final class CefParser {
     );
 
     CefEvent process(String cefString) {
+        List<String> headers = parseHeaders(cefString);
+        // the last 'header' is the not-yet-parsed extension string, remove and then parse it
+        Map<String, String> parsedExtensions = parseExtensions(headers.removeLast());
+        CefEvent event = new CefEvent();
+        processHeaders(headers, event);
+        processExtensions(parsedExtensions, event);
+        return event;
+    }
+
+    private static List<String> parseHeaders(String cefString) {
         List<String> headers = new ArrayList<>();
         int extensionStart = -1;
         final StringBuilder buffer = new StringBuilder();
@@ -342,12 +352,12 @@ final class CefParser {
         if (headers.size() != 7) {
             throw new IllegalArgumentException(INCOMPLETE_CEF_HEADER);
         }
-        String extensionString = cefString.substring(extensionStart);
 
-        CefEvent event = new CefEvent();
-        processHeaders(headers, event);
-        processExtensions(extensionString, event);
-        return event;
+        // for simplicity of the interface, pack the unparsed extension string itself into the returned list of headers
+        String extensionString = cefString.substring(extensionStart);
+        headers.add(extensionString);
+
+        return headers;
     }
 
     private static void processHeaders(List<String> headers, CefEvent event) {
@@ -374,31 +384,6 @@ final class CefParser {
                 case 5 -> event.addCefMapping("name", value);
                 case 6 -> event.addCefMapping("severity", value);
                 default -> throw new IllegalArgumentException(INVALID_CEF_FORMAT);
-            }
-        }
-    }
-
-    private void processExtensions(String extensionString, CefEvent event) {
-        final Map<String, String> parsedExtensions = parseExtensions(extensionString);
-        // Cleanup empty values in extensions
-        if (removeEmptyValues) {
-            removeEmptyValues(parsedExtensions);
-        }
-        // Translate extensions to possible ECS fields
-        for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
-            ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
-            if (mapping != null) {
-                String ecsKey = mapping.ecsKey();
-                if (ecsKey != null) {
-                    // Add the ECS translation to the root of document
-                    event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.dataType()));
-                } else {
-                    // Add the extension to the CEF mappings if it doesn't have an ECS translation
-                    event.addCefMapping("extensions." + mapping.key(), convertValueToType(entry.getValue(), mapping.dataType()));
-                }
-            } else {
-                // Add the extension if the key is not in the mapping
-                event.addCefMapping("extensions." + entry.getKey(), entry.getValue());
             }
         }
     }
@@ -431,6 +416,30 @@ final class CefParser {
             throw new IllegalArgumentException("Invalid extensions in the CEF event: " + extensionString.substring(lastEnd));
         }
         return extensions;
+    }
+
+    private void processExtensions(Map<String, String> parsedExtensions, CefEvent event) {
+        // Cleanup empty values in extensions
+        if (removeEmptyValues) {
+            removeEmptyValues(parsedExtensions);
+        }
+        // Translate extensions to possible ECS fields
+        for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
+            ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
+            if (mapping != null) {
+                String ecsKey = mapping.ecsKey();
+                if (ecsKey != null) {
+                    // Add the ECS translation to the root of document
+                    event.addRootMapping(ecsKey, convertValueToType(entry.getValue(), mapping.dataType()));
+                } else {
+                    // Add the extension to the CEF mappings if it doesn't have an ECS translation
+                    event.addCefMapping("extensions." + mapping.key(), convertValueToType(entry.getValue(), mapping.dataType()));
+                }
+            } else {
+                // Add the extension if the key is not in the mapping
+                event.addCefMapping("extensions." + entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     private static boolean hasUnescapedEquals(String value) {

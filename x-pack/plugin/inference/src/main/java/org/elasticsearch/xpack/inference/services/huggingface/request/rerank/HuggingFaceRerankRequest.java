@@ -56,15 +56,8 @@ public class HuggingFaceRerankRequest implements Request {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new HuggingFaceRerankRequestEntity(
-                    query,
-                    input,
-                    returnDocuments,
-                    topN != null ? topN : model.getTaskSettings().getTopNDocumentsOnly(),
-                    model.getTaskSettings()
-                )
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new HuggingFaceRerankRequestEntity(query, input, returnDocuments, getTopN(), model.getTaskSettings()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
@@ -89,7 +82,7 @@ public class HuggingFaceRerankRequest implements Request {
     }
 
     public Integer getTopN() {
-        return topN;
+        return topN != null ? topN : model.getTaskSettings().getTopNDocumentsOnly();
     }
 
     @Override

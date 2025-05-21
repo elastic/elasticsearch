@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -17,7 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingTestCase<HuggingFaceRerankTaskSettings> {
+public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<HuggingFaceRerankTaskSettings> {
 
     public static HuggingFaceRerankTaskSettings createRandom() {
         var returnDocuments = randomBoolean() ? randomBoolean() : null;
@@ -28,7 +29,7 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingT
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
         Map<String, Object> taskMap = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_TEXT,
+            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
             true,
             HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
             5
@@ -46,18 +47,18 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingT
 
     public void testFromMap_WithInvalidReturnDocuments_ThrowsValidationException() {
         Map<String, Object> taskMap = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_TEXT,
+            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
             "invalid",
             HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
             5
         );
         var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
-        assertThat(thrownException.getMessage(), containsString("field [return_text] is not of the expected type"));
+        assertThat(thrownException.getMessage(), containsString("field [return_documents] is not of the expected type"));
     }
 
     public void testFromMap_WithInvalidTopNDocsOnly_ThrowsValidationException() {
         Map<String, Object> taskMap = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_TEXT,
+            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
             true,
             HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
             "invalid"
@@ -74,7 +75,7 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingT
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.RETURN_TEXT, false);
+        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false);
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
@@ -91,7 +92,7 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingT
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
         Map<String, Object> newSettings = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_TEXT,
+            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
             false,
             HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
             7
@@ -114,5 +115,10 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractWireSerializingT
     @Override
     protected HuggingFaceRerankTaskSettings mutateInstance(HuggingFaceRerankTaskSettings instance) throws IOException {
         return randomValueOtherThan(instance, HuggingFaceRerankTaskSettingsTests::createRandom);
+    }
+
+    @Override
+    protected HuggingFaceRerankTaskSettings mutateInstanceForVersion(HuggingFaceRerankTaskSettings instance, TransportVersion version) {
+        return instance;
     }
 }

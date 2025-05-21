@@ -81,15 +81,15 @@ public class HuggingFaceRerankResponseEntity {
     private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
         return parseList(parser, (listParser, index) -> {
             var parsedRankedDoc = HuggingFaceRerankResponseEntity.RankedDocEntry.parse(parser);
-            return new RankedDocsResults.RankedDoc(parsedRankedDoc.id, parsedRankedDoc.score, parsedRankedDoc.text);
+            return new RankedDocsResults.RankedDoc(parsedRankedDoc.index, parsedRankedDoc.score, parsedRankedDoc.text);
         });
     }
 
-    private record RankedDocEntry(Integer id, Float score, @Nullable String text) {
+    private record RankedDocEntry(Integer index, Float score, @Nullable String text) {
 
         private static final ParseField TEXT = new ParseField("text");
         private static final ParseField SCORE = new ParseField("score");
-        private static final ParseField ID = new ParseField("index");
+        private static final ParseField INDEX = new ParseField("index");
         private static final ConstructingObjectParser<HuggingFaceRerankResponseEntity.RankedDocEntry, Void> PARSER =
             new ConstructingObjectParser<>(
                 "hugging_face_rerank_response",
@@ -98,7 +98,7 @@ public class HuggingFaceRerankResponseEntity {
             );
 
         static {
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), ID);
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), INDEX);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), SCORE);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEXT);
         }

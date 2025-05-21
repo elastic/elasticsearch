@@ -24,6 +24,7 @@ public record HuggingFaceRerankRequestEntity(
     HuggingFaceRerankTaskSettings taskSettings
 ) implements ToXContentObject {
 
+    private static final String RETURN_TEXT = "return_text";
     private static final String DOCUMENTS_FIELD = "texts";
     private static final String QUERY_FIELD = "query";
 
@@ -42,9 +43,9 @@ public record HuggingFaceRerankRequestEntity(
 
         // prefer the root level return_documents over task settings
         if (returnDocuments != null) {
-            builder.field(HuggingFaceRerankTaskSettings.RETURN_TEXT, returnDocuments);
+            builder.field(RETURN_TEXT, returnDocuments);
         } else if (taskSettings.getReturnDocuments() != null) {
-            builder.field(HuggingFaceRerankTaskSettings.RETURN_TEXT, taskSettings.getReturnDocuments());
+            builder.field(RETURN_TEXT, taskSettings.getReturnDocuments());
         }
 
         if (topN != null) {

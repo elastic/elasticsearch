@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class HuggingFaceRerankTaskSettings implements TaskSettings {
 
     public static final String NAME = "hugging_face_rerank_task_settings";
-    public static final String RETURN_TEXT = "return_text";
+    public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
     static final HuggingFaceRerankTaskSettings EMPTY_SETTINGS = new HuggingFaceRerankTaskSettings(null, null);
@@ -40,7 +40,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_TEXT, validationException);
+        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topNDocumentsOnly = extractOptionalPositiveInteger(
             map,
             TOP_N_DOCS_ONLY,
@@ -85,7 +85,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     private final Boolean returnDocuments;
 
     public HuggingFaceRerankTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalInt(), in.readOptionalBoolean());
+        this(in.readOptionalVInt(), in.readOptionalBoolean());
     }
 
     public HuggingFaceRerankTaskSettings(@Nullable Integer topNDocumentsOnly, @Nullable Boolean doReturnDocuments) {
@@ -105,7 +105,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
             builder.field(TOP_N_DOCS_ONLY, topNDocumentsOnly);
         }
         if (returnDocuments != null) {
-            builder.field(RETURN_TEXT, returnDocuments);
+            builder.field(RETURN_DOCUMENTS, returnDocuments);
         }
         builder.endObject();
         return builder;
@@ -123,7 +123,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalInt(topNDocumentsOnly);
+        out.writeOptionalVInt(topNDocumentsOnly);
         out.writeOptionalBoolean(returnDocuments);
     }
 

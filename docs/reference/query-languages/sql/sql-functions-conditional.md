@@ -154,7 +154,7 @@ COALESCE(
 2. 2nd expression
 
 
-…​
+… 
 
 **N**th expression
 
@@ -196,7 +196,7 @@ GREATEST(
 2. 2nd expression
 
 
-…​
+… 
 
 **N**th expression
 
@@ -355,7 +355,7 @@ LEAST(
 2. 2nd expression
 
 
-…​
+… 
 
 **N**th expression
 

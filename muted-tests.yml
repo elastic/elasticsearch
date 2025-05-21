@@ -438,9 +438,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/128030
-- class: org.elasticsearch.compute.aggregation.PercentileIntGroupingAggregatorFunctionTests
-  method: testManyInitialManyPartialFinalRunner
-  issue: https://github.com/elastic/elasticsearch/issues/128092
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test042KeystorePermissionsAreCorrect
   issue: https://github.com/elastic/elasticsearch/issues/128018
@@ -453,6 +450,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test041AmazonCaCertsAreInTheKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128006
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/128174
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test600Interrupt
+  issue: https://github.com/elastic/elasticsearch/issues/128144
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/128113
 
 # Examples:
 #

@@ -575,13 +575,15 @@ stream's oldest backing index.
           "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
           "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw",
           "prefer_ilm": true,
-          "managed_by": "Unmanaged"
+          "managed_by": "Unmanaged",
+          "index_mode" : "standard"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ",
           "prefer_ilm": true,
-          "managed_by": "Unmanaged"
+          "managed_by": "Unmanaged",
+          "index_mode" : "standard"
         }
       ],
       "generation": 2,
@@ -593,6 +595,7 @@ stream's oldest backing index.
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]

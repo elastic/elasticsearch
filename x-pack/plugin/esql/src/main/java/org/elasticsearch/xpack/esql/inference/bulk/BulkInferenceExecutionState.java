@@ -59,18 +59,18 @@ public class BulkInferenceExecutionState {
     }
 
     public long fetchProcessedSeqNo(int retry) throws InterruptedException, TimeoutException {
-            while (retry > 0) {
-                if (finished()) {
-                    return -1;
-                }
-                retry--;
-                Long seqNo = processedSeqNoQueue.poll(1, TimeUnit.SECONDS);
-                if (seqNo != null) {
-                    return seqNo;
-                }
+        while (retry > 0) {
+            if (finished()) {
+                return -1;
             }
+            retry--;
+            Long seqNo = processedSeqNoQueue.poll(1, TimeUnit.SECONDS);
+            if (seqNo != null) {
+                return seqNo;
+            }
+        }
 
-            throw new TimeoutException("timeout waiting for inference response");
+        throw new TimeoutException("timeout waiting for inference response");
     }
 
     public InferenceAction.Response fetchBufferedResponse(long seqNo) {

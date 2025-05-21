@@ -94,7 +94,8 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
             listener.onFailure(bulkExecutionState.getFailure());
         }
 
-        private void persistsInferenceResponses(BulkInferenceExecutionState bulkExecutionState) throws TimeoutException, InterruptedException {
+        private void persistsInferenceResponses(BulkInferenceExecutionState bulkExecutionState) throws TimeoutException,
+            InterruptedException {
             while (bulkExecutionState.finished() == false && bulkExecutionState.fetchProcessedSeqNo(INFERENCE_RESPONSE_TIMEOUT) >= 0) {
                 long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
 

@@ -78,7 +78,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private final SparseVectorFieldMapper.IndexOptions indexOptions;
 
-    public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector_index_options_supported");
+    public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
     private static SparseVectorFieldMapper toType(FieldMapper in) {
         return (SparseVectorFieldMapper) in;
@@ -484,7 +484,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         public static Boolean parseIndexOptionsPruneValue(Map<String, Object> indexOptionsMap) {
-            Object shouldPrune = indexOptionsMap.remove(IndexOptions.PRUNE_FIELD_NAME);
+            Object shouldPrune = indexOptionsMap.get(IndexOptions.PRUNE_FIELD_NAME);
             if (shouldPrune == null) {
                 return null;
             }
@@ -493,17 +493,31 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 return boolValue;
             }
 
-            throw new MapperParsingException("[index_options] field [prune] should be true or false");
+            throw new MapperParsingException(
+                "["
+                + SPARSE_VECTOR_INDEX_OPTIONS
+                + "] field ["
+                + PRUNE_FIELD_NAME
+                + "] should be true or false"
+            );
         }
 
         public static TokenPruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
-            Object pruningConfiguration = indexOptionsMap.remove(IndexOptions.PRUNING_CONFIG_FIELD_NAME);
+            Object pruningConfiguration = indexOptionsMap.get(IndexOptions.PRUNING_CONFIG_FIELD_NAME);
             if (pruningConfiguration == null) {
                 return null;
             }
 
             if (prune == null || prune == false) {
-                throw new MapperParsingException("[index_options] field [pruning_config] should only be set if [prune] is set to true");
+                throw new MapperParsingException(
+                    "["
+                    + SPARSE_VECTOR_INDEX_OPTIONS
+                    + "] field ["
+                    + PRUNING_CONFIG_FIELD_NAME
+                    +"] should only be set if ["
+                    + PRUNE_FIELD_NAME
+                    + "] is set to true"
+                );
             }
 
             Map<String, Object> pruningConfigurationMap = XContentMapValues.nodeMapValue(pruningConfiguration, PRUNING_CONFIG_FIELD_NAME);

@@ -202,7 +202,7 @@ teardown:
 "Check sparse_vector token pruning index_options mappings":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -240,12 +240,13 @@ teardown:
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 1.0 }
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+  - not_exists: sparse_vector_pruning_test.mappings.properties.embeddings.index_options
 
 ---
 "Check sparse_vector token pruning index_options mappings defaults":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -282,7 +283,7 @@ teardown:
 "Check sparse_vector token pruning index_options prune missing do not allow config":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -305,8 +306,6 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 1.0
                     tokens_weight_threshold: 0.4
-              embeddings:
-                type: sparse_vector
 
   - match: { status: 400 }
 
@@ -314,7 +313,7 @@ teardown:
 "Check sparse_vector token pruning index_options prune false do not allow config":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -338,8 +337,6 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 1.0
                     tokens_weight_threshold: 0.4
-              embeddings:
-                type: sparse_vector
 
   - match: { status: 400 }
 
@@ -347,7 +344,7 @@ teardown:
 "Check sparse_vector token pruning index_options tokens freq out of bounds":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -371,8 +368,6 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 101.0
                     tokens_weight_threshold: 0.4
-              embeddings:
-                type: sparse_vector
 
   - match: { status: 400 }
 
@@ -380,7 +375,7 @@ teardown:
 "Check sparse_vector token pruning index_options tokens weight out of bounds":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -404,8 +399,6 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 5.0
                     tokens_weight_threshold: 3.5
-              embeddings:
-                type: sparse_vector
 
   - match: { status: 400 }
 
@@ -413,7 +406,7 @@ teardown:
 "Check sparse_vector token pruning index_options in query":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers

@@ -533,7 +533,7 @@ teardown:
 "Check sparse_vector token pruning index_options mappings":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -576,7 +576,7 @@ teardown:
 "Check sparse_vector token pruning index_options mappings defaults":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -613,7 +613,7 @@ teardown:
 "Check sparse_vector token pruning index_options prune missing do not allow config":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -645,7 +645,7 @@ teardown:
 "Check sparse_vector token pruning index_options prune false do not allow config":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -678,7 +678,7 @@ teardown:
 "Check sparse_vector token pruning index_options tokens freq out of bounds":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -711,7 +711,7 @@ teardown:
 "Check sparse_vector token pruning index_options tokens weight out of bounds":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers
@@ -744,7 +744,7 @@ teardown:
 "Check sparse_vector token pruning index_options in query":
 
   - requires:
-      cluster_features: 'sparse_vector_index_options_supported'
+      cluster_features: 'sparse_vector.index_options_supported'
       reason: "sparse_vector token pruning index options added support in 8.19"
   - skip:
       features: headers

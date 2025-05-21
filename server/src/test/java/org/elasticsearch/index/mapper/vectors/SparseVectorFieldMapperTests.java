@@ -127,78 +127,28 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+        checkParsedDocument(mapper);
+    }
 
-        List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (XFeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (XFeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
+    public void testDefaultsPreIndexOptions() throws Exception {
+        DocumentMapper mapper = getDocumentMapperPreviousVersion(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
+        checkParsedDocument(mapper);
     }
 
     public void testWithIndexOptionsPrune() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
-
-        List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (XFeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (XFeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
+        checkParsedDocument(mapper);
     }
 
     public void testWithIndexOptionsPruningConfigOnly() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
-
-        List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (XFeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (XFeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
+        checkParsedDocument(mapper);
     }
 
     public void testDotInFieldName() throws Exception {
@@ -349,7 +299,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestInteger.getMessage(),
             containsString(
-                "Failed to parse mapping: [pruning_config] field [tokens_freq_ratio_threshold]field should be a number between 1 and 100"
+                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: [0:0] [pruning_config] failed to parse field [tokens_freq_ratio_threshold]"
             )
         );
 
@@ -364,7 +314,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeLower.getMessage(),
-            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100")
+            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0")
         );
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -378,7 +328,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeHigher.getMessage(),
-            containsString("[pruning_config] field [tokens_freq_ratio_threshold] field should be a number between 1 and 100")
+            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got 101")
         );
     }
 
@@ -395,7 +345,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestDouble.getMessage(),
             containsString(
-                "Failed to parse mapping: [pruning_config] field [tokens_weight_threshold]field should be a number between 0.0 and 1.0"
+                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: [0:0] [pruning_config] failed to parse field [tokens_weight_threshold]"
             )
         );
 
@@ -410,7 +360,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeLower.getMessage(),
-            containsString("[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0")
+            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_weight_threshold] must be between 0 and 1")
         );
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -424,7 +374,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeHigher.getMessage(),
-            containsString("[pruning_config] field [tokens_weight_threshold] field should be a number between 0.0 and 1.0")
+            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_weight_threshold] must be between 0 and 1")
         );
     }
 
@@ -558,5 +508,34 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }
         }
         return result;
+    }
+
+    private void checkParsedDocument(DocumentMapper mapper) throws IOException {
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
+    }
+
+    private final IndexVersion PRE_SPARSE_VECTOR_INDEX_OPTIONS_VERSION = IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC;
+
+    private DocumentMapper getDocumentMapperPreviousVersion(XContentBuilder mappings) throws IOException {
+        return createMapperService(PRE_SPARSE_VECTOR_INDEX_OPTIONS_VERSION, mappings).documentMapper();
     }
 }

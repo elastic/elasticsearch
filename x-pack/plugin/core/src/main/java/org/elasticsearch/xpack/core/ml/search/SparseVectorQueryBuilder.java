@@ -165,8 +165,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return query;
     }
 
-    public boolean shouldPruneTokens() {
-        return shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE;
+    public Boolean shouldPruneTokens() {
+        return shouldPruneTokens;
     }
 
     public TokenPruningConfig getTokenPruningConfig() {
@@ -481,10 +481,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         boolean doPruneTokens = false;
         TokenPruningConfig setTokenPruningConfig = queryPruningConfig;
         if (queryPruneTokens == null || queryPruningConfig == null) {
+            if (queryPruneTokens != null) {
+                doPruneTokens = queryPruneTokens;
+            }
+
             IndexFieldPruningSettings indexPruningSettings = getIndexFieldPruningSettings(fieldMapper);
             if (shouldPruneTokens == null && indexPruningSettings.prune != null && indexPruningSettings.prune) {
                 doPruneTokens = true;
             }
+
             if (setTokenPruningConfig == null && indexPruningSettings.pruningConfig != null) {
                 setTokenPruningConfig = indexPruningSettings.pruningConfig;
             }

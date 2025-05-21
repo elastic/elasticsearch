@@ -9,22 +9,31 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final String PRUNING_CONFIG_FIELD = "pruning_config";
@@ -184,7 +193,42 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         return new TokenPruningConfig(ratioThreshold, weightThreshold, onlyScorePrunedTokens);
     }
 
+    private static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
+        PRUNING_CONFIG_FIELD,
+        args -> new TokenPruningConfig(
+            args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float)args[0],
+            args[1] == null ? DEFAULT_TOKENS_WEIGHT_THRESHOLD : (Float)args[1],
+            args[2] != null && (Boolean) args[2]
+        )
+    );
+
+    static {
+        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, TOKENS_FREQ_RATIO_THRESHOLD);
+        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_WEIGHT_THRESHOLD, TOKENS_WEIGHT_THRESHOLD);
+        PARSER.declareBooleanOrNull(optionalConstructorArg(), false, ONLY_SCORE_PRUNED_TOKENS_FIELD);
+    }
+
     public static TokenPruningConfig parseFromMap(Map<String, Object> pruningConfigMap) {
+        if (pruningConfigMap == null) {
+            return null;
+        }
+
+        try {
+            XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                pruningConfigMap,
+                XContentType.JSON
+            );
+
+            return PARSER.parse(parser, null);
+        } catch (Exception exc) {
+            if (exc.getCause() != null && exc.getCause().getClass().equals(IllegalArgumentException.class)) {
+                throw new ElasticsearchException(exc.getCause());
+            }
+            throw new ElasticsearchException(exc);
+        }
+
+        /*
         Object mappedTokensFreqRatioThreshold = pruningConfigMap.remove(TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName());
         Object mappedTokensWeightThreshold = pruningConfigMap.remove(TOKENS_WEIGHT_THRESHOLD.getPreferredName());
         Object mappedOnlyScorePrunedTokens = pruningConfigMap.remove(ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName());
@@ -202,8 +246,10 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         }
 
         return null;
+         */
     }
 
+    /*
     private static Float parseFloatNumberFromObject(Object numberObject, String fieldName, String exceptionDetails) {
         if (numberObject instanceof Integer intValue) {
             return (float) intValue;
@@ -276,4 +322,5 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             "[" + PRUNING_CONFIG_FIELD + "] field [" + ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName() + "] field should be true or false"
         );
     }
+     */
 }

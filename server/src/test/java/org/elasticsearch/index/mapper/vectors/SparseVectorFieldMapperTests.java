@@ -314,7 +314,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeLower.getMessage(),
-            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0")
+            containsString(
+                "Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0"
+            )
         );
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -328,7 +330,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestRangeHigher.getMessage(),
-            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got 101")
+            containsString(
+                "Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got 101"
+            )
         );
     }
 

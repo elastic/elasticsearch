@@ -494,11 +494,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
 
             throw new MapperParsingException(
-                "["
-                + SPARSE_VECTOR_INDEX_OPTIONS
-                + "] field ["
-                + PRUNE_FIELD_NAME
-                + "] should be true or false"
+                "[" + SPARSE_VECTOR_INDEX_OPTIONS + "] field [" + PRUNE_FIELD_NAME + "] should be true or false"
             );
         }
 
@@ -511,12 +507,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             if (prune == null || prune == false) {
                 throw new MapperParsingException(
                     "["
-                    + SPARSE_VECTOR_INDEX_OPTIONS
-                    + "] field ["
-                    + PRUNING_CONFIG_FIELD_NAME
-                    +"] should only be set if ["
-                    + PRUNE_FIELD_NAME
-                    + "] is set to true"
+                        + SPARSE_VECTOR_INDEX_OPTIONS
+                        + "] field ["
+                        + PRUNING_CONFIG_FIELD_NAME
+                        + "] should only be set if ["
+                        + PRUNE_FIELD_NAME
+                        + "] is set to true"
                 );
             }
 

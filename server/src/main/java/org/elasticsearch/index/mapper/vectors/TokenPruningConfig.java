@@ -14,7 +14,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -32,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
@@ -196,8 +194,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
         PRUNING_CONFIG_FIELD,
         args -> new TokenPruningConfig(
-            args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float)args[0],
-            args[1] == null ? DEFAULT_TOKENS_WEIGHT_THRESHOLD : (Float)args[1],
+            args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float) args[0],
+            args[1] == null ? DEFAULT_TOKENS_WEIGHT_THRESHOLD : (Float) args[1],
             args[2] != null && (Boolean) args[2]
         )
     );
@@ -214,7 +212,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         }
 
         try {
-            XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY,
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
                 pruningConfigMap,
                 XContentType.JSON

@@ -173,6 +173,13 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope)
     );
 
+    /** Whether to include the {@code x-purpose} custom query parameter in all requests. */
+    static final Setting.AffixSetting<Boolean> ADD_PURPOSE_CUSTOM_QUERY_PARAMETER = Setting.affixKeySetting(
+        PREFIX,
+        "add_purpose_custom_query_parameter",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
@@ -217,6 +224,9 @@ final class S3ClientSettings {
     /** Whether chunked encoding should be disabled or not. */
     final boolean disableChunkedEncoding;
 
+    /** Whether to add the {@code x-purpose} custom query parameter to all requests. */
+    final boolean addPurposeCustomQueryParameter;
+
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
@@ -238,6 +248,7 @@ final class S3ClientSettings {
         boolean throttleRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
+        boolean addPurposeCustomQueryParameter,
         String region,
         String signerOverride
     ) {
@@ -255,6 +266,7 @@ final class S3ClientSettings {
         this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
+        this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
         this.signerOverride = signerOverride;
     }
@@ -289,6 +301,11 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
+        final boolean newAddPurposeCustomQueryParameter = getRepoSettingOrDefault(
+            ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
+            normalizedSettings,
+            addPurposeCustomQueryParameter
+        );
         final S3BasicCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
@@ -309,6 +326,7 @@ final class S3ClientSettings {
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
+            && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)
             && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
@@ -328,6 +346,7 @@ final class S3ClientSettings {
             newThrottleRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
+            newAddPurposeCustomQueryParameter,
             newRegion,
             newSignerOverride
         );
@@ -437,6 +456,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
+                getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION),
                 getConfigValue(settings, clientName, SIGNER_OVERRIDE)
             );
@@ -465,6 +485,7 @@ final class S3ClientSettings {
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
+            && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region)
             && Objects.equals(signerOverride, that.signerOverride);
     }
@@ -485,6 +506,7 @@ final class S3ClientSettings {
             maxConnections,
             throttleRetries,
             disableChunkedEncoding,
+            addPurposeCustomQueryParameter,
             region,
             signerOverride
         );

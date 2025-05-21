@@ -260,6 +260,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = def(9_076_0_00);
     public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = def(9_077_0_00);
     public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED = def(9_078_0_00);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_DRY_RUN = def(9_079_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

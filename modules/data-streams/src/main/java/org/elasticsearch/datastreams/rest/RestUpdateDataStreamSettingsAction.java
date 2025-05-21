@@ -45,8 +45,10 @@ public class RestUpdateDataStreamSettingsAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             settings = Settings.fromXContent(parser);
         }
+        boolean dryRun = request.paramAsBoolean("dry_run", false);
         UpdateDataStreamSettingsAction.Request putDataStreamRequest = new UpdateDataStreamSettingsAction.Request(
             settings,
+            dryRun,
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request)
         ).indices(Strings.splitStringByCommaToArray(request.param("name")));

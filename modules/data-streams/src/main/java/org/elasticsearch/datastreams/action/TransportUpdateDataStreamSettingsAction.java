@@ -123,6 +123,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             updateSingleDataStream(
                 dataStreamName,
                 request.getSettings(),
+                request.isDryRun(),
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
                 new ActionListener<>() {
@@ -154,6 +155,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     private void updateSingleDataStream(
         String dataStreamName,
         Settings settingsOverrides,
+        boolean dryRun,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
         ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse> listener
@@ -198,11 +200,12 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             ackTimeout,
             dataStreamName,
             settingsOverrides,
+            dryRun,
             new ActionListener<>() {
                 @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged()) {
-                        updateSettingsOnIndices(dataStreamName, settingsOverrides, masterNodeTimeout, ackTimeout, listener);
+                public void onResponse(DataStream dataStream) {
+                    if (dataStream != null) {
+                        updateSettingsOnIndices(dataStream, settingsOverrides, dryRun, masterNodeTimeout, ackTimeout, listener);
                     } else {
                         listener.onResponse(
                             new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
@@ -226,8 +229,9 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     }
 
     private void updateSettingsOnIndices(
-        String dataStreamName,
+        DataStream dataStream,
         Settings requestSettings,
+        boolean dryRun,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
         ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse> listener
@@ -243,26 +247,16 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                 appliedToDataStreamOnly.add(settingName);
             }
         }
-        final List<Index> concreteIndices = clusterService.state()
-            .projectState(projectResolver.getProjectId())
-            .metadata()
-            .dataStreams()
-            .get(dataStreamName)
-            .getIndices();
+        final List<Index> concreteIndices = dataStream.getIndices();
         final List<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> indexSettingErrors = new ArrayList<>();
 
         CountDownActionListener indexCountDownListener = new CountDownActionListener(concreteIndices.size() + 1, new ActionListener<>() {
             // Called when all indices for all settings are complete
             @Override
             public void onResponse(Void unused) {
-                DataStream dataStream = clusterService.state()
-                    .projectState(projectResolver.getProjectId())
-                    .metadata()
-                    .dataStreams()
-                    .get(dataStreamName);
                 listener.onResponse(
                     new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
-                        dataStreamName,
+                        dataStream.getName(),
                         true,
                         null,
                         settingsFilter.filter(dataStream.getSettings()),
@@ -286,7 +280,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         indexCountDownListener.onResponse(null); // handles the case where there were zero indices
         Settings applyToIndexSettings = builder().loadFromMap(settingsToApply).build();
         for (Index index : concreteIndices) {
-            updateSettingsOnSingleIndex(index, applyToIndexSettings, masterNodeTimeout, ackTimeout, new ActionListener<>() {
+            updateSettingsOnSingleIndex(index, applyToIndexSettings, dryRun, masterNodeTimeout, ackTimeout, new ActionListener<>() {
                 @Override
                 public void onResponse(UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError indexSettingError) {
                     if (indexSettingError != null) {
@@ -306,6 +300,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     private void updateSettingsOnSingleIndex(
         Index index,
         Settings requestSettings,
+        boolean dryRun,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
         ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> listener
@@ -326,39 +321,46 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                 );
                 return;
             }
-            updateSettingsService.updateSettings(
-                new UpdateSettingsClusterStateUpdateRequest(
-                    projectResolver.getProjectId(),
-                    masterNodeTimeout,
-                    ackTimeout,
-                    requestSettings,
-                    UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                    UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
-                    index
-                ),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
-                        if (response.isAcknowledged() == false) {
-                            error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
-                                index.getName(),
-                                "Updating settings not acknowledged for unknown reason"
-                            );
-                        } else {
-                            error = null;
+            if (dryRun) {
+                listener.onResponse(null);
+            } else {
+                updateSettingsService.updateSettings(
+                    new UpdateSettingsClusterStateUpdateRequest(
+                        projectResolver.getProjectId(),
+                        masterNodeTimeout,
+                        ackTimeout,
+                        requestSettings,
+                        UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                        UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
+                        index
+                    ),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse response) {
+                            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
+                            if (response.isAcknowledged() == false) {
+                                error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
+                                    index.getName(),
+                                    "Updating settings not acknowledged for unknown reason"
+                                );
+                            } else {
+                                error = null;
+                            }
+                            listener.onResponse(error);
                         }
-                        listener.onResponse(error);
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onResponse(
-                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(index.getName(), e.getMessage())
-                        );
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onResponse(
+                                new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
+                                    index.getName(),
+                                    e.getMessage()
+                                )
+                            );
+                        }
                     }
-                }
-            );
+                );
+            }
         }
 
     }

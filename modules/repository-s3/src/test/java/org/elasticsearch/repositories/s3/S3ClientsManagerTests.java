@@ -59,9 +59,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
-public class S3PerProjectClientManagerTests extends ESTestCase {
+public class S3ClientsManagerTests extends ESTestCase {
 
     private Map<ProjectId, AtomicInteger> s3SecretsIdGenerators;
     private List<String> clientNames;
@@ -69,7 +73,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private S3Service s3Service;
-    private S3PerProjectClientManager s3PerProjectClientManager;
+    private S3ClientsManager s3ClientsManager;
     private final AtomicReference<CountDownLatch> clientRefsCloseLatchRef = new AtomicReference<>();
     private final AtomicBoolean closeInternalInvoked = new AtomicBoolean(false);
 
@@ -130,8 +134,8 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
             }
         };
         s3Service.refreshAndClearCache(S3ClientSettings.load(settings));
-        s3PerProjectClientManager = s3Service.getS3PerProjectClientManager();
-        assertNotNull(s3PerProjectClientManager);
+        s3ClientsManager = s3Service.getS3PerProjectClientManager();
+        assertNotNull(s3ClientsManager);
         s3Service.start();
     }
 
@@ -141,13 +145,13 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
         s3Service.close();
         clusterService.close();
         threadPool.close();
-        final var clientsCloseListener = s3PerProjectClientManager.getClientsCloseListener();
+        final var clientsCloseListener = s3ClientsManager.getClientsCloseListener();
         assertTrue(clientsCloseListener == null || clientsCloseListener.isDone());
-        s3PerProjectClientManager.getProjectClientsHolders().forEach((projectId, clientsHolder) -> assertTrue(clientsHolder.isClosed()));
+        s3ClientsManager.getClientsHolders().forEach((projectId, clientsHolder) -> assertTrue(clientsHolder.isClosed()));
     }
 
     public void testDoesNotCreateClientWhenSecretsAreNotConfigured() {
-        assertThat(s3PerProjectClientManager.getProjectClientsHolders(), anEmptyMap());
+        assertThat(getClientsHoldersExcludeDefaultProject(), anEmptyMap());
         final ProjectId projectId = randomUniqueProjectId();
 
         // No project secrets at all
@@ -155,7 +159,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
             clusterService,
             ClusterState.builder(clusterService.state()).putProjectMetadata(ProjectMetadata.builder(projectId)).build()
         );
-        assertThat(s3PerProjectClientManager.getProjectClientsHolders(), anEmptyMap());
+        assertThat(getClientsHoldersExcludeDefaultProject(), anEmptyMap());
 
         // Project secrets but no s3 credentials
         final var mockSecureSettings = new MockSecureSettings();
@@ -172,7 +176,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(s3PerProjectClientManager.getProjectClientsHolders(), anEmptyMap());
+        assertThat(getClientsHoldersExcludeDefaultProject(), anEmptyMap());
     }
 
     public void testClientsLifeCycleForSingleProject() {
@@ -187,17 +191,17 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
             assertProjectClientSettings(projectId, clientName);
 
             // Retrieve client for the 1st time
-            final AmazonS3Reference initialClient = s3PerProjectClientManager.client(projectId, clientName);
+            final AmazonS3Reference initialClient = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
             assertClientCredentials(projectId, clientName, initialClient);
             // Client is cached when retrieved again
-            assertThat(initialClient, sameInstance(s3PerProjectClientManager.client(projectId, clientName)));
+            assertThat(initialClient, sameInstance(s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))));
 
             // Client not configured cannot be accessed
             assertClientNotFound(projectId, anotherClientName);
 
             // Client should be released and recreated again on access
-            s3PerProjectClientManager.releaseProjectClients(projectId);
-            final AmazonS3Reference clientUpdated = s3PerProjectClientManager.client(projectId, clientName);
+            s3ClientsManager.releaseCachedClients(projectId);
+            final AmazonS3Reference clientUpdated = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
             assertThat(clientUpdated, not(sameInstance(initialClient)));
             clientUpdated.decRef();
 
@@ -209,12 +213,12 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
             // Update client secrets should release and recreate the client
             updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName, anotherClientName));
             assertProjectClientSettings(projectId, clientName, anotherClientName);
-            final AmazonS3Reference clientUpdateAgain = s3PerProjectClientManager.client(projectId, clientName);
+            final AmazonS3Reference clientUpdateAgain = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
             assertThat(clientUpdateAgain, not(sameInstance(clientUpdated)));
             clientUpdateAgain.decRef();
 
             // A different client for a different client name
-            final AmazonS3Reference antherClient = s3PerProjectClientManager.client(projectId, anotherClientName);
+            final AmazonS3Reference antherClient = s3ClientsManager.client(projectId, createRepositoryMetadata(anotherClientName));
             assertClientCredentials(projectId, anotherClientName, antherClient);
             assertThat(antherClient, not(sameInstance(clientUpdateAgain)));
             antherClient.decRef();
@@ -240,18 +244,18 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
 
                 assertProjectClientSettings(projectId, clientNames.toArray(String[]::new));
                 for (var clientName : shuffledList(clientNames)) {
-                    try (var clientRef = s3PerProjectClientManager.client(projectId, clientName)) {
+                    try (var clientRef = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))) {
                         assertClientCredentials(projectId, clientName, clientRef);
                     }
                 }
 
                 if (randomBoolean()) {
                     final Map<String, AmazonS3Reference> previousClientRefs = clientNames.stream()
-                        .map(clientName -> Map.entry(clientName, s3PerProjectClientManager.client(projectId, clientName)))
+                        .map(clientName -> Map.entry(clientName, s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    s3PerProjectClientManager.releaseProjectClients(projectId);
+                    s3ClientsManager.releaseCachedClients(projectId);
                     previousClientRefs.forEach((clientName, previousClientRef) -> {
-                        final AmazonS3Reference currentClientRef = s3PerProjectClientManager.client(projectId, clientName);
+                        final AmazonS3Reference currentClientRef = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
                         assertThat(currentClientRef, not(sameInstance(previousClientRef)));
                         assertClientCredentials(projectId, clientName, currentClientRef);
                         currentClientRef.decRef();
@@ -263,7 +267,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
                     } else {
                         removeProjectFromClusterState(projectId);
                     }
-                    assertThat(s3PerProjectClientManager.getProjectClientsHolders(), not(hasKey(projectId)));
+                    assertThat(getClientsHoldersExcludeDefaultProject(), not(hasKey(projectId)));
                     clientNames.forEach(clientName -> assertClientNotFound(projectId, clientName));
                 }
             }
@@ -288,7 +292,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
                 final List<String> subsetOfClientNames = randomNonEmptySubsetOf(clientNames);
                 updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, subsetOfClientNames.toArray(String[]::new)));
                 subsetOfClientNames.forEach(clientName -> {
-                    final var newClient = s3PerProjectClientManager.client(projectId, clientName);
+                    final var newClient = s3ClientsManager.client(projectId, createRepositoryMetadata(clientName));
                     clientRefs.add(newClient);
                     newClient.decRef();
                 });
@@ -303,11 +307,11 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
 
         assertBusy(() -> assertTrue(closeInternalInvoked.get()));
         Thread.sleep(between(0, 100));
-        assertFalse(s3PerProjectClientManager.getClientsCloseListener().isDone());
+        assertFalse(s3ClientsManager.getClientsCloseListener().isDone());
 
         closeLatch.countDown();
         assertTrue(thread.join(Duration.ofSeconds(10)));
-        assertTrue(s3PerProjectClientManager.getClientsCloseListener().isDone());
+        assertTrue(s3ClientsManager.getClientsCloseListener().isDone());
         clientRefs.forEach(clientRef -> assertFalse(clientRef.hasReferences()));
     }
 
@@ -327,7 +331,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
 
         final AmazonS3Reference clusterClient = s3Service.client(null, repositoryMetadata);
         if (configureProjectClientsFirst == false) {
-            assertThat(s3PerProjectClientManager.getProjectClientsHolders(), anEmptyMap());
+            assertThat(getClientsHoldersExcludeDefaultProject(), anEmptyMap());
         }
         clusterClient.decRef();
 
@@ -347,6 +351,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
     }
 
     public void testProjectClientsDisabled() {
+        final var clusterService = spy(this.clusterService);
         final S3Service s3ServiceWithNoProjectSupport = new S3Service(
             mock(Environment.class),
             clusterService,
@@ -357,8 +362,10 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
         };
         s3ServiceWithNoProjectSupport.refreshAndClearCache(S3ClientSettings.load(clusterService.getSettings()));
         s3ServiceWithNoProjectSupport.start();
-        assertNull(s3ServiceWithNoProjectSupport.getS3PerProjectClientManager());
+        assertNotNull(s3ServiceWithNoProjectSupport.getS3PerProjectClientManager());
+        verify(clusterService, never()).addHighPriorityApplier(any());
 
+        // Cluster client still works
         final String clientName = randomFrom(clientNames);
         final var repositoryMetadata = new RepositoryMetadata(
             randomIdentifier(),
@@ -371,8 +378,17 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
         assertFalse(clientRef.hasReferences());
     }
 
+    private Map<ProjectId, S3ClientsManager.ClientsHolder<?>> getClientsHoldersExcludeDefaultProject() {
+        final var holders = s3ClientsManager.getClientsHolders();
+        assertThat(holders, hasKey(ProjectId.DEFAULT));
+        return holders.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey() != ProjectId.DEFAULT)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
     private void assertProjectClientSettings(ProjectId projectId, String... clientNames) {
-        final var clientsHolder = s3PerProjectClientManager.getProjectClientsHolders().get(projectId);
+        final var clientsHolder = s3ClientsManager.getClientsHolders().get(projectId);
         assertNotNull(clientsHolder);
         final Map<String, S3ClientSettings> s3ClientSettingsMap = clientsHolder.allClientSettings();
         assertThat(s3ClientSettingsMap.keySet(), containsInAnyOrder(clientNames));
@@ -414,7 +430,7 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
     private void assertClientNotFound(ProjectId projectId, String clientName) {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> s3PerProjectClientManager.client(projectId, clientName)
+            () -> s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))
         );
         assertThat(
             e.getMessage(),
@@ -463,6 +479,10 @@ public class S3PerProjectClientManagerTests extends ESTestCase {
                 .build();
             ClusterServiceUtils.setState(clusterService, stateWithoutProject);
         }
+    }
+
+    private RepositoryMetadata createRepositoryMetadata(String clientName) {
+        return new RepositoryMetadata("repo", S3Repository.TYPE, Settings.builder().put("client", clientName).build());
     }
 
     private Map<String, String> newProjectClientsSecrets(ProjectId projectId, String... clientNames) {

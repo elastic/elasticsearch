@@ -64,7 +64,6 @@ public class S3ServiceTests extends ESTestCase {
             () -> Region.of("es-test-region")
         );
         s3Service.start();
-        assertNull(s3Service.getS3PerProjectClientManager());
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
@@ -73,11 +72,11 @@ public class S3ServiceTests extends ESTestCase {
         assertSame(clientSettings, otherClientSettings);
         final AmazonS3Reference reference = s3Service.client(metadata1);
         reference.close();
-        s3Service.doClose();
+        s3Service.onBlobStoreClose();
         final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
-        s3Service.doClose();
+        s3Service.onBlobStoreClose();
         final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
         s3Service.close();
@@ -126,7 +125,6 @@ public class S3ServiceTests extends ESTestCase {
             )
         ) {
             s3Service.start();
-            assertNull(s3Service.getS3PerProjectClientManager());
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
@@ -165,7 +163,6 @@ public class S3ServiceTests extends ESTestCase {
             )
         ) {
             s3Service.start();
-            assertNull(s3Service.getS3PerProjectClientManager());
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
@@ -224,7 +221,6 @@ public class S3ServiceTests extends ESTestCase {
             )
         ) {
             s3Service.start();
-            assertNull(s3Service.getS3PerProjectClientManager());
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
@@ -260,7 +256,6 @@ public class S3ServiceTests extends ESTestCase {
             )
         ) {
             s3Service.start();
-            assertNull(s3Service.getS3PerProjectClientManager());
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();

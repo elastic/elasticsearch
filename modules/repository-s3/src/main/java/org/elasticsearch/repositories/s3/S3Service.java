@@ -37,7 +37,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -49,8 +48,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -72,10 +71,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
-import static java.util.Collections.emptyMap;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_ARN;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_SESSION_NAME;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
@@ -96,21 +96,6 @@ class S3Service extends AbstractLifecycleComponent {
         TimeValue.timeValueHours(24),
         Setting.Property.NodeScope
     );
-    private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
-
-    /**
-     * Client settings calculated from static configuration and settings in the keystore.
-     */
-    private volatile Map<String, S3ClientSettings> staticClientSettings = Map.of(
-        "default",
-        S3ClientSettings.getClientSettings(Settings.EMPTY, "default")
-    );
-
-    /**
-     * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
-     * in the {@link RepositoryMetadata}.
-     */
-    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     private final Runnable defaultRegionSetter;
     private volatile Region defaultRegion;
@@ -127,8 +112,7 @@ class S3Service extends AbstractLifecycleComponent {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
     final boolean isStateless;
-    @Nullable // if multi-project is disabled
-    private final S3PerProjectClientManager s3PerProjectClientManager;
+    private final S3ClientsManager s3ClientsManager;
 
     S3Service(
         Environment environment,
@@ -149,22 +133,20 @@ class S3Service extends AbstractLifecycleComponent {
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
         defaultRegionSetter = new RunOnce(() -> defaultRegion = defaultRegionSupplier.get());
+        s3ClientsManager = new S3ClientsManager(
+            nodeSettings,
+            this::buildClientReference,
+            projectResolver.supportsMultipleProjects() ? ConcurrentHashMap::new : UnaryOperator.identity(),
+            clusterService.threadPool().generic()
+        );
         if (projectResolver.supportsMultipleProjects()) {
-            s3PerProjectClientManager = new S3PerProjectClientManager(
-                nodeSettings,
-                this::buildClientReference,
-                clusterService.threadPool().generic()
-            );
-            clusterService.addHighPriorityApplier(s3PerProjectClientManager);
-        } else {
-            s3PerProjectClientManager = null;
+            clusterService.addHighPriorityApplier(s3ClientsManager);
         }
     }
 
     // visible to tests
-    @Nullable
-    S3PerProjectClientManager getS3PerProjectClientManager() {
-        return s3PerProjectClientManager;
+    S3ClientsManager getS3PerProjectClientManager() {
+        return s3ClientsManager;
     }
 
     /**
@@ -174,43 +156,16 @@ class S3Service extends AbstractLifecycleComponent {
      * of being returned to the cache.
      */
     public synchronized void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
-        // shutdown all unused clients
-        // others will shutdown on their respective release
-        releaseCachedClients();
-        this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
-        derivedClientSettings = emptyMap();
-        assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
-        /* clients are built lazily by {@link #client} */
+        s3ClientsManager.refreshAndClearCacheForClusterClients(clientsSettings);
     }
 
     /**
      * Attempts to retrieve a client by its repository metadata and settings from the cache.
      * If the client does not exist it will be created.
      */
+    @FixForMultiProject(description = "can be removed once blobstore is project aware")
     public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-        final S3ClientSettings clientSettings = settings(repositoryMetadata);
-        {
-            final AmazonS3Reference clientReference = clientsCache.get(clientSettings);
-            if (clientReference != null && clientReference.tryIncRef()) {
-                return clientReference;
-            }
-        }
-        synchronized (this) {
-            final AmazonS3Reference existing = clientsCache.get(clientSettings);
-            if (existing != null && existing.tryIncRef()) {
-                return existing;
-            }
-
-            if (lifecycle.started() == false) {
-                // doClose() calls releaseCachedClients() which is also synchronized (this) so if we're STARTED here then the client we
-                // create will definitely not leak on close.
-                throw new AlreadyClosedException("S3Service is in state [" + lifecycle + "]");
-            }
-
-            final AmazonS3Reference clientReference = buildClientReference(clientSettings);
-            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
-            return clientReference;
-        }
+        return client(ProjectId.DEFAULT, repositoryMetadata);
     }
 
     /**
@@ -221,17 +176,7 @@ class S3Service extends AbstractLifecycleComponent {
      * 2. Blobstore is cluster level (projectId = null)
      */
     public AmazonS3Reference client(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        if (s3PerProjectClientManager == null) {
-            // Multi-Project is disabled and we have a single default project
-            assert ProjectId.DEFAULT.equals(projectId) : projectId;
-            return client(repositoryMetadata);
-        } else if (projectId == null) {
-            // Multi-Project is enabled and we are retrieving a client for the cluster level blobstore
-            return client(repositoryMetadata);
-        } else {
-            final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
-            return s3PerProjectClientManager.client(projectId, clientName);
-        }
+        return s3ClientsManager.client(projectId == null ? ProjectId.DEFAULT : projectId, repositoryMetadata);
     }
 
     // visible for tests
@@ -248,39 +193,8 @@ class S3Service extends AbstractLifecycleComponent {
         }
     }
 
-    /**
-     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetadata} from cached settings or creates them
-     * by overriding static client settings from {@link #staticClientSettings} with settings found in the repository metadata.
-     * @param repositoryMetadata Repository Metadata
-     * @return S3ClientSettings
-     */
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        final Settings settings = repositoryMetadata.settings();
-        {
-            final S3ClientSettings existing = derivedClientSettings.get(settings);
-            if (existing != null) {
-                return existing;
-            }
-        }
-        final String clientName = S3Repository.CLIENT_NAME.get(settings);
-        final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
-        if (staticSettings != null) {
-            synchronized (this) {
-                final S3ClientSettings existing = derivedClientSettings.get(settings);
-                if (existing != null) {
-                    return existing;
-                }
-                final S3ClientSettings newSettings = staticSettings.refine(settings);
-                derivedClientSettings = Maps.copyMapWithAddedOrReplacedEntry(derivedClientSettings, settings, newSettings);
-                return newSettings;
-            }
-        }
-        throw new IllegalArgumentException(
-            "Unknown s3 client name ["
-                + clientName
-                + "]. Existing client configs: "
-                + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ",")
-        );
+        return s3ClientsManager.settingsForClient(ProjectId.DEFAULT, repositoryMetadata);
     }
 
     // proxy for testing
@@ -498,18 +412,9 @@ class S3Service extends AbstractLifecycleComponent {
         }
     }
 
-    private synchronized void releaseCachedClients() {
-        // the clients will shutdown when they will not be used anymore
-        for (final AmazonS3Reference clientReference : clientsCache.values()) {
-            clientReference.decRef();
-        }
-        // clear previously cached clients, they will be build lazily
-        clientsCache = emptyMap();
-        derivedClientSettings = emptyMap();
-    }
-
+    @FixForMultiProject(description = "can be removed once blobstore is project aware")
     public void onBlobStoreClose() {
-        releaseCachedClients();
+        onBlobStoreClose(ProjectId.DEFAULT);
     }
 
     /**
@@ -519,16 +424,7 @@ class S3Service extends AbstractLifecycleComponent {
      * 2. Blobstore is cluster level (projectId = null)
      */
     public void onBlobStoreClose(@Nullable ProjectId projectId) {
-        if (s3PerProjectClientManager == null) {
-            // Multi-Project is disabled and we have a single default project
-            assert ProjectId.DEFAULT.equals(projectId) : projectId;
-            onBlobStoreClose();
-        } else if (projectId == null) {
-            // Multi-Project is enabled and this is for the cluster level blobstore
-            onBlobStoreClose();
-        } else {
-            s3PerProjectClientManager.releaseProjectClients(projectId);
-        }
+        s3ClientsManager.releaseCachedClients(projectId == null ? ProjectId.DEFAULT : projectId);
     }
 
     @Override
@@ -541,10 +437,7 @@ class S3Service extends AbstractLifecycleComponent {
 
     @Override
     public void doClose() throws IOException {
-        releaseCachedClients();
-        if (s3PerProjectClientManager != null) {
-            s3PerProjectClientManager.close();
-        }
+        s3ClientsManager.close();
         webIdentityTokenCredentialsProvider.close();
     }
 

@@ -4,7 +4,7 @@ area: ES|QL
 type: breaking
 issues: [ ]
 breaking:
-  title: `skip_unavailable` catches all runtime errors
+  title: Cluster setting "skip_unavailable" catches all runtime errors
   area: ES|QL
   details: If `skip_unavailable` is set to `true`, the runtime errors from this cluster do not lead
     to a failure of the query. Instead, the cluster is set to `skipped` or `partial status, and the query

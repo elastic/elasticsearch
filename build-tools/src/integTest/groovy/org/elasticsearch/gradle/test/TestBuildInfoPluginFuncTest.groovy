@@ -57,7 +57,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest{
             "component", "example-component",
             "locations", List.of(location)
         )
-        expectedOutput == new ObjectMapper().readValue(output, Map.class)
+        new ObjectMapper().readValue(output, Map.class) == expectedOutput
 
     }
 }

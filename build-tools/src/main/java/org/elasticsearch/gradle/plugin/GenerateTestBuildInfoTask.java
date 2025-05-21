@@ -22,6 +22,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ModuleVisitor;
@@ -32,8 +33,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +48,9 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
+
+import static java.nio.file.FileVisitResult.CONTINUE;
+import static java.nio.file.FileVisitResult.TERMINATE;
 
 /**
  * This task generates a file with a class to module mapping
@@ -257,22 +264,23 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * look through the directory to find the first unique class that isn't
      * module-info.class (which may not be unique) and avoid anonymous classes
      */
-    private String extractClassNameFromDirectory(File dir) {
-        List<File> files = new ArrayList<>(List.of(dir));
-        while (files.isEmpty() == false) {
-            File find = files.removeFirst();
-            if (find.exists()) {
-                if (find.getName().endsWith(".class")
-                    && find.getName().equals("module-info.class") == false
-                    && find.getName().contains("$") == false) {
-                    return find.getAbsolutePath().substring(dir.getAbsolutePath().length() + 1);
-                } else if (find.isDirectory()) {
-                    files.addAll(Arrays.asList(find.listFiles()));
+    private String extractClassNameFromDirectory(File dir) throws IOException {
+        var visitor = new SimpleFileVisitor<Path>() {
+            String result = null;
+
+            @Override
+            public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
+                String name = candidate.getFileName().toString(); // Just the part after the last dir separator
+                if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
+                    result = candidate.toAbsolutePath().toString().substring(dir.getAbsolutePath().length() + 1);
+                    return TERMINATE;
+                } else {
+                    return CONTINUE;
                 }
             }
-
-        }
-        return null;
+        };
+        Files.walkFileTree(dir.toPath(), visitor);
+        return visitor.result;
     }
 
     /**

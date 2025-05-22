@@ -38,7 +38,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (int p = 1; p < 10; p++) {
+        for (int p = 1; p < 20; p++) {
             int points = p;
             suppliers.add(
                 doubles(
@@ -264,16 +264,19 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 case DATETIME, DATE_NANOS, LONG -> "Long";
                 default -> throw new UnsupportedOperationException();
             };
-            String specialization = switch (points.size()) {
-                case 1 -> "1";
-                case 2 -> "2";
-                case 3 -> "3";
-                case 4 -> "4";
-                default -> "Array";
-            };
-            Matcher<String> expectedEvaluatorName = startsWith("RoundTo" + type + specialization + "Evaluator");
+            Matcher<String> expectedEvaluatorName = startsWith("RoundTo" + type + specialization(points.size()) + "Evaluator");
             return new TestCaseSupplier.TestCase(params, expectedEvaluatorName, expectedType, equalTo(expected.apply(field, points)));
         });
+    }
+
+    private static String specialization(int pointsSize) {
+        if (pointsSize < 5) {
+            return Integer.toString(pointsSize);
+        }
+        if (pointsSize < 11) {
+            return "LinearSearch";
+        }
+        return "BinarySearch";
     }
 
     private static DataType expectedType(List<DataType> types) {

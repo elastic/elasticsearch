@@ -8,8 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,22 +18,22 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToDouble}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToDoubleArrayEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLongBinarySearchEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final double[] points;
+  private final long[] points;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToDoubleArrayEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      double[] points, DriverContext driverContext) {
+  public RoundToLongBinarySearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      long[] points, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.points = points;
@@ -42,8 +42,8 @@ public final class RoundToDoubleArrayEvaluator implements EvalOperator.Expressio
 
   @Override
   public Block eval(Page page) {
-    try (DoubleBlock fieldBlock = (DoubleBlock) field.eval(page)) {
-      DoubleVector fieldVector = fieldBlock.asVector();
+    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
+      LongVector fieldVector = fieldBlock.asVector();
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
@@ -51,8 +51,8 @@ public final class RoundToDoubleArrayEvaluator implements EvalOperator.Expressio
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -65,16 +65,16 @@ public final class RoundToDoubleArrayEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendDouble(RoundToDouble.process(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.points));
+        result.appendLong(RoundToLong.process(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.points));
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+  public LongVector eval(int positionCount, LongVector fieldVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, RoundToDouble.process(fieldVector.getDouble(p), this.points));
+        result.appendLong(p, RoundToLong.process(fieldVector.getLong(p), this.points));
       }
       return result.build();
     }
@@ -82,7 +82,7 @@ public final class RoundToDoubleArrayEvaluator implements EvalOperator.Expressio
 
   @Override
   public String toString() {
-    return "RoundToDoubleArrayEvaluator[" + "field=" + field + "]";
+    return "RoundToLongBinarySearchEvaluator[" + "field=" + field + "]";
   }
 
   @Override
@@ -107,22 +107,22 @@ public final class RoundToDoubleArrayEvaluator implements EvalOperator.Expressio
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final double[] points;
+    private final long[] points;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, double[] points) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long[] points) {
       this.source = source;
       this.field = field;
       this.points = points;
     }
 
     @Override
-    public RoundToDoubleArrayEvaluator get(DriverContext context) {
-      return new RoundToDoubleArrayEvaluator(source, field.get(context), points, context);
+    public RoundToLongBinarySearchEvaluator get(DriverContext context) {
+      return new RoundToLongBinarySearchEvaluator(source, field.get(context), points, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToDoubleArrayEvaluator[" + "field=" + field + "]";
+      return "RoundToLongBinarySearchEvaluator[" + "field=" + field + "]";
     }
   }
 }

@@ -16,6 +16,10 @@ import java.util.Arrays;
 
 /**
  * Implementations of {@link RoundTo} for specific types.
+ * <p>
+ *   We have specializations for when there are very few rounding points because
+ *   those are very fast and quite common.
+ * </p>
  * This class is generated. Edit {@code X-RoundTo.java.st} instead.
  */
 class RoundToInt {
@@ -25,15 +29,27 @@ class RoundToInt {
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToInt1Evaluator.Factory(source, field, f[0]);
+            /*
+             * These hand-unrolled implementations are even faster than the linear scan implementations.
+             */
             case 2 -> new RoundToInt2Evaluator.Factory(source, field, f[0], f[1]);
             case 3 -> new RoundToInt3Evaluator.Factory(source, field, f[0], f[1], f[2]);
             case 4 -> new RoundToInt4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
-            default -> new RoundToIntArrayEvaluator.Factory(source, field, f);
+            /*
+             * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
+             * on 2025-05-22.
+             */
+            case 5, 6, 7, 8, 9, 10 -> new RoundToIntLinearSearchEvaluator.Factory(source, field, f);
+            default -> new RoundToIntBinarySearchEvaluator.Factory(source, field, f);
         };
     };
 
-    @Evaluator(extraName = "Array")
-    static int process(int field, @Fixed(includeInToString = false) int[] points) {
+    /**
+     * Search the points array for the match linearly. This is faster for smaller arrays even
+     * when finding a position late in the array. Presumably because this is super-SIMD-able.
+     */
+    @Evaluator(extraName = "LinearSearch")
+    static int processLinear(int field, @Fixed(includeInToString = false) int[] points) {
         // points is always longer than 3 or we use one of the specialized methods below
         for (int i = 1; i < points.length; i++) {
             if (field < points[i]) {
@@ -41,6 +57,12 @@ class RoundToInt {
             }
         }
         return points[points.length - 1];
+    }
+
+    @Evaluator(extraName = "BinarySearch")
+    static int process(int field, @Fixed(includeInToString = false) int[] points) {
+        int idx = Arrays.binarySearch(points, field);
+        return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
     }
 
     @Evaluator(extraName = "1")

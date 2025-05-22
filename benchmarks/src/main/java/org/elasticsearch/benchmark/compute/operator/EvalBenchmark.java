@@ -670,19 +670,23 @@ public class EvalBenchmark {
     }
 
     private static Literal b() {
-        return new Literal(Source.EMPTY, 1L, DataType.LONG);
+        return lit(1L);
     }
 
     private static Literal kb() {
-        return new Literal(Source.EMPTY, ByteSizeUnit.KB.toBytes(1), DataType.LONG);
+        return lit(ByteSizeUnit.KB.toBytes(1));
     }
 
     private static Literal mb() {
-        return new Literal(Source.EMPTY, ByteSizeUnit.MB.toBytes(1), DataType.LONG);
+        return lit(ByteSizeUnit.MB.toBytes(1));
     }
 
     private static Literal gb() {
-        return new Literal(Source.EMPTY, ByteSizeUnit.GB.toBytes(1), DataType.LONG);
+        return lit(ByteSizeUnit.GB.toBytes(1));
+    }
+
+    private static Literal lit(long v) {
+        return new Literal(Source.EMPTY, v, DataType.LONG);
     }
 
     @Benchmark

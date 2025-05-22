@@ -8,8 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,22 +18,22 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLongLinearSearchEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final int[] points;
+  private final long[] points;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToIntArrayEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      int[] points, DriverContext driverContext) {
+  public RoundToLongLinearSearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      long[] points, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.points = points;
@@ -42,8 +42,8 @@ public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEv
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
+    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
+      LongVector fieldVector = fieldBlock.asVector();
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
@@ -51,8 +51,8 @@ public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEv
     }
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -65,16 +65,16 @@ public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendInt(RoundToInt.process(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.points));
+        result.appendLong(RoundToLong.processLinear(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.points));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public LongVector eval(int positionCount, LongVector fieldVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.process(fieldVector.getInt(p), this.points));
+        result.appendLong(p, RoundToLong.processLinear(fieldVector.getLong(p), this.points));
       }
       return result.build();
     }
@@ -82,7 +82,7 @@ public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEv
 
   @Override
   public String toString() {
-    return "RoundToIntArrayEvaluator[" + "field=" + field + "]";
+    return "RoundToLongLinearSearchEvaluator[" + "field=" + field + "]";
   }
 
   @Override
@@ -107,22 +107,22 @@ public final class RoundToIntArrayEvaluator implements EvalOperator.ExpressionEv
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final int[] points;
+    private final long[] points;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int[] points) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long[] points) {
       this.source = source;
       this.field = field;
       this.points = points;
     }
 
     @Override
-    public RoundToIntArrayEvaluator get(DriverContext context) {
-      return new RoundToIntArrayEvaluator(source, field.get(context), points, context);
+    public RoundToLongLinearSearchEvaluator get(DriverContext context) {
+      return new RoundToLongLinearSearchEvaluator(source, field.get(context), points, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntArrayEvaluator[" + "field=" + field + "]";
+      return "RoundToLongLinearSearchEvaluator[" + "field=" + field + "]";
     }
   }
 }

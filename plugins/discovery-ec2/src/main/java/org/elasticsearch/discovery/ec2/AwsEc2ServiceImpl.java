@@ -66,7 +66,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             final var endpoint = Endpoint.builder().url(URI.create(clientSettings.endpoint)).build();
             ec2ClientBuilder.endpointProvider(endpointParams -> CompletableFuture.completedFuture(endpoint));
         }
-        return SocketAccess.doPrivileged(ec2ClientBuilder::build);
+        return ec2ClientBuilder.build();
     }
 
     private static void applyProxyConfiguration(Ec2ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {

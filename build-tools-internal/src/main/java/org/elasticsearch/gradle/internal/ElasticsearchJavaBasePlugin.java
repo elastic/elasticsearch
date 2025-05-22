@@ -21,10 +21,12 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.plugins.JvmTestSuitePlugin;
+import org.gradle.api.plugins.jvm.JvmTestSuite;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -35,6 +37,7 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.testing.base.TestingExtension;
 
 import java.util.List;
 import java.util.Map;
@@ -61,7 +64,18 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
-        project.getPluginManager().apply(JavaBasePlugin.class);
+        project.getPluginManager().apply(JvmTestSuitePlugin.class);
+        TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+        testing.getSuites().withType(JvmTestSuite.class).configureEach(suite -> {
+            if (suite.getName().equals("test") == false) {
+                // default test task behaves differently in gradle
+                suite.useJUnit();
+            }
+            ExternalModuleDependency junitDependency = suite.getDependencies()
+                .module("junit", "junit", VersionProperties.getVersions().get("junit"));
+            junitDependency.setTransitive(false);
+            suite.getDependencies().getImplementation().add(junitDependency);
+        });
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
@@ -99,7 +113,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return;
         }
         // fail on any conflicting dependency versions
-        project.getConfigurations().all(configuration -> {
+        project.getConfigurations().configureEach(configuration -> {
             if (configuration.getName().endsWith("Fixture")) {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return;
@@ -109,17 +123,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
         // disable transitive dependency management
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
+        sourceSets.configureEach(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+
         List<String> sourceSetConfigurationNames = List.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         );
-
         project.getConfigurations()
             .matching(c -> sourceSetConfigurationNames.contains(c.getName()))
             .configureEach(GradleUtils::disableTransitiveDependencies);

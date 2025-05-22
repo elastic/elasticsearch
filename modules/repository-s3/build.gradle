@@ -6,16 +6,15 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+org.elasticsearch.gradle.internal.test.rest.RestTestSuite
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description = 'The S3 repository plugin adds S3 repositories'
-  classname ='org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+  classname = 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 dependencies {
@@ -60,32 +59,152 @@ dependencies {
 
   testImplementation project(':test:fixtures:s3-fixture')
   testImplementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+}
 
-  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
-  internalClusterTestImplementation project(':test:fixtures:minio-fixture')
-  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+tasks.named('check') {
+  // TODO revisit to be the default in ES
+  dependsOn tasks.withType(Test)
+}
 
-  yamlRestTestImplementation project(':modules:repository-s3')
-  yamlRestTestImplementation project(':test:fixtures:aws-fixture-utils')
-  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
-  yamlRestTestImplementation project(':test:framework')
-  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+testing {
+  suites {
+    configureEach {
+      // common configuration for all test suites in this project
+      dependencies {
+        implementation project()
+        implementation project(':test:framework')
+      }
+    }
+    test {
+      dependencies {
+        implementation(project(':test:fixtures:s3-fixture'))
+        implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+      }
+    }
+    // test suite defined by InternalJavaRestTestPlugin
+    internalClusterTest {
+      dependencies {
+        implementation project(':test:fixtures:minio-fixture')
+        implementation project(':test:fixtures:aws-fixture-utils')
+        runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+      }
+      targets {
+        all {
+          testTask.configure {
+            // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
+            systemProperty 'es.insecure_network_trace_enabled', 'true'
+          }
+        }
+      }
+    }
+    // test suite for the java rest tests provided by the InternalJavaRestTestPlugin
+    javaRestTest {
+      dependencies {
+        implementation project(':test:fixtures:aws-fixture-utils')
+        implementation project(':test:fixtures:s3-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+        implementation project(':test:fixtures:aws-sts-fixture')
+        implementation project(':test:fixtures:ec2-imds-fixture')
+        implementation project(':test:fixtures:minio-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+      }
+    }
+    // test suite for the Yaml rest tests provided by the InternalYamlRestTestPlugin
+    yamlRestTest {
+      dependencies {
+        implementation project()
+        implementation project(':test:fixtures:aws-fixture-utils')
+        implementation project(':test:fixtures:s3-fixture')
+        implementation project(':test:fixtures:testcontainer-utils')
+      }
+    }
+    // Add-hoc test suites require to be passed a type. (usually JvmTestSuite)
+    webIdentityTokenTest(JvmTestSuite) {
+      dependencies {
+        implementation project(':server')
+        implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
 
-  javaRestTestImplementation project(':modules:repository-s3')
-  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
-  javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
-  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
-  javaRestTestImplementation project(':test:fixtures:minio-fixture')
-  javaRestTestImplementation project(':test:fixtures:s3-fixture')
-  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
-  javaRestTestImplementation project(':test:framework')
-  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+      }
+      targets {
+        all {
+          testTask.configure {
+            systemProperty 'es.allow_insecure_settings', 'true'
+          }
+        }
+      }
+    }
+    insecureCredentialsTest(JvmTestSuite) {
+      dependencies {
+        implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+      }
+      targets {
+        all {
+          testTask.configure {
+            systemProperty 'es.allow_insecure_settings', 'true'
+          }
+        }
+      }
+    }
+    s3ThirdPartyTest(JvmTestSuite) {
+      dependencies {
+        implementation project(':test:fixtures:minio-fixture')
+        implementation project(':server')
+        implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+        implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+      }
+      targets {
+        all {
+          testTask.configure {
+            boolean useFixture = false
+            String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+            String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+            String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+            String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+            // If all these variables are missing then we are testing against the MinIO fixture instead, which has the following credentials hard-coded in.
+            if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+              useFixture = true
+              s3PermanentAccessKey = 's3_test_access_key'
+              s3PermanentSecretKey = 's3_test_secret_key'
+              s3PermanentBucket = 'bucket'
+              s3PermanentBasePath = 'base_path'
+            }
+            systemProperty("tests.use.fixture", Boolean.toString(useFixture))
+            systemProperty 'test.s3.account', s3PermanentAccessKey
+            systemProperty 'test.s3.key', s3PermanentSecretKey
+            systemProperty 'test.s3.bucket', s3PermanentBucket
+            nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
+
+            // test container accesses ~/.testcontainers.properties read
+            systemProperty "tests.security.manager", "false"
+          }
+        }
+      }
+    }
+  }
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -121,12 +240,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {
-    into 'config'
-}
-
-tasks.named("internalClusterTest").configure {
-  // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
-  systemProperty 'es.insecure_network_trace_enabled', 'true'
+  into 'config'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -189,3 +303,5 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.eventstream.MessageDecoder'
   )
 }
+
+

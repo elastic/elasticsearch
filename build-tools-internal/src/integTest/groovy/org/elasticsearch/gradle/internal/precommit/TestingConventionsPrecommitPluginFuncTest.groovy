@@ -32,7 +32,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                 "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase",
                 "org.elasticsearch.test.AbstractMultiClustersTestCase"
         )
-        repository.generateJar('org.junit', 'junit', "4.42",
+        repository.generateJar('junit', 'junit', "4.42",
                 "org.junit.Assert", "org.junit.Test"
         )
     }
@@ -180,7 +180,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
         dependencies {
             yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
-            yamlRestTestImplementation "org.junit:junit:4.42"
+            yamlRestTestImplementation "junit:junit:4.42"
         }
         """
 
@@ -222,7 +222,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
         dependencies {
             ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
-            ${sourceSetName}Implementation "org.junit:junit:4.42"
+            ${sourceSetName}Implementation "junit:junit:4.42"
         }
         tasks.withType(TestingConventionsCheckTask).configureEach {
             suffix 'IT'
@@ -243,7 +243,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         }
 
         when:
-        def result = gradleRunner("testingConventions").buildAndFail()
+        def result = gradleRunner(taskName).buildAndFail()
         then:
         result.task(taskName).outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
@@ -266,7 +266,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
         dependencies {
             testImplementation "org.apache.lucene:tests.util:1.0"
-            testImplementation "org.junit:junit:4.42"
+            testImplementation "junit:junit:4.42"
         }
         """
     }

@@ -115,7 +115,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
                 JavaBasePlugin.class,
                 javaBasePlugin -> project.getExtensions()
                     .getByType(SourceSetContainer.class)
-                    .all(
+                    .configureEach(
                         sourceSet -> project.getTasks()
                             .withType(Checkstyle.class)
                             .named(sourceSet.getTaskName("checkstyle", null))

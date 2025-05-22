@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
@@ -44,10 +45,14 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
+import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.jvm.JvmTestSuiteTarget;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.testing.base.TestingExtension;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -94,6 +99,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+
         var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 
         // Register integ-test and default distributions
@@ -153,104 +159,154 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
         });
 
-        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
-            SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = task.getExtensions()
-                .getByType(SystemPropertyCommandLineArgumentProvider.class);
+        TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+        testing.getSuites()
+            .withType(RestTestSuite.class)
+            .configureEach(
+                restTestSuite -> restTestSuite.getTargets()
+                    .configureEach((Action<JvmTestSuiteTarget>) jvmTestSuiteTarget -> jvmTestSuiteTarget.getTestTask().configure(test -> {
+                        configureRegisteredRestTask(
+                            project,
+                            test,
+                            integTestDistro,
+                            modulesConfiguration,
+                            featureMetadataConfig,
+                            bwcVersions,
+                            pluginsConfiguration,
+                            extractedPluginsConfiguration,
+                            defaultDistro,
+                            defaultDistroFeatureMetadataConfig
+                        );
+                        test.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+                        test.setDescription("Runs the REST tests against an external cluster");
 
-            task.dependsOn(integTestDistro, modulesConfiguration);
-            registerDistributionInputs(task, integTestDistro);
-
-            // Pass feature metadata on to tests
-            task.getInputs().files(featureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
-            nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
-
-            // Enable parallel execution for these tests since each test gets its own cluster
-            task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
-            nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
-
-            // Disable test failure reporting since this stuff is now captured in build scans
-            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
-
-            // Disable the security manager and syscall filter since the test framework needs to fork processes
-            task.systemProperty("tests.security.manager", "false");
-            task.systemProperty("tests.system_call_filter", "false");
-
-            // Pass minimum wire compatible version which is used by upgrade tests
-            task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, bwcVersions.getMinimumWireCompatibleVersion());
-
-            // Register plugins and modules as task inputs and pass paths as system properties to tests
-            var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
-            registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
-            var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
-            registerConfigurationInputs(
-                task,
-                extractedPluginsConfiguration.getName(),
-                project.getObjects().fileCollection().from(extractedPluginsConfiguration)
+                    }))
             );
 
-            // Wire up integ-test distribution by default for all test tasks
-            FileCollection extracted = integTestDistro.getExtracted();
-            nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
+            configureRegisteredRestTask(
+                project,
+                task,
+                integTestDistro,
+                modulesConfiguration,
+                featureMetadataConfig,
+                bwcVersions,
+                pluginsConfiguration,
+                extractedPluginsConfiguration,
+                defaultDistro,
+                defaultDistroFeatureMetadataConfig
+            );
+        });
+    }
 
-            // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
-            task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
-                @Override
-                public Void call(Object... args) {
-                    if (reasonForUsageProvided(args) == false) {
-                        throw new IllegalArgumentException(
-                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
-                        );
-                    }
-                    task.dependsOn(defaultDistro);
-                    registerDistributionInputs(task, defaultDistro);
+    private void configureRegisteredRestTask(
+        Project project,
+        Test task,
+        ElasticsearchDistribution integTestDistro,
+        Configuration modulesConfiguration,
+        FileCollection featureMetadataConfig,
+        BwcVersions bwcVersions,
+        Configuration pluginsConfiguration,
+        Configuration extractedPluginsConfiguration,
+        ElasticsearchDistribution defaultDistro,
+        FileCollection defaultDistroFeatureMetadataConfig
+    ) {
+        SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = task.getExtensions()
+            .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
-                    nonInputSystemProperties.systemProperty(
-                        DEFAULT_DISTRIBUTION_SYSPROP,
-                        providerFactory.provider(() -> defaultDistro.getExtracted().getSingleFile().getPath())
+        task.dependsOn(integTestDistro, modulesConfiguration);
+        registerDistributionInputs(task, integTestDistro);
+
+        // Pass feature metadata on to tests
+        task.getInputs().files(featureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+        nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
+
+        // Enable parallel execution for these tests since each test gets its own cluster
+        task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+        nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
+
+        // Disable test failure reporting since this stuff is now captured in build scans
+        task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
+
+        // Disable the security manager and syscall filter since the test framework needs to fork processes
+        task.systemProperty("tests.security.manager", "false");
+        task.systemProperty("tests.system_call_filter", "false");
+
+        // Pass minimum wire compatible version which is used by upgrade tests
+        task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, bwcVersions.getMinimumWireCompatibleVersion());
+
+        // Register plugins and modules as task inputs and pass paths as system properties to tests
+        var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
+        nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
+        registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
+        var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
+        nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
+        registerConfigurationInputs(
+            task,
+            extractedPluginsConfiguration.getName(),
+            project.getObjects().fileCollection().from(extractedPluginsConfiguration)
+        );
+
+        // Wire up integ-test distribution by default for all test tasks
+        FileCollection extracted = integTestDistro.getExtracted();
+        nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
+
+        // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
+        task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
+            @Override
+            public Void call(Object... args) {
+                if (reasonForUsageProvided(args) == false) {
+                    throw new IllegalArgumentException(
+                        "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
                     );
+                }
+                task.dependsOn(defaultDistro);
+                registerDistributionInputs(task, defaultDistro);
 
-                    // If we are using the default distribution we need to register all module feature metadata
-                    task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
-                    nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
+                nonInputSystemProperties.systemProperty(
+                    DEFAULT_DISTRIBUTION_SYSPROP,
+                    providerFactory.provider(() -> defaultDistro.getExtracted().getSingleFile().getPath())
+                );
 
-                    return null;
+                // If we are using the default distribution we need to register all module feature metadata
+                task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+                nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
+
+                return null;
+            }
+
+            private static boolean reasonForUsageProvided(Object[] args) {
+                return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
+            }
+        });
+
+        // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
+        task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
+            @Override
+            public Void call(Object... args) {
+                if (args.length != 1 || args[0] instanceof Version == false) {
+                    throw new IllegalArgumentException("Expected exactly one argument of type org.elasticsearch.gradle.Version");
                 }
 
-                private static boolean reasonForUsageProvided(Object[] args) {
-                    return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
+                Version version = (Version) args[0];
+                boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
+                String versionString = version.toString();
+                ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
+
+                task.dependsOn(bwcDistro);
+                registerDistributionInputs(task, bwcDistro);
+
+                nonInputSystemProperties.systemProperty(
+                    (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
+                    providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
+                );
+
+                if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
+                    // If we are upgrade testing older versions we also need to upgrade to 7.last
+                    this.call(bwcVersions.getMinimumWireCompatibleVersion());
                 }
-            });
-
-            // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
-            task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
-                @Override
-                public Void call(Object... args) {
-                    if (args.length != 1 || args[0] instanceof Version == false) {
-                        throw new IllegalArgumentException("Expected exactly one argument of type org.elasticsearch.gradle.Version");
-                    }
-
-                    Version version = (Version) args[0];
-                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
-                    String versionString = version.toString();
-                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
-
-                    task.dependsOn(bwcDistro);
-                    registerDistributionInputs(task, bwcDistro);
-
-                    nonInputSystemProperties.systemProperty(
-                        (isReleased ? BWC_RELEASED_DISTRIBUTION_SYSPROP_PREFIX : BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX) + versionString,
-                        providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
-                    );
-
-                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
-                        // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(bwcVersions.getMinimumWireCompatibleVersion());
-                    }
-                    return null;
-                }
-            });
+                return null;
+            }
         });
     }
 

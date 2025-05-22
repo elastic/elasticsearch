@@ -18,7 +18,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
-import java.util.stream.Collectors;
 
 public class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
     @Inject
@@ -31,8 +30,7 @@ public class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
         return project.getTasks().register("licenseHeaders", LicenseHeadersTask.class, licenseHeadersTask -> {
             project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
                 final SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
-                licenseHeadersTask.getSourceFolders()
-                    .addAll(providerFactory.provider(() -> sourceSets.stream().map(s -> s.getAllJava()).collect(Collectors.toList())));
+                sourceSets.configureEach(sourceSet -> { licenseHeadersTask.getSourceFolders().add(sourceSet.getAllJava()); });
             });
         });
     }

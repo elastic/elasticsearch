@@ -9,16 +9,12 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskProvider;
+import org.gradle.testing.base.TestingExtension;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
 
 /**
@@ -32,15 +28,15 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
+        TestingExtension testing = project.getExtensions().getByType(TestingExtension.class);
+        testing.getSuites().registerBinding(YamlRestTestSuite.class, DefaultYamlRestTestSuite.class);
+        testing.getSuites().register(SOURCE_SET_NAME, YamlRestTestSuite.class, suite -> {
+            suite.useJUnit();
+            configureYamlSourceSet(project, suite.getSources());
+        });
+    }
 
-        // create source set
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-
-        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
-
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
-
+    private void configureYamlSourceSet(Project project, SourceSet yamlTestSourceSet) {
         // setup the dependencies
         setupYamlRestTestDependenciesDefaults(project, yamlTestSourceSet, true);
 

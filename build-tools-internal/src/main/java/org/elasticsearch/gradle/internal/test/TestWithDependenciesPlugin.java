@@ -47,7 +47,7 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
         }
 
         Configuration testImplementationConfig = project.getConfigurations().getByName("testImplementation");
-        testImplementationConfig.getDependencies().all(dep -> {
+        testImplementationConfig.getDependencies().configureEach(dep -> {
             if (dep instanceof ProjectDependency && dep.getGroup().contains("plugin")) {
                 addPluginResources(project, ((ProjectDependency) dep));
             }

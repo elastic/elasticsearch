@@ -32,15 +32,6 @@ public class SimplifiedInnerRetrieverUtils {
 
     private SimplifiedInnerRetrieverUtils() {}
 
-    public static List<CompoundRetrieverBuilder.RetrieverSource> convertToRetrievers(Collection<String> fields, String query) {
-        List<CompoundRetrieverBuilder.RetrieverSource> retrievers = new ArrayList<>(fields.size());
-        for (String field : fields) {
-            RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(new MatchQueryBuilder(field, query));
-            retrievers.add(new CompoundRetrieverBuilder.RetrieverSource(retrieverBuilder, null));
-        }
-        return retrievers;
-    }
-
     public static List<RetrieverBuilder> generateInnerRetrievers(
         List<String> fieldsAndWeights,
         String query,

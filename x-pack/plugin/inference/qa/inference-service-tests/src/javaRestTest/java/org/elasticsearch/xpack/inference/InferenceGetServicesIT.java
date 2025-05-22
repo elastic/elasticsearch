@@ -101,7 +101,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(7));
+        assertThat(services.size(), equalTo(8));
 
         var providers = providers(services);
 
@@ -115,7 +115,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "jinaai",
                     "test_reranking_service",
-                    "voyageai"
+                    "voyageai",
+                    "hugging_face"
                 ).toArray()
             )
         );

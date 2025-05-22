@@ -586,6 +586,51 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithConditionOnForkField() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | WHERE _fork == "fork2"
+                | KEEP _fork, id, content, a, b, c
+                | SORT _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a", "b", "c"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "fork2", 5, "There is also a white cat", null, 2, null }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithFilteringOnConstantColumn() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL a = 2 )
+                       ( WHERE content:"dog" | EVAL a = 3 )
+                | WHERE a == 3
+                | KEEP _fork, id, content, a
+                | SORT id
+                | LIMIT 3
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork3", 2, "This is a brown dog", 3),
+                List.of("fork3", 3, "This dog is really brown", 3),
+                List.of("fork3", 4, "The dog is brown but this document is very very long", 3)
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test

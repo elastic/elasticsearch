@@ -79,7 +79,7 @@ public class EntitlementInitialization {
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             ENTITLEMENTS_MODULE,
             pathLookup,
-            bootstrapArgs.suppressFailureLogClasses()
+            bootstrapArgs.suppressFailureLogPackages()
         );
     }
 

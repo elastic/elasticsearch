@@ -10,7 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.AbstractRefCounted;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public abstract class CloseableConnection extends AbstractRefCounted implements Transport.Connection {
 
-    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
-    private final ListenableFuture<Void> removeContext = new ListenableFuture<>();
+    private final SubscribableListener<Void> closeContext = new SubscribableListener<>();
+    private final SubscribableListener<Void> removeContext = new SubscribableListener<>();
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean removed = new AtomicBoolean(false);
@@ -45,6 +45,12 @@ public abstract class CloseableConnection extends AbstractRefCounted implements 
     public void close() {
         if (closed.compareAndSet(false, true)) {
             closeContext.onResponse(null);
+        }
+    }
+
+    public void closeAndFail(Exception e) {
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onFailure(e);
         }
     }
 

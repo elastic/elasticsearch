@@ -30,11 +30,10 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
@@ -69,13 +68,16 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        SegmentReadState directIOState = new SegmentReadState(
-            state.directory,
-            state.segmentInfo,
-            state.fieldInfos,
-            new DirectIOContext(state.context),
-            state.segmentSuffix
-        );
+        // only override the context for the random-access use case
+        SegmentReadState directIOState = state.context.context() == IOContext.Context.DEFAULT
+            ? new SegmentReadState(
+                state.directory,
+                state.segmentInfo,
+                state.fieldInfos,
+                new DirectIOContext(state.context.hints()),
+                state.segmentSuffix
+            )
+            : state;
         // Use mmap for merges and direct I/O for searches.
         // TODO: Open the mmap file with sequential access instead of random (current behavior).
         return new MergeReaderWrapper(
@@ -91,27 +93,26 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     static class DirectIOContext implements IOContext {
 
-        final IOContext delegate;
         final Set<FileOpenHint> hints;
 
-        DirectIOContext(IOContext delegate) {
-            this.delegate = delegate;
-            hints = Stream.concat(delegate.hints().stream(), Stream.of(DirectIOHint.INSTANCE)).collect(Collectors.toSet());
+        DirectIOContext(Set<FileOpenHint> hints) {
+            // always add DirectIOHint to the hints given
+            this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
         }
 
         @Override
         public Context context() {
-            return delegate.context();
+            return Context.DEFAULT;
         }
 
         @Override
         public MergeInfo mergeInfo() {
-            return delegate.mergeInfo();
+            return null;
         }
 
         @Override
         public FlushInfo flushInfo() {
-            return delegate.flushInfo();
+            return null;
         }
 
         @Override
@@ -121,7 +122,7 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public IOContext withHints(FileOpenHint... hints) {
-            return delegate.withHints(hints);  // TODO: keep the directIO or drop it ?
+            return new DirectIOContext(Set.of(hints));
         }
     }
 }

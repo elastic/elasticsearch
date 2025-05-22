@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiChatCompletionResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -31,10 +30,7 @@ public class GoogleVertexAiCompletionRequestManager extends GoogleVertexAiReques
     private static final ResponseHandler HANDLER = createGoogleVertexAiResponseHandler();
 
     private static ResponseHandler createGoogleVertexAiResponseHandler() {
-        return new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-            "Google Vertex AI chat completion",
-            GoogleVertexAiChatCompletionResponseEntity::fromResponse
-        );
+        return new GoogleVertexAiUnifiedChatCompletionResponseHandler("Google Vertex AI chat completion");
     }
 
     private final GoogleVertexAiChatCompletionModel model;

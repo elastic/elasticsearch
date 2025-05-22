@@ -41,8 +41,10 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     private static final String ERROR_MESSAGE_FIELD = "message";
     private static final String ERROR_STATUS_FIELD = "status";
 
-    public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, GoogleVertexAiErrorResponse::fromResponse, true);
+    private static final ResponseParser noopParseFunction = (a, b) -> null;
+
+    public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType) {
+        super(requestType, noopParseFunction, GoogleVertexAiErrorResponse::fromResponse, true);
     }
 
     @Override

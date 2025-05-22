@@ -1046,8 +1046,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, useLegacyFormat));
         }
         if (useLegacyFormat) {
-            var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false)
-                .docValues(false);
+            var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
             chunksField.add(chunkTextField);
         } else {
             chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));

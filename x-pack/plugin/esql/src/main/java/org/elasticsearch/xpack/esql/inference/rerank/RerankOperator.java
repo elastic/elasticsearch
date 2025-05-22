@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 
 public class RerankOperator extends InferenceOperator {
     public record Factory(
@@ -61,7 +62,7 @@ public class RerankOperator extends InferenceOperator {
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, inferenceRunner, threadPool, inferenceId);
+        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
         this.queryText = queryText;
         this.rowEncoder = rowEncoder;
         this.scoreChannel = scoreChannel;

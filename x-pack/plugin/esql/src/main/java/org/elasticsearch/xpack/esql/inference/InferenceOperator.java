@@ -28,13 +28,14 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     private static final int MAX_INFERENCE_WORKER = 10;
     private final String inferenceId;
     private final BlockFactory blockFactory;
-
+    private final BulkInferenceExecutionConfig bulkExecutionConfig;
     private final BulkInferenceExecutor bulkInferenceExecutor;
 
-    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, ThreadPool threadPool, String inferenceId) {
+    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, BulkInferenceExecutionConfig bulkExecutionConfig, ThreadPool threadPool, String inferenceId) {
         super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig());
+        this.bulkExecutionConfig = bulkExecutionConfig;
+        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig);
         this.inferenceId = inferenceId;
     }
 
@@ -78,7 +79,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     }
 
     protected BulkInferenceExecutionConfig bulkExecutionConfig() {
-        return BulkInferenceExecutionConfig.DEFAULT;
+        return bulkExecutionConfig;
     }
 
     protected abstract BulkInferenceRequestIterator requests(Page input);

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 public class CompletionOperator extends InferenceOperator {
@@ -48,7 +49,7 @@ public class CompletionOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, inferenceRunner, threadPool, inferenceId);
+        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
         this.promptEvaluator = promptEvaluator;
     }
 

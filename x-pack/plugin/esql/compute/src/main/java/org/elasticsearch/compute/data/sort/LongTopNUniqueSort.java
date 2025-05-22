@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.sort;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BinarySearcher;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -27,6 +28,11 @@ public class LongTopNUniqueSort implements Releasable {
 
     private final LongArray values;
     private final LongBinarySearcher searcher;
+    /**
+     * Hash holding the unique seen values.
+     * Adding is an O(1) operation to check if the new value is already in the top, and avoid trying to add it again, which is O(log(n)).
+     */
+    private final LongHash seenUniqueValues;
 
     private int count;
 
@@ -34,8 +40,18 @@ public class LongTopNUniqueSort implements Releasable {
         this.order = order;
         this.limit = limit;
         this.count = 0;
-        this.values = bigArrays.newLongArray(limit, false);
-        this.searcher = new LongBinarySearcher(values, order);
+
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(limit, false);
+            this.seenUniqueValues = new LongHash(1, bigArrays);
+            this.searcher = new LongBinarySearcher(values, order);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     public boolean collect(long value) {
@@ -47,6 +63,10 @@ public class LongTopNUniqueSort implements Releasable {
         // This avoids a O(log(n)) check in the binary search
         if (count == limit && betterThan(getWorstValue(), value)) {
             return false;
+        }
+
+        if (seenUniqueValues.add(value) < 0) {
+            return true;
         }
 
         if (count == 0) {
@@ -159,6 +179,6 @@ public class LongTopNUniqueSort implements Releasable {
 
     @Override
     public final void close() {
-        Releasables.close(values);
+        Releasables.close(values, seenUniqueValues);
     }
 }

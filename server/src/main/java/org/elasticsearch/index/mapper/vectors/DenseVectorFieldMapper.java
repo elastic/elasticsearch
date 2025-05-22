@@ -1780,8 +1780,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
                 updatable = int4HnswIndexOptions.m >= this.m && confidenceInterval == int4HnswIndexOptions.confidenceInterval;
             }
-            return updatable
-                || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
+            return updatable || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
         }
     }
 

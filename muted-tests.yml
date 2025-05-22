@@ -468,6 +468,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testInvalidTimestamp
   issue: https://github.com/elastic/elasticsearch/issues/128284
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test120DockerLogsIncludeElasticsearchLogs
+  issue: https://github.com/elastic/elasticsearch/issues/128117
 
 # Examples:
 #

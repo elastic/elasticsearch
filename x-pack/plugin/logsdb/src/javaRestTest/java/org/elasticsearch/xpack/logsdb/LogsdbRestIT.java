@@ -340,4 +340,108 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertNull(settings.get("index.mapping.source.mode"));
         assertEquals("true", settings.get(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey()));
     }
+
+    public void testSyntheticSourceRuntimeFieldQueries() throws IOException {
+        String mappings = """
+            {
+                "runtime": {
+                    "message_length": {
+                        "type": "long"
+                    }
+                },
+                "dynamic": false,
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    }
+                }
+            }
+            """;
+        String indexName = "test-foo";
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
+
+        int numDocs = 100_000;
+        var sb = new StringBuilder();
+        var now = Instant.now();
+
+        for (int i = 0; i < numDocs; i++) {
+            String msg = randomAlphaOfLength(20);
+            String messageLength = Integer.toString(msg.length());
+            sb.append("{ \"create\": {} }").append('\n');
+            sb.append("""
+                {"@timestamp": "$now", "message_length": $l}
+                """.replace("$now", formatInstant(now)).replace("$l", messageLength));
+            sb.append('\n');
+            if (i != numDocs - 1) {
+                now = now.plusSeconds(1);
+            }
+
+            if (i % 1000 == 0) {
+                var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+                bulkRequest.setJsonEntity(sb.toString());
+                var bulkResponse = client().performRequest(bulkRequest);
+                var bulkResponseBody = responseAsMap(bulkResponse);
+                assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+                sb = new StringBuilder();
+            }
+        }
+
+        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(sb.toString());
+        bulkRequest.addParameter("refresh", "true");
+        var bulkResponse = client().performRequest(bulkRequest);
+        var bulkResponseBody = responseAsMap(bulkResponse);
+        assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+
+        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeResponse = client().performRequest(forceMergeRequest);
+        assertOK(forceMergeResponse);
+
+        var searchRequest = new Request("POST", "/" + indexName + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "size": 1,
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "gte": 1,
+                                        "lt": 900000
+                                    }
+                                }
+                            },
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "gte": 900000,
+                                        "lt": 1000000
+                                    }
+                                }
+                            }
+                        ],
+                        "minimum_should_match": "1",
+                        "must_not": [
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "lt": 0
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+            """);
+        var searchResponse = client().performRequest(searchRequest);
+        assertOK(searchResponse);
+        var searchResponseBody = responseAsMap(searchResponse);
+        var shardsHeader = (Map<?, ?>) searchResponseBody.get("_shards");
+        assertThat(shardsHeader.get("failed"), equalTo(0));
+        assertThat(shardsHeader.get("successful"), equalTo(1));
+        assertThat(shardsHeader.get("skipped"), equalTo(0));
+        logger.info("searchResponse: {}", searchResponseBody);
+    }
 }

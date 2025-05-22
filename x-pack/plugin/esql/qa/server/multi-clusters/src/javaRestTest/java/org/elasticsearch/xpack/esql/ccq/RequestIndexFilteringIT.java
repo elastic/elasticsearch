@@ -142,8 +142,9 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     private static boolean checkVersion(org.elasticsearch.Version version) {
-        return version.onOrAfter(Version.fromString("9.1.0"))
-            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+        return version.onOrAfter(Version.fromString("9.1.0"));
+        // TODO: enable this when ported to 8.x
+        // || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently

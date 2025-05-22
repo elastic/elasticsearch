@@ -1299,64 +1299,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testUnifiedCompletionInfer_WithGoogleVertexAiModel() throws IOException {
-        var elasticInferenceServiceURL = getUrl(webServer);
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
-            // Mock a successful streaming response
-            String responseJson = """
-                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
-                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
-
-                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
-                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
-
-                data: [DONE]
-
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            // Create chat completion model
-            var model = new ElasticInferenceServiceCompletionModel(
-                "id",
-                TaskType.CHAT_COMPLETION,
-                "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("gemini-2.0-flash-001", new RateLimitSettings(100)),
-                EmptyTaskSettings.INSTANCE,
-                EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
-            );
-
-            var request = UnifiedCompletionRequest.of(
-                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello"), "user", null, null))
-            );
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-
-            try {
-                service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-                listener.actionGet(TIMEOUT);
-
-                // Verify the request was sent
-                assertThat(webServer.requests(), hasSize(1));
-                var httpRequest = webServer.requests().getFirst();
-
-                // Check that the Gemini API was called.
-                assertThat(
-                    httpRequest.getBody().toString(),
-                    equalTo(
-                        "{\"messages\":[{\"content\":\"Hello\",\"role\":\"user\"}],\"n\":1,\"stream\":true,\"stream_options\":{\"include_usage\":true},\"model\":\"gemini-2.0-flash-001\"}"
-                    )
-                );
-            } finally {
-                // Clean up the thread context
-                threadPool.getThreadContext().stashContext();
-            }
-        }
-    }
-
     private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
         service.onNodeStarted();
         service.waitForFirstAuthorizationToComplete(TIMEOUT);

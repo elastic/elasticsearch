@@ -1047,11 +1047,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false)
-                .docValues(false)
-                .excludeFromFieldCaps(true);
+                .docValues(false);
             chunksField.add(chunkTextField);
         } else {
-            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD).excludeFromFieldCaps(true));
+            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
         }
         return chunksField;
     }
@@ -1062,8 +1061,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(useLegacyFormat == false)
-                .excludeFromFieldCaps(true);
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(useLegacyFormat == false);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
@@ -1093,7 +1091,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
                     denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
                 }
-                denseVectorMapperBuilder.excludeFromFieldCaps(true);
 
                 yield denseVectorMapperBuilder;
             }

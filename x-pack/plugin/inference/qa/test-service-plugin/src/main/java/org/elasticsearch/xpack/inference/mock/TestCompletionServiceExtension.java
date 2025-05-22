@@ -132,7 +132,15 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
         }
 
         @Override
-        public void chunkedInfer(Model model, String query, List<ChunkInferenceInput> input, Map<String, Object> taskSettings, InputType inputType, TimeValue timeout, ActionListener<List<ChunkedInference>> listener) {
+        public void chunkedInfer(
+            Model model,
+            String query,
+            List<ChunkInferenceInput> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue timeout,
+            ActionListener<List<ChunkedInference>> listener
+        ) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -143,7 +151,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
 
         private InferenceServiceResults makeChatCompletionResults(List<String> inputs) {
             List<ChatCompletionResults.Result> results = new ArrayList<>();
-            for (String text: inputs) {
+            for (String text : inputs) {
                 results.add(new ChatCompletionResults.Result(text.toUpperCase(Locale.ROOT)));
             }
 

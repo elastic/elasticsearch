@@ -135,10 +135,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         }
 
         builder.startObject(SYSTEM_INSTRUCTION);
-        builder.startArray(PARTS);
-        for (var systemMessage : systemMessages) {
-            switch (systemMessage.content()) {
-                case UnifiedCompletionRequest.ContentString contentString -> {
+        {
+            builder.startArray(PARTS);
+            for (var systemMessage : systemMessages) {
+                if (systemMessage.content() instanceof UnifiedCompletionRequest.ContentString contentString) {
                     if (contentString.content().isEmpty()) {
                         var errorMessage = "System message cannot be empty for Google Vertex AI";
                         throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
@@ -146,21 +146,19 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     builder.startObject();
                     builder.field(TEXT, contentString.content());
                     builder.endObject();
-                }
-                case UnifiedCompletionRequest.ContentObjects contentObjects -> {
+                } else if (systemMessage.content() instanceof UnifiedCompletionRequest.ContentObjects contentObjects) {
                     for (var contentObject : contentObjects.contentObjects()) {
                         builder.startObject();
                         builder.field(TEXT, contentObject.text());
                         builder.endObject();
                     }
-                }
-                default -> {
+                } else {
                     var errorMessage = "Only text system instructions are supported for Vertex AI";
                     throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
                 }
             }
+            builder.endArray();
         }
-        builder.endArray();
         builder.endObject();
 
     }
@@ -178,33 +176,32 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.startObject();
             builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(message.role()));
             builder.startArray(PARTS);
-            switch (message.content()) {
-                case UnifiedCompletionRequest.ContentString contentString -> {
-                    if (contentString.content().isEmpty()) {
-                        break; // VertexAI API does not support empty text parts
+            {
+                if (message.content() instanceof UnifiedCompletionRequest.ContentString) {
+                    UnifiedCompletionRequest.ContentString contentString = (UnifiedCompletionRequest.ContentString) message.content();
+                    // VertexAI does not support empty text parts
+                    if (contentString.content().isEmpty() == false) {
+                        builder.startObject();
+                        builder.field(TEXT, contentString.content());
+                        builder.endObject();
                     }
-                    builder.startObject();
-                    builder.field(TEXT, contentString.content());
-                    builder.endObject();
+                } else if (message.content() instanceof UnifiedCompletionRequest.ContentObjects) {
+                    UnifiedCompletionRequest.ContentObjects contentObjects = (UnifiedCompletionRequest.ContentObjects) message.content();
+                    validateAndAddContentObjectsToBuilder(builder, contentObjects);
                 }
-                case UnifiedCompletionRequest.ContentObjects contentObjects -> validateAndAddContentObjectsToBuilder(
-                    builder,
-                    contentObjects
-                );
-                case null -> {
-                    // Content can be null and that's fine. If this case is not present, Null pointer exception will be thrown
-                }
-            }
 
-            if (message.toolCalls() != null && message.toolCalls().isEmpty() == false) {
-                var toolCalls = message.toolCalls();
-                for (var toolCall : toolCalls) {
-                    builder.startObject();
-                    builder.startObject(FUNCTION_CALL);
-                    builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
-                    builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
-                    builder.endObject();
-                    builder.endObject();
+                if (message.toolCalls() != null && message.toolCalls().isEmpty() == false) {
+                    var toolCalls = message.toolCalls();
+                    for (var toolCall : toolCalls) {
+                        builder.startObject();
+                        {
+                            builder.startObject(FUNCTION_CALL);
+                            builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
+                            builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
                 }
             }
             builder.endArray();
@@ -222,37 +219,38 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         }
 
         builder.startArray(TOOLS);
-        builder.startObject();
-        builder.startArray(FUNCTION_DECLARATIONS);
-        for (var tool : tools) {
-            if (FUNCTION_TYPE.equals(tool.type()) == false) {
-                var errorMessage = format(
-                    "Tool type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [%s]",
-                    tool.type(),
-                    FUNCTION_TYPE
-                );
-                throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
-            }
-            var function = tool.function();
-            if (function == null) {
-                var errorMessage = format("Tool of type [%s] must have a function definition", tool.type());
-                throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
-            }
-
+        {
             builder.startObject();
-            builder.field(FUNCTION_NAME, function.name());
-            if (Strings.hasText(function.description())) {
-                builder.field(FUNCTION_DESCRIPTION, function.description());
-            }
+            builder.startArray(FUNCTION_DECLARATIONS);
+            for (var tool : tools) {
+                if (FUNCTION_TYPE.equals(tool.type()) == false) {
+                    var errorMessage = format(
+                        "Tool type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [%s]",
+                        tool.type(),
+                        FUNCTION_TYPE
+                    );
+                    throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                }
+                var function = tool.function();
+                if (function == null) {
+                    var errorMessage = format("Tool of type [%s] must have a function definition", tool.type());
+                    throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                }
 
-            if (function.parameters() != null && function.parameters().isEmpty() == false) {
-                builder.field(FUNCTION_PARAMETERS, function.parameters());
-            }
+                builder.startObject();
+                builder.field(FUNCTION_NAME, function.name());
+                if (Strings.hasText(function.description())) {
+                    builder.field(FUNCTION_DESCRIPTION, function.description());
+                }
 
+                if (function.parameters() != null && function.parameters().isEmpty() == false) {
+                    builder.field(FUNCTION_PARAMETERS, function.parameters());
+                }
+                builder.endObject();
+            }
+            builder.endArray();
             builder.endObject();
         }
-        builder.endArray();
-        builder.endObject();
         builder.endArray();
     }
 
@@ -260,24 +258,24 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         var request = unifiedChatInput.getRequest();
 
         UnifiedCompletionRequest.ToolChoiceObject toolChoice;
-        switch (request.toolChoice()) {
-            case UnifiedCompletionRequest.ToolChoiceObject toolChoiceObject -> toolChoice = toolChoiceObject;
-            case UnifiedCompletionRequest.ToolChoiceString toolChoiceString -> {
-                if (toolChoiceString.value().equals(TOOL_MODE_AUTO)) {
-                    return;
-                }
-                throw new ElasticsearchStatusException(
-                    format(
-                        "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s]",
-                        toolChoiceString.value(),
-                        TOOL_MODE_AUTO
-                    ),
-                    RestStatus.BAD_REQUEST
-                );
-            }
-            case null -> {
+        if (request.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceObject) {
+            UnifiedCompletionRequest.ToolChoiceObject toolChoiceObject = (UnifiedCompletionRequest.ToolChoiceObject) request.toolChoice();
+            toolChoice = toolChoiceObject;
+        } else if (request.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceString) {
+            UnifiedCompletionRequest.ToolChoiceString toolChoiceString = (UnifiedCompletionRequest.ToolChoiceString) request.toolChoice();
+            if (toolChoiceString.value().equals(TOOL_MODE_AUTO)) {
                 return;
             }
+            throw new ElasticsearchStatusException(
+                format(
+                    "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s]",
+                    toolChoiceString.value(),
+                    TOOL_MODE_AUTO
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        } else {
+            return;
         }
         if (FUNCTION_TYPE.equals(toolChoice.type()) == false) {
             var errorMessage = format(

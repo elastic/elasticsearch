@@ -27,8 +27,10 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.IOContext.FileOpenHint;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 /**
  * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
@@ -63,11 +65,12 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        var newHints = Stream.concat(state.context.hints().stream(), Stream.of(DirectIOHint.INSTANCE)).toArray(FileOpenHint[]::new);
         SegmentReadState directIOState = new SegmentReadState(
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
-            state.context.withHints(DirectIOHint.INSTANCE),
+            state.context.withHints(newHints),
             state.segmentSuffix
         );
         // Use mmap for merges and direct I/O for searches.

@@ -18,9 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -240,8 +237,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         // if the query options for pruning are not set, we need to check the index options for this field
         // and use those if set - however, only if the index was created after we added this support.
-        if (ft.getClass().equals(SparseVectorFieldMapper.SparseVectorFieldType.class) &&
-            context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+        if (ft.getClass().equals(SparseVectorFieldMapper.SparseVectorFieldType.class)
+            && context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
             SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType = (SparseVectorFieldMapper.SparseVectorFieldType) ft;
 
             if (asSVFieldType.getIndexOptions() != null) {

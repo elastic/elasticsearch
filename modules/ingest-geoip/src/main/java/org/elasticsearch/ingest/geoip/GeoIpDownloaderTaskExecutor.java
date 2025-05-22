@@ -108,24 +108,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     private final ConcurrentHashMap<ProjectId, AtomicBoolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
-    // TODO: start task add to map, stop task remove from map
     private final ConcurrentHashMap<ProjectId, AtomicReference<GeoIpDownloader>> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
-    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
-        super(GEOIP_DOWNLOADER, threadPool.generic());
-        this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
-        this.httpClient = httpClient;
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.settings = clusterService.getSettings();
-        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
-        this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
-        this.projectResolver = null;
-    }
-
-    // TODO: consolidate with the other constructor
     GeoIpDownloaderTaskExecutor(
         Client client,
         HttpClient httpClient,

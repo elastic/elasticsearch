@@ -1790,6 +1790,7 @@ count:long
 
 airportsDistanceLessThanInvalidPoint
 required_capability: st_distance
+required_capability: geo_validation
 
 FROM airports
 | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
@@ -1807,6 +1808,7 @@ count:l
 
 airportsDistanceLessThanInvalidPoint2
 required_capability: st_distance
+required_capability: geo_validation
 
 FROM airports
 | EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
@@ -1824,6 +1826,7 @@ count:l
 
 airportsDistanceGreaterThanInvalidPoint
 required_capability: st_distance
+required_capability: geo_validation
 
 FROM airports
 | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
@@ -1841,6 +1844,7 @@ count:l
 
 airportsDistanceGreaterThanInvalidPoint2
 required_capability: st_distance
+required_capability: geo_validation
 
 FROM airports
 | EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)

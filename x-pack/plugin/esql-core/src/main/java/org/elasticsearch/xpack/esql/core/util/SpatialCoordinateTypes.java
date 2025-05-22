@@ -35,7 +35,8 @@ public enum SpatialCoordinateTypes {
         }
 
         public GeometryValidator validator() {
-            return GeographyValidator.instance(false);
+            // We validate the lat/lon values, and ignore any z values
+            return GeographyValidator.instance(true);
         }
     },
     CARTESIAN {

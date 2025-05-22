@@ -9,4 +9,4 @@
 
 package org.elasticsearch.bootstrap;
 
-record TestBuildInfoLocation(String className, String moduleName) {}
+record TestBuildInfoLocation(String representativeClass, String module) {}

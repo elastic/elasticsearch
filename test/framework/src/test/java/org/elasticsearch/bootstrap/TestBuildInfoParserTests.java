@@ -25,22 +25,22 @@ public class TestBuildInfoParserTests extends ESTestCase {
 
         var input = """
             {
-                "name": "lang-painless",
+                "component": "lang-painless",
                 "locations": [
                     {
-                        "class": "Location.class",
+                        "representativeClass": "Location.class",
                         "module": "org.elasticsearch.painless"
                     },
                     {
-                        "class": "org/objectweb/asm/AnnotationVisitor.class",
+                        "representativeClass": "org/objectweb/asm/AnnotationVisitor.class",
                         "module": "org.objectweb.asm"
                     },
                     {
-                        "class": "org/antlr/v4/runtime/ANTLRErrorListener.class",
+                        "representativeClass": "org/antlr/v4/runtime/ANTLRErrorListener.class",
                         "module": "org.antlr.antlr4.runtime"
                     },
                     {
-                        "class": "org/objectweb/asm/commons/AdviceAdapter.class",
+                        "representativeClass": "org/objectweb/asm/commons/AdviceAdapter.class",
                         "module": "org.objectweb.asm.commons"
                     }
                 ]
@@ -49,11 +49,11 @@ public class TestBuildInfoParserTests extends ESTestCase {
 
         try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, input)) {
             var testInfo = TestBuildInfoParser.fromXContent(parser);
-            assertThat(testInfo.componentName(), is("lang-painless"));
+            assertThat(testInfo.component(), is("lang-painless"));
             assertThat(
                 testInfo.locations(),
                 transformedItemsMatch(
-                    TestBuildInfoLocation::moduleName,
+                    TestBuildInfoLocation::module,
                     contains("org.elasticsearch.painless", "org.objectweb.asm", "org.antlr.antlr4.runtime", "org.objectweb.asm.commons")
                 )
             );
@@ -61,7 +61,7 @@ public class TestBuildInfoParserTests extends ESTestCase {
             assertThat(
                 testInfo.locations(),
                 transformedItemsMatch(
-                    TestBuildInfoLocation::className,
+                    TestBuildInfoLocation::representativeClass,
                     contains(
                         "Location.class",
                         "org/objectweb/asm/AnnotationVisitor.class",

@@ -46,30 +46,30 @@ record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
         Map<String, PolicyManager.PolicyScope> scopeMap = new HashMap<>();
         for (var pluginBuildInfo : pluginsBuildInfo) {
             for (var location : pluginBuildInfo.locations()) {
-                var codeSource = TestScopeResolver.class.getClassLoader().getResource(location.className());
+                var codeSource = TestScopeResolver.class.getClassLoader().getResource(location.representativeClass());
                 if (codeSource == null) {
-                    throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]");
+                    throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]");
                 }
                 try {
                     scopeMap.put(
-                        getCodeSource(codeSource, location.className()),
-                        PolicyManager.PolicyScope.plugin(pluginBuildInfo.componentName(), location.moduleName())
+                        getCodeSource(codeSource, location.representativeClass()),
+                        PolicyManager.PolicyScope.plugin(pluginBuildInfo.component(), location.module())
                     );
                 } catch (MalformedURLException e) {
-                    throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]", e);
+                    throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]", e);
                 }
             }
         }
 
         for (var location : serverBuildInfo.locations()) {
-            var classUrl = TestScopeResolver.class.getClassLoader().getResource(location.className());
+            var classUrl = TestScopeResolver.class.getClassLoader().getResource(location.representativeClass());
             if (classUrl == null) {
-                throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]");
+                throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]");
             }
             try {
-                scopeMap.put(getCodeSource(classUrl, location.className()), PolicyManager.PolicyScope.server(location.moduleName()));
+                scopeMap.put(getCodeSource(classUrl, location.representativeClass()), PolicyManager.PolicyScope.server(location.module()));
             } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Cannot locate class [" + location.className() + "]", e);
+                throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]", e);
             }
         }
 

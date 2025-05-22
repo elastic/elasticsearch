@@ -31,32 +31,32 @@ class TestBuildInfoParser {
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("test_build_info", Builder::new);
     private static final ObjectParser<Location, Void> LOCATION_PARSER = new ObjectParser<>("location", Location::new);
     static {
-        LOCATION_PARSER.declareString(Location::className, new ParseField("class"));
-        LOCATION_PARSER.declareString(Location::moduleName, new ParseField("module"));
+        LOCATION_PARSER.declareString(Location::representativeClass, new ParseField("representativeClass"));
+        LOCATION_PARSER.declareString(Location::module, new ParseField("module"));
 
-        PARSER.declareString(Builder::name, new ParseField("name"));
+        PARSER.declareString(Builder::component, new ParseField("component"));
         PARSER.declareObjectArray(Builder::locations, LOCATION_PARSER, new ParseField("locations"));
     }
 
     private static class Location {
-        private String className;
-        private String moduleName;
+        private String representativeClass;
+        private String module;
 
-        public void moduleName(final String moduleName) {
-            this.moduleName = moduleName;
+        public void module(final String module) {
+            this.module = module;
         }
 
-        public void className(final String className) {
-            this.className = className;
+        public void representativeClass(final String representativeClass) {
+            this.representativeClass = representativeClass;
         }
     }
 
     private static final class Builder {
-        private String name;
+        private String component;
         private List<Location> locations;
 
-        public void name(final String name) {
-            this.name = name;
+        public void component(final String component) {
+            this.component = component;
         }
 
         public void locations(final List<Location> locations) {
@@ -64,7 +64,10 @@ class TestBuildInfoParser {
         }
 
         TestBuildInfo build() {
-            return new TestBuildInfo(name, locations.stream().map(l -> new TestBuildInfoLocation(l.className, l.moduleName)).toList());
+            return new TestBuildInfo(
+                component,
+                locations.stream().map(l -> new TestBuildInfoLocation(l.representativeClass, l.module)).toList()
+            );
         }
     }
 

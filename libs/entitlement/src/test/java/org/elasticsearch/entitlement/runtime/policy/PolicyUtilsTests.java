@@ -134,6 +134,7 @@ public class PolicyUtilsTests extends ESTestCase {
 
     public void testNoPatchWithValidationError() {
 
+        // Nonexistent module names
         var policyPatch = """
             versions:
               - 9.0.0
@@ -149,13 +150,15 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testNoPatchWithParsingError() {
 
+        // no <version> or <policy> field
         var policyPatch = """
             entitlement-module-name:
               - load_native_libraries
@@ -167,9 +170,10 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testMergeScopes() {

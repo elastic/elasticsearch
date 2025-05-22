@@ -903,10 +903,18 @@ teardown:
   - do:
       indices.create:
         index: test-index-001
+        body:
+          settings:
+            index:
+              number_of_shards: 5 # Ensure more shards than docs
 
   - do:
       indices.create:
         index: test-index-002
+        body:
+          settings:
+            index:
+              number_of_shards: 5 # Ensure more shards than docs
 
   - do:
       bulk:
@@ -949,6 +957,7 @@ teardown:
 
   - do:
       search:
+        index: test-index-001,test-index-002
         body:
           retriever:
             rule:

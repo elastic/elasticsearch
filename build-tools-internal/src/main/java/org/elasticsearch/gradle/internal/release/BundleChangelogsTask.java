@@ -132,10 +132,10 @@ public class BundleChangelogsTask extends DefaultTask {
                 checkoutChangelogs(gitWrapper, upstreamRemote, branch);
             }
             Properties props = new Properties();
-            props.load(new StringReader(gitWrapper.runCommand("git", "show", branch + ":build-tools-internal/version.properties")));
+            props.load(new StringReader(gitWrapper.runCommand("git", "show", upstreamRemote + "/" + branch + ":build-tools-internal/version.properties")));
             String version = props.getProperty("elasticsearch");
 
-            LOGGER.info("Finding changelog files...");
+            LOGGER.info("Finding changelog files for " + version + "...");
 
             Set<String> finalEntriesFromBc = entriesFromBc;
             List<ChangelogEntry> entries = this.changelogDirectory.getAsFileTree().getFiles().stream().filter(f -> {

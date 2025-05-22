@@ -691,6 +691,31 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
+    public void testMergeSchedulerAbortsMergeWhenShouldSkipMergeIsTrue() {
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
+        // build a scheduler that always returns true for shouldSkipMerge
+        ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+            new ShardId("index", "_na_", 1),
+            IndexSettingsModule.newIndexSettings("index", Settings.builder().build()),
+            threadPoolMergeExecutorService,
+            merge -> 0
+        ) {
+            @Override
+            protected boolean shouldSkipMerge() {
+                return true;
+            }
+        };
+        MergeSource mergeSource = mock(MergeSource.class);
+        OneMerge oneMerge = mock(OneMerge.class);
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+        when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+        when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+        MergeTask mergeTask = threadPoolMergeScheduler.newMergeTask(mergeSource, oneMerge, randomFrom(MergeTrigger.values()));
+        // verify that calling schedule on the merge task indicates the merge should be aborted
+        Schedule schedule = threadPoolMergeScheduler.schedule(mergeTask);
+        assertThat(schedule, is(Schedule.ABORT));
+    }
+
     private static MergeInfo getNewMergeInfo(long estimatedMergeBytes) {
         return getNewMergeInfo(estimatedMergeBytes, randomFrom(-1, randomNonNegativeInt()));
     }

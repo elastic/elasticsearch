@@ -460,78 +460,78 @@ public class TopNOperator implements Operator, Accountable {
         // TODO: optimize case where all the queues are empty
         try {
             for (var entry : inputQueues.entrySet()) {
-            Queue inputQueue = entry.getValue();
+                Queue inputQueue = entry.getValue();
 
-            list = new ArrayList<>(inputQueue.size());
-            builders = null;
-            while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
-            }
-            Collections.reverse(list);
-
-            int p = 0;
-            int size = 0;
-            for (int i = 0; i < list.size(); i++) {
-                if (builders == null) {
-                    size = Math.min(maxPageSize, list.size() - i);
-                    builders = new ResultBuilder[elementTypes.size()];
-                    for (int b = 0; b < builders.length; b++) {
-                        builders[b] = ResultBuilder.resultBuilderFor(
-                            blockFactory,
-                            elementTypes.get(b),
-                            encoders.get(b).toUnsortable(),
-                            channelInKey(sortOrders, b),
-                            size
-                        );
-                    }
-                    p = 0;
+                list = new ArrayList<>(inputQueue.size());
+                builders = null;
+                while (inputQueue.size() > 0) {
+                    list.add(inputQueue.pop());
                 }
+                Collections.reverse(list);
 
-                Row row = list.get(i);
-                BytesRef keys = row.keys.bytesRefView();
-                for (SortOrder so : sortOrders) {
-                    if (keys.bytes[keys.offset] == so.nul()) {
+                int p = 0;
+                int size = 0;
+                for (int i = 0; i < list.size(); i++) {
+                    if (builders == null) {
+                        size = Math.min(maxPageSize, list.size() - i);
+                        builders = new ResultBuilder[elementTypes.size()];
+                        for (int b = 0; b < builders.length; b++) {
+                            builders[b] = ResultBuilder.resultBuilderFor(
+                                blockFactory,
+                                elementTypes.get(b),
+                                encoders.get(b).toUnsortable(),
+                                channelInKey(sortOrders, b),
+                                size
+                            );
+                        }
+                        p = 0;
+                    }
+
+                    Row row = list.get(i);
+                    BytesRef keys = row.keys.bytesRefView();
+                    for (SortOrder so : sortOrders) {
+                        if (keys.bytes[keys.offset] == so.nul()) {
+                            keys.offset++;
+                            keys.length--;
+                            continue;
+                        }
                         keys.offset++;
                         keys.length--;
-                        continue;
+                        builders[so.channel].decodeKey(keys);
                     }
-                    keys.offset++;
-                    keys.length--;
-                    builders[so.channel].decodeKey(keys);
-                }
-                if (keys.length != 0) {
-                    throw new IllegalArgumentException("didn't read all keys");
-                }
-
-                BytesRef values = row.values.bytesRefView();
-                for (ResultBuilder builder : builders) {
-                    builder.decodeValue(values);
-                }
-                if (values.length != 0) {
-                    throw new IllegalArgumentException("didn't read all values");
-                }
-
-                list.set(i, null);
-                row.close();
-
-                p++;
-                if (p == size) {
-                    Block[] blocks = new Block[builders.length];
-                    try {
-                        for (int b = 0; b < blocks.length; b++) {
-                            blocks[b] = builders[b].build();
-                        }
-                    } finally {
-                        if (blocks[blocks.length - 1] == null) {
-                            Releasables.closeExpectNoException(blocks);
-                        }
+                    if (keys.length != 0) {
+                        throw new IllegalArgumentException("didn't read all keys");
                     }
-                    result.add(new Page(blocks));
-                    Releasables.closeExpectNoException(builders);
-                    builders = null;
+
+                    BytesRef values = row.values.bytesRefView();
+                    for (ResultBuilder builder : builders) {
+                        builder.decodeValue(values);
+                    }
+                    if (values.length != 0) {
+                        throw new IllegalArgumentException("didn't read all values");
+                    }
+
+                    list.set(i, null);
+                    row.close();
+
+                    p++;
+                    if (p == size) {
+                        Block[] blocks = new Block[builders.length];
+                        try {
+                            for (int b = 0; b < blocks.length; b++) {
+                                blocks[b] = builders[b].build();
+                            }
+                        } finally {
+                            if (blocks[blocks.length - 1] == null) {
+                                Releasables.closeExpectNoException(blocks);
+                            }
+                        }
+                        result.add(new Page(blocks));
+                        Releasables.closeExpectNoException(builders);
+                        builders = null;
+                    }
                 }
-            }
-            assert builders == null;
+                assert builders == null;
             }
             success = true;
             return result.iterator();
@@ -585,9 +585,8 @@ public class TopNOperator implements Operator, Accountable {
         Releasables.closeExpectNoException(spare, Releasables.wrap(releasables));
     }
 
-    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class)
-        + RamUsageEstimator.shallowSizeOfInstance(List.class) * 4
-        + RamUsageEstimator.shallowSizeOfInstance(Map.class);
+    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
+        .shallowSizeOfInstance(List.class) * 4 + RamUsageEstimator.shallowSizeOfInstance(Map.class);
 
     @Override
     public long ramBytesUsed() {
@@ -602,7 +601,8 @@ public class TopNOperator implements Operator, Accountable {
         size += partitions.size() * Partition.SHALLOW_SIZE;
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        long ramBytesUsedSum = inputQueues.entrySet().stream()
+        long ramBytesUsedSum = inputQueues.entrySet()
+            .stream()
             .mapToLong(e -> e.getKey().bytes.length + e.getValue().ramBytesUsed())
             .sum();
         size += ramBytesUsedSum;
@@ -619,7 +619,9 @@ public class TopNOperator implements Operator, Accountable {
     public String toString() {
         int queueSizeSum = inputQueues.values().stream().mapToInt(Queue::size).sum();
         return "TopNOperator[count="
-            + queueSizeSum + "/" + topCount
+            + queueSizeSum
+            + "/"
+            + topCount
             + ", elementTypes="
             + elementTypes
             + ", encoders="

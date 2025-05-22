@@ -1209,7 +1209,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands\n"
+            "1:36: [:] operator is only supported in WHERE and STATS commands, or in EVAL within score(.) function\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
@@ -1369,12 +1369,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS commands", error("row a = qstr(\"Anna\")"));
+        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS commands, or in EVAL within score(.) function", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS commands", error("row a = kql(\"Anna\")"));
+        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS commands, or in EVAL within score(.) function", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
 
@@ -1394,11 +1394,11 @@ public class VerifierTests extends ESTestCase {
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertEquals(
-            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
+            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands, or in EVAL within score(.) function",
             error("from test | eval y = " + functionInvocation)
         );
         assertEquals(
-            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
+            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands, or in EVAL within score(.) function",
             error("from test | sort " + functionInvocation + " asc")
         );
         assertEquals(
@@ -2478,7 +2478,7 @@ public class VerifierTests extends ESTestCase {
     public void testMultiMatchInsideEval() throws Exception {
         assumeTrue("MultiMatch operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
-            "1:36: [MultiMatch] function is only supported in WHERE and STATS commands\n"
+            "1:36: [MultiMatch] function is only supported in WHERE and STATS commands, or in EVAL within score(.) function\n"
                 + "line 1:55: [MultiMatch] function cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = multi_match(\"fox\", title)")
         );

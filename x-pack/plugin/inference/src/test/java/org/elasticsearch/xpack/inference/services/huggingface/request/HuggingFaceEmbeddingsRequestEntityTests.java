@@ -12,16 +12,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequestEntity;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class HuggingFaceInferenceRequestEntityTests extends ESTestCase {
+public class HuggingFaceEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent() throws IOException {
-        var entity = new HuggingFaceInferenceRequestEntity(List.of("abc"));
+        var entity = new HuggingFaceEmbeddingsRequestEntity(List.of("abc"));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

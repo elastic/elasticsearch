@@ -11,8 +11,6 @@ package fixture.gcs;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -44,8 +42,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
     private static final String IF_GENERATION_MATCH = "ifGenerationMatch";
+    private static final String GENERATION = "generation";
 
     private final AtomicInteger defaultPageLimit = new AtomicInteger(1_000);
     private final MockGcsBlobStore mockGcsBlobStore;
@@ -82,7 +80,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, ifGenerationMatch);
+                final Long generation = parseOptionalLongParameter(exchange, GENERATION);
+                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, ifGenerationMatch, generation);
                 writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
@@ -116,7 +115,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Download Object https://cloud.google.com/storage/docs/request-body
                 final String path = exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
-                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(path, ifGenerationMatch);
+                final Long generation = parseOptionalLongParameter(exchange, GENERATION);
+                final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(path, ifGenerationMatch, generation);
                 if (blob != null) {
                     final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                     final BytesReference response;
@@ -144,6 +144,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     // we implement "metageneration", at that point we must incorporate both
                     // See: https://cloud.google.com/storage/docs/metadata#etags
                     exchange.getResponseHeaders().add("ETag", String.valueOf(blob.generation()));
+                    exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(statusCode, response.length());
                     response.writeTo(exchange.getResponseBody());

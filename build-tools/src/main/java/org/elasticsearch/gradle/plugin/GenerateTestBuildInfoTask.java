@@ -316,20 +316,24 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * if it exists or the preset one derived from the jar task
      */
     private String extractModuleNameFromDirectory(File dir) throws IOException {
-        List<File> files = new ArrayList<>(List.of(dir));
-        while (files.isEmpty() == false) {
-            File find = files.removeFirst();
-            if (find.exists()) {
-                if (find.getName().equals("module-info.class")) {
-                    try (InputStream inputStream = new FileInputStream(find)) {
-                        return extractModuleNameFromModuleInfo(inputStream);
+        var visitor = new SimpleFileVisitor<Path>() {
+            private String result = getModuleName().getOrNull();
+
+            @Override
+            public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) throws IOException {
+                String name = candidate.getFileName().toString(); // Just the part after the last dir separator
+                if (name.equals("module-info.class")) {
+                    try (InputStream inputStream = new FileInputStream(candidate.toFile())) {
+                        result = extractModuleNameFromModuleInfo(inputStream);
+                        return TERMINATE;
                     }
-                } else if (find.isDirectory()) {
-                    files.addAll(Arrays.asList(find.listFiles()));
+                } else {
+                    return CONTINUE;
                 }
             }
-        }
-        return getModuleName().getOrNull();
+        };
+        Files.walkFileTree(dir.toPath(), visitor);
+        return visitor.result;
     }
 
     /**

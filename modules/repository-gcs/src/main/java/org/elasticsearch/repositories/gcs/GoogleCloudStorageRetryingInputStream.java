@@ -244,6 +244,14 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         }
     }
 
+    /**
+     * Close the current stream, used to test resume
+     */
+    // @VisibleForTesting
+    void closeCurrentStream() throws IOException {
+        currentStream.close();
+    }
+
     private void ensureOpen() {
         if (closed) {
             assert false : "using GoogleCloudStorageRetryingInputStream after close";

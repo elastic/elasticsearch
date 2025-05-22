@@ -11,11 +11,11 @@ package org.elasticsearch.index.codec.zstd;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
-import org.elasticsearch.index.codec.Elasticsearch902Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 
 public class Zstd814BestCompressionStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
-    private final Codec codec = new Elasticsearch902Lucene103Codec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION);
+    private final Codec codec = new Elasticsearch92Lucene103Codec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION);
 
     @Override
     protected Codec getCodec() {

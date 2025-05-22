@@ -152,7 +152,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "tests.artifact",
                 project.getName(),
                 "tests.security.manager",
-                "true",
+                "false",
                 "jna.nosys",
                 "true"
             );

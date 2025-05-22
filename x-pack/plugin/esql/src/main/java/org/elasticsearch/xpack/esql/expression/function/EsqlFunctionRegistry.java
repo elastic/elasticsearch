@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.ChickenScore;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
@@ -452,7 +452,7 @@ public class EsqlFunctionRegistry {
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
-                def(ChickenScore.class, uni(ChickenScore::new), "chicken_score"),
+                def(ScoreFunction.class, uni(ScoreFunction::new), ScoreFunction.NAME),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term") } };
     }

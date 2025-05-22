@@ -30,30 +30,30 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import java.io.IOException;
 import java.util.List;
 
-public class ChickenScore extends Function implements EvaluatorMapper {
+public class ScoreFunction extends Function implements EvaluatorMapper {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "chicken_score",
-        ChickenScore::readFrom
+        "score",
+        ScoreFunction::readFrom
     );
 
-    private static final String NAME = "chicken_score";
+    public static final String NAME = "score";
 
     @FunctionInfo(
         returnType = "double",
         preview = true,
         description = "Scores a full text function. Returns scores for all the matching docs.",
-        examples = { @Example(file = "chickenscore-function", tag = "chickenscore-with-field") }
+        examples = { @Example(file = "score-function", tag = "score-with-field") }
     )
-    public ChickenScore(
+    public ScoreFunction(
         Source source,
         @Param(name = "query", type = { "keyword", "text" }, description = "full text function.") Expression scorableQuery
     ) {
         this(source, List.of(scorableQuery));
     }
 
-    protected ChickenScore(Source source, List<Expression> children) {
+    protected ScoreFunction(Source source, List<Expression> children) {
         super(source, children);
     }
 
@@ -64,12 +64,12 @@ public class ChickenScore extends Function implements EvaluatorMapper {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ChickenScore(source(), newChildren);
+        return new ScoreFunction(source(), newChildren);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ChickenScore::new, children());
+        return NodeInfo.create(this, ScoreFunction::new, children());
     }
 
     @Override
@@ -82,7 +82,7 @@ public class ChickenScore extends Function implements EvaluatorMapper {
 
         ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
 
-        return driverContext -> new ChickenScorerEvaluatorFactory(scorerFactory).get(driverContext);
+        return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
 
     }
 
@@ -94,11 +94,11 @@ public class ChickenScore extends Function implements EvaluatorMapper {
 
     private static Expression readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        Expression query = in.readNamedWriteable(Expression.class);
-        return new ChickenScore(source, query);
+        Expression query = in.readOptionalNamedWriteable(Expression.class);
+        return new ScoreFunction(source, query);
     }
 
-    private record ChickenScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
+    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
         implements
             EvalOperator.ExpressionEvaluator.Factory {
 

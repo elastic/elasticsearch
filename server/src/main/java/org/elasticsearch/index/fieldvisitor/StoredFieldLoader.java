@@ -66,6 +66,9 @@ public abstract class StoredFieldLoader {
      *                              otherwise, uses the heuristic defined in {@link StoredFieldLoader#reader(LeafReaderContext, int[])}.
      */
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields, boolean forceSequentialReader) {
+        if (loadSource == false && fields.isEmpty()) {
+            return StoredFieldLoader.empty();
+        }
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override

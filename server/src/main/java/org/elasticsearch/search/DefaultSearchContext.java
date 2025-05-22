@@ -944,7 +944,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader(SourceFilter filter) {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
         return searchExecutionContext.newSourceLoader(filter, request.isForceSyntheticSource());
     }
 

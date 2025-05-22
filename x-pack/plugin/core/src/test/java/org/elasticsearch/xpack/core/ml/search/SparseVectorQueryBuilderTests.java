@@ -43,6 +43,10 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,7 +64,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new WeightedToken("foo", .42f));
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
 
-    private boolean testWithSparseVectorFieldIndexOptions = false;
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    public @interface InjectSparseVectorIndexOptions {
+    }
 
     @Override
     protected SparseVectorQueryBuilder doCreateTestQueryBuilder() {
@@ -148,7 +155,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        if (testWithSparseVectorFieldIndexOptions) {
+        if (shouldInjectSparseVectorIndexOptions()) {
             addSparseVectorIndexOptionsMapping(mapperService);
             return;
         }
@@ -158,6 +165,18 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(SPARSE_VECTOR_FIELD, "type=sparse_vector"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
+    }
+
+    private boolean shouldInjectSparseVectorIndexOptions() {
+        Class<?> clazz = this.getClass();
+        Class<InjectSparseVectorIndexOptions> injectSparseVectorIndexOptions = InjectSparseVectorIndexOptions.class;
+
+        try {
+            Method method = clazz.getMethod(this.getTestName());
+            return method.isAnnotationPresent(injectSparseVectorIndexOptions);
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
     }
 
     private void addSparseVectorIndexOptionsMapping(MapperService mapperService) throws IOException {
@@ -188,24 +207,34 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         }
     }
 
-    /**
-     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
-     */
-    @Override
-    public void testCacheability() throws IOException {
+    private void withSearchIndex(Consumer<SearchExecutionContext> consumer) throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             Document document = new Document();
             document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
-                QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-
-                assertNotNull(rewriteQuery.toQuery(context));
-                assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+                consumer.accept(context);
             }
         }
+    }
+
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testCacheability() throws IOException {
+        withSearchIndex((context) -> {
+            try {
+                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+                QueryBuilder rewriteQuery = null;
+                rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+                assertNotNull(rewriteQuery.toQuery(context));
+                assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**
@@ -213,16 +242,14 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
      */
     @Override
     public void testMustRewrite() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            Document document = new Document();
-            document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));
-            iw.addDocument(document);
-            try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+        withSearchIndex((context) -> {
+            try {
                 SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     /**
@@ -230,12 +257,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     */
     @Override
     public void testToQuery() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            Document document = new Document();
-            document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));
-            iw.addDocument(document);
-            try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+        withSearchIndex((context) -> {
+            try {
                 SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
                 if (queryBuilder.getQueryVectors() == null) {
                     QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, context);
@@ -244,8 +267,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 } else {
                     testDoToQuery(queryBuilder, context);
                 }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
     }
 
     private void testDoToQuery(SparseVectorQueryBuilder queryBuilder, SearchExecutionContext context) throws IOException {
@@ -357,26 +382,57 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
     }
 
-    public void testWeCorrectlyRewriteQueryIntoVectorsWithIndexOptions() {
-        wrapTestSparseVectorIndexOptions((c) -> {
-            SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+    @InjectSparseVectorIndexOptions
+    public void testItUsesIndexOptionsDefaults() throws IOException {
+        withSearchIndex((context) -> {
+            try {
+                SparseVectorQueryBuilder builder = new SparseVectorQueryBuilder(
+                    SPARSE_VECTOR_FIELD,
+                    WEIGHTED_TOKENS,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+                Query query = builder.doToQuery(context);
 
-            TokenPruningConfig defaultTokenPruningConfig = new TokenPruningConfig(12, 0.6f, false);
-
-            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
-            QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-            assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
-            assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
-            assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
         });
     }
 
-    private void wrapTestSparseVectorIndexOptions(Consumer<Boolean> testMethod) {
-        testWithSparseVectorFieldIndexOptions = true;
-        try {
-            testMethod.accept(true);
-        } finally {
-            testWithSparseVectorFieldIndexOptions = false;
-        }
+    @InjectSparseVectorIndexOptions
+    public void testItOverridesIndexOptionsDefaults() {
+
+    }
+
+    @InjectSparseVectorIndexOptions
+    public void testToQueryWithIndexOptions() throws IOException {
+        withSearchIndex((context) -> {
+            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+            try {
+                if (queryBuilder.getQueryVectors() == null) {
+                    QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, context);
+                    assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
+                    testDoToQuery((SparseVectorQueryBuilder) rewrittenQueryBuilder, context);
+                } else {
+                    testDoToQuery(queryBuilder, context);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @InjectSparseVectorIndexOptions
+    public void testWeCorrectlyRewriteQueryIntoVectorsWithIndexOptions() {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
+        QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
+        assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
+        assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
+        assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
     }
 }

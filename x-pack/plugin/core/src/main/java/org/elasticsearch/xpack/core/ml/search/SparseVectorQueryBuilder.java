@@ -238,20 +238,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         Boolean pruneTokensToUse = shouldPruneTokens;
         TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
 
-        // if the query options for pruning are not set,
-        // we need to check the index options for this field
-        // and use those if set - however, only if the index
-        // was created after we added this support.
-        if (context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
-            SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForSearchExecution(fieldName, context);
-            TokenPruningSet pruningOptions = setPruningConfigFromIndexIfNeeded(
-                shouldPruneTokens,
-                tokenPruningConfig,
-                sparseVectorFieldMapper
-            );
+        // if the query options for pruning are not set, we need to check the index options for this field
+        // and use those if set - however, only if the index was created after we added this support.
+        if (ft.getClass().equals(SparseVectorFieldMapper.SparseVectorFieldType.class) &&
+            context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType = (SparseVectorFieldMapper.SparseVectorFieldType) ft;
 
-            pruneTokensToUse = pruningOptions.pruneTokens;
-            pruningConfigToUse = pruningOptions.pruningConfig;
+            if (asSVFieldType.getIndexOptions() != null) {
+                pruneTokensToUse = pruneTokensToUse == null ? asSVFieldType.getIndexOptions().getPrune() : pruneTokensToUse;
+                pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
+            }
         }
 
         return (pruneTokensToUse != null && pruneTokensToUse)
@@ -271,23 +267,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 return this; // No results yet
             }
 
-            // if the query options for pruning are not set,
-            // we need to check the index options for this field
-            // and use those if set.
-            SparseVectorFieldMapper sparseVectorFieldMapper = getSparseVectorFieldMapperForQueryRewrite(fieldName, queryRewriteContext);
-            TokenPruningSet pruningOptions = setPruningConfigFromIndexIfNeeded(
-                shouldPruneTokens,
-                tokenPruningConfig,
-                sparseVectorFieldMapper
-            );
-
             return new SparseVectorQueryBuilder(
                 fieldName,
                 textExpansionResults.getWeightedTokens(),
                 null,
                 null,
-                pruningOptions.pruneTokens,
-                pruningOptions.pruningConfig
+                shouldPruneTokens,
+                tokenPruningConfig
             );
         } else if (inferenceId == null) {
             // Edge case, where inference_id was not specified in the request,
@@ -421,82 +407,5 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
-    }
-
-    private record IndexFieldPruningSettings(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {}
-
-    private IndexFieldPruningSettings getIndexFieldPruningSettings(SparseVectorFieldMapper sparseVectorFieldMapper) {
-        if (sparseVectorFieldMapper == null) {
-            return new IndexFieldPruningSettings(null, null);
-        }
-
-        SparseVectorFieldMapper.IndexOptions indexOptions = sparseVectorFieldMapper.getIndexOptions();
-        if (indexOptions == null) {
-            // return the default if not set in the index options
-            return new IndexFieldPruningSettings(
-                true,
-                new TokenPruningConfig(
-                    TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
-                    TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
-                    false
-                )
-            );
-        }
-
-        Boolean indexOptionsPrune = indexOptions.getPrune();
-
-        TokenPruningConfig indexPruningConfig = indexOptions.getPruningConfig();
-        TokenPruningConfig indexTokenPruningConfig = indexPruningConfig != null
-            ? new TokenPruningConfig(indexPruningConfig.getTokensFreqRatioThreshold(), indexPruningConfig.getTokensWeightThreshold(), false)
-            : null;
-
-        return new IndexFieldPruningSettings(indexOptionsPrune, indexTokenPruningConfig);
-    }
-
-    private SparseVectorFieldMapper getSparseVectorFieldMapper(String fieldName, Mapping fieldMapping) {
-        RootObjectMapper rootMapping = fieldMapping.getRoot();
-        Mapper thisMapper = rootMapping.getMapper(fieldName);
-        if (thisMapper instanceof SparseVectorFieldMapper) {
-            return (SparseVectorFieldMapper) thisMapper;
-        }
-
-        return null;
-    }
-
-    private SparseVectorFieldMapper getSparseVectorFieldMapperForSearchExecution(String fieldName, SearchExecutionContext context) {
-        return getSparseVectorFieldMapper(fieldName, context.getMappingLookup().getMapping());
-    }
-
-    private SparseVectorFieldMapper getSparseVectorFieldMapperForQueryRewrite(String fieldName, QueryRewriteContext context) {
-        return getSparseVectorFieldMapper(fieldName, context.getMappingLookup().getMapping());
-    }
-
-    private record TokenPruningSet(boolean pruneTokens, TokenPruningConfig pruningConfig) {}
-
-    private TokenPruningSet setPruningConfigFromIndexIfNeeded(
-        Boolean queryPruneTokens,
-        TokenPruningConfig queryPruningConfig,
-        SparseVectorFieldMapper fieldMapper
-    ) {
-        boolean doPruneTokens = false;
-        TokenPruningConfig setTokenPruningConfig = queryPruningConfig;
-        if (queryPruneTokens == null || queryPruningConfig == null) {
-            if (queryPruneTokens != null) {
-                doPruneTokens = queryPruneTokens;
-            }
-
-            IndexFieldPruningSettings indexPruningSettings = getIndexFieldPruningSettings(fieldMapper);
-            if (shouldPruneTokens == null && indexPruningSettings.prune != null && indexPruningSettings.prune) {
-                doPruneTokens = true;
-            }
-
-            if (setTokenPruningConfig == null && indexPruningSettings.pruningConfig != null) {
-                setTokenPruningConfig = indexPruningSettings.pruningConfig;
-            }
-        } else {
-            doPruneTokens = queryPruneTokens;
-        }
-
-        return new TokenPruningSet(doPruneTokens, setTokenPruningConfig);
     }
 }

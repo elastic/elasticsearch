@@ -76,8 +76,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION =
         IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 
-    private final SparseVectorFieldMapper.IndexOptions indexOptions;
-
     public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
     private static SparseVectorFieldMapper toType(FieldMapper in) {
@@ -127,7 +125,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     public IndexOptions getIndexOptions() {
-        return this.indexOptions;
+        return fieldType().getIndexOptions();
     }
 
     private static SparseVectorFieldMapper.IndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {
@@ -223,7 +221,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
-        this.indexOptions = ((SparseVectorFieldType) mappedFieldType).getIndexOptions();
     }
 
     @Override

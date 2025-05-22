@@ -28,6 +28,8 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  */
 public class Elasticsearch92Lucene103Codec extends CodecService.DeduplicateFieldInfosCodec {
 
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene103PostingsFormat();
+
     private final StoredFieldsFormat storedFieldsFormat;
 
     private final PostingsFormat defaultPostingsFormat;

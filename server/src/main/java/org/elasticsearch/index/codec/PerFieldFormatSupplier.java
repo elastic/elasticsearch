@@ -9,11 +9,9 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,8 +33,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * vectors.
  */
 public class PerFieldFormatSupplier {
-    public static final FeatureFlag USE_LUCENE101_POSTINGS_FORMAT = new FeatureFlag("use_lucene101_postings_format");
-    public static final FeatureFlag USE_LUCENE103_POSTINGS_FORMAT = new FeatureFlag("use_lucene103_postings_format");
+    public static final FeatureFlag USE_DEFAULT_LUCENE_POSTINGS_FORMAT = new FeatureFlag("use_default_lucene_postings_format");
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
@@ -54,19 +51,14 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
         if (mapperService != null
-            && USE_LUCENE103_POSTINGS_FORMAT.isEnabled()
+            && USE_DEFAULT_LUCENE_POSTINGS_FORMAT.isEnabled()
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
             && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
-            defaultPostingsFormat = new Lucene103PostingsFormat();
-        } else if (mapperService != null
-            && USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
-            && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
-                defaultPostingsFormat = new Lucene101PostingsFormat();
-            } else {
-                // our own posting format using PFOR
-                defaultPostingsFormat = es812PostingsFormat;
-            }
+            defaultPostingsFormat = Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+        } else {
+            // our own posting format using PFOR
+            defaultPostingsFormat = es812PostingsFormat;
+        }
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {

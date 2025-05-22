@@ -52,7 +52,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     private static final int NUM_DOCS = 10;
 
     static {
-        // For Elasticsearch900Lucene101Codec:
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }

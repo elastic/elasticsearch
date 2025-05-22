@@ -393,9 +393,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPluginsViaConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/127158
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
-  method: testSearchWhileRelocating
-  issue: https://github.com/elastic/elasticsearch/issues/127188
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368
@@ -438,9 +435,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnTheLookupIndex ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/128030
-- class: org.elasticsearch.compute.aggregation.PercentileIntGroupingAggregatorFunctionTests
-  method: testManyInitialManyPartialFinalRunner
-  issue: https://github.com/elastic/elasticsearch/issues/128092
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test042KeystorePermissionsAreCorrect
   issue: https://github.com/elastic/elasticsearch/issues/128018
@@ -459,6 +453,24 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test600Interrupt
   issue: https://github.com/elastic/elasticsearch/issues/128144
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/128113
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test121CanUseStackLoggingConfig
+  issue: https://github.com/elastic/elasticsearch/issues/128165
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  method: testForkFieldsWithKeepAfterFork
+  issue: https://github.com/elastic/elasticsearch/issues/128271
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  method: testForkWithStatsInAllBranches
+  issue: https://github.com/elastic/elasticsearch/issues/128272
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test080ConfigurePasswordThroughEnvironmentVariableFile
+  issue: https://github.com/elastic/elasticsearch/issues/128075
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testInvalidTimestamp
+  issue: https://github.com/elastic/elasticsearch/issues/128284
 
 # Examples:
 #

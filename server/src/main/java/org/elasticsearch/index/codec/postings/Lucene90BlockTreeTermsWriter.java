@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.index.codec.postings;
 
+import org.apache.lucene.backward_codecs.lucene90.blocktree.CompressionAlgorithm;
 import org.apache.lucene.backward_codecs.lucene90.blocktree.FieldReader;
 import org.apache.lucene.backward_codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader;
 import org.apache.lucene.codecs.BlockTermState;
@@ -61,6 +62,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.apache.lucene.backward_codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader.TERMS_INDEX_CODEC_NAME;
+import static org.apache.lucene.backward_codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader.TERMS_INDEX_EXTENSION;
+import static org.apache.lucene.backward_codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader.TERMS_META_CODEC_NAME;
+import static org.apache.lucene.backward_codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader.TERMS_META_EXTENSION;
 import static org.apache.lucene.util.fst.FSTCompiler.getOnHeapReaderWriter;
 
 /*
@@ -241,14 +246,6 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
     /** Extension of terms meta file */
     static final String TERMS_EXTENSION = "tim";
     static final String TERMS_CODEC_NAME = "BlockTreeTermsDict";
-
-    /** Extension of terms index file */
-    static final String TERMS_INDEX_EXTENSION = "tip";
-    static final String TERMS_INDEX_CODEC_NAME = "BlockTreeTermsIndex";
-
-    /** Extension of terms meta file */
-    static final String TERMS_META_EXTENSION = "tmd";
-    static final String TERMS_META_CODEC_NAME = "BlockTreeTermsMeta";
 
     // public static boolean DEBUG = false;
     // public static boolean DEBUG2 = false;

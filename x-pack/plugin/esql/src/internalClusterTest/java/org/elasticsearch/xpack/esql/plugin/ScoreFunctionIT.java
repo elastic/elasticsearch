@@ -56,10 +56,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(
-                List.of(1, 1.4274532794952393),
-                List.of(6, 1.1248724460601807))
-            );
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248724460601807)));
         }
     }
 

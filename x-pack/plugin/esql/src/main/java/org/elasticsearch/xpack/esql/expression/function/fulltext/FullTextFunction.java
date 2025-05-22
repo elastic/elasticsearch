@@ -233,13 +233,13 @@ public abstract class FullTextFunction extends Function
             // TODO : improve this check, as this is not 100% accurate
             AtomicInteger scoredFullTextFunctions = new AtomicInteger();
             plan.forEachExpression(ScoreFunction.class, scoreFunction -> {
-                plan.forEachExpression(FullTextFunction.class, ftf -> {
-                    scoredFullTextFunctions.getAndIncrement();
-                });
+                plan.forEachExpression(FullTextFunction.class, ftf -> { scoredFullTextFunctions.getAndIncrement(); });
             });
             if (scoredFullTextFunctions.get() == 0) {
                 plan.forEachExpression(FullTextFunction.class, ftf -> {
-                    failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
+                    failures.add(
+                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
+                    );
                 });
             }
         }

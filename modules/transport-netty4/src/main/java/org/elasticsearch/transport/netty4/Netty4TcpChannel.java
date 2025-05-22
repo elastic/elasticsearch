@@ -14,8 +14,8 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
@@ -30,8 +30,8 @@ public class Netty4TcpChannel implements TcpChannel {
     private final Channel channel;
     private final boolean isServer;
     private final String profile;
-    private final ListenableFuture<Void> connectContext;
-    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final SubscribableListener<Void> connectContext = new SubscribableListener<>();
+    private final SubscribableListener<Void> closeContext = new SubscribableListener<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
     /**
@@ -43,7 +43,6 @@ public class Netty4TcpChannel implements TcpChannel {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
-        this.connectContext = new ListenableFuture<>();
         this.rstOnClose = rstOnClose;
         addListener(connectFuture, connectContext);
         addListener(this.channel.closeFuture(), new ActionListener<>() {

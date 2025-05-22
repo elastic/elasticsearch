@@ -153,7 +153,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDotInFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("field", Map.of("foo.bar", 10, "foobar", 20))));
+        ParsedDocument parsedDocument = mapper.parse(
+            source(b -> b.field("field", Map.of("foo.bar", 10, "foobar", 20)))
+        );
 
         List<IndexableField> fields = parsedDocument.rootDoc().getFields("field");
         assertEquals(2, fields.size());
@@ -194,7 +196,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         // then fail appropriately
         assertEquals(
-            "[sparse_vector] fields take hashes that map a feature to a strictly positive float, but got unexpected token " + "START_ARRAY",
+            "[sparse_vector] fields take hashes that map a feature to a strictly positive float, "
+            + "but got unexpected token " + "START_ARRAY",
             e.getCause().getMessage()
         );
 
@@ -299,7 +302,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestInteger.getMessage(),
             containsString(
-                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: [0:0] [pruning_config] failed to parse field [tokens_freq_ratio_threshold]"
+                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: "
+                + "[0:0] [pruning_config] failed to parse field [tokens_freq_ratio_threshold]"
             )
         );
 
@@ -315,7 +319,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestRangeLower.getMessage(),
             containsString(
-                "Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0"
+                "Failed to parse mapping: java.lang.IllegalArgumentException: "
+                + "[tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0"
             )
         );
 
@@ -331,7 +336,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestRangeHigher.getMessage(),
             containsString(
-                "Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_freq_ratio_threshold] must be between [1] and [100], got 101"
+                "Failed to parse mapping: java.lang.IllegalArgumentException: "
+                + "[tokens_freq_ratio_threshold] must be between [1] and [100], got 101"
             )
         );
     }
@@ -349,7 +355,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             eTestDouble.getMessage(),
             containsString(
-                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: [0:0] [pruning_config] failed to parse field [tokens_weight_threshold]"
+                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: "
+                + "[0:0] [pruning_config] failed to parse field [tokens_weight_threshold]"
             )
         );
 

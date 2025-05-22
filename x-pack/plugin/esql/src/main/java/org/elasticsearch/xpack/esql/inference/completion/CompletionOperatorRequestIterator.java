@@ -51,8 +51,8 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
 
     private static class PromptReader {
         private final BytesRefBlock promptBlock;
+        private final StringBuilder strBuilder = new StringBuilder();
         private BytesRef readBuffer = new BytesRef();
-        private StringBuilder strBuilder = new StringBuilder();
 
         private PromptReader(BytesRefBlock promptBlock) {
             this.promptBlock = promptBlock;
@@ -67,7 +67,10 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
 
             for (int valueIndex = 0; valueIndex < promptBlock.getValueCount(pos); valueIndex++) {
                 readBuffer = promptBlock.getBytesRef(promptBlock.getFirstValueIndex(pos) + valueIndex, readBuffer);
-                strBuilder.append(readBuffer.utf8ToString()).append("\n");
+                strBuilder.append(readBuffer.utf8ToString());
+                if (valueIndex != promptBlock.getValueCount(pos) -1) {
+                    strBuilder.append("\n");
+                }
             }
 
             return strBuilder.toString();

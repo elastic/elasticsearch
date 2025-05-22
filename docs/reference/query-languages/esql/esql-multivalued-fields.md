@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} multivalued fields [esql-multivalued-fields]
 
-
 {{esql}} is fine reading from multivalued fields:
 
 $$$esql-multivalued-fields-reorders$$$
@@ -244,13 +243,13 @@ POST /_query
 
 Work around this limitation by converting the field to single value with one of:
 
-* [`MV_AVG`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_avg)
-* [`MV_CONCAT`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_concat)
-* [`MV_COUNT`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_count)
-* [`MV_MAX`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_max)
-* [`MV_MEDIAN`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_median)
-* [`MV_MIN`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_min)
-* [`MV_SUM`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_sum)
+* [`MV_AVG`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_avg)
+* [`MV_CONCAT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_concat)
+* [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_count)
+* [`MV_MAX`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_max)
+* [`MV_MEDIAN`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_median)
+* [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_min)
+* [`MV_SUM`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sum)
 
 ```console
 POST /_query

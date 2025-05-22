@@ -29,6 +29,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -813,10 +814,13 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> runQuery(q, false));
-        assertThat(e.getMessage(), containsString("Accessing failing field"));
+
+        Exception error = expectThrows(Exception.class, () -> runQuery(q, false));
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+
+        assertThat(error, instanceOf(IllegalStateException.class));
+        assertThat(error.getMessage(), containsString("Accessing failing field"));
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {
@@ -987,4 +991,28 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 
+    public void testMultiTypes() throws Exception {
+        Client remoteClient = client(REMOTE_CLUSTER_1);
+        int totalDocs = 0;
+        for (String type : List.of("integer", "long")) {
+            String index = "conflict-index-" + type;
+            assertAcked(remoteClient.admin().indices().prepareCreate(index).setMapping("port", "type=" + type));
+            int numDocs = between(1, 10);
+            for (int i = 0; i < numDocs; i++) {
+                remoteClient.prepareIndex(index).setId(Integer.toString(i)).setSource("port", i).get();
+            }
+            remoteClient.admin().indices().prepareRefresh(index).get();
+            totalDocs += numDocs;
+        }
+        for (String castFunction : List.of("TO_LONG", "TO_INT")) {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM *:conflict-index-* | EVAL port=" + castFunction + "(port) | WHERE port is NOT NULL | STATS COUNT(port)");
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(1));
+                assertThat(values.get(0), hasSize(1));
+                assertThat(values.get(0).get(0), equalTo((long) totalDocs));
+            }
+        }
+    }
 }

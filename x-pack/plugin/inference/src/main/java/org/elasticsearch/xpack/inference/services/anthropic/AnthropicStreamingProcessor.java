@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -42,8 +41,8 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
 
         var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
         for (var event : item) {
-            if (event.name() == ServerSentEventField.DATA && event.hasValue()) {
-                try (var parser = parser(event.value())) {
+            if (event.hasData()) {
+                try (var parser = parser(event.data())) {
                     var eventType = eventType(parser);
                     switch (eventType) {
                         case "error" -> {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -34,14 +35,15 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        this.storageService = createStorageService(settings);
+        var isServerless = DiscoveryNode.isStateless(settings);
+        this.storageService = createStorageService(isServerless);
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService(Settings settings) {
-        return new GoogleCloudStorageService(settings);
+    protected GoogleCloudStorageService createStorageService(boolean isServerless) {
+        return new GoogleCloudStorageService(isServerless);
     }
 
     @Override
@@ -61,7 +63,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 this.storageService,
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
             )
         );
     }

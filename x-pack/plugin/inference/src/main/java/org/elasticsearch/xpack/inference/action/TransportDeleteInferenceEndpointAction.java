@@ -125,7 +125,9 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(unparsedModel, listener);
+                var model = service.get()
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                service.get().stop(model, listener);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(

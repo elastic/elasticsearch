@@ -815,3 +815,72 @@ c:long |b:date
 0      |null
 1      |1965-01-01T00:00:00.000Z
 ;
+
+bucketByYearInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
+FROM employees
+| STATS c = COUNT(*) BY b = BUCKET(birth_date, 4 year)
+| SORT c DESC, b
+| LIMIT 5
+;
+
+c:long | b:date
+28     | 1953-01-01T00:00:00.000Z
+28     | 1957-01-01T00:00:00.000Z
+25     | 1961-01-01T00:00:00.000Z
+10     | null                    
+8      | 1949-01-01T00:00:00.000Z
+;
+
+
+bucketByMonthInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
+FROM employees
+| STATS c = COUNT(*) BY b = BUCKET(hire_date, 20 month)
+| SORT c DESC, b
+| LIMIT 5
+;
+
+c:long | b:date
+23     | 1986-01-01T00:00:00.000Z
+22     | 1989-05-01T00:00:00.000Z
+15     | 1987-09-01T00:00:00.000Z
+11     | 1984-05-01T00:00:00.000Z
+11     | 1991-01-01T00:00:00.000Z
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = BUCKET(hire_date, "1 year") + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| STATS c = count(emp_no), b = yr + 1 year BY yr = BUCKET(hire_date, "1 year")
+| SORT yr
+| LIMIT 5
+;
+
+c:long | b:datetime               | yr:datetime
+11     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+11     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+15     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+9      | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+13     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;

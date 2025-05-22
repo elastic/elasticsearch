@@ -50,7 +50,10 @@ public class AssignmentPlanner {
 
     public AssignmentPlanner(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
-        this.deployments = deployments.stream().sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId)).toList();
+        this.deployments = deployments.stream()
+            .filter(deployment -> deployment.allocations() > 0)
+            .sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId))
+            .toList();
     }
 
     public AssignmentPlan computePlan() {

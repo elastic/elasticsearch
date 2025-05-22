@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -27,7 +26,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -61,20 +59,9 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
 
     private final BiFunction<String, Exception, Exception> errorParser;
-    private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
-    private volatile boolean previousEventWasError = false;
 
     public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
-    }
-
-    @Override
-    protected void upstreamRequest(long n) {
-        if (buffer.isEmpty()) {
-            super.upstreamRequest(n);
-        } else {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(singleItem(buffer.poll())));
-        }
     }
 
     @Override
@@ -83,34 +70,23 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
         var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
         for (var event : item) {
-            if (ServerSentEventField.EVENT == event.name() && "error".equals(event.value())) {
-                previousEventWasError = true;
-            } else if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                if (previousEventWasError) {
-                    throw errorParser.apply(event.value(), null);
-                }
-
+            if ("error".equals(event.type()) && event.hasData()) {
+                throw errorParser.apply(event.data(), null);
+            } else if (event.hasData()) {
                 try {
                     var delta = parse(parserConfig, event);
                     delta.forEachRemaining(results::offer);
                 } catch (Exception e) {
                     logger.warn("Failed to parse event from inference provider: {}", event);
-                    throw errorParser.apply(event.value(), e);
+                    throw errorParser.apply(event.data(), e);
                 }
             }
         }
 
         if (results.isEmpty()) {
             upstream().request(1);
-        } else if (results.size() == 1) {
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         } else {
-            // results > 1, but openai spec only wants 1 chunk per SSE event
-            var firstItem = singleItem(results.poll());
-            while (results.isEmpty() == false) {
-                buffer.offer(results.poll());
-            }
-            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(firstItem));
+            downstream().onNext(new StreamingUnifiedChatCompletionResults.Results(results));
         }
     }
 
@@ -118,11 +94,11 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
         XContentParserConfiguration parserConfig,
         ServerSentEvent event
     ) throws IOException {
-        if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
+        if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Collections.emptyIterator();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
@@ -274,7 +250,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
             static {
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ARGUMENTS_FIELD));
-                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME_FIELD));
+                PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME_FIELD));
             }
 
             public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function parse(
@@ -302,13 +278,5 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 return PARSER.parse(parser, null);
             }
         }
-    }
-
-    private Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> singleItem(
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk result
-    ) {
-        var deque = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
-        deque.offer(result);
-        return deque;
     }
 }

@@ -88,7 +88,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 :   Extracts the registered domain (also known as the effective top-level domain or eTLD), sub-domain, and top-level domain from a fully qualified domain name (FQDN).
 
 [`set_security_user` processor](/reference/enrich-processor/ingest-node-set-security-user-processor.md)
-:   Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,`metadata`, `api_key`, `realm` and `authentication_type`) from the current authenticated user to the current document by pre-processing the ingest.
+:   Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,`metadata`, `api_key`, `realm` and `authentication_type`) from the current authenticated user.
 
 [`uri_parts` processor](/reference/enrich-processor/uri-parts-processor.md)
 :   Parses a Uniform Resource Identifier (URI) string and extracts its components as an object.
@@ -138,7 +138,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`date` processor](/reference/enrich-processor/date-processor.md)
 :   Extracts and converts date fields.
 
-[`dot_expand`](/reference/enrich-processor/dot-expand-processor.md) processor
+[`dot_expand` processor](/reference/enrich-processor/dot-expand-processor.md)
 :   Expands a field with dots into an object field.
 
 [`html_strip` processor](/reference/enrich-processor/htmlstrip-processor.md)

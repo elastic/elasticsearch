@@ -98,7 +98,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 
 
 `rescore_vector`
-:   (Optional, object) Functionality in [preview]. Apply oversampling and rescoring to quantized vectors.
+:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}
 Rescoring only makes sense for quantized vectors; when [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) is not used, the original vectors are used for scoring. Rescore option will be ignored for non-quantized `dense_vector` fields.

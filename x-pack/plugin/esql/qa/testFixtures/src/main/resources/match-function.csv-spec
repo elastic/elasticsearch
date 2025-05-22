@@ -601,7 +601,6 @@ emp_no_bool:boolean
 
 testMatchWithSemanticText
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -618,7 +617,6 @@ live long and prosper
 
 testMatchWithSemanticTextAndKeyword
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -632,7 +630,6 @@ live long and prosper    | host1
 
 testMatchWithSemanticTextMultiValueField
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
@@ -646,7 +643,6 @@ _id: keyword | st_multi_value:text
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -662,7 +658,6 @@ result:long
 
 testMatchWithSemanticTextAndKql
 required_capability: match_function
-required_capability: semantic_text_type
 required_capability: kql_function
 required_capability: semantic_text_field_caps
 
@@ -754,4 +749,95 @@ book_no:keyword
 1937
 7140
 2714
+;
+
+testMatchInStatsNonPushable
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where match(title, "Lord")
+;
+
+c:long
+3
+;
+
+testMatchInStatsPushableAndNonPushable
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where (match(title, "lord") and ratings > 4.5) or (match(author, "dostoevsky") and length(title) > 50)
+;
+
+c:long
+6
+;
+
+testMatchInStatsPushable
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where match(author, "tolkien")
+;
+
+c:long
+22
+;
+
+testMatchInStatsWithOptions
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+FROM books
+| STATS c = count(*) where match(title, "Hobbit Back Again", {"operator": "AND"})
+;
+
+c:long
+1
+;
+
+testMatchInStatsWithNonPushableDisjunctions
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+FROM books
+| STATS c = count(*) where match(title, "lord") or length(title) > 130 
+;
+
+c:long
+5
+;
+
+testMatchInStatsWithMultipleAggs
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where match(title, "lord"), m = max(book_no::integer) where match(author, "tolkien"), n = min(book_no::integer) where match(author, "dostoevsky") 
+;
+
+c:long | m:integer | n:integer
+4      | 9607      | 1211
+;
+
+
+testMatchInStatsWithGrouping
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS r = AVG(ratings) where match(title, "Lord Rings", {"operator": "AND"}) by author | WHERE r is not null
+;
+ignoreOrder: true
+
+r:double           | author: text
+4.75               | Alan Lee                 
+4.674999952316284  | J. R. R. Tolkien         
+4.670000076293945  | John Ronald Reuel Tolkien
+4.670000076293945  | Agnes Perkins            
+4.670000076293945  | Charles Adolph Huttar    
+4.670000076293945  | Walter Scheps            
+4.559999942779541  | J.R.R. Tolkien           
 ;

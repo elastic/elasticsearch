@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -83,7 +84,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
     ) {
         sendCounter++;
         if (inferenceInputs instanceof EmbeddingsInput docsInput) {
-            inputs.add(docsInput.getInputs());
+            inputs.add(ChunkInferenceInput.inputs(docsInput.getInputs()));
             if (docsInput.getInputType() != null) {
                 inputTypes.add(docsInput.getInputType());
             }

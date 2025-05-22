@@ -27,13 +27,13 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.SEPARATOR;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithPatch() {
@@ -134,6 +134,7 @@ public class PolicyUtilsTests extends ESTestCase {
 
     public void testNoPatchWithValidationError() {
 
+        // Nonexistent module names
         var policyPatch = """
             versions:
               - 9.0.0
@@ -149,13 +150,15 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testNoPatchWithParsingError() {
 
+        // no <version> or <policy> field
         var policyPatch = """
             entitlement-module-name:
               - load_native_libraries
@@ -167,9 +170,10 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testMergeScopes() {
@@ -214,7 +218,7 @@ public class PolicyUtilsTests extends ESTestCase {
             List.of(
                 FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                 FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
+                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
             )
         );
         var e2 = new FilesEntitlement(
@@ -234,7 +238,7 @@ public class PolicyUtilsTests extends ESTestCase {
                     FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/c/d"), FilesEntitlement.Mode.READ)
                 )
             )
@@ -317,6 +321,7 @@ public class PolicyUtilsTests extends ESTestCase {
     /** Test that we can format some simple files entitlement properly */
     public void testFormatFilesEntitlement() {
         var pathAB = Path.of("/a/b");
+        var pathCD = Path.of("c/d");
         var policy = new Policy(
             "test-plugin",
             List.of(
@@ -326,11 +331,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofRelativePath(
-                                    Path.of("c/d"),
-                                    FilesEntitlement.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofRelativePath(pathCD, PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )
@@ -341,11 +342,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofPathSetting(
-                                    "setting",
-                                    FilesEntitlement.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofPathSetting("setting", PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )
@@ -353,7 +350,17 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
         Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
-        assertThat(actual, containsInAnyOrder("files [READ_WRITE] " + pathAB, "files [READ] <DATA>/c/d", "files [READ] <DATA>/<setting>"));
+        var pathABString = pathAB.toAbsolutePath().toString();
+        var pathCDString = SEPARATOR + pathCD.toString();
+        var pathSettingString = SEPARATOR + "<setting>";
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                "files [READ_WRITE] " + pathABString,
+                "files [READ] <DATA>" + pathCDString,
+                "files [READ] <DATA>" + pathSettingString
+            )
+        );
     }
 
     /** Test that we can format some simple files entitlement properly */

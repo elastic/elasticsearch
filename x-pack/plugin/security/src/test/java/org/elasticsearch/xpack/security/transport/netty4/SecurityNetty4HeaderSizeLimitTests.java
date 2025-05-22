@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -32,7 +33,6 @@ import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TestRequest;
 import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -108,7 +108,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
                 "internal:test",
                 TestRequest::new,
                 taskManager,
-                (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE),
+                (request, channel, task) -> channel.sendResponse(ActionResponse.Empty.INSTANCE),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 true,

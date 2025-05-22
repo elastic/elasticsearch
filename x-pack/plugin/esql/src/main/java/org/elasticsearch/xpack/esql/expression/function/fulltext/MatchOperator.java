@@ -39,7 +39,7 @@ public class MatchOperator extends Match {
             <<esql-match,match function>>.
 
             `:` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-function", tag = "match-with-field") }
+        examples = { @Example(file = "match-operator", tag = "match-with-field") }
     )
     public MatchOperator(
         Source source,

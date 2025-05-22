@@ -107,7 +107,7 @@ public class AggregatorProcessor implements Processor {
                     aggClass,
                     intermediateState,
                     warnExceptionsTypes,
-                    aggClass.getAnnotation(GroupingAggregator.class).includeTimestamps()
+                    aggClass.getAnnotation(GroupingAggregator.class).timeseries()
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

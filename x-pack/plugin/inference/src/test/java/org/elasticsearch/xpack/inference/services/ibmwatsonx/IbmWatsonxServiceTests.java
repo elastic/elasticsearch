@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -42,16 +43,15 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
@@ -731,7 +731,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer_Batches(ChunkingSettings chunkingSettings) throws IOException {
-        var input = List.of("a", "bb");
+        var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -786,7 +786,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -801,7 +801,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -860,169 +860,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             assertThat(error.getMessage(), containsString("Resource not found at "));
             assertThat(error.getMessage(), containsString("Error message: [error]"));
             assertThat(webServer.requests(), hasSize(1));
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                1,
-                similarityMeasure
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            // Updates dimensions to two as two embeddings were returned instead of one as specified before
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        2,
-                        similarityMeasure
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var twoDimension = 2;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                twoDimension,
-                null
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        twoDimension,
-                        SimilarityMeasure.DOT_PRODUCT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var twoDimension = 2;
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "results": [
-                        {
-                            "embedding": [
-                               0.0123,
-                               -0.0123
-                            ],
-                           "input": "foo"
-                        }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
-                twoDimension,
-                SimilarityMeasure.COSINE
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(
-                result,
-                is(
-                    IbmWatsonxEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        modelId,
-                        projectId,
-                        URI.create(url),
-                        apiVersion,
-                        apiKey,
-                        twoDimension,
-                        SimilarityMeasure.COSINE
-                    )
-                )
-            );
         }
     }
 

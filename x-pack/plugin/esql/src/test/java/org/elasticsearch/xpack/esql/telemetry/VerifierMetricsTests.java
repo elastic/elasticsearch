@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
@@ -441,64 +441,89 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, rename(c));
     }
 
+    public void testCategorize() {
+        Counters c = esql("""
+            from employees
+            | keep emp_no, languages, gender
+            | where languages is null or emp_no <= 10030
+            | STATS COUNT() BY CATEGORIZE(gender)""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(1L, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(1L, from(c));
+        assertEquals(0, drop(c));
+        assertEquals(1L, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(1, function("count", c));
+        assertEquals(1, function("categorize", c));
+    }
+
     private long dissect(Counters c) {
-        return c.get(FPREFIX + DISSECT);
+        return c.get(FEATURES_PREFIX + DISSECT);
     }
 
     private long eval(Counters c) {
-        return c.get(FPREFIX + EVAL);
+        return c.get(FEATURES_PREFIX + EVAL);
     }
 
     private long grok(Counters c) {
-        return c.get(FPREFIX + GROK);
+        return c.get(FEATURES_PREFIX + GROK);
     }
 
     private long limit(Counters c) {
-        return c.get(FPREFIX + LIMIT);
+        return c.get(FEATURES_PREFIX + LIMIT);
     }
 
     private long sort(Counters c) {
-        return c.get(FPREFIX + SORT);
+        return c.get(FEATURES_PREFIX + SORT);
     }
 
     private long stats(Counters c) {
-        return c.get(FPREFIX + STATS);
+        return c.get(FEATURES_PREFIX + STATS);
     }
 
     private long where(Counters c) {
-        return c.get(FPREFIX + WHERE);
+        return c.get(FEATURES_PREFIX + WHERE);
     }
 
     private long enrich(Counters c) {
-        return c.get(FPREFIX + ENRICH);
+        return c.get(FEATURES_PREFIX + ENRICH);
     }
 
     private long mvExpand(Counters c) {
-        return c.get(FPREFIX + MV_EXPAND);
+        return c.get(FEATURES_PREFIX + MV_EXPAND);
     }
 
     private long show(Counters c) {
-        return c.get(FPREFIX + SHOW);
+        return c.get(FEATURES_PREFIX + SHOW);
     }
 
     private long row(Counters c) {
-        return c.get(FPREFIX + ROW);
+        return c.get(FEATURES_PREFIX + ROW);
     }
 
     private long from(Counters c) {
-        return c.get(FPREFIX + FROM);
+        return c.get(FEATURES_PREFIX + FROM);
     }
 
     private long drop(Counters c) {
-        return c.get(FPREFIX + DROP);
+        return c.get(FEATURES_PREFIX + DROP);
     }
 
     private long keep(Counters c) {
-        return c.get(FPREFIX + KEEP);
+        return c.get(FEATURES_PREFIX + KEEP);
     }
 
     private long rename(Counters c) {
-        return c.get(FPREFIX + RENAME);
+        return c.get(FEATURES_PREFIX + RENAME);
     }
 
     private long function(String function, Counters c) {

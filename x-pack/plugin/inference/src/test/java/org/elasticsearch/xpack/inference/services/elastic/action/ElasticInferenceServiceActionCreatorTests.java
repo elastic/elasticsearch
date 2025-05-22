@@ -96,7 +96,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                new EmbeddingsInput(List.of("hello world"), null, InputType.UNSPECIFIED),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -157,7 +157,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                new EmbeddingsInput(List.of("hello world"), null, InputType.UNSPECIFIED),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -214,7 +214,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                new EmbeddingsInput(List.of("hello world"), null, InputType.UNSPECIFIED),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -278,7 +278,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                new EmbeddingsInput(List.of("hello world"), null, InputType.UNSPECIFIED),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

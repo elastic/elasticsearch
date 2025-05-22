@@ -71,6 +71,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
+    }
+
+    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }

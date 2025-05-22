@@ -1,0 +1,5 @@
+pr: 128111
+summary: Fix union types in CCS
+area: ES|QL
+type: bug
+issues: []

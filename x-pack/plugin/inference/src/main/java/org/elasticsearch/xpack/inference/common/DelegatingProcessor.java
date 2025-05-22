@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -40,7 +39,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
     ) throws Exception {
         var results = new ArrayDeque<ParsedChunk>(item.size());
         for (ServerSentEvent event : item) {
-            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
+            if (event.hasData()) {
                 try {
                     var delta = parseFunction.apply(parserConfig, event);
                     delta.forEachRemaining(results::offer);

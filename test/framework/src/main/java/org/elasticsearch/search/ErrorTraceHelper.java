@@ -9,16 +9,24 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 
 /**
@@ -44,5 +52,41 @@ public enum ErrorTraceHelper {
                 }
             }));
         return transportMessageHasStackTrace::get;
+    }
+
+    /**
+     * Adds expectations for debug logging of a message and exception on each shard of the given index.
+     *
+     * @param numShards                 the number of shards in the index (an expectation will be added for each shard)
+     * @param mockLog                   the mock log
+     * @param errorTriggeringIndex      the name of the index that will trigger the error
+     */
+    public static void addSeenLoggingExpectations(int numShards, MockLog mockLog, String errorTriggeringIndex) {
+        String nodesDisjunction = format(
+            "(%s)",
+            Arrays.stream(internalCluster().getNodeNames()).map(ESIntegTestCase::getNodeId).collect(Collectors.joining("|"))
+        );
+        for (int shard = 0; shard < numShards; shard++) {
+            mockLog.addExpectation(
+                new MockLog.PatternAndExceptionSeenEventExpectation(
+                    format(
+                        "\"[%s][%s][%d]: failed to execute search request for task [\\d+]\" and an exception logged",
+                        nodesDisjunction,
+                        errorTriggeringIndex,
+                        shard
+                    ),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    format(
+                        "\\[%s\\]\\[%s\\]\\[%d\\]: failed to execute search request for task \\[\\d+\\]",
+                        nodesDisjunction,
+                        errorTriggeringIndex,
+                        shard
+                    ),
+                    QueryShardException.class,
+                    "failed to create query: For input string: \"foo\""
+                )
+            );
+        }
     }
 }

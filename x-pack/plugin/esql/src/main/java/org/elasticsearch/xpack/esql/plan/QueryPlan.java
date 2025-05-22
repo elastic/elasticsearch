@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
@@ -41,18 +42,14 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     public AttributeSet outputSet() {
         if (lazyOutputSet == null) {
-            lazyOutputSet = new AttributeSet(output());
+            lazyOutputSet = AttributeSet.of(output());
         }
         return lazyOutputSet;
     }
 
     public AttributeSet inputSet() {
         if (lazyInputSet == null) {
-            List<Attribute> attrs = new ArrayList<>();
-            for (PlanType child : children()) {
-                attrs.addAll(child.output());
-            }
-            lazyInputSet = new AttributeSet(attrs);
+            lazyInputSet = AttributeSet.of(children(), QueryPlan::output);
         }
         return lazyInputSet;
     }
@@ -113,20 +110,34 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
     }
 
-    public PlanType transformExpressionsDown(Function<Expression, ? extends Expression> rule) {
-        return transformExpressionsDown(Expression.class, rule);
-    }
-
     public <E extends Expression> PlanType transformExpressionsDown(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesDown(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
     }
 
-    public PlanType transformExpressionsUp(Function<Expression, ? extends Expression> rule) {
-        return transformExpressionsUp(Expression.class, rule);
+    public <E extends Expression> PlanType transformExpressionsDown(
+        Predicate<Node<?>> shouldVisit,
+        Class<E> typeToken,
+        Function<E, ? extends Expression> rule
+    ) {
+        return transformDown(
+            shouldVisit,
+            t -> t.transformNodeProps(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)))
+        );
     }
 
     public <E extends Expression> PlanType transformExpressionsUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesUp(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
+    }
+
+    public <E extends Expression> PlanType transformExpressionsUp(
+        Predicate<Node<?>> shouldVisit,
+        Class<E> typeToken,
+        Function<E, ? extends Expression> rule
+    ) {
+        return transformUp(
+            shouldVisit,
+            t -> t.transformNodeProps(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)))
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -188,16 +199,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         forEachPropertyOnly(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
-    public void forEachExpressionDown(Consumer<? super Expression> rule) {
-        forEachExpressionDown(Expression.class, rule);
-    }
-
     public <E extends Expression> void forEachExpressionDown(Class<? extends E> typeToken, Consumer<? super E> rule) {
         forEachPropertyDown(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
-    }
-
-    public void forEachExpressionUp(Consumer<? super Expression> rule) {
-        forEachExpressionUp(Expression.class, rule);
     }
 
     public <E extends Expression> void forEachExpressionUp(Class<E> typeToken, Consumer<? super E> rule) {

@@ -611,7 +611,6 @@ emp_no_bool:boolean
 
 testMatchWithSemanticText
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -628,7 +627,6 @@ live long and prosper
 
 testMatchWithSemanticTextAndKeyword
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -642,7 +640,6 @@ live long and prosper    | host1
 
 testMatchWithSemanticTextMultiValueField
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
@@ -656,7 +653,6 @@ _id: keyword | st_multi_value:text
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: semantic_text_field_caps
 
 from semantic_text
@@ -672,7 +668,6 @@ result:long
 
 testMatchWithSemanticTextAndKql
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: kql_function
 required_capability: semantic_text_field_caps
 
@@ -743,7 +738,6 @@ _id:keyword | language_name:keyword | language_code:integer
 
 testMatchWithSemanticTextKqlAndLookupJoin
 required_capability: match_operator_colon
-required_capability: semantic_text_type
 required_capability: kql_function
 required_capability: semantic_text_field_caps
 required_capability: join_lookup_v12
@@ -756,4 +750,30 @@ from semantic_text
 
 host:keyword | semantic_text_field:text | language_name:keyword | language_code:integer
 "host1"      | live long and prosper    | English               | 1
+;
+
+
+testMatchInStatsNonPushable
+required_capability: match_operator_colon
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where title:"Lord"
+;
+
+c:long
+3
+;
+
+testMatchInStatsPushable
+required_capability: match_operator_colon
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where author:"tolkien"
+;
+
+c:long
+22
 ;

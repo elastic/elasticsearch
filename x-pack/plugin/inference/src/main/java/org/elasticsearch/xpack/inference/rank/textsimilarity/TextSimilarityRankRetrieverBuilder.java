@@ -215,10 +215,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return inferenceId;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
-    }
-
     public boolean failuresAllowed() {
         return failuresAllowed;
     }

@@ -58,7 +58,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
  */
-public class Bucket extends GroupingFunction implements PostOptimizationVerificationAware, TwoOptionalArguments {
+public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        PostOptimizationVerificationAware,
+        TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -113,7 +116,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                     it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
-                description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
+                description = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """
@@ -140,7 +143,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
                 ::::{note}
                 When providing the bucket size as the second parameter, it must be a time
-                duration or date period.
+                duration or date period. Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
                 ::::"""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
@@ -262,16 +265,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isWholeNumber()) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                long f = foldToLong(toEvaluator.foldCtx(), from);
-                long t = foldToLong(toEvaluator.foldCtx(), to);
-                preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
-            } else {
-                assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(buckets.fold(toEvaluator.foldCtx()), DEFAULT_TZ);
-            }
+            Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
@@ -293,6 +287,30 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             return toEvaluator.apply(mul);
         }
         throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+    }
+
+    /**
+     * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
+     */
+    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+            return getDateRounding(foldCtx);
+        } else {
+            return null;
+        }
+    }
+
+    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
+        assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
+        if (buckets.dataType().isWholeNumber()) {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            long f = foldToLong(foldContext, from);
+            long t = foldToLong(foldContext, to);
+            return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
+        } else {
+            assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ);
+        }
     }
 
     private record DateRoundingPicker(int buckets, long from, long to) {

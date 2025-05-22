@@ -66,9 +66,12 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -268,7 +271,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private UnresolvedRelation visitRelation(Source source, String commandName, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+    private UnresolvedRelation visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
@@ -285,13 +288,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
-        final IndexMode indexMode = commandName.equals("METRICS") ? IndexMode.TIME_SERIES : IndexMode.STANDARD;
+        final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
         return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
     }
 
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
-        return visitRelation(source(ctx), "FROM", ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), IndexMode.STANDARD, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -313,7 +316,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
+        return input -> {
+            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+            } else {
+                return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
+            }
+        };
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
@@ -355,7 +364,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG) {
             throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);
@@ -363,10 +372,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         // TODO: add support for filters
-        return input -> new InlineStats(
-            source(ctx),
-            new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), aggregates)
-        );
+        return input -> new InlineStats(source(ctx), new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates));
     }
 
     @Override
@@ -514,11 +520,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
+    public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         if (Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
+            throw new IllegalArgumentException("TS command currently requires a snapshot build");
         }
-        return visitRelation(source(ctx), "METRICS", ctx.indexPatternAndMetadataFields());
+        return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
     }
 
     @Override
@@ -630,9 +636,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Fork requires at least two branches");
         }
         return input -> {
-            var stub = StubRelation.EMPTY;
-            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(stub)).toList();
-            return new Fork(source(ctx), input, subPlans);
+            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
+            return new Fork(source(ctx), subPlans, List.of());
         };
     }
 
@@ -704,5 +709,83 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new OrderBy(source, dedup, order);
         };
+    }
+
+    @Override
+    public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
+        Source source = source(ctx);
+        Expression queryText = expression(ctx.queryText);
+        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
+            if (queryTextLiteral.value() == null) {
+                throw new ParsingException(
+                    source(ctx.queryText),
+                    "Query text cannot be null or undefined in RERANK",
+                    ctx.queryText.getText()
+                );
+            }
+        } else {
+            throw new ParsingException(
+                source(ctx.queryText),
+                "RERANK only support string as query text but [{}] cannot be used as string",
+                ctx.queryText.getText()
+            );
+        }
+
+        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
+    }
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        Source source = source(ctx);
+        Expression prompt = expression(ctx.prompt);
+        Literal inferenceId = inferenceId(ctx.inferenceId);
+        Attribute targetField = ctx.targetField == null
+            ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
+            : visitQualifiedName(ctx.targetField);
+
+        return p -> new Completion(source, p, inferenceId, prompt, targetField);
+    }
+
+    public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+        if (ctx.identifier() != null) {
+            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+        }
+
+        if (expression(ctx.parameter()) instanceof Literal literalParam) {
+            if (literalParam.value() != null) {
+                return literalParam;
+            }
+
+            throw new ParsingException(
+                source(ctx.parameter()),
+                "Query parameter [{}] is null or undefined and cannot be used as inference id",
+                ctx.parameter().getText()
+            );
+        }
+
+        throw new ParsingException(
+            source(ctx.parameter()),
+            "Query parameter [{}] is not a string and cannot be used as inference id",
+            ctx.parameter().getText()
+        );
+    }
+
+    public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
+        var probability = visitDecimalValue(ctx.probability);
+        Literal seed;
+        if (ctx.seed != null) {
+            seed = visitIntegerValue(ctx.seed);
+            if (seed.dataType() != DataType.INTEGER) {
+                throw new ParsingException(
+                    seed.source(),
+                    "seed must be an integer, provided [{}] of type [{}]",
+                    ctx.seed.getText(),
+                    seed.dataType()
+                );
+            }
+        } else {
+            seed = null;
+        }
+        return plan -> new Sample(source(ctx), probability, seed, plan);
     }
 }

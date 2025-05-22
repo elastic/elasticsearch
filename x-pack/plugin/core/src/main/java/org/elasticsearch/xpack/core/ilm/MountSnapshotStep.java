@@ -230,8 +230,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
      * - index.routing.allocation.total_shards_per_node: It is likely that frozen tier has fewer nodes than the hot tier. If this setting
      * is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
      * allocate all the shards in the frozen tier and the user does not have any way of fixing this. For this reason, we ignore this
-     * setting when moving to frozen. We do not ignore this setting if it is specifically set in the mount searchable snapshot step
-     * of frozen tier.
+     * setting when moving to frozen. We do not ignore this setting if it is specifically set in the mount searchable snapshot step.
      */
     String[] ignoredIndexSettings() {
         ArrayList<String> ignoredSettings = new ArrayList<>();
@@ -240,6 +239,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         // if total_shards_per_node setting is specifically set for the frozen phase and not propagated from previous phase,
         // then it should not be ignored
         if (TimeseriesLifecycleType.FROZEN_PHASE.equals(this.getKey().phase()) && this.totalShardsPerNode == null) {
+            // in frozen phase only, propagated total_shards_per_node (from previous hot/cold phase) is ignored
             ignoredSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         }
         return ignoredSettings.toArray(new String[0]);

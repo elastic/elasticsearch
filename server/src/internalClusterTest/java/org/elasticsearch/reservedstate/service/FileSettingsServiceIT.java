@@ -25,6 +25,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -37,9 +39,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.allOf;
@@ -496,6 +501,82 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(internalCluster().getMasterName(), testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+    }
+
+    public void testHealthIndicatorWithSingleNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start the node");
+        String nodeName = internalCluster().startNode();
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, nodeName);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        ensureStableCluster(1);
+
+        testHealthIndicatorOnError(nodeName, nodeName);
+    }
+
+    public void testHealthIndicatorWithSeparateHealthNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start a data node to act as the health node");
+        String healthNode = internalCluster().startNode(
+            Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s")
+        );
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        ensureStableCluster(2);
+
+        testHealthIndicatorOnError(masterNode, healthNode);
+    }
+
+    /**
+     * {@code masterNode} and {@code healthNode} can be the same node.
+     */
+    private void testHealthIndicatorOnError(String masterNode, String healthNode) throws Exception {
+        logger.info("--> ensure all is well before the error");
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(0, healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak());
+        });
+
+        logger.info("--> induce an error and wait for it to be processed");
+        var savedClusterState = setupClusterStateListenerForError(masterNode);
+        writeJSONFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        logger.info("--> ensure the health node also reports it");
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(
+                "Cached info on health node should report one failure",
+                1,
+                healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak()
+            );
+
+            for (var node : Stream.of(masterNode, healthNode).distinct().toList()) {
+                GetHealthAction.Response getHealthResponse = client(node).execute(
+                    GetHealthAction.INSTANCE,
+                    new GetHealthAction.Request(false, 123)
+                ).get();
+                assertEquals(
+                    "Health should be yellow on node " + node,
+                    YELLOW,
+                    getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
+                );
+            }
+        });
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

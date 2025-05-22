@@ -267,7 +267,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedProject,
-            matchingTemplate,
+            template,
             xContentRegistry,
             simulatedIndexName
         );
@@ -348,7 +348,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedProject, matchingTemplate);
         DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.Template.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         }
         DataStreamOptions.Builder optionsBuilder = resolveDataStreamOptions(simulatedProject, matchingTemplate);
         return new Template(

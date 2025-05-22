@@ -10,8 +10,6 @@
 package org.elasticsearch.multiproject;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -80,11 +78,11 @@ public class TestOnlyMultiProjectPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public Collection<ActionHandler> getActions() {
         if (multiProjectEnabled) {
             return List.of(
-                new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
-                new ActionHandler<>(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
+                new ActionHandler(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
+                new ActionHandler(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
             );
         } else {
             return List.of();

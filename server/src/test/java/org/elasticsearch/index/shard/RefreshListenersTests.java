@@ -166,7 +166,8 @@ public class RefreshListenersTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            EngineTestCase.createMapperService()
+            EngineTestCase.createMapperService(),
+            new EngineResetLock()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);

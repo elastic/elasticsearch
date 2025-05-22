@@ -20,7 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
  * Shard level request for extracting all needed feature for a global reranker
  */
 
-public class RankFeatureShardRequest extends TransportRequest implements IndicesRequest {
+public class RankFeatureShardRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final OriginalIndices originalIndices;
     private final ShardSearchRequest shardSearchRequest;

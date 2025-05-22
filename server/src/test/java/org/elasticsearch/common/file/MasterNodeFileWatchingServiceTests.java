@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ESTestCase.WithoutSecurityManager
 public class MasterNodeFileWatchingServiceTests extends ESTestCase {
 
     static final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");

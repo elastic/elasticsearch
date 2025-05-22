@@ -66,7 +66,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public AttributeSet references() {
-        return new AttributeSet(this);
+        return AttributeSet.of(this);
     }
 
     public Attribute withLocation(Source source) {
@@ -112,18 +112,15 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), nullability);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            Attribute other = (Attribute) obj;
-            return Objects.equals(nullability, other.nullability);
-        }
-
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (Attribute) o;
+        return super.innerEquals(other) && Objects.equals(nullability, other.nullability);
     }
 
     @Override
@@ -137,14 +134,4 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
-
-    /**
-     * If this field is unsupported this contains the underlying ES types. If there
-     * is a type conflict this will have many elements, some or all of which may
-     * be actually supported types.
-     */
-    @Nullable
-    public List<String> originalTypes() {
-        return null;
-    }
 }

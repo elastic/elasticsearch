@@ -31,6 +31,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -42,7 +43,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -282,7 +282,7 @@ public class TaskManagerTests extends ESTestCase {
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskStartsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
@@ -306,7 +306,7 @@ public class TaskManagerTests extends ESTestCase {
      * Check that unregistering a task also causes tracing to be stopped on that task.
      */
     public void testUnregisterTaskStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
@@ -332,7 +332,7 @@ public class TaskManagerTests extends ESTestCase {
      * Check that registering and executing a task also causes tracing to be started and stopped on that task.
      */
     public void testRegisterAndExecuteStartsAndStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.registerAndExecute(
@@ -370,7 +370,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRegisterWithEnabledDisabledTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
 
         taskManager.register("type", "action", makeTaskRequest(true, 123), false);
@@ -390,7 +390,7 @@ public class TaskManagerTests extends ESTestCase {
         verify(taskManager, times(1)).startTrace(any(), any());
     }
 
-    static class CancellableRequest extends TransportRequest {
+    static class CancellableRequest extends AbstractTransportRequest {
         private final String requestId;
 
         CancellableRequest(String requestId) {

@@ -71,6 +71,9 @@ setup:
       indices.forcemerge:
         index: hnsw_byte_quantized
         max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
 ---
 "kNN search only":
   - do:

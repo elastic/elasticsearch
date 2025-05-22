@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -103,7 +104,11 @@ public class Project extends UnaryPlan implements SortAgnostic {
         }
 
         Project other = (Project) obj;
-
         return Objects.equals(projections, other.projections) && Objects.equals(child(), other.child());
+    }
+
+    @Override
+    public String nodeString() {
+        return nodeName() + "[projections=" + NodeUtils.limitedToString(projections) + "]";
     }
 }

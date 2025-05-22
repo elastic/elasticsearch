@@ -324,7 +324,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             if (dryRun) {
                 /*
                  * This is as far as we go with dry run mode. We get the benefit of having checked that all the indices that will be touced
-                 * are not blocked, but there is no value in going behond this. So just respond to the listener and move on.
+                 * are not blocked, but there is no value in going beyond this. So just respond to the listener and move on.
                  */
                 listener.onResponse(null);
             } else {
@@ -338,35 +338,37 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
                         index
                     ),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(AcknowledgedResponse response) {
-                            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
-                            if (response.isAcknowledged() == false) {
-                                error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
-                                    index.getName(),
-                                    "Updating settings not acknowledged for unknown reason"
-                                );
-                            } else {
-                                error = null;
-                            }
-                            listener.onResponse(error);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onResponse(
-                                new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
-                                    index.getName(),
-                                    e.getMessage()
-                                )
-                            );
-                        }
-                    }
+                    new UpdateSingleIndexSettingsListener(index.getName(), listener)
                 );
             }
         }
 
+    }
+
+    private record UpdateSingleIndexSettingsListener(
+        String indexName,
+        ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> delegateListener
+    ) implements ActionListener<AcknowledgedResponse> {
+        @Override
+        public void onResponse(AcknowledgedResponse response) {
+            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
+            if (response.isAcknowledged() == false) {
+                error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
+                    indexName,
+                    "Updating settings not acknowledged for unknown reason"
+                );
+            } else {
+                error = null;
+            }
+            delegateListener.onResponse(error);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            delegateListener.onResponse(
+                new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(indexName, e.getMessage())
+            );
+        }
     }
 
     @Override

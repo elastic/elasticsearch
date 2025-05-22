@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.querydsl.query;
 
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,7 +30,8 @@ public class MatchPhraseQuery extends Query {
         BUILDER_APPLIERS = Map.ofEntries(
             entry(ANALYZER_FIELD.getPreferredName(), (qb, s) -> qb.analyzer(s.toString())),
             entry(SLOP_FIELD.getPreferredName(), (qb, s) -> qb.slop(Integer.parseInt(s.toString()))),
-            entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), (qb, s) -> qb.zeroTermsQuery((String) s))
+            entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), (qb, s) -> qb.zeroTermsQuery((String) s)),
+            entry(AbstractQueryBuilder.BOOST_FIELD.getPreferredName(), (qb, s) -> qb.boost((Float) s))
         );
     }
 

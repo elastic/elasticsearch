@@ -269,6 +269,70 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10043          | Yishay              | Tzvieli        
 ;
 
+testMatchPhraseBooleanField
+required_capability: match_phrase_function
+required_capability: match_additional_types
+
+from employees 
+| where match_phrase(still_hired, true) and height > 2.08 
+| keep first_name, still_hired, height;
+ignoreOrder:true
+
+first_name:keyword  | still_hired:boolean   | height:double
+Saniya              | true                  | 2.1
+Yongqiao            | true                  | 2.1
+Kwee                | true                  | 2.1
+Amabile             | true                  | 2.09
+;
+
+testMatchPhraseIntegerField
+required_capability: match_phrase_function
+required_capability: match_additional_types
+
+from employees 
+| where match(emp_no, 10004)
+| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+;
+
+testMatchPhraseDoubleField
+required_capability: match_phrase_function
+required_capability: match_additional_types
+
+from employees 
+| where match_phrase(salary_change, 9.07)
+| keep emp_no, salary_change;
+
+emp_no:integer | salary_change:double
+10014          | [-1.89, 9.07] 
+;  
+
+testMatchPhraseLongField
+required_capability: match_phrase_function
+required_capability: match_additional_types
+
+from date_nanos
+| where match_phrase(num, 1698069301543123456)
+| keep num;
+
+num:long
+1698069301543123456
+;
+
+testMatchPhraseUnsignedLongField
+required_capability: match_phrase_function
+required_capability: match_additional_types
+
+from ul_logs
+| where match_phrase(bytes_out, 12749081495402663265)
+| keep bytes_out;
+
+bytes_out:unsigned_long
+12749081495402663265
+;
+
 testMatchPhraseVersionField
 required_capability: match_phrase_function
 
@@ -327,6 +391,21 @@ book_no:keyword
 7140
 ;
 
+testMatchPhraseWithOptionsBoost
+required_capability: match_phrase_function
+from books 
+| where match_phrase(title, "Lord of the Rings", {"boost": 5})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140
+;
+
+
 testMatchPhraseWithOptionsZeroTermsNone
 required_capability: match_phrase_function
 from books 
@@ -381,4 +460,95 @@ book_no:keyword
 2675
 4023
 7140
+;
+
+testMatchPhraseInStatsNonPushable
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where match_phrase(title, "Lord of the Rings")
+;
+
+c:long
+3
+;
+
+testMatchPhraseInStatsPushableAndNonPushable
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where (match_phrase(title, "lord of the rings") and ratings > 4.5) or (match(author, "fyodor dostoevsky") and length(title) > 50)
+;
+
+c:long
+6
+;
+
+testMatchPhraseInStatsPushable
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where match_phrase(author, "j. r. r. tolkien")
+;
+
+c:long
+9
+;
+
+testMatchPhraseInStatsWithOptions
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+
+FROM books
+| STATS c = count(*) where match_phrase(title, "There and Back Again", {"slop": "5"})
+;
+
+c:long
+1
+;
+
+testMatchPhraseInStatsWithNonPushableDisjunctions
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+
+FROM books
+| STATS c = count(*) where match_phrase(title, "lord of the rings") or length(title) > 130 
+;
+
+c:long
+5
+;
+
+testMatchPhraseInStatsWithMultipleAggs
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where match_phrase(title, "lord of the rings"), m = max(book_no::integer) where match_phrase(author, "j. r. r. tolkien"), n = min(book_no::integer) where match_phrase(author, "fyodor dostoevsky") 
+;
+
+c:long | m:integer | n:integer
+4      | 7670      | 1211
+;
+
+
+testMatchPhraseInStatsWithGrouping
+required_capability: match_phrase_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS r = AVG(ratings) where match_phrase(title, "Lord of the Rings") by author | WHERE r is not null
+;
+ignoreOrder: true
+
+r:double           | author: text
+4.75               | Alan Lee                 
+4.674999952316284  | J. R. R. Tolkien         
+4.670000076293945  | John Ronald Reuel Tolkien
+4.670000076293945  | Agnes Perkins            
+4.670000076293945  | Charles Adolph Huttar    
+4.670000076293945  | Walter Scheps            
+4.559999942779541  | J.R.R. Tolkien           
 ;

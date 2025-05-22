@@ -17,12 +17,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -52,10 +54,13 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
+        addNonNumericCases(suppliers);
+        addNumericCases(suppliers);
+        addUnsignedLongCases(suppliers);
         return suppliers;
     }
 
-    public static void addQueryAsStringTestCases(List<TestCaseSupplier> suppliers) {
+    private static void addQueryAsStringTestCases(List<TestCaseSupplier> suppliers) {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -126,7 +131,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
         );
     }
 
-    public static void addStringTestCases(List<TestCaseSupplier> suppliers) {
+    private static void addStringTestCases(List<TestCaseSupplier> suppliers) {
         for (DataType fieldType : DataType.stringTypes()) {
             if (DataType.UNDER_CONSTRUCTION.containsKey(fieldType)) {
                 continue;
@@ -141,18 +146,167 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                         (o1, o2) -> true
                     )
                 );
-
-                suppliers.add(
-                    TestCaseSupplier.testCaseSupplier(
-                        queryDataSupplier,
-                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.TEXT),
-                        (d1, d2) -> equalTo("string"),
-                        DataType.BOOLEAN,
-                        (o1, o2) -> true
-                    )
-                );
             }
         }
+    }
+
+    private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.booleanCases(),
+                TestCaseSupplier.booleanCases(),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ipCases(),
+                TestCaseSupplier.ipCases(),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.versionCases(""),
+                TestCaseSupplier.versionCases(""),
+                List.of(),
+                false
+            )
+        );
+        // Datetime
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+    }
+
+    private static void addNumericCases(List<TestCaseSupplier> suppliers) {
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryComparisonWithWidening(
+                new TestCaseSupplier.NumericTypeTestConfigs<>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Integer.MIN_VALUE >> 1) - 1,
+                        (Integer.MAX_VALUE >> 1) - 1,
+                        (l, r) -> true,
+                        "EqualsIntsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Long.MIN_VALUE >> 1) - 1,
+                        (Long.MAX_VALUE >> 1) - 1,
+                        (l, r) -> true,
+                        "EqualsLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        Double.NEGATIVE_INFINITY,
+                        Double.POSITIVE_INFINITY,
+                        // NB: this has different behavior than Double::equals
+                        (l, r) -> true,
+                        "EqualsDoublesEvaluator"
+                    )
+                ),
+                "field",
+                "query",
+                (lhs, rhs) -> List.of(),
+                false
+            )
+        );
+    }
+
+    private static void addUnsignedLongCases(List<TestCaseSupplier> suppliers) {
+        // TODO: These should be integrated into the type cross product above, but are currently broken
+        // see https://github.com/elastic/elasticsearch/issues/102935
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true),
+                List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                null,
+                "field",
+                "query",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
+                List.of(),
+                false
+            )
+        );
     }
 
     /**

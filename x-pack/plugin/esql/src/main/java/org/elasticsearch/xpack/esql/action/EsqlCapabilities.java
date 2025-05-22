@@ -214,6 +214,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Support for function {@code SCALB}.
+         */
+        FN_SCALB,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -873,7 +878,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results

@@ -213,7 +213,7 @@ configure the behaviour of the import:
 
 | Property                                   | Description                                                                                          | Values (* = default) |
 |--------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------|
-| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`ture`, `false`         |
+| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`true`, `false`         |
 | `org.elasticsearch.idea-delegate-to-gradle`  | Should IntelliJ use Gradle for all generated run / test configs or prompt each time                  | `true`, *`false`         |
 
 These options can be set anywhere on the Gradle config path including in `~/.gradle/gradle.settings`

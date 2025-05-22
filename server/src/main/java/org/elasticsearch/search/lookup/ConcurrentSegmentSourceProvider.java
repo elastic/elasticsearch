@@ -32,7 +32,8 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
 
     ConcurrentSegmentSourceProvider(SourceLoader loader, boolean loadSource) {
         this.sourceLoader = loader;
-        this.storedFieldLoader = StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
+        // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
+        this.storedFieldLoader = StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields(), true);
     }
 
     @Override

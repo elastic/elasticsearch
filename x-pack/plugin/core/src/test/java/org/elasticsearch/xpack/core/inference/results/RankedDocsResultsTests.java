@@ -88,14 +88,7 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
     public static Map<String, Object> buildExpectationRerank(List<RerankExpectation> rerank) {
         return Map.of(
             RankedDocsResults.RERANK,
-            rerank.stream()
-                .map(
-                    rerankExpectation -> Map.of(
-                        RankedDocsResults.RankedDoc.NAME,
-                        rerankExpectation.rankedDocFields
-                    )
-                )
-                .toList()
+            rerank.stream().map(rerankExpectation -> Map.of(RankedDocsResults.RankedDoc.NAME, rerankExpectation.rankedDocFields)).toList()
         );
     }
 }

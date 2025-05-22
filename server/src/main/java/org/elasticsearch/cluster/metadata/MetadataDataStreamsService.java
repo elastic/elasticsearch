@@ -151,16 +151,11 @@ public class MetadataDataStreamsService {
                     updateSettingsTask.settingsOverrides,
                     clusterState
                 );
-                final ClusterState updatedClusterState;
-                if (updateSettingsTask.dryRun) {
-                    updatedClusterState = clusterState;
-                } else {
-                    ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
-                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-                    projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
-                    projectMetadataBuilder.put(dataStream);
-                    updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
-                }
+                ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSettingsTask.projectId);
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+                projectMetadataBuilder.removeDataStream(updateSettingsTask.dataStreamName);
+                projectMetadataBuilder.put(dataStream);
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
                 return new Tuple<>(updatedClusterState, updateSettingsTask);
             }
         };
@@ -415,16 +410,33 @@ public class MetadataDataStreamsService {
         boolean dryRun,
         ActionListener<DataStream> listener
     ) {
-        UpdateSettingsTask updateSettingsTask = new UpdateSettingsTask(
-            projectId,
-            dataStreamName,
-            settingsOverrides,
-            dryRun,
-            clusterService,
-            ackTimeout,
-            listener
-        );
-        updateSettingsTaskQueue.submitTask("updating settings on data stream", updateSettingsTask, masterNodeTimeout);
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamSettings(
+                    projectId,
+                    dataStreamName,
+                    settingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            UpdateSettingsTask updateSettingsTask = new UpdateSettingsTask(
+                projectId,
+                dataStreamName,
+                settingsOverrides,
+                clusterService,
+                ackTimeout,
+                listener
+            );
+            updateSettingsTaskQueue.submitTask("updating settings on data stream", updateSettingsTask, masterNodeTimeout);
+        }
     }
 
     /*
@@ -550,8 +562,8 @@ public class MetadataDataStreamsService {
      * Removes the given data stream and their backing indices from the Project State.
      *
      * @param projectState The project state
-     * @param dataStreams The data streams to remove
-     * @param settings The settings
+     * @param dataStreams  The data streams to remove
+     * @param settings     The settings
      * @return The updated Project State
      */
     public static ClusterState deleteDataStreams(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
@@ -707,13 +719,11 @@ public class MetadataDataStreamsService {
         final ProjectId projectId;
         private final String dataStreamName;
         private final Settings settingsOverrides;
-        private final boolean dryRun;
 
         UpdateSettingsTask(
             ProjectId projectId,
             String dataStreamName,
             Settings settingsOverrides,
-            boolean dryRun,
             ClusterService clusterService,
             TimeValue ackTimeout,
             ActionListener<DataStream> listener
@@ -728,7 +738,6 @@ public class MetadataDataStreamsService {
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.settingsOverrides = settingsOverrides;
-            this.dryRun = dryRun;
         }
     }
 }

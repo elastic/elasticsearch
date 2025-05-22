@@ -31,7 +31,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
 
     private final BulkInferenceExecutor bulkInferenceExecutor;
 
-    @SuppressWarnings("this-escape")
     public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, ThreadPool threadPool, String inferenceId) {
         super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
@@ -86,10 +85,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
 
     protected abstract OutputBuilder outputBuilder(Page input);
 
-    public record OngoingInference(Page inputPage, InferenceAction.Response[] responses) {
-
-    }
-
     public interface OutputBuilder extends Releasable {
         void addInferenceResponse(InferenceAction.Response inferenceResponse);
 
@@ -105,5 +100,9 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 format("Inference result has wrong type. Got [{}] while expecting [{}]", results.getClass().getName(), clazz.getName())
             );
         }
+    }
+
+    public record OngoingInference(Page inputPage, InferenceAction.Response[] responses) {
+
     }
 }

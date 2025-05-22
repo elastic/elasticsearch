@@ -389,6 +389,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fieldType(name) != null;
     }
 
+    public List<FieldMapper> getMetadataFields() {
+        return new ArrayList<>(mapperService.getMetadataMappers().values());
+    }
+
     public boolean isMetadataField(String field) {
         return mapperService.isMetadataField(field);
     }

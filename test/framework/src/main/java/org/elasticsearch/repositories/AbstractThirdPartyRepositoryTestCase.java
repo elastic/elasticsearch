@@ -89,10 +89,6 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     private void deleteAndAssertEmpty(BlobPath path) {
         final BlobStoreRepository repo = getRepository();
-        deleteAndAssertEmpty(repo, path);
-    }
-
-    protected void deleteAndAssertEmpty(BlobStoreRepository repo, BlobPath path) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(randomPurpose())));
         future.actionGet();
@@ -469,10 +465,6 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected BlobStoreRepository getRepository() {
-        return getRepository(TEST_REPO_NAME);
-    }
-
-    protected BlobStoreRepository getRepository(String name) {
-        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(name);
+        return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
     }
 }

@@ -109,7 +109,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         // The blob needs to be large enough that it won't be entirely buffered on the first request
         final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
 
-        final BlobStoreRepository repo = getRepository(TEST_REPO_NAME);
+        final BlobStoreRepository repo = getRepository();
         final String blobKey = randomIdentifier();
         final byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
         executeOnBlobStore(repo, container -> {

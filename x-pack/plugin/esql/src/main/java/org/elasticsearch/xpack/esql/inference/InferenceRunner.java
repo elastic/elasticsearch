@@ -76,12 +76,6 @@ public class InferenceRunner {
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        executeAsyncWithOrigin(
-            client,
-            INFERENCE_ORIGIN,
-            InferenceAction.INSTANCE,
-            request,
-            listener
-        );
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
     }
 }

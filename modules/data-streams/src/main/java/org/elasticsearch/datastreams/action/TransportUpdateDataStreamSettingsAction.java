@@ -16,7 +16,6 @@ import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -107,17 +106,14 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             request.indices()
         );
         List<UpdateDataStreamSettingsAction.DataStreamSettingsResponse> dataStreamSettingsResponse = new ArrayList<>();
-        CountDownActionListener countDownListener = new CountDownActionListener(dataStreamNames.size() + 1, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                listener.onResponse(new UpdateDataStreamSettingsAction.Response(dataStreamSettingsResponse));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        CountDownActionListener countDownListener = new CountDownActionListener(
+            dataStreamNames.size() + 1,
+            listener.delegateFailure(
+                (responseActionListener, unused) -> responseActionListener.onResponse(
+                    new UpdateDataStreamSettingsAction.Response(dataStreamSettingsResponse)
+                )
+            )
+        );
         countDownListener.onResponse(null);
         for (String dataStreamName : dataStreamNames) {
             updateSingleDataStream(
@@ -126,28 +122,22 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                 request.isDryRun(),
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(UpdateDataStreamSettingsAction.DataStreamSettingsResponse dataStreamResponse) {
-                        dataStreamSettingsResponse.add(dataStreamResponse);
-                        countDownListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        dataStreamSettingsResponse.add(
-                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
-                                dataStreamName,
-                                false,
-                                e.getMessage(),
-                                EMPTY,
-                                EMPTY,
-                                UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
-                            )
-                        );
-                        countDownListener.onResponse(null);
-                    }
-                }
+                ActionListener.wrap(dataStreamResponse -> {
+                    dataStreamSettingsResponse.add(dataStreamResponse);
+                    countDownListener.onResponse(null);
+                }, e -> {
+                    dataStreamSettingsResponse.add(
+                        new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
+                            dataStreamName,
+                            false,
+                            e.getMessage(),
+                            EMPTY,
+                            EMPTY,
+                            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
+                        )
+                    );
+                    countDownListener.onResponse(null);
+                })
             );
         }
     }
@@ -201,30 +191,22 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
             dataStreamName,
             settingsOverrides,
             dryRun,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(DataStream dataStream) {
-                    if (dataStream != null) {
-                        updateSettingsOnIndices(dataStream, settingsOverrides, dryRun, masterNodeTimeout, ackTimeout, listener);
-                    } else {
-                        listener.onResponse(
-                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
-                                dataStreamName,
-                                false,
-                                "Updating settings not accepted for unknown reasons",
-                                EMPTY,
-                                EMPTY,
-                                UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
-                            )
-                        );
-                    }
+            listener.delegateFailure((dataStreamSettingsResponseActionListener, dataStream) -> {
+                if (dataStream != null) {
+                    updateSettingsOnIndices(dataStream, settingsOverrides, dryRun, masterNodeTimeout, ackTimeout, listener);
+                } else {
+                    dataStreamSettingsResponseActionListener.onResponse(
+                        new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
+                            dataStreamName,
+                            false,
+                            "Updating settings not accepted for unknown reasons",
+                            EMPTY,
+                            EMPTY,
+                            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
+                        )
+                    );
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+            })
         );
     }
 
@@ -250,11 +232,10 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         final List<Index> concreteIndices = dataStream.getIndices();
         final List<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> indexSettingErrors = new ArrayList<>();
 
-        CountDownActionListener indexCountDownListener = new CountDownActionListener(concreteIndices.size() + 1, new ActionListener<>() {
-            // Called when all indices for all settings are complete
-            @Override
-            public void onResponse(Void unused) {
-                listener.onResponse(
+        CountDownActionListener indexCountDownListener = new CountDownActionListener(
+            concreteIndices.size() + 1,
+            listener.delegateFailure(
+                (dataStreamSettingsResponseActionListener, unused) -> dataStreamSettingsResponseActionListener.onResponse(
                     new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                         dataStream.getName(),
                         true,
@@ -269,31 +250,26 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                             indexSettingErrors
                         )
                     )
-                );
-            }
+                )
+            )
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
         indexCountDownListener.onResponse(null); // handles the case where there were zero indices
         Settings applyToIndexSettings = builder().loadFromMap(settingsToApply).build();
         for (Index index : concreteIndices) {
-            updateSettingsOnSingleIndex(index, applyToIndexSettings, dryRun, masterNodeTimeout, ackTimeout, new ActionListener<>() {
-                @Override
-                public void onResponse(UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError indexSettingError) {
+            updateSettingsOnSingleIndex(
+                index,
+                applyToIndexSettings,
+                dryRun,
+                masterNodeTimeout,
+                ackTimeout,
+                indexCountDownListener.delegateFailure((listener1, indexSettingError) -> {
                     if (indexSettingError != null) {
                         indexSettingErrors.add(indexSettingError);
                     }
-                    indexCountDownListener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    indexCountDownListener.onFailure(e);
-                }
-            });
+                    listener1.onResponse(null);
+                })
+            );
         }
     }
 
@@ -338,37 +314,26 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
                         index
                     ),
-                    new UpdateSingleIndexSettingsListener(index.getName(), listener)
+                    listener.delegateResponse(
+                        (listener1, e) -> listener1.onResponse(
+                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(index.getName(), e.getMessage())
+                        )
+                    ).delegateFailure((listener1, response) -> {
+                        UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
+                        if (response.isAcknowledged() == false) {
+                            error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
+                                index.getName(),
+                                "Updating settings not acknowledged for unknown reason"
+                            );
+                        } else {
+                            error = null;
+                        }
+                        listener1.onResponse(error);
+                    })
                 );
             }
         }
 
-    }
-
-    private record UpdateSingleIndexSettingsListener(
-        String indexName,
-        ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> delegateListener
-    ) implements ActionListener<AcknowledgedResponse> {
-        @Override
-        public void onResponse(AcknowledgedResponse response) {
-            UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
-            if (response.isAcknowledged() == false) {
-                error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
-                    indexName,
-                    "Updating settings not acknowledged for unknown reason"
-                );
-            } else {
-                error = null;
-            }
-            delegateListener.onResponse(error);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            delegateListener.onResponse(
-                new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(indexName, e.getMessage())
-            );
-        }
     }
 
     @Override

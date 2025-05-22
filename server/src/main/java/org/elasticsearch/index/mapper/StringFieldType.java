@@ -51,19 +51,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, false);
-    }
-
-    public StringFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta,
-        boolean excludeFromFieldCaps
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, excludeFromFieldCaps);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

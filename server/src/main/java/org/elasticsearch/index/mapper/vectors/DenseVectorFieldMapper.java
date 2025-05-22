@@ -247,7 +247,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
-        private boolean excludeFromFieldCaps = false;
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
@@ -362,11 +361,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder excludeFromFieldCaps(boolean value) {
-            this.excludeFromFieldCaps = value;
-            return this;
-        }
-
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldType(
@@ -377,8 +371,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 indexed.getValue(),
                 similarity.getValue(),
                 indexOptions.getValue(),
-                meta.getValue(),
-                excludeFromFieldCaps
+                meta.getValue()
             );
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
@@ -2157,21 +2150,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexOptions indexOptions,
             Map<String, String> meta
         ) {
-            this(name, indexVersionCreated, elementType, dims, indexed, similarity, indexOptions, meta, false);
-        }
-
-        public DenseVectorFieldType(
-            String name,
-            IndexVersion indexVersionCreated,
-            ElementType elementType,
-            Integer dims,
-            boolean indexed,
-            VectorSimilarity similarity,
-            IndexOptions indexOptions,
-            Map<String, String> meta,
-            boolean excludeFromFieldCaps
-        ) {
-            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta, excludeFromFieldCaps);
+            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
             this.dims = dims;
             this.indexed = indexed;

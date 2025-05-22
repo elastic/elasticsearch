@@ -68,7 +68,6 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private final boolean excludeFromFieldCaps;
 
     public MappedFieldType(
         String name,
@@ -78,18 +77,6 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, false);
-    }
-
-    public MappedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta,
-        boolean excludeFromFieldCaps
-    ) {
         this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
@@ -98,7 +85,6 @@ public abstract class MappedFieldType {
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
-        this.excludeFromFieldCaps = excludeFromFieldCaps;
     }
 
     /**
@@ -182,13 +168,6 @@ public abstract class MappedFieldType {
      */
     public final boolean isStored() {
         return isStored;
-    }
-
-    /**
-     * @return true if the field should be excluded from field caps
-     */
-    public boolean excludeFromFieldCaps() {
-        return excludeFromFieldCaps;
     }
 
     /**

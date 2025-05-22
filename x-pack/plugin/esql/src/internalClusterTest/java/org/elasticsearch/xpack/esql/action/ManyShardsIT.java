@@ -122,7 +122,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                     logger.warn("Query failed with exception", e);
                     throw e;
                 }
-            }, "testConcurrentQueries");
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
@@ -281,8 +281,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 
-        try {
-            var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(2));
         } finally {

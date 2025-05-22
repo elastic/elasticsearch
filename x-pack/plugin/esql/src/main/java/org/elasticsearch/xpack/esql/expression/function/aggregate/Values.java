@@ -76,7 +76,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sort).""",
         appendix = """
-            ::::{note}
+            ::::{tip}
             Use [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-top) if you need to keep repeated values.
             ::::
             ::::{warning}

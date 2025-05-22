@@ -363,22 +363,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
-            DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldType(
-                context.buildFullName(leafName()),
-                indexVersionCreated,
-                elementType.getValue(),
-                dims.getValue(),
-                indexed.getValue(),
-                similarity.getValue(),
-                indexOptions.getValue(),
-                meta.getValue()
-            );
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
             return new DenseVectorFieldMapper(
                 leafName(),
-                denseVectorFieldType,
+                new DenseVectorFieldType(
+                    context.buildFullName(leafName()),
+                    indexVersionCreated,
+                    elementType.getValue(),
+                    dims.getValue(),
+                    indexed.getValue(),
+                    similarity.getValue(),
+                    indexOptions.getValue(),
+                    meta.getValue()
+                ),
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated

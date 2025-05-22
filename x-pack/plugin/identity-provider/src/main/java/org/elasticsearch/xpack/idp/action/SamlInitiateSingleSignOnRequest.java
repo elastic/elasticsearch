@@ -109,7 +109,7 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
             + "acs='"
             + assertionConsumerService
             + "', "
-            + "attributes="
+            + "attributes='"
             + attributes
             + "'}";
     }

@@ -335,6 +335,11 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore) {
+        // Some tests don't work well with system data streams, since these data streams require special handling
+        return randomInstance(dataStreamName, timeProvider, failureStore, false);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore, boolean system) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -360,9 +365,9 @@ public final class DataStreamTestHelper {
             generation,
             metadata,
             randomSettings(),
-            randomBoolean(),
+            system ? true : randomBoolean(),
             replicated,
-            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            system,
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass

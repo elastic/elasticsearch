@@ -24,7 +24,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -282,7 +281,7 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final Map<String, Queue> inputQueues;
+    private final Map<BytesRef, Queue> inputQueues;
 
     private final int topCount;
     private final int maxPageSize;
@@ -408,7 +407,7 @@ public class TopNOperator implements Operator, Accountable {
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
                 spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
 
-                String partitionKey = getPartitionKey(page, i);
+                BytesRef partitionKey = getPartitionKey(page, i);
                 Queue inputQueue = inputQueues.computeIfAbsent(partitionKey, key -> new Queue(topCount));
                 spare = inputQueue.insertWithOverflow(spare);
             }
@@ -426,19 +425,19 @@ public class TopNOperator implements Operator, Accountable {
      * @param i row index
      * @return partition key of the i-th row of the given page
      */
-    private String getPartitionKey(Page page, int i) {
+    private BytesRef getPartitionKey(Page page, int i) {
         if (partitions.isEmpty()) {
-            return "";
+            return new BytesRef();
         }
         assert page.getPositionCount() > 0;
-        StringBuilder builder = new StringBuilder();
+        BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "topn");
         for (Partition partition : partitions) {
-            try (var block = page.getBlock(partition.channel).filter(i)) {
+            try (var block = page.getBlock(partition.channel)) {
                 BytesRef partitionFieldValue = ((BytesRefBlock) block).getBytesRef(i, new BytesRef());
-                builder.append(partitionFieldValue.utf8ToString());
+                builder.append(partitionFieldValue);
             }
         }
-        return builder.toString();
+        return builder.bytesRefView();
     }
 
     @Override
@@ -604,7 +603,7 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
         long ramBytesUsedSum = inputQueues.entrySet().stream()
-            .mapToLong(e -> e.getKey().getBytes(Charset.defaultCharset()).length + e.getValue().ramBytesUsed())
+            .mapToLong(e -> e.getKey().bytes.length + e.getValue().ramBytesUsed())
             .sum();
         size += ramBytesUsedSum;
         return size;

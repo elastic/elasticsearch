@@ -118,7 +118,6 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
         )
 
         def value = new ObjectMapper().readValue(output, Map.class)
-        expectedOutput.forEach((k,v) -> value.get(k) == v)
         value == expectedOutput
     }
 }

@@ -72,5 +72,3 @@ x-pack/plugin/esql/src/main/generated-src/generated/
 
 # JEnv
 .java-version
-x-pack/plugin/search-business-rules/src/main/java/org/elasticsearch/xpack/searchbusinessrules/retriever/books.es
-x-pack/plugin/search-business-rules/src/main/java/org/elasticsearch/xpack/searchbusinessrules/retriever/books.es

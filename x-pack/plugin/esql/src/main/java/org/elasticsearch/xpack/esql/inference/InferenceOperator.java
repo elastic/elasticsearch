@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public abstract class InferenceOperator<IR extends InferenceServiceResults> extends AsyncOperator<InferenceOperator.OngoingInference> {
+public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInference> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
@@ -59,9 +59,9 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
             return null;
         }
 
-        try (OutputBuilder<IR> outputBuilder = outputBuilder(ongoingInference.inputPage)) {
+        try (OutputBuilder outputBuilder = outputBuilder(ongoingInference.inputPage)) {
             for (int i = 0; i < ongoingInference.responses.length; i++) {
-                outputBuilder.addInferenceResults(inferenceResults(ongoingInference.responses[i]));
+                outputBuilder.addInferenceResponse(ongoingInference.responses[i]);
             }
             return outputBuilder.buildOutput();
         } finally {
@@ -82,34 +82,28 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
         return BulkInferenceExecutionConfig.DEFAULT;
     }
 
-    private IR inferenceResults(InferenceAction.Response inferenceResponse) {
-        InferenceServiceResults results = inferenceResponse.getResults();
-        if (inferenceResultsClass().isInstance(results)) {
-            return inferenceResultsClass().cast(results);
-        }
-
-        throw new IllegalStateException(
-            format(
-                "Inference result has wrong type. Got [{}] while expecting [{}]",
-                results.getClass().getName(),
-                inferenceResultsClass().getName()
-            )
-        );
-    }
-
     protected abstract BulkInferenceRequestIterator requests(Page input);
 
-    protected abstract Class<IR> inferenceResultsClass();
-
-    protected abstract OutputBuilder<IR> outputBuilder(Page input);
+    protected abstract OutputBuilder outputBuilder(Page input);
 
     public record OngoingInference(Page inputPage, InferenceAction.Response[] responses) {
 
     }
 
-    public interface OutputBuilder<IR extends InferenceServiceResults> extends Releasable {
-        void addInferenceResults(IR inferenceResults);
+    public interface OutputBuilder extends Releasable {
+        void addInferenceResponse(InferenceAction.Response inferenceResponse);
 
         Page buildOutput();
+
+        static <IR extends InferenceServiceResults> IR inferenceResults(InferenceAction.Response inferenceResponse, Class<IR> clazz) {
+            InferenceServiceResults results = inferenceResponse.getResults();
+            if (clazz.isInstance(results)) {
+                return clazz.cast(results);
+            }
+
+            throw new IllegalStateException(
+                format("Inference result has wrong type. Got [{}] while expecting [{}]", results.getClass().getName(), clazz.getName())
+            );
+        }
     }
 }

@@ -12,17 +12,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
-public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder<ChatCompletionResults> {
+public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
     private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
-    private final AtomicBoolean isOutputBuilt = new AtomicBoolean(false);
 
     public CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder, Page inputPage) {
         this.inputPage = inputPage;
@@ -35,13 +34,15 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     }
 
     @Override
-    public void addInferenceResults(ChatCompletionResults completionResults) {
+    public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
+        ChatCompletionResults completionResults = inferenceResults(inferenceResponse);
+
         if (completionResults == null) {
             outputBlockBuilder.appendNull();
         } else {
             outputBlockBuilder.beginPositionEntry();
-            for (ChatCompletionResults.Result rankedDocsResult : completionResults.getResults()) {
-                bytesRefBuilder.copyChars(rankedDocsResult.content());
+            for (ChatCompletionResults.Result completionResult : completionResults.getResults()) {
+                bytesRefBuilder.copyChars(completionResult.content());
                 outputBlockBuilder.appendBytesRef(bytesRefBuilder.get());
                 bytesRefBuilder.clear();
             }
@@ -54,5 +55,9 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
         Block outputBlock = outputBlockBuilder.build();
         assert outputBlock.getPositionCount() == inputPage.getPositionCount();
         return inputPage.projectBlocks(IntStream.range(0, inputPage.getBlockCount() - 1).toArray()).appendBlock(outputBlock);
+    }
+
+    private ChatCompletionResults inferenceResults(InferenceAction.Response inferenceResponse) {
+        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, ChatCompletionResults.class);
     }
 }

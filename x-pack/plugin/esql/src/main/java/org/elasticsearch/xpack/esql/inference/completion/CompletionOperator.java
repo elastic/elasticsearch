@@ -13,12 +13,11 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
-public class CompletionOperator extends InferenceOperator<ChatCompletionResults> {
+public class CompletionOperator extends InferenceOperator {
 
     public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
@@ -61,11 +60,6 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
             releasePageOnAnyThread(input);
             throw e;
         }
-    }
-
-    @Override
-    public Class<ChatCompletionResults> inferenceResultsClass() {
-        return ChatCompletionResults.class;
     }
 
     @Override

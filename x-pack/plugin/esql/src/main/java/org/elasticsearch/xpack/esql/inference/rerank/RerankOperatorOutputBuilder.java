@@ -11,12 +11,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.Comparator;
 
-public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder<RankedDocsResults> {
+public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
 
     private final Page inputPage;
     private final DoubleBlock.Builder scoreBlockBuilder;
@@ -55,11 +56,15 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
     }
 
     @Override
-    public void addInferenceResults(RankedDocsResults results) {
-        results.getRankedDocs()
+    public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
+        inferenceResults(inferenceResponse).getRankedDocs()
             .stream()
             .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
             .mapToDouble(RankedDocsResults.RankedDoc::relevanceScore)
             .forEach(scoreBlockBuilder::appendDouble);
+    }
+
+    private RankedDocsResults inferenceResults(InferenceAction.Response inferenceResponse) {
+        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, RankedDocsResults.class);
     }
 }

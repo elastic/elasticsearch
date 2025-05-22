@@ -13,11 +13,10 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 
-public class RerankOperator extends InferenceOperator<RankedDocsResults> {
+public class RerankOperator extends InferenceOperator {
     public record Factory(
         InferenceRunner inferenceRunner,
         String inferenceId,
@@ -76,11 +75,6 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
             releasePageOnAnyThread(input);
             throw e;
         }
-    }
-
-    @Override
-    public Class<RankedDocsResults> inferenceResultsClass() {
-        return RankedDocsResults.class;
     }
 
     @Override

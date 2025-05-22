@@ -28,6 +28,7 @@ toc:
   - file: kv-processor.md
   - file: lowercase-processor.md
   - file: network-direction-processor.md
+  - file: normalize-to-otel-processor.md
   - file: pipeline-processor.md
   - file: redact-processor.md
   - file: registered-domain-processor.md

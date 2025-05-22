@@ -117,6 +117,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return PARSER.apply(parser, context);
     }
 
+    private List<String> fields;
+    private String query;
     private final int rankConstant;
 
     public RRFRetrieverBuilder(int rankWindowSize, int rankConstant) {
@@ -124,7 +126,13 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+        this(childRetrievers, null, null, rankWindowSize, rankConstant);
+    }
+
+    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, List<String> fields, String query, int rankWindowSize, int rankConstant) {
         super(childRetrievers, rankWindowSize);
+        this.fields = fields == null ? List.of() : List.copyOf(fields);
+        this.query = query;
         this.rankConstant = rankConstant;
     }
 
@@ -135,7 +143,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     @Override
     protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.fields, this.query, this.rankWindowSize, this.rankConstant);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -203,12 +211,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     @Override
     public boolean doEquals(Object o) {
         RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
-        return super.doEquals(o) && rankConstant == that.rankConstant;
+        return super.doEquals(o)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(query, that.query)
+            && rankConstant == that.rankConstant;
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(super.doHashCode(), rankConstant);
+        return Objects.hash(super.doHashCode(), fields, query, rankConstant);
     }
 
     @Override
@@ -220,6 +231,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 entry.retriever().toXContent(builder, params);
             }
             builder.endArray();
+        }
+
+        if (fields.isEmpty() == false) {
+            builder.startArray(FIELDS_FIELD.getPreferredName());
+            for (String field : fields) {
+                builder.value(field);
+            }
+            builder.endArray();
+        }
+        if (query != null) {
+            builder.field(QUERY_FIELD.getPreferredName(), query);
         }
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);

@@ -796,7 +796,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            if (!changed) {
+            if (changed == false) {
                 return fork;
             }
 

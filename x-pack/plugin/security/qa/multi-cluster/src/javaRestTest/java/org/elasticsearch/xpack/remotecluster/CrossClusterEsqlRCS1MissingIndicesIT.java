@@ -47,6 +47,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
             .setting("xpack.ml.enabled", "false")
+            .setting("esql.query.allow_partial_results", "false")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
@@ -62,6 +63,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             .module("x-pack-enrich")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
+            .setting("esql.query.allow_partial_results", "false")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .build();
     }

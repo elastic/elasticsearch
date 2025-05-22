@@ -198,17 +198,26 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         int docsTest1 = 0; // we are interested only in the created index, not necessarily that it has data
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo"))));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo")).allowPartialResults(false))
+        );
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo]"), containsString("Unknown index [remote_cluster:foo]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*"))));
+        e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*")).allowPartialResults(false))
+        );
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1"))));
+        e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1")).allowPartialResults(false))
+        );
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
@@ -217,7 +226,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             var pattern = from("test1");
             e = expectThrows(
                 ResponseException.class,
-                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1").allowPartialResults(false))
             );
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             assertThat(

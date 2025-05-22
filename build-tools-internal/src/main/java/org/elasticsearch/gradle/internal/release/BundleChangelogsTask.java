@@ -103,6 +103,20 @@ public class BundleChangelogsTask extends DefaultTask {
         gitWrapper = new GitWrapper(execOperations);
     }
 
+    /*
+        Given a branch, and possibly a build candidate commit sha
+        Check out the changelog yaml files from the branch/BC sha
+        Then, bundle them all up into one file and write it to disk, along with a timestamp and whether the release is considered released
+
+         When using a branch without a BC sha:
+            - Check out the changelog yaml files from the HEAD of the branch
+
+         When using a BC sha:
+            - Check out the changelog yaml files from the BC commit
+            - Update those files with any updates from the HEAD of the branch (in case the changelogs get modified later)
+            - Check for any changelog yaml files that were added AFTER the BC,
+              but whose PR was merged before the BC (in case someone adds a forgotten changelog after the fact)
+    */
     @TaskAction
     public void executeTask() throws IOException {
         if (branch == null) {
@@ -145,7 +159,7 @@ public class BundleChangelogsTask extends DefaultTask {
                     return true;
                 }
 
-                // If the changelog was present in the BC sha, use it
+                // If the changelog was present in the BC sha, always use it
                 if (finalEntriesFromBc.contains(f.getName())) {
                     return true;
                 }

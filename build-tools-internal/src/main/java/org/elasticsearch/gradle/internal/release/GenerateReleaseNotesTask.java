@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFile;
@@ -32,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -82,7 +80,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         }
 
         LOGGER.info("Finding changelog bundles...");
-
         List<ChangelogBundle> allBundles = this.changelogBundleDirectory.getAsFileTree()
             .getFiles()
             .stream()
@@ -126,18 +123,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
      */
     private static void findAndUpdateUpstreamRemote(GitWrapper gitWrapper) {
         LOGGER.info("Finding upstream git remote");
-        // We need to ensure the tags are up-to-date. Find the correct remote to use
-        String upstream = gitWrapper.listRemotes()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
-            .findFirst()
-            .map(Map.Entry::getKey)
-            .orElseThrow(
-                () -> new GradleException(
-                    "I need to ensure the git tags are up-to-date, but I couldn't find a git remote for [elastic/elasticsearch]"
-                )
-            );
+        String upstream = gitWrapper.getUpstream();
 
         LOGGER.info("Updating remote [{}]", upstream);
         // Now update the remote, and make sure we update the tags too

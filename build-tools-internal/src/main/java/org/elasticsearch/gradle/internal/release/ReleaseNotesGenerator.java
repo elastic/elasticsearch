@@ -109,25 +109,8 @@ public class ReleaseNotesGenerator {
             bundlesWrapped.add(wrapped);
         }
 
-        // final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
-        //
-        // final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
-        // .map(ChangelogEntry::getHighlight)
-        // .filter(Objects::nonNull)
-        // .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
-        // .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
-        //
-        // final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());
-        // final List<ChangelogEntry.Highlight> nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
-
         final Map<String, Object> bindings = new HashMap<>();
-        // bindings.put("version", version);
-        // bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
-        // bindings.put("unqualifiedVersion", version.withoutQualifier());
-        // bindings.put("versionWithoutSeparator", version.withoutQualifier().toString().replaceAll("\\.", ""));
-        // bindings.put("notableHighlights", notableHighlights);
-        // bindings.put("nonNotableHighlights", nonNotableHighlights);
         bindings.put("changelogBundles", bundlesWrapped);
 
         return TemplateUtils.render(template, bindings);

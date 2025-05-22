@@ -12,13 +12,10 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -38,12 +35,14 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
+import org.mockito.ArgumentMatchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -61,6 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -77,8 +77,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     private List<String> capturedJobIds;
     private List<DeleteByQueryRequest> capturedDeleteModelSnapshotRequests;
     private TestListener listener;
-    private ClusterService clusterService;
-    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setUpTests() {
@@ -88,8 +86,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         resultsProvider = mock(JobResultsProvider.class);
-        clusterService = mock(ClusterService.class);
-
         listener = new TestListener();
     }
 
@@ -285,7 +281,44 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        List<SearchResponse> searchResponses = new ArrayList<>();
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("job-1").setModelSnapshotRetentionDays(7L).setModelSnapshotId("active").build()
+        );
+
+        Date now = new Date();
+        Date oneDayAgo = new Date(now.getTime() - TimeValue.timeValueDays(1).getMillis());
+        SearchHit snapshot1 = createModelSnapshotQueryHit("job-1", "fresh-snapshot", oneDayAgo);
+        searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot1)));
+
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
+        Map<String, List<ModelSnapshot>> snapshotResponses = new HashMap<>();
+        snapshotResponses.put(
+            "job-1",
+            Arrays.asList(
+                // Keeping active as its expiration is not known. We can assume "worst case" and verify it is not removed
+                createModelSnapshot("job-1", "active", eightDaysAndOneMsAgo),
+                createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
+            )
+        );
+
+        givenClientRequestsSucceed(searchResponses, snapshotResponses);
+
+        // Create remover with state index not writable
+        createExpiredModelSnapshotsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        listener.waitToCompletion();
+        // Should succeed, but not attempt to delete anything
+        assertThat(listener.success, is(true));
+        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(0));
+    }
+
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator) {
+        return createExpiredModelSnapshotsRemover(jobIterator, true);
+    }
+
+    private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator, boolean isStateIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -296,15 +329,42 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        WritableIndexExpander writableIndexExpander = mockWritableIndexExpander(isStateIndexWritable);
+
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            writableIndexExpander,
             threadPool,
             resultsProvider,
             mock(AnomalyDetectionAuditor.class)
         );
+    }
+
+    private static WritableIndexExpander mockWritableIndexExpander(boolean stateIndexWritable) {
+        WritableIndexExpander writableIndexExpander = mock(WritableIndexExpander.class);
+        if (stateIndexWritable) {
+            mockWhenIndicesAreWritable(writableIndexExpander);
+        } else {
+            mockWhenIndicesAreNotWritable(writableIndexExpander);
+        }
+        return writableIndexExpander;
+    }
+
+    private static void mockWhenIndicesAreNotWritable(WritableIndexExpander writableIndexExpander) {
+        when(writableIndexExpander.getWritableIndices(anyString()))
+            .thenReturn(new ArrayList<>());
+        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any()))
+            .thenReturn(new ArrayList<>());
+    }
+
+    private static void mockWhenIndicesAreWritable(WritableIndexExpander writableIndexExpander) {
+        when(writableIndexExpander.getWritableIndices(anyString()))
+            .thenAnswer(invocation -> List.of(invocation.getArgument(0)));
+        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any()))
+            .thenAnswer(invocation -> new ArrayList<>(invocation.getArgument(0)));
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

@@ -41,7 +41,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     public static final Setting<Boolean> USE_THREAD_POOL_MERGE_SCHEDULER_SETTING = Setting.boolSetting(
@@ -67,24 +66,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
-    // if true, scheduled merges will be aborted
-    private final BooleanSupplier shouldSkipMerge;
 
     /**
      * Creates a thread-pool-based merge scheduler that runs merges in a thread pool.
      *
-     * @param shardId the shard id associated with this merge scheduler
-     * @param indexSettings used to obtain the {@link MergeSchedulerConfig}
+     * @param shardId                        the shard id associated with this merge scheduler
+     * @param indexSettings                  used to obtain the {@link MergeSchedulerConfig}
      * @param threadPoolMergeExecutorService the executor service used to execute merge tasks from this scheduler
-     * @param mergeMemoryEstimateProvider provides an estimate for how much memory a merge will take
-     * @param shouldSkipMerge if true, scheduled merges will be skipped i.e. aborted by the executor
+     * @param mergeMemoryEstimateProvider    provides an estimate for how much memory a merge will take
      */
     public ThreadPoolMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-        MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
-        BooleanSupplier shouldSkipMerge
+        MergeMemoryEstimateProvider mergeMemoryEstimateProvider
     ) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -97,7 +92,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         );
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mergeMemoryEstimateProvider = mergeMemoryEstimateProvider;
-        this.shouldSkipMerge = shouldSkipMerge;
     }
 
     @Override
@@ -182,6 +176,34 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
     /**
+     * Returns true if scheduled merges should be skipped (aborted)
+     */
+    protected boolean shouldSkipMerge() {
+        return false;
+    }
+
+    /**
+     * Returns true if IO-throttling is enabled
+     */
+    protected boolean isAutoThrottle() {
+        return config.isAutoThrottle();
+    }
+
+    /**
+     * Returns the maximum number of active merges before being throttled
+     */
+    protected int getMaxMergeCount() {
+        return config.getMaxMergeCount();
+    }
+
+    /**
+     * Returns the maximum number of threads running merges before being throttled
+     */
+    protected int getMaxThreadCount() {
+        return config.getMaxThreadCount();
+    }
+
+    /**
      * A callback for exceptions thrown while merging.
      */
     protected void handleMergeException(Throwable t) {
@@ -208,7 +230,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return new MergeTask(
             mergeSource,
             merge,
-            isAutoThrottle && config.isAutoThrottle(),
+            isAutoThrottle && isAutoThrottle(),
             "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId,
             estimateMergeMemoryBytes
         );
@@ -218,7 +240,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         long submittedMergesCount = submittedMergeTaskCount.get();
         long doneMergesCount = doneMergeTaskCount.get();
         int runningMergesCount = runningMergeTasks.size();
-        int configuredMaxMergeCount = config.getMaxMergeCount();
+        int configuredMaxMergeCount = getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         if (activeMerges > configuredMaxMergeCount
@@ -248,12 +270,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
-        } else if (shouldSkipMerge.getAsBoolean()) {
+        } else if (shouldSkipMerge()) {
             if (verbose()) {
                 message(String.format(Locale.ROOT, "skipping merge task %s", mergeTask));
             }
             return Schedule.ABORT;
-        } else if (runningMergeTasks.size() < config.getMaxThreadCount()) {
+        } else if (runningMergeTasks.size() < getMaxThreadCount()) {
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
@@ -286,7 +308,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private synchronized void enqueueBackloggedTasks() {
-        int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - runningMergeTasks.size();
+        int maxBackloggedTasksToEnqueue = getMaxThreadCount() - runningMergeTasks.size();
         // enqueue all backlogged tasks when closing, as the queue expects all backlogged tasks to always be enqueued back
         while (closed || maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();

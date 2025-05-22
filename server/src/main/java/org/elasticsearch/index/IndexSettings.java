@@ -1053,13 +1053,7 @@ public final class IndexSettings {
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
-        if (DiscoveryNode.isStateless(nodeSettings)) {
-            // disable IO throttling, and thread and merge count throttling for stateless. By setting max merge threads and count to
-            // Integer.MAX_VALUE we effectively disable them
-            mergeSchedulerConfig = new MergeSchedulerConfig(false, Integer.MAX_VALUE, Integer.MAX_VALUE);
-        } else {
-            mergeSchedulerConfig = new MergeSchedulerConfig(this);
-        }
+        mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         assert softDeleteEnabled || version.before(IndexVersions.V_8_0_0) : "soft deletes must be enabled in version " + version;

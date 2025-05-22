@@ -442,26 +442,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
     }
 
-    public void testStatelessMergeSchedulerConfig() {
-        IndexMetadata metadata = IndexMetadata.builder("index")
-            .system(true)
-            .settings(
-                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    // set auto throttling to true and set merge/thread count to a low number
-                    .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true)
-                    .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 2)
-                    .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 2)
-                    .build()
-            )
-            .build();
-        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
-        // for stateless we want to ensure that auto throttling, merge count throttling, and thread throttling are all effectively
-        // disabled, ignoring the specified settings
-        assertFalse(settings.getMergeSchedulerConfig().isAutoThrottle());
-        assertEquals(Integer.MAX_VALUE, settings.getMergeSchedulerConfig().getMaxMergeCount());
-        assertEquals(Integer.MAX_VALUE, settings.getMergeSchedulerConfig().getMaxThreadCount());
-    }
-
     private String getRandomTimeString() {
         int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
         String refreshInterval = Integer.toString(refreshIntervalInt);

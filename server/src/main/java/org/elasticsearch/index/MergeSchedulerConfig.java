@@ -75,13 +75,6 @@ public final class MergeSchedulerConfig {
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
     }
 
-    MergeSchedulerConfig(boolean autoThrottle, int maxThreadCount, int maxMergeCount) {
-        this.autoThrottle = autoThrottle;
-        this.maxThreadCount = maxThreadCount;
-        this.maxMergeCount = maxMergeCount;
-        setMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
-    }
-
     /**
      * Returns <code>true</code> iff auto throttle is enabled.
      *

@@ -63,8 +63,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 new ShardId("index", "_na_", 1),
                 IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
                 threadPoolMergeExecutorService,
-                merge -> 0,
-                () -> false
+                merge -> 0
             )
         ) {
             List<OneMerge> executedMergesList = new ArrayList<>();
@@ -107,8 +106,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
             threadPoolMergeExecutorService,
-            merge -> 0,
-            () -> false
+            merge -> 0
         );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -142,8 +140,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
             threadPoolMergeExecutorService,
-            merge -> 0,
-            () -> false
+            merge -> 0
         );
         // sort backlogged merges by size
         PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(16, Comparator.comparingLong(MergeTask::estimatedMergeSize));
@@ -357,8 +354,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
                     threadPoolMergeExecutorService,
-                    merge -> 0,
-                    () -> false
+                    merge -> 0
                 )
             ) {
                 MergeSource mergeSource = mock(MergeSource.class);
@@ -432,8 +428,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
                     threadPoolMergeExecutorService,
-                    merge -> 0,
-                    () -> false
+                    merge -> 0
                 )
             ) {
                 // at least 1 extra merge than there are concurrently allowed
@@ -518,8 +513,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
                     threadPoolMergeExecutorService,
-                    merge -> 0,
-                    () -> false
+                    merge -> 0
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
@@ -592,8 +586,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 new ShardId("index", "_na_", 1),
                 indexSettings,
                 threadPoolMergeExecutorService,
-                merge -> 0,
-                () -> false
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -623,8 +616,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 new ShardId("index", "_na_", 1),
                 indexSettings,
                 threadPoolMergeExecutorService,
-                merge -> 0,
-                () -> false
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -641,8 +633,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 new ShardId("index", "_na_", 1),
                 indexSettings,
                 threadPoolMergeExecutorService,
-                merge -> 0,
-                () -> false
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -659,8 +650,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 new ShardId("index", "_na_", 1),
                 indexSettings,
                 threadPoolMergeExecutorService,
-                merge -> 0,
-                () -> false
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -682,9 +672,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", Settings.builder().build()),
             threadPoolMergeExecutorService,
-            merge -> 0,
-            () -> true
-        );
+            merge -> 0
+        ) {
+            @Override
+            protected boolean shouldSkipMerge() {
+                return true;
+            }
+        };
         MergeSource mergeSource = mock(MergeSource.class);
         OneMerge oneMerge = mock(OneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
@@ -713,7 +707,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
             BooleanSupplier shouldSkipMerge
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, merge -> 0, shouldSkipMerge);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, merge -> 0);
         }
 
         @Override

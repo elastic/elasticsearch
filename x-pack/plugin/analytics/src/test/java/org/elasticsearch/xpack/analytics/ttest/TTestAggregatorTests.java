@@ -582,8 +582,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testFiltered() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER, false, true);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER, true, false);
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
         )

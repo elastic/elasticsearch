@@ -464,3 +464,6 @@ tests:
 - class: org.elasticsearch.compute.operator.ChangePointOperatorTests
   method: testSimpleFinishClose
   issue: https://github.com/elastic/elasticsearch/issues/127106
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTerminateAfter
+  issue: https://github.com/elastic/elasticsearch/issues/126085

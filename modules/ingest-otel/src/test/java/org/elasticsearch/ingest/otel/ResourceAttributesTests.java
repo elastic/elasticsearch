@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.otel;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -24,8 +25,9 @@ import java.util.function.Supplier;
  * We may add them to CI in the future, but as such that run periodically (nightly/weekly) and used to notify whenever the resource
  * attributes set is not up to date.
  */
-@SuppressWarnings("NewClassNamingConvention")
-public class ResourceAttributesTests_disabled extends ESTestCase {
+@SuppressForbidden(reason = "Disabled temporarily until we set up the periodic CI pipeline")
+@Ignore
+public class ResourceAttributesTests extends ESTestCase {
 
     public void testResourceAttributes_webCrawler() {
         testCrawler(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);

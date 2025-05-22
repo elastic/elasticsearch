@@ -126,7 +126,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             .setSettings(
                 Settings.builder()
                     .put("bucket", System.getProperty("test.google.bucket"))
-                    .put("base_path", System.getProperty("test.google.base", "/"))
+                    .put("base_path", System.getProperty("test.google.base", "/") + "_" + repoName)
                     .put("client", clientName)
             )
             .get();

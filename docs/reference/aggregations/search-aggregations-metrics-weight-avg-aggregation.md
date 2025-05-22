@@ -9,7 +9,7 @@ mapped_pages:
 
 A `single-value` metrics aggregation that computes the weighted average of numeric values that are extracted from the aggregated documents. These values can be extracted either from specific numeric fields in the documents.
 
-When calculating a regular average, each datapoint has an equal "weight" …​ it contributes equally to the final value. Weighted averages, on the other hand, weight each datapoint differently. The amount that each datapoint contributes to the final value is extracted from the document.
+When calculating a regular average, each datapoint has an equal "weight" …  it contributes equally to the final value. Weighted averages, on the other hand, weight each datapoint differently. The amount that each datapoint contributes to the final value is extracted from the document.
 
 As a formula, a weighted average is the `∑(value * weight) / ∑(weight)`
 

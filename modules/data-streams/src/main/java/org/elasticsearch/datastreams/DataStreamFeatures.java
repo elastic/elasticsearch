@@ -26,6 +26,8 @@ public class DataStreamFeatures implements FeatureSpecification {
         "data_stream.downsample.default_aggregate_metric_fix"
     );
 
+    public static final NodeFeature LOGS_STREAM_FEATURE = new NodeFeature("logs_stream");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
@@ -33,6 +35,6 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(DATA_STREAM_FAILURE_STORE_TSDB_FIX, DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX);
+        return Set.of(DATA_STREAM_FAILURE_STORE_TSDB_FIX, DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX, LOGS_STREAM_FEATURE);
     }
 }

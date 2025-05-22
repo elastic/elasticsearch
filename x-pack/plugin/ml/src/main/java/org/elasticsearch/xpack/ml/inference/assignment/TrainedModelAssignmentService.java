@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -121,13 +120,12 @@ public class TrainedModelAssignmentService {
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {
         default void onTimeout(TimeValue timeout) {
             onFailure(
-                new ModelDeploymentScaleUpException(
+                new ModelDeploymentTimeoutException(
                     format(
                         "Timed out after [%s] waiting for trained model deployment to start. "
-                            + "Please ensure the trained model deployment has started and try again.",
+                            + "Use the trained model stats API to track the state of the deployment and try again once it has started.",
                         timeout
-                    ),
-                    RestStatus.REQUEST_TIMEOUT
+                    )
                 )
             );
         }

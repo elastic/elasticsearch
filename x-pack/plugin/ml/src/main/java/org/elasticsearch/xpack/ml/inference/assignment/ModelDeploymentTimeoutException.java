@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 
-public class ModelDeploymentScaleUpException extends ElasticsearchStatusException {
-    public ModelDeploymentScaleUpException(String message, RestStatus status) {
-        super(message, status);
+public class ModelDeploymentTimeoutException extends ElasticsearchStatusException {
+    public ModelDeploymentTimeoutException(String message) {
+        super(message, RestStatus.REQUEST_TIMEOUT);
     }
 }

@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentScaleUpException;
+import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -351,14 +351,14 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     onFailure(
-                        new ModelDeploymentScaleUpException(
+                        new ModelDeploymentTimeoutException(
                             format(
                                 "Timed out after [%s] waiting for trained model deployment [%s] to start. "
-                                    + "Please ensure the trained model deployment has started and try again.",
+                                    + "Use the trained model stats API to track the state of the deployment "
+                                    + "and try again once it has started.",
                                 request.getTimeout(),
                                 request.getDeploymentId()
-                            ),
-                            RestStatus.REQUEST_TIMEOUT
+                            )
                         )
                     );
                 }

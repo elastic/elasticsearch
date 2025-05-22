@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentScaleUpException;
+import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 
 import java.util.HashMap;
@@ -194,14 +194,13 @@ public class InferenceWaitForAllocation {
         @Override
         public void onTimeout(TimeValue timeout) {
             onFailure(
-                new ModelDeploymentScaleUpException(
+                new ModelDeploymentTimeoutException(
                     format(
                         "Timed out after [%s] waiting for trained model deployment [%s] to start. "
-                            + "Please ensure the trained model deployment has started and try again.",
+                            + "Use the trained model stats API to track the state of the deployment and try again once it has started.",
                         timeout,
                         request.deploymentId()
-                    ),
-                    RestStatus.REQUEST_TIMEOUT
+                    )
                 )
             );
         }

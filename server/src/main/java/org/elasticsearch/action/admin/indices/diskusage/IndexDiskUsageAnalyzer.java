@@ -558,57 +558,12 @@ final class IndexDiskUsageAnalyzer {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             if (field.getVectorDimension() > 0) {
-                switch (field.getVectorEncoding()) {
-                    case BYTE -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name).iterator(), vectors -> {
-                            cancellationChecker.logEvent();
-                            vectors.index();
-                        });
-
-                        // do a couple of randomized searches to figure out min and max offsets of index file
-                        ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
-                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                        final KnnCollector collector = new TopKnnCollector(
-                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
-                            Integer.MAX_VALUE
-                        );
-                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
-                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
-                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
-                                break;
-                            }
-                            cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
-                        }
-                        stats.addKnnVectors(field.name, directory.getBytesRead());
-                    }
-                    case FLOAT32 -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name).iterator(), vectors -> {
-                            cancellationChecker.logEvent();
-                            vectors.index();
-                        });
-
-                        // do a couple of randomized searches to figure out min and max offsets of index file
-                        FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
-                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                        final KnnCollector collector = new TopKnnCollector(
-                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
-                            Integer.MAX_VALUE
-                        );
-                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
-                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
-                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
-                                break;
-                            }
-                            cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
-                        }
-                        stats.addKnnVectors(field.name, directory.getBytesRead());
-                    }
+                Map<String, Long> offHeap = vectorReader.getOffHeapByteSize(field);
+                long totalSize = 0;
+                for (var entry : offHeap.entrySet()) {
+                    totalSize += entry.getValue();
                 }
-
+                stats.addKnnVectors(field.name, totalSize);
             }
         }
     }

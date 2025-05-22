@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -61,9 +62,31 @@ public interface Repository extends LifecycleComponent {
          */
         Repository create(RepositoryMetadata metadata) throws Exception;
 
+        /**
+         * Constructs a repository.
+         * @param projectId   the project-id for the repository
+         * @param metadata    metadata for the repository including name and settings
+         * @param typeLookup  a function that returns the repository factory for the given repository type.
+         */
+        default Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
+            throws Exception {
+            return create(metadata, typeLookup);
+        }
+
         default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
             return create(metadata);
         }
+    }
+
+    /**
+     * Get the project-id for the repository.
+     *
+     * @return the project-id, or null if the repository is at the cluster level.
+     * @throws UnsupportedOperationException if the project-id is not supported by the repository.
+     */
+    @Nullable
+    default ProjectId getProjectId() {
+        throw new UnsupportedOperationException("getProjectId() not supported");
     }
 
     /**

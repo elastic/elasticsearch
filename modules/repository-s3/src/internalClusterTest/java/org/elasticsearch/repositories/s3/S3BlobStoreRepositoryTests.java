@@ -9,6 +9,9 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
@@ -605,7 +608,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             RecoverySettings recoverySettings,
             S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
+            return new S3Repository(ProjectId.DEFAULT, metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
 
                 @Override
                 public BlobStore blobStore() {

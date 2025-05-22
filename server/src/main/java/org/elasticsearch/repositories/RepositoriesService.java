@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -44,7 +45,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -822,19 +825,34 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
     private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
         Function<RepositoryMetadata, Repository> defaultFactory
     ) {
+        return createRepository(ProjectId.DEFAULT, repositoryMetadata, factories, defaultFactory);
+    }
+
+    /**
+     * Creates repository holder. This method starts the repository
+     */
+    private static Repository createRepository(
+        @Nullable ProjectId projectId,
+        RepositoryMetadata repositoryMetadata,
+        Map<String, Repository.Factory> factories,
+        Function<RepositoryMetadata, Repository> defaultFactory
+    ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
+        @FixForMultiProject(description = "should defaultFactory handle projectId?")
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
             return defaultFactory.apply(repositoryMetadata);
         }
         Repository repository = null;
         try {
-            repository = factory.create(repositoryMetadata, factories::get);
+            repository = factory.create(projectId, repositoryMetadata, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {
@@ -859,8 +877,30 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @return the started repository
      * @throws RepositoryException if repository type is not registered
      */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public Repository createRepository(RepositoryMetadata repositoryMetadata) {
-        return createRepository(repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+        return createRepository(ProjectId.DEFAULT, repositoryMetadata);
+    }
+
+    /**
+     * Creates a repository holder.
+     *
+     * <p>WARNING: This method is intended for expert only usage mainly in plugins/modules. Please take note of the following:</p>
+     *
+     * <ul>
+     *     <li>This method does not register the repository (e.g., in the cluster state).</li>
+     *     <li>This method starts the repository. The repository should be closed after use.</li>
+     *     <li>The repository metadata should be associated to an already registered non-internal repository type and factory pair.</li>
+     * </ul>
+     *
+     * @param projectId the project that the repository is associated with. May be null if the repository is at cluster level
+     * @param repositoryMetadata the repository metadata
+     * @return the started repository
+     * @throws RepositoryException if repository type is not registered
+     */
+    public Repository createRepository(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        return createRepository(projectId, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {

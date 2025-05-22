@@ -20,8 +20,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,8 +32,6 @@ import java.util.stream.Stream;
  * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>
  */
 class WebProxyServer extends MockHttpProxyServer {
-
-    private static final Logger logger = LogManager.getLogger(WebProxyServer.class);
 
     private static final Set<String> BLOCKED_HEADERS = Stream.of(
         "Host",
@@ -56,16 +52,12 @@ class WebProxyServer extends MockHttpProxyServer {
             }
         };
         upstreamRequest.setURI(URI.create(request.getRequestLine().getUri()));
-        logger.info("Forwarding request [{}]", upstreamRequest.getRequestLine().getUri());
         upstreamRequest.setHeader("X-Via", "test-web-proxy-server");
         for (Header requestHeader : request.getAllHeaders()) {
             String headerName = requestHeader.getName();
             String headerValue = requestHeader.getValue();
             if (BLOCKED_HEADERS.contains(headerName) == false) {
-                logger.info("Forwarding header [{}:{}]", headerName, headerValue);
                 upstreamRequest.setHeader(headerName, headerValue);
-            } else {
-                logger.info("Skipping blocked header [{}:{}]", headerName, headerValue);
             }
         }
         if (request instanceof HttpEntityEnclosingRequest entityRequest) {
@@ -89,9 +81,6 @@ class WebProxyServer extends MockHttpProxyServer {
                     )
                 );
             }
-        } catch (Exception e) {
-            logger.error("Failed to proxy request [{}]", upstreamRequest.getRequestLine().getUri(), e);
-            throw e;
         }
     }
 

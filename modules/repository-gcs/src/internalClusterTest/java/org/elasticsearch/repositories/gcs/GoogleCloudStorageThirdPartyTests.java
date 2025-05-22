@@ -25,8 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.InputStream;
@@ -46,17 +44,6 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     @ClassRule
     public static GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(USE_FIXTURE, "bucket", "o/oauth2/token");
-    private static WebProxyServer proxyServer;
-
-    @BeforeClass
-    public static void beforeClass() {
-        proxyServer = new WebProxyServer();
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        proxyServer.close();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -96,10 +83,6 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     @Override
     protected void createRepository(final String repoName) {
-        createRepository(repoName, "default");
-    }
-
-    private void createRepository(final String repoName, String clientName) {
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -109,8 +92,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             .setSettings(
                 Settings.builder()
                     .put("bucket", System.getProperty("test.google.bucket"))
-                    .put("base_path", System.getProperty("test.google.base", "/") + "_" + repoName)
-                    .put("client", clientName)
+                    .put("base_path", System.getProperty("test.google.base", "/"))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

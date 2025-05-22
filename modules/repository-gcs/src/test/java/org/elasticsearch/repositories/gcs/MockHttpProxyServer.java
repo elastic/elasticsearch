@@ -11,7 +11,6 @@ package org.elasticsearch.repositories.gcs;
 import org.apache.http.HttpException;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
-import org.apache.http.config.SocketConfig;
 import org.apache.http.impl.bootstrap.HttpServer;
 import org.apache.http.impl.bootstrap.ServerBootstrap;
 import org.apache.http.protocol.HttpContext;
@@ -27,16 +26,19 @@ import java.util.concurrent.TimeUnit;
  */
 abstract class MockHttpProxyServer implements Closeable {
 
-    private volatile HttpServer httpServer;
+    private final HttpServer httpServer;
 
     MockHttpProxyServer() {
-        startHttpServer(0);
-    }
-
-    public void restart() {
-        int originalPort = httpServer.getLocalPort();
-        httpServer.shutdown(0, TimeUnit.SECONDS);
-        startHttpServer(originalPort);
+        httpServer = ServerBootstrap.bootstrap()
+            .setLocalAddress(InetAddress.getLoopbackAddress())
+            .setListenerPort(0)
+            .registerHandler("*", this::handle)
+            .create();
+        try {
+            httpServer.start();
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to start HTTP proxy server", e);
+        }
     }
 
     public abstract void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException;
@@ -47,20 +49,6 @@ abstract class MockHttpProxyServer implements Closeable {
 
     String getHost() {
         return NetworkAddress.format(httpServer.getInetAddress());
-    }
-
-    private void startHttpServer(int portNumber) {
-        httpServer = ServerBootstrap.bootstrap()
-            .setLocalAddress(InetAddress.getLoopbackAddress())
-            .setListenerPort(portNumber)
-            .setSocketConfig(portNumber == 0 ? SocketConfig.DEFAULT : SocketConfig.custom().setSoReuseAddress(true).build())
-            .registerHandler("*", this::handle)
-            .create();
-        try {
-            httpServer.start();
-        } catch (IOException e) {
-            throw new RuntimeException("Unable to start HTTP proxy server", e);
-        }
     }
 
     @Override

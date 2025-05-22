@@ -290,7 +290,7 @@ public class S3ClientsManager implements ClusterStateApplier {
                 }
                 if (closed.get()) {
                     // Not adding a new client once the manager is closed since there won't be anything to close it
-                    throw new IllegalStateException("clients holder is closed");
+                    throw new IllegalStateException("Project [" + projectId() + "] clients holder is closed");
                 }
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
                 // The clearCache() will clear the newly added client.

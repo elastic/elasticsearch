@@ -152,7 +152,7 @@ public class S3ClientsManagerTests extends ESTestCase {
         assertThat(getClientsHoldersExcludeDefaultProject(), anEmptyMap());
     }
 
-    public void testClientsLifeCycleForSingleProject() {
+    public void testClientsLifeCycleForSingleProject() throws Exception {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
         final String anotherClientName = randomValueOtherThan(clientName, () -> randomFrom(clientNames));
@@ -197,6 +197,8 @@ public class S3ClientsManagerTests extends ESTestCase {
             antherClient.decRef();
         }
 
+        final var clientsHolder = s3ClientsManager.getClientsHolders().get(projectId);
+
         // Remove project secrets
         if (randomBoolean()) {
             updateProjectInClusterState(projectId, Map.of());
@@ -204,6 +206,13 @@ public class S3ClientsManagerTests extends ESTestCase {
             removeProjectFromClusterState(projectId);
         }
         assertClientNotFound(projectId, clientName);
+
+        assertBusy(() -> assertTrue(clientsHolder.isClosed()));
+        final var e = expectThrows(
+            IllegalStateException.class,
+            () -> clientsHolder.client(createRepositoryMetadata(randomFrom(clientName, anotherClientName)))
+        );
+        assertThat(e.getMessage(), containsString("Project [" + projectId + "] clients holder is closed"));
     }
 
     public void testClientsForMultipleProjects() throws InterruptedException {

@@ -275,7 +275,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         try {
             indicesToQuery = writableIndexExpander.getWritableIndices(indices);
         } catch (Exception e) {
-            LOGGER.error("Failed to get writable indices for [{}] job: {}", jobId, e.getMessage(), e);
+            LOGGER.error("Failed to get writable indices for [" + jobId + "] job: " + e.getMessage(), e);
             listener.onFailure(e);
             return;
         }

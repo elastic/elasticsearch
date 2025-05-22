@@ -48,7 +48,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScoreMultipleWhereMatchMatch() {
+    public void testScoreMultipleWhereMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE match(content, "brown")
@@ -146,6 +146,29 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testScoreBothWhereQstrAndMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE qstr("brown") AND match(content, "fox")
+            | EVAL first_score = score(qstr("brown"))
+            | EVAL second_score = score(match(content, "fox"))
+            | KEEP id, _score, first_score, second_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score", "second_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, 1.4274532794952393, 0.2708943784236908, 1.156558871269226),
+                    List.of(6, 1.1248724460601807, 0.21347221732139587, 0.9114001989364624)
+                )
+            );
+        }
+    }
+
     public void testScoreSameWhereKqlAndMatch() {
         var query = """
             FROM test METADATA _score
@@ -180,6 +203,29 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
             assertValues(
                 resp.values(),
                 List.of(List.of(1, 1.4274532794952393, 0.2708943784236908), List.of(6, 1.1248724460601807, 0.21347221732139587))
+            );
+        }
+    }
+
+    public void testScoreBothWhereKqlAndMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE kql("brown") AND match(content, "fox")
+            | EVAL first_score = score(kql("brown"))
+            | EVAL second_score = score(match(content, "fox"))
+            | KEEP id, _score, first_score, second_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score", "second_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, 1.4274532794952393, 0.2708943784236908, 1.156558871269226),
+                    List.of(6, 1.1248724460601807, 0.21347221732139587, 0.9114001989364624)
+                )
             );
         }
     }
@@ -229,6 +275,32 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of(3, 0.2708943784236908, 0.2708943784236908),
                     List.of(4, 0.19301524758338928, 0.19301524758338928),
                     List.of(6, 1.1248724460601807, 0.21347221732139587)
+                )
+            );
+        }
+    }
+
+    public void testScoreBothWhereQstrORMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE qstr("brown") OR match(content, "fox")
+            | EVAL first_score = score(qstr("brown"))
+            | EVAL second_score = score(match(content, "fox"))
+            | KEEP id, _score, first_score, second_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score", "second_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, 1.4274532794952393, 0.2708943784236908, 1.156558871269226),
+                    List.of(2, 0.2708943784236908, 0.2708943784236908, 0.0),
+                    List.of(3, 0.2708943784236908, 0.2708943784236908, 0.0),
+                    List.of(4, 0.19301524758338928, 0.19301524758338928, 0.0),
+                    List.of(6, 1.1248724460601807, 0.21347221732139587, 0.9114001989364624)
                 )
             );
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -227,4 +228,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public String getOffsetFieldName() {
         return null;
     }
+
+    public abstract List<FieldMapper> getSourceFields();
 }

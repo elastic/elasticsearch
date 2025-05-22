@@ -449,6 +449,11 @@ public abstract class FieldMapper extends Mapper {
         return sum;
     }
 
+    @Override
+    public List<FieldMapper> getSourceFields() {
+        return List.of(this);
+    }
+
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
     }

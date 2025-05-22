@@ -31,7 +31,13 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     private final BulkInferenceExecutionConfig bulkExecutionConfig;
     private final BulkInferenceExecutor bulkInferenceExecutor;
 
-    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, BulkInferenceExecutionConfig bulkExecutionConfig, ThreadPool threadPool, String inferenceId) {
+    public InferenceOperator(
+        DriverContext driverContext,
+        InferenceRunner inferenceRunner,
+        BulkInferenceExecutionConfig bulkExecutionConfig,
+        ThreadPool threadPool,
+        String inferenceId
+    ) {
         super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
         this.bulkExecutionConfig = bulkExecutionConfig;

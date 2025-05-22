@@ -38,7 +38,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -194,8 +193,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService,
-            () -> false
+            threadPoolMergeExecutorService
         );
         // make sure there are more merges submitted than the max merge count limit (which triggers IO throttling)
         int excessMerges = randomIntBetween(1, 10);
@@ -258,8 +256,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService,
-            () -> false
+            threadPoolMergeExecutorService
         );
         int mergesToRun = randomIntBetween(0, 5);
         // make sure there are more merges submitted and not run
@@ -704,8 +701,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         TestThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-            BooleanSupplier shouldSkipMerge
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService, merge -> 0);
         }

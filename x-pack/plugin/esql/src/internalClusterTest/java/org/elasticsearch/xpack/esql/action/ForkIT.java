@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
@@ -683,6 +684,35 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));
+    }
+
+    public void testProfile() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" | SORT id )
+               ( WHERE content:"dog" | SORT id )
+            | SORT _fork, id
+            | KEEP _fork, id, content
+            """;
+
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+
+        request.pragmas(randomPragmas());
+        request.query(query);
+        request.profile(true);
+
+        try (var resp = run(request)) {
+            EsqlQueryResponse.Profile profile = resp.profile();
+            assertNotNull(profile);
+
+            List<String> descriptions = profile.drivers().stream().map(DriverProfile::description).sorted().toList();
+
+            assertEquals(
+                List.of("data", "data", "main.final", "node_reduce", "node_reduce", "subplan-0.final", "subplan-1.final"),
+                descriptions
+            );
+        }
     }
 
     private void createAndPopulateIndex() {

@@ -199,9 +199,7 @@ public abstract class GradleUtils {
         config.getDependencies().all(dep -> {
             if (dep instanceof ModuleDependency
                 && dep instanceof ProjectDependency == false
-                && dep.getGroup().startsWith("org.elasticsearch") == false
-                && dep.getGroup().startsWith("com.squareup") == false
-                && dep.getGroup().startsWith("org.jetbrains.kotlin") == false) {
+                && dep.getGroup().startsWith("org.elasticsearch") == false) {
                 ((ModuleDependency) dep).setTransitive(false);
             }
         });

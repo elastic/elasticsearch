@@ -10,10 +10,15 @@ package org.elasticsearch.xpack.security.authz.microsoft;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsServer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -21,12 +26,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.rules.ExternalResource;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
+import java.security.SecureRandom;
+import java.security.cert.Certificate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,7 +53,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
     private final String displayName;
     private final String email;
 
-    private HttpServer server;
+    private HttpsServer server;
 
     public AzureGraphHttpFixture(
         String tenantId,
@@ -64,7 +76,18 @@ public class AzureGraphHttpFixture extends ExternalResource {
         final var jwt = "test jwt";
         final var skipToken = UUID.randomUUID().toString();
 
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        final var certificate = PemUtils.readCertificates(List.of(Path.of(getClass().getClassLoader().getResource("server/cert.pem").toURI()))).getFirst();
+        final var key = PemUtils.readPrivateKey(Path.of(getClass().getClassLoader().getResource("server/cert.key").toURI()), () -> null);
+        final var sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(
+            new KeyManager[] { KeyStoreUtil.createKeyManager(new Certificate[] { certificate }, key, null) },
+            null,
+            new SecureRandom()
+        );
+
+        server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+
         server.createContext("/" + tenantId + "/oauth2/v2.0/token", exchange -> {
             if (exchange.getRequestMethod().equals("POST") == false) {
                 httpError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected POST request");
@@ -183,6 +206,10 @@ public class AzureGraphHttpFixture extends ExternalResource {
 
             exchange.close();
         });
+        server.createContext("/", exchange -> {
+            logger.warn("Unhandled request for [{}]", exchange.getRequestURI());
+            exchange.close();
+        });
         server.start();
     }
 
@@ -192,7 +219,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
     }
 
     public String getBaseUrl() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
     }
 
     private void httpError(HttpExchange exchange, RestStatus statusCode, String message) throws IOException {

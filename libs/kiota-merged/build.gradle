@@ -5,6 +5,10 @@ dependencies {
   implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.8.4"
   implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.8.4"
   implementation "com.microsoft.kiota:microsoft-kiota-http-okHttp:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-json:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-text:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-form:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-multipart:1.8.4"
 }
 
 tasks.named('shadowJar').configure {

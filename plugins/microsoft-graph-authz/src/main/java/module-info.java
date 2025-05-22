@@ -21,6 +21,7 @@ module org.elasticsearch.plugin.security.authz {
     requires com.microsoft.graph;
     requires com.azure.identity;
     requires com.microsoft.graph.core;
+    requires kotlin.stdlib;
 
     provides org.elasticsearch.xpack.core.security.SecurityExtension with MicrosoftGraphAuthzPlugin;
 }

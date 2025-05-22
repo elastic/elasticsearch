@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -61,8 +62,11 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     public static ElasticsearchCluster cluster = initTestCluster();
 
+    private static final TestTrustStore trustStore = new TestTrustStore(() ->
+        MicrosoftGraphAuthzPluginIT.class.getClassLoader().getResourceAsStream("server/cert.pem"));
+
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(graphFixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(graphFixture).around(trustStore).around(cluster);
 
     private static final String IDP_ENTITY_ID = "http://idp.example.org/";
 
@@ -93,6 +97,8 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host", graphFixture::getBaseUrl)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
             .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
+            .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
+            .systemProperty("javax.net.ssl.trustStoreType", "jks")
             .build();
     }
 

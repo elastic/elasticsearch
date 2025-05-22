@@ -10,10 +10,12 @@
 package org.elasticsearch.xpack.security.authz.microsoft;
 
 import com.azure.identity.ClientSecretCredentialBuilder;
+import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
+import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 import com.nimbusds.jose.util.JSONObjectUtils;
 
 import org.apache.http.client.HttpClient;
@@ -64,6 +66,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         this.config = config;
         this.httpClient = HttpClients.createDefault();
         this.clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
+
+        kotlin.jvm.internal.Intrinsics.checkParameterIsNotNull(clientSecret, "clientSecret");
+        // TODO license check
     }
 
     @Override
@@ -84,9 +89,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     @Override
     public void lookupUser(String principal, ActionListener<User> listener) {
         try {
-//            final var token = fetchAccessToken();
-//            final var userProperties = fetchUserProperties(principal, token);
-//            final var groups = fetchGroupMembership(principal, token);
+            // final var token = fetchAccessToken();
+            // final var userProperties = fetchUserProperties(principal, token);
+            // final var groups = fetchGroupMembership(principal, token);
             final var client = buildClient();
             final var userProperties = sdkFetchUserProperties(client, principal);
             final var groups = sdkFetchGroupMembership(client, principal);
@@ -139,11 +144,21 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     }
 
     private GraphServiceClient buildClient() {
+        logger.trace("building client");
         final var credentialProvider = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
-        ).clientSecret(clientSecret.toString()).tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID)).build();
+        )
+            .clientSecret(clientSecret.toString())
+            .tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID))
+            .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST))
+            .build();
 
-        return new GraphServiceClient(credentialProvider, "https://graph.microsoft.com/.default");
+        return new GraphServiceClient(
+            new BaseGraphRequestAdapter(
+                new AzureIdentityAuthenticationProvider(credentialProvider, Strings.EMPTY_ARRAY, "https://graph.microsoft.com/.default"),
+                config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST)
+            )
+        );
     }
 
     private Tuple<String, String> fetchUserProperties(String userId, String token) throws IOException, ParseException {
@@ -212,8 +227,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             requestConfig.queryParameters.top = 999;
         });
 
-        var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>()
-            .client(client)
+        var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>().client(client)
             .collectionPage(groupMembership)
             .collectionPageFactory(GroupCollectionResponse::createFromDiscriminatorValue)
             .requestConfigurator(requestInfo -> {

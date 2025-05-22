@@ -18,6 +18,31 @@ esplugin {
   extendedPlugins = ["x-pack-security"]
 }
 
+def patched = Attribute.of('patched', Boolean)
+
+configurations {
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+}
+
 dependencies {
   compileOnly project(":x-pack:plugin:core")
   compileOnly "com.nimbusds:nimbus-jose-jwt:10.0.2"
@@ -42,5 +67,23 @@ dependencies {
   runtimeOnly "net.java.dev.jna:jna-platform:${versions.jna}"
   runtimeOnly "io.opentelemetry:opentelemetry-api:1.50.0"
   runtimeOnly "io.opentelemetry:opentelemetry-context:1.50.0"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:1.6.20"
   implementation "com.squareup.okhttp3:okhttp:4.11.0"
+  runtimeOnly "com.squareup.okio:okio:3.2.0"
+  runtimeOnly "com.squareup.okio:okio-jvm:3.2.0"
+  runtimeOnly "io.github.std-uritemplate:std-uritemplate:2.0.0"
+  runtimeOnly "com.azure:azure-core-http-okhttp:1.12.10"
+  compileOnly "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  runtimeOnly "com.nimbusds:content-type:2.3"
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.azurecore.AzureCoreClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+  }
 }

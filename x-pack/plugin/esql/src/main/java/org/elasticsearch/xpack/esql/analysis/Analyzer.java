@@ -753,7 +753,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
-            Set<String> forkColumns = outputUnion.stream().map(Attribute::name).collect(Collectors.toSet());
+            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -804,7 +804,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-            for (Attribute attr : Fork.outputUnion(newSubPlans)) {
+            for (Attribute attr : newSubPlans.getFirst().output()) {
                 newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
             }
 

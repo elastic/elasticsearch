@@ -27,9 +27,13 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.store.IOContext.FileOpenHint;
+import org.apache.lucene.store.FlushInfo;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MergeInfo;
 
 import java.io.IOException;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -65,12 +69,11 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        var newHints = Stream.concat(state.context.hints().stream(), Stream.of(DirectIOHint.INSTANCE)).toArray(FileOpenHint[]::new);
         SegmentReadState directIOState = new SegmentReadState(
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
-            state.context.withHints(newHints),
+            new DirectIOContext(state.context),
             state.segmentSuffix
         );
         // Use mmap for merges and direct I/O for searches.
@@ -84,5 +87,41 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
     @Override
     public String toString() {
         return "Lucene99FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
+    }
+
+    static class DirectIOContext implements IOContext {
+
+        final IOContext delegate;
+        final Set<FileOpenHint> hints;
+
+        DirectIOContext(IOContext delegate) {
+            this.delegate = delegate;
+            hints = Stream.concat(delegate.hints().stream(), Stream.of(DirectIOHint.INSTANCE)).collect(Collectors.toSet());
+        }
+
+        @Override
+        public Context context() {
+            return delegate.context();
+        }
+
+        @Override
+        public MergeInfo mergeInfo() {
+            return delegate.mergeInfo();
+        }
+
+        @Override
+        public FlushInfo flushInfo() {
+            return delegate.flushInfo();
+        }
+
+        @Override
+        public Set<FileOpenHint> hints() {
+            return hints;
+        }
+
+        @Override
+        public IOContext withHints(FileOpenHint... hints) {
+            return delegate.withHints(hints);  // TODO: keep the directIO or drop it ?
+        }
     }
 }

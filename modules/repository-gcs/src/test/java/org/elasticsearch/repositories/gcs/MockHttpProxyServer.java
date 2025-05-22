@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  */
 abstract class MockHttpProxyServer implements Closeable {
 
-    private HttpServer httpServer;
+    private volatile HttpServer httpServer;
 
     MockHttpProxyServer() {
         startHttpServer(0);

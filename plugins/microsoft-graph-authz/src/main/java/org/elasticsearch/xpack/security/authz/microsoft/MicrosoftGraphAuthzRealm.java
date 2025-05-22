@@ -28,6 +28,8 @@ import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -54,21 +57,43 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
     private static final Logger logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
 
-    private final HttpClient httpClient;
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
+    private final HttpClient httpClient;
     private final SecureString clientSecret;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
+        this(roleMapper, config, HttpClients.createDefault());
+    }
+
+    /* package-private for testing */ MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, HttpClient httpClient) {
         super(config);
 
-        this.roleMapper = roleMapper;
         this.config = config;
-        this.httpClient = HttpClients.createDefault();
+        this.roleMapper = roleMapper;
+        this.httpClient = httpClient;
         this.clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
+
+        require(MicrosoftGraphAuthzRealmSettings.CLIENT_ID);
+        require(MicrosoftGraphAuthzRealmSettings.TENANT_ID);
+
+        if (clientSecret.isEmpty()) {
+            throw new SettingsException(
+                "The configuration setting ["
+                    + RealmSettings.getFullSettingKey(config, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET)
+                    + "] is required"
+            );
+        }
 
         kotlin.jvm.internal.Intrinsics.checkParameterIsNotNull(clientSecret, "clientSecret");
         // TODO license check
+    }
+
+    private void require(Setting.AffixSetting<String> setting) {
+        final var value = config.getSetting(setting);
+        if (value.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting) + "] is required");
+        }
     }
 
     @Override
@@ -107,7 +132,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                     Map.of(),
                     true
                 );
-                logger.debug("Entra ID user {}", user);
+                logger.trace("Entra ID user {}", user);
                 l.onResponse(user);
             }));
         } catch (Exception e) {
@@ -195,6 +220,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         var request = new HttpGet();
         request.addHeader("Authorization", "Bearer " + token);
 
+        // TODO need to think about transient group membership
+        // also do we need to care about other memberships, e.g. Directory Roles and "Administrative Units"?
         var nextPage = Strings.format(
             "%s/v1.0/users/%s/memberOf/microsoft.graph.group?$select=id&$top=999",
             config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST),
@@ -209,7 +236,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
             var json = JSONObjectUtils.parse(response);
             nextPage = getString(json, "@odata.nextLink");
-            for (var groupData : getJSONObjectArray(json, "groups")) {
+            for (var groupData : getJSONObjectArray(json, "value")) {
                 groups.add(getString(groupData, "id"));
             }
         }

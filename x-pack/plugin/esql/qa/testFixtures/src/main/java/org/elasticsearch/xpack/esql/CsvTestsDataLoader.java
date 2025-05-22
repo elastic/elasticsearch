@@ -433,7 +433,7 @@ public class CsvTestsDataLoader {
     public static void createCompletionInferenceEndpoint(RestClient client) throws IOException {
         createInferenceEndpoint(client, TaskType.COMPLETION, "test_completion", """
             {
-                "service": "streaming_completion_test_service",
+                "service": "completion_test_service",
                 "service_settings": { "model": "my_model", "api_key": "abc64" },
                 "task_settings": { "temperature": 3 }
             }

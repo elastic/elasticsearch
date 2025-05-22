@@ -1,0 +1,16 @@
+// Note:
+// The "test_completion" service returns the prompt in uppercase, making the output easy to guess.
+ 
+
+completion using a ROW source operator
+required_capability: completion
+
+ROW prompt="Who is Victor Hugo?"
+| COMPLETION prompt WITH test_completion AS completion_output
+;
+
+prompt:keyword      | completion_output:keyword
+Who is Victor Hugo? | WHO IS VICTOR HUGO?
+;
+
+

@@ -387,6 +387,10 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
             }
         }
 
+        /**
+         * For dimension fields, skips reading them when {@code nonDimensionFieldsOnly} is true,
+         * since they only need to be read once per tsid.
+         */
         void readValues(int segment, int docID, boolean nonDimensionFieldsOnly) throws IOException {
             segments[segment].read(docID, builders, nonDimensionFieldsOnly, dimensions);
         }

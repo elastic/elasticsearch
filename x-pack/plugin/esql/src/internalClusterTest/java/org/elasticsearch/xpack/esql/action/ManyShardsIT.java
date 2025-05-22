@@ -45,8 +45,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -264,7 +267,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     public void testCancelUnnecessaryRequests() {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
         internalCluster().ensureAtLeastNumDataNodes(3);
-
+        var dataNodes = internalCluster().numDataNodes();
         var coordinatingNode = internalCluster().getNodeNames()[0];
 
         var exchanges = new AtomicInteger(0);
@@ -281,9 +284,9 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 
-        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
+        try (var result = safeGet(client(coordinatingNode).execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
-            assertThat(exchanges.get(), lessThanOrEqualTo(2));
+            assertThat(exchanges.get(), allOf(greaterThanOrEqualTo(1), lessThan(dataNodes)));
         } finally {
             coordinatorNodeTransport.clearAllRules();
         }

@@ -23,7 +23,6 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
-import java.util.function.Function;
 
 import javax.inject.Inject;
 

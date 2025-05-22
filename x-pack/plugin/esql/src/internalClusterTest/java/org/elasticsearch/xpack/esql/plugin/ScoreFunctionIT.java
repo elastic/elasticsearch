@@ -29,7 +29,6 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-
     public void testScoreDifferentWhereMatch() {
         var query = """
             FROM test METADATA _score

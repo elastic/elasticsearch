@@ -79,7 +79,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        final int minPageSize = Math.max(1, size / 100);
+        return new AbstractBlockSourceOperator(blockFactory, between(minPageSize, size)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;

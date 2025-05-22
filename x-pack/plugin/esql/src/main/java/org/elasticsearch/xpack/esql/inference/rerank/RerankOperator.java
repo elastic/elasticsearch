@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -70,6 +69,16 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     @Override
+    public void addInput(Page input) {
+        try {
+            super.addInput(input.appendBlock(rowEncoder.eval(input)));
+        } catch (Exception e) {
+            releasePageOnAnyThread(input);
+            throw e;
+        }
+    }
+
+    @Override
     public Class<RankedDocsResults> inferenceResultsClass() {
         return RankedDocsResults.class;
     }
@@ -86,7 +95,7 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
 
     @Override
     protected RerankOperatorRequestIterator requests(Page inputPage) {
-        return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
+        return new RerankOperatorRequestIterator(inputPage, inferenceId(), queryText, batchSize);
     }
 
     @Override

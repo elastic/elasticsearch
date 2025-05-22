@@ -28,7 +28,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -109,7 +108,6 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            Arrays.stream(fieldValueBlocks).filter(Objects::nonNull).forEach(Block::allowPassingToDifferentDriver);
             Releasables.closeExpectNoException(fieldValueBlocks);
         }
     }

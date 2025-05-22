@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder<ChatCompletionResults> {
     private final Page inputPage;
@@ -52,6 +53,6 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     public Page buildOutput() {
         Block outputBlock = outputBlockBuilder.build();
         assert outputBlock.getPositionCount() == inputPage.getPositionCount();
-        return inputPage.shallowCopy().appendBlock(outputBlock);
+        return inputPage.projectBlocks(IntStream.range(0, inputPage.getBlockCount() - 1).toArray()).appendBlock(outputBlock);
     }
 }

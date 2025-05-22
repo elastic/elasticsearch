@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -55,6 +54,16 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
     }
 
     @Override
+    public void addInput(Page input) {
+        try {
+            super.addInput(input.appendBlock(promptEvaluator.eval(input)));
+        } catch (Exception e) {
+            releasePageOnAnyThread(input);
+            throw e;
+        }
+    }
+
+    @Override
     public Class<ChatCompletionResults> inferenceResultsClass() {
         return ChatCompletionResults.class;
     }
@@ -71,7 +80,7 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
 
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
+        return new CompletionOperatorRequestIterator(inputPage, inferenceId());
     }
 
     @Override

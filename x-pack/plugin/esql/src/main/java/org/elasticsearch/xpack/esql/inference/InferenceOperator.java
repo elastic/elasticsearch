@@ -72,10 +72,7 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInference> listener) {
         try {
-            BulkInferenceRequestIterator requests = requests(input);
-            listener = ActionListener.releaseBefore(requests, listener);
-
-            bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInference(input, responses)));
+            bulkInferenceExecutor.execute(requests(input), listener.map(responses -> new OngoingInference(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

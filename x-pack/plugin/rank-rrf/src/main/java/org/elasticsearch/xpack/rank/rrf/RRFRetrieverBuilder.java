@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -22,7 +21,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,42 +53,16 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         NAME,
         false,
         args -> {
-            List<RetrieverBuilder> childRetrievers = args[0] == null ? List.of() : (List<RetrieverBuilder>) args[0];
-            List<String> fields = args[1] == null ? List.of() : (List<String>) args[1];
+            List<RetrieverBuilder> childRetrievers = (List<RetrieverBuilder>) args[0];
+            List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
-            if (childRetrievers.isEmpty() == false && fields.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "Cannot specify both [" + RETRIEVERS_FIELD.getPreferredName() + "] and [" + FIELDS_FIELD.getPreferredName() + "]"
-                );
-            }
-
-            List<RetrieverSource> innerRetrievers;
-            if (childRetrievers.isEmpty() == false) {
-                innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
-            } else if (fields.isEmpty() == false) {
-                if (query == null) {
-                    throw new IllegalArgumentException(
-                        "[" + QUERY_FIELD.getPreferredName() + "] must be specified when [" + FIELDS_FIELD.getPreferredName() + "] is used"
-                    );
-                }
-
-                Map<String, Float> fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
-                fieldsAndWeights.values().forEach(w -> {
-                    if (w != 1.0f) {
-                        throw new IllegalArgumentException(
-                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
-                        );
-                    }
-                });
-
-                innerRetrievers = SimplifiedInnerRetrieverUtils.convertToRetrievers(fieldsAndWeights.keySet(), query);
-            } else {
-                innerRetrievers = List.of();
-            }
-
             int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
-            return new RRFRetrieverBuilder(innerRetrievers, rankWindowSize, rankConstant);
+
+            List<RetrieverSource> innerRetrievers = childRetrievers != null ?
+                childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList() :
+                List.of();
+            return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
         }
     );
 
@@ -122,7 +94,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     private final int rankConstant;
 
     public RRFRetrieverBuilder(int rankWindowSize, int rankConstant) {
-        this(new ArrayList<>(), rankWindowSize, rankConstant);
+        this(null, rankWindowSize, rankConstant);
     }
 
     RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
@@ -130,7 +102,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, List<String> fields, String query, int rankWindowSize, int rankConstant) {
-        super(childRetrievers, rankWindowSize);
+        // Use a mutable list for childRetrievers so that we can add more child retrievers during rewrite
+        super(childRetrievers == null ? new ArrayList<>() : new ArrayList<>(childRetrievers), rankWindowSize);
         this.fields = fields == null ? List.of() : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;

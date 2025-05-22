@@ -322,7 +322,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(false);
+            return ctx.newSourceLoader(null, false);
         }
 
         @Override

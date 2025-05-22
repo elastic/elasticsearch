@@ -271,7 +271,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         }
 
         // Remove read-only indices
-        var indicesToQuery = writableIndexExpander.getWritableIndices(indices);
+        List<String> indicesToQuery = new ArrayList<>();
+        try {
+            indicesToQuery = writableIndexExpander.getWritableIndices(indices);
+        } catch (Exception e) {
+            LOGGER.error("Failed to get writable indices for [{}] job: {}", jobId, e.getMessage(), e);
+            listener.onFailure(e);
+            return;
+        }
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable model snapshot indices found for [{}] job. No expired model snapshots to remove.", jobId);
             listener.onResponse(true);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -140,8 +141,15 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         assertMap(result, matcher);
     }
 
+    private static boolean checkVersion(org.elasticsearch.Version version) {
+        return version.onOrAfter(Version.fromString("9.1.0"))
+            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
     // We need a separate test since remote missing indices and local missing indices now work differently
     public void testIndicesDontExistRemote() throws IOException {
+        // Exclude old versions
+        assumeTrue("Only works with latest support_unavailable logic", checkVersion(Clusters.localClusterVersion()));
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 

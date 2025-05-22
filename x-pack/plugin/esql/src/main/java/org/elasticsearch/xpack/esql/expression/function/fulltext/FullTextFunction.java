@@ -46,11 +46,11 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -230,18 +230,24 @@ public abstract class FullTextFunction extends Function
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
-            // TODO : improve this check, as this is not 100% accurate
-            AtomicInteger scoredFullTextFunctions = new AtomicInteger();
-            plan.forEachExpression(ScoreFunction.class, scoreFunction -> {
-                plan.forEachExpression(FullTextFunction.class, ftf -> { scoredFullTextFunctions.getAndIncrement(); });
-            });
-            if (scoredFullTextFunctions.get() == 0) {
-                plan.forEachExpression(FullTextFunction.class, ftf -> {
+            // TODO : improve this check, as this is not so nice :(
+            List<FullTextFunction> scoredFTFs = new ArrayList<>();
+            plan.forEachExpression(
+                ScoreFunction.class,
+                scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); }
+            );
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                if (scoredFTFs.remove(ftf) == false) {
                     failures.add(
-                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
+                        fail(
+                            ftf,
+                            "[{}] {} is only supported in WHERE and STATS commands, or in EVAL within score(.) function",
+                            ftf.functionName(),
+                            ftf.functionType()
+                        )
                     );
-                });
-            }
+                }
+            });
         }
     }
 

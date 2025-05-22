@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +48,10 @@ public class CopySign extends EsqlScalarFunction {
     }
 
     private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.of(
-        DataType.FLOAT, CopySignFloatEvaluator.Factory::new,
-        DataType.DOUBLE, CopySignDoubleEvaluator.Factory::new
+        DataType.FLOAT,
+        CopySignFloatEvaluator.Factory::new,
+        DataType.DOUBLE,
+        CopySignDoubleEvaluator.Factory::new
     );
 
     private DataType dataType;
@@ -119,19 +122,16 @@ public class CopySign extends EsqlScalarFunction {
         }
         var magnitude = children().get(0);
         var sign = children().get(1);
-        if (magnitude.dataType().isNumeric() == false) {
-            return new TypeResolution("Magnitude must be a numeric type");
+        if (magnitude.dataType().isNumeric() == false || magnitude.dataType().isRationalNumber() == false) {
+            return new TypeResolution("Magnitude must be a float or double type");
         }
-        if (sign.dataType().isNumeric() == false) {
-            return new TypeResolution("Sign must be a numeric type");
+        if (sign.dataType().isNumeric() == false || sign.dataType().isRationalNumber() == false) {
+            return new TypeResolution("Sign must be a float or double type");
         }
-        // TODO(pabloem): Looks like we don't currently support generalizing types
-        // when two types are incompatible (e.g. copySign(int, long) -> long instead of
-        // copySign(int, long) => ERROR).
-        dataType = magnitude.dataType();
+        var commonType = EsqlDataTypeConverter.commonType(magnitude.dataType(), sign.dataType());
         TypeResolution resolution = TypeResolutions.isType(
             magnitude,
-            t -> t == dataType,
+            t -> t == commonType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(1),
             magnitude.dataType().typeName()
@@ -139,6 +139,7 @@ public class CopySign extends EsqlScalarFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
+        dataType = commonType;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -151,7 +152,8 @@ public class CopySign extends EsqlScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dataType = dataType();
         if (FACTORY_PROVIDERS.containsKey(dataType)) {
-            return FACTORY_PROVIDERS.get(dataType).create(source(), toEvaluator.apply(children().get(0)), toEvaluator.apply(children().get(1)));
+            return FACTORY_PROVIDERS.get(dataType)
+                .create(source(), toEvaluator.apply(children().get(0)), toEvaluator.apply(children().get(1)));
         } else {
             throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType, NAME);
         }

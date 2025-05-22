@@ -314,11 +314,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
                         index
                     ),
-                    listener.delegateResponse(
-                        (listener1, e) -> listener1.onResponse(
-                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(index.getName(), e.getMessage())
-                        )
-                    ).delegateFailure((listener1, response) -> {
+                    ActionListener.wrap(response -> {
                         UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError error;
                         if (response.isAcknowledged() == false) {
                             error = new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(
@@ -328,8 +324,12 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         } else {
                             error = null;
                         }
-                        listener1.onResponse(error);
-                    })
+                        listener.onResponse(error);
+                    },
+                        e -> listener.onResponse(
+                            new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError(index.getName(), e.getMessage())
+                        )
+                    )
                 );
             }
         }

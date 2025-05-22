@@ -36,17 +36,17 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Look for any fields used in the plan that are missing or that are constant locally and replace them with null or with the value.
+ * Look for any fields used in the plan that are missing and replaces them with null or look for fields that are constant.
  * This should minimize the plan execution, in the best scenario skipping its execution all together.
  */
-public class ReplaceFieldWithConstant extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
+public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         var lookupFieldsBuilder = AttributeSet.builder();
-        Map<Attribute, Expression> attrToValue = new HashMap<>();
+        Map<Attribute, Expression> attrToConstant = new HashMap<>();
         plan.forEachUp(EsRelation.class, esRelation -> {
-            // Looking only for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
+            // Looking for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.
             // It seems like we could instead just look for JOINs and walk down their right hand side to find lookup fields - but this does
             // not work as this rule also gets called just on the right hand side of a JOIN, which means that we don't always know that
@@ -62,7 +62,7 @@ public class ReplaceFieldWithConstant extends ParameterizedRule<LogicalPlan, Log
                         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
                         var val = localLogicalOptimizerContext.searchStats().constantValue(fa.fieldName());
                         if (val != null) {
-                            attrToValue.put(attribute, Literal.of(attribute, val));
+                            attrToConstant.put(attribute, Literal.of(attribute, val));
                         }
                     }
                 }
@@ -76,10 +76,14 @@ public class ReplaceFieldWithConstant extends ParameterizedRule<LogicalPlan, Log
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
             || lookupFields.contains(f);
 
-        return plan.transformUp(p -> missingToNull(p, shouldBeRetained, attrToValue));
+        return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
     }
 
-    private LogicalPlan missingToNull(LogicalPlan plan, Predicate<FieldAttribute> shouldBeRetained, Map<Attribute, Expression> constants) {
+    private LogicalPlan replaceWithNullOrConstant(
+        LogicalPlan plan,
+        Predicate<FieldAttribute> shouldBeRetained,
+        Map<Attribute, Expression> attrToConstant
+    ) {
         if (plan instanceof EsRelation relation) {
             // For any missing field, place an Eval right after the EsRelation to assign null values to that attribute (using the same name
             // id!), thus avoiding that InsertFieldExtrations inserts a field extraction later.
@@ -133,10 +137,13 @@ public class ReplaceFieldWithConstant extends ParameterizedRule<LogicalPlan, Log
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
             || plan instanceof TopN) {
-            return plan.transformExpressionsOnlyUp(
-                FieldAttribute.class,
-                f -> constants.getOrDefault(f, shouldBeRetained.test(f) ? f : Literal.of(f, null))
-            );
+            return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
+                if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead
+                    return attrToConstant.get(f);
+                } else {// handle missing fields and replace them with null
+                    return shouldBeRetained.test(f) ? f : Literal.of(f, null);
+                }
+            });
         }
 
         return plan;

@@ -14,7 +14,9 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,8 +32,10 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -165,16 +169,21 @@ class FieldCapabilitiesFetcher {
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
-            final String field = entry.getKey();
+
+        RootObjectMapper rootObjectMapper = context.getMappingLookup().getMapping().getRoot();
+        List<FieldMapper> allMappers = new ArrayList<>();
+        allMappers.addAll(rootObjectMapper.getSourceFields());
+        allMappers.addAll(context.getMetadataFields());
+
+        for (FieldMapper mapper : allMappers) {
+            final String field = mapper.fullPath();
             if (fieldNameFilter.test(field) == false) {
                 continue;
             }
-            MappedFieldType ft = entry.getValue();
+            MappedFieldType ft = mapper.fieldType();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
-                && (filter == null || filter.test(ft))
-                && ft.excludeFromFieldCaps() == false) {
+                && (filter == null || filter.test(ft))) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

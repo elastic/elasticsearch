@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class InferenceRunner {
 
     private final Client client;
@@ -73,6 +76,12 @@ public class InferenceRunner {
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        client.execute(InferenceAction.INSTANCE, request, listener);
+        executeAsyncWithOrigin(
+            client,
+            INFERENCE_ORIGIN,
+            InferenceAction.INSTANCE,
+            request,
+            listener
+        );
     }
 }

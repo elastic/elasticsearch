@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -21,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,9 +62,9 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
 
-            List<RetrieverSource> innerRetrievers = childRetrievers != null ?
-                childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList() :
-                List.of();
+            List<RetrieverSource> innerRetrievers = childRetrievers != null
+                ? childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList()
+                : List.of();
             return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
         }
     );
@@ -177,6 +180,57 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             topResults[rank].rank = rank + 1;
         }
         return topResults;
+    }
+
+    @Override
+    protected boolean doRewrite(QueryRewriteContext ctx) {
+        // TODO: Review error messages
+        // TODO: Rewrite this to handle when only query is supplied by the user
+        boolean modified = false;
+
+        if (innerRetrievers.isEmpty() == false && fields.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Cannot specify both [" + RETRIEVERS_FIELD.getPreferredName() + "] and [" + FIELDS_FIELD.getPreferredName() + "]"
+            );
+        }
+
+        ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
+        if (resolvedIndices != null && fields.isEmpty() == false) {
+            if (query == null || query.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Cannot specify [" + FIELDS_FIELD.getPreferredName() + "] without [" + QUERY_FIELD.getPreferredName() + "]"
+                );
+            }
+
+            var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
+            if (localIndicesMetadata.size() > 1) {
+                throw new IllegalArgumentException(
+                    "Cannot specify [" + FIELDS_FIELD.getPreferredName() + "] when querying multiple indices"
+                );
+            }
+
+            List<RetrieverBuilder> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+                fields,
+                query,
+                localIndicesMetadata.values(),
+                (r, w) -> new RRFRetrieverBuilder(r, rankWindowSize, rankConstant),
+                w -> {
+                    if (w != 1.0f) {
+                        throw new IllegalArgumentException(
+                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
+                        );
+                    }
+                }
+            );
+            fieldsInnerRetrievers.forEach(this::addChild);
+
+            // Clear fields and query to indicate that this stage of the rewrite process is complete
+            fields = List.of();
+            query = null;
+            modified = true;
+        }
+
+        return modified;
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

@@ -155,11 +155,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(
-            "_doc",
-            new CompressedXContent(getTestSparseVectorIndexMapping()),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
+        mapperService.merge("_doc", new CompressedXContent(getTestSparseVectorIndexMapping()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     private String getTestSparseVectorIndexMapping() {

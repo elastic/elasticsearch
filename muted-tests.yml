@@ -257,6 +257,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/125946
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/128113
 
 # Examples:
 #

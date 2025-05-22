@@ -72,7 +72,10 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             int valueIndex = inputBlock.getFirstValueIndex(curPos);
             while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
                 scratch = inputBlock.getBytesRef(valueIndex, scratch);
-                inputBuilder.append(scratch.utf8ToString()).append("\n");
+                inputBuilder.append(scratch.utf8ToString());
+                if (valueIndex < inputBlock.getValueCount(curPos) - 1) {
+                    inputBuilder.append("\n");
+                }
                 valueIndex++;
             }
             scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);

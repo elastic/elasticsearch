@@ -599,6 +599,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
@@ -607,7 +608,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
             return new S3Repository(
-                ProjectId.DEFAULT,
+                projectId,
                 metadata,
                 registry,
                 getService(),

@@ -39,8 +39,8 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
     }
 
     public static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(
-            TestBuildInfo serverBuildInfo,
-            List<TestBuildInfo> pluginsBuildInfo
+        TestBuildInfo serverBuildInfo,
+        List<TestBuildInfo> pluginsBuildInfo
     ) {
 
         Map<String, PolicyManager.PolicyScope> scopeMap = new HashMap<>();

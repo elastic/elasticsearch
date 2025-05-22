@@ -9,9 +9,9 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
-import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;

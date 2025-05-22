@@ -23,6 +23,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -54,6 +56,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
+    private final RerankSnippetInput snippets;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -61,7 +64,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceText,
         int rankWindowSize,
         Float minScore,
-        boolean failuresAllowed
+        boolean failuresAllowed,
+        RerankSnippetInput snippets
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -69,6 +73,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
+        this.snippets = snippets;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -83,6 +88,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            this.snippets = in.readOptionalWriteable(RerankSnippetInput::new);
+        } else {
+            this.snippets = null;
         }
     }
 
@@ -107,6 +117,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            out.writeOptionalWriteable(snippets);
+        }
     }
 
     @Override
@@ -121,6 +134,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         }
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
+        }
+        if (snippets != null) {
+            builder.field(SNIPPETS_FIELD.getPreferredName(), snippets);
         }
     }
 
@@ -181,7 +197,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            failuresAllowed
+            failuresAllowed,
+            snippets
         );
     }
 

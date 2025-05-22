@@ -17,10 +17,13 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -48,10 +51,30 @@ public final class RankFeatureShardPhase {
 
         RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardContext(searchContext);
         if (rankFeaturePhaseRankShardContext != null) {
-            assert rankFeaturePhaseRankShardContext.getField() != null : "field must not be null";
+            String field = rankFeaturePhaseRankShardContext.getField();
+            assert field != null : "field must not be null";
             searchContext.fetchFieldsContext(
                 new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
             );
+            try {
+                RerankSnippetInput snippets = request.snippets();
+                if (snippets != null) {
+                    // For POC purposes we're just stripping pre/post tags and deferring if/how we'd want to handle them for this use case.
+                    HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
+                    // Force sorting by score to ensure that the first snippet is always the highest score
+                    highlightBuilder.order(HighlightBuilder.Order.SCORE);
+                    if (snippets.numFragments() != null) {
+                        highlightBuilder.numOfFragments(snippets.numFragments());
+                    }
+                    if (snippets.maxSize() != null) {
+                        highlightBuilder.fragmentSize(snippets.maxSize());
+                    }
+                    SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
+                    searchContext.highlight(searchHighlightContext);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create highlight context", e);
+            }
             searchContext.storedFieldsContext(StoredFieldsContext.fromList(Collections.singletonList(StoredFieldsContext._NONE_)));
             searchContext.addFetchResult();
             Arrays.sort(request.getDocIds());

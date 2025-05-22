@@ -14,12 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.xcontent.Text;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -38,12 +43,27 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
         try {
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+            int docIndex = 0;
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
+                SearchHit hit = hits.getHits()[i];
+                DocumentField docField = hit.field(field);
                 if (docField != null) {
                     rankFeatureDocs[i].featureData(docField.getValue().toString());
                 }
+                Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                if (highlightFields != null) {
+                    if (highlightFields.containsKey(field)) {
+                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                        List<Integer> docIndices = new ArrayList<>();
+                        for (String snippet : snippets) {
+                            docIndices.add(docIndex);
+                        }
+                        rankFeatureDocs[i].snippets(snippets);
+                        rankFeatureDocs[i].docIndices(docIndices);
+                    }
+                }
+                docIndex++;
             }
             return new RankFeatureShardResult(rankFeatureDocs);
         } catch (Exception ex) {

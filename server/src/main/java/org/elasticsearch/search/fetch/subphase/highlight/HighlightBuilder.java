@@ -399,7 +399,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             this.name = name;
         }
 
-        private Field(Field template, QueryBuilder builder) {
+        Field(Field template, QueryBuilder builder) {
             super(template, builder);
             name = template.name;
             fragmentOffset = template.fragmentOffset;

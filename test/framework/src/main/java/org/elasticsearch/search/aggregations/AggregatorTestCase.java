@@ -513,7 +513,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
-        when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
+        when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         var res = new SubSearchContext(ctx);
         releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context

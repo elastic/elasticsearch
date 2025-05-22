@@ -15,7 +15,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.List;
@@ -30,41 +29,8 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    public void testSimpleWhereMatch() {
-        var query = """
-            FROM test METADATA _score
-            | WHERE match(content, "brown")
-            | WHERE match(content, "fox")
-            | KEEP id, _score
-            | SORT id
-            """;
 
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "_score"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248724460601807)));
-        }
-    }
-
-    @Ignore
-    public void testAlternativeWhereMatch() {
-        var query = """
-            FROM test METADATA _score
-            | EVAL s1 = score(match(content, "brown"))
-            | WHERE s1 > 0
-            | WHERE match(content, "fox")
-            | KEEP id, _score
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "_score"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248724460601807)));
-        }
-    }
-
-    public void testSimpleScoreWhereMatch() {
+    public void testScoreDifferentWhereMatch() {
         var query = """
             FROM test METADATA _score
             | EVAL first_score = score(match(content, "brown"))
@@ -83,7 +49,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereMatch() {
+    public void testScoreMultipleWhereMatchMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE match(content, "brown")
@@ -103,7 +69,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereKql() {
+    public void testScoreMultipleWhereKqlMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE kql("brown")
@@ -123,7 +89,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereQstr() {
+    public void testScoreMultipleWhereQstrMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE qstr("brown")
@@ -143,7 +109,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereQstrAndMatch() {
+    public void testScoreSameWhereQstrAndMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE qstr("brown") AND match(content, "fox")
@@ -162,7 +128,26 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereKqlAndMatch() {
+    public void testScoreSingleWhereQstrAndMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE qstr("brown") AND match(content, "fox")
+            | EVAL first_score = score(qstr("brown"))
+            | KEEP id, _score, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 1.4274532794952393, 0.2708943784236908), List.of(6, 1.1248724460601807, 0.21347221732139587))
+            );
+        }
+    }
+
+    public void testScoreSameWhereKqlAndMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE kql("brown") AND match(content, "fox")
@@ -181,7 +166,26 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScorePlusWhereQstrORMatch() {
+    public void testScoreSingleWhereKqlAndMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE kql("brown") AND match(content, "fox")
+            | EVAL first_score = score(kql("brown"))
+            | KEEP id, _score, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 1.4274532794952393, 0.2708943784236908), List.of(6, 1.1248724460601807, 0.21347221732139587))
+            );
+        }
+    }
+
+    public void testScoreSameWhereQstrORMatch() {
         var query = """
             FROM test METADATA _score
             | WHERE qstr("brown") OR match(content, "fox")
@@ -201,6 +205,31 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of(3, 0.2708943784236908, 0.2708943784236908),
                     List.of(4, 0.19301524758338928, 0.19301524758338928),
                     List.of(6, 1.1248724460601807, 1.1248724162578583)
+                )
+            );
+        }
+    }
+
+    public void testScoreSingleWhereQstrORMatch() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE qstr("brown") OR match(content, "fox")
+            | EVAL first_score = score(qstr("brown"))
+            | KEEP id, _score, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(1, 1.4274532794952393, 0.2708943784236908),
+                    List.of(2, 0.2708943784236908, 0.2708943784236908),
+                    List.of(3, 0.2708943784236908, 0.2708943784236908),
+                    List.of(4, 0.19301524758338928, 0.19301524758338928),
+                    List.of(6, 1.1248724460601807, 0.21347221732139587)
                 )
             );
         }

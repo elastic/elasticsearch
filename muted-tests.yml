@@ -459,6 +459,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test121CanUseStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128165
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  method: testForkFieldsWithKeepAfterFork
+  issue: https://github.com/elastic/elasticsearch/issues/128271
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  method: testForkWithStatsInAllBranches
+  issue: https://github.com/elastic/elasticsearch/issues/128272
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test080ConfigurePasswordThroughEnvironmentVariableFile
+  issue: https://github.com/elastic/elasticsearch/issues/128075
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testInvalidTimestamp
+  issue: https://github.com/elastic/elasticsearch/issues/128284
 
 # Examples:
 #

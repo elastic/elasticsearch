@@ -1,0 +1,5 @@
+pr: 128323
+summary: "Fix: Allow non-score sorts in pinned retriever sub-retrievers"
+area: Relevance
+type: bug
+issues: []

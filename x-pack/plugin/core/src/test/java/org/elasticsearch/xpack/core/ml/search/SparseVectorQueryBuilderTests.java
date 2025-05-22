@@ -155,19 +155,26 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        if (shouldInjectSparseVectorIndexOptions()) {
-            addSparseVectorIndexOptionsMapping(mapperService);
-            return;
-        }
-
         mapperService.merge(
             "_doc",
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(SPARSE_VECTOR_FIELD, "type=sparse_vector"))),
+            new CompressedXContent(getTestSparseVectorIndexMapping()),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }
 
-    private boolean shouldInjectSparseVectorIndexOptions() {
+    private String getTestSparseVectorIndexMapping() {
+        if (currentTestHasIndexOptions()) {
+            return "{\"properties\":{\""
+                + SPARSE_VECTOR_FIELD
+                + "\":{\"type\":\"sparse_vector\",\"index_options\""
+                + ":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\""
+                + ":12,\"tokens_weight_threshold\":0.6}}}}}";
+        }
+
+        return Strings.toString(PutMappingRequest.simpleMapping(SPARSE_VECTOR_FIELD, "type=sparse_vector"));
+    }
+
+    private boolean currentTestHasIndexOptions() {
         Class<?> clazz = this.getClass();
         Class<InjectSparseVectorIndexOptions> injectSparseVectorIndexOptions = InjectSparseVectorIndexOptions.class;
 
@@ -177,15 +184,6 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         } catch (NoSuchMethodException e) {
             return false;
         }
-    }
-
-    private void addSparseVectorIndexOptionsMapping(MapperService mapperService) throws IOException {
-        String addIndexOptionsTemplate = "{\"properties\":{\""
-            + SPARSE_VECTOR_FIELD
-            + "\":{\"type\":\"sparse_vector\",\"index_options\""
-            + ":{\"prune\":true,\"pruning_config\":{\"tokens_freq_ratio_threshold\""
-            + ":12,\"tokens_weight_threshold\":0.6}}}}}";
-        mapperService.merge("_doc", new CompressedXContent(addIndexOptionsTemplate), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -283,7 +281,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         assertTrue(query instanceof SparseVectorQueryWrapper);
         var sparseQuery = (SparseVectorQueryWrapper) query;
-        if (queryBuilder.shouldPruneTokens()) {
+        if (queryBuilder.shouldPruneTokens() || currentTestHasIndexOptions()) {
             // It's possible that all documents were pruned for aggressive pruning configurations
             assertTrue(sparseQuery.getTermsQuery() instanceof BooleanQuery || sparseQuery.getTermsQuery() instanceof MatchNoDocsQuery);
         } else {
@@ -386,16 +384,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     public void testItUsesIndexOptionsDefaults() throws IOException {
         withSearchIndex((context) -> {
             try {
-                SparseVectorQueryBuilder builder = new SparseVectorQueryBuilder(
-                    SPARSE_VECTOR_FIELD,
-                    WEIGHTED_TOKENS,
-                    null,
-                    null,
-                    null,
-                    null
-                );
-                Query query = builder.doToQuery(context);
-
+                SparseVectorQueryBuilder builder = createTestQueryBuilder(null);
+                assertFalse(builder.shouldPruneTokens());
+                testDoToQuery(builder, context);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
@@ -403,14 +394,23 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     }
 
     @InjectSparseVectorIndexOptions
-    public void testItOverridesIndexOptionsDefaults() {
-
+    public void testItOverridesIndexOptionsDefaults() throws IOException {
+        withSearchIndex((context) -> {
+            try {
+                TokenPruningConfig pruningConfig = new TokenPruningConfig(2, 0.3f, false);
+                SparseVectorQueryBuilder builder = createTestQueryBuilder(pruningConfig);
+                assertTrue(builder.shouldPruneTokens());
+                testDoToQuery(builder, context);
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
     }
 
     @InjectSparseVectorIndexOptions
-    public void testToQueryWithIndexOptions() throws IOException {
+    public void testToQueryRewriteWithIndexOptions() throws IOException {
         withSearchIndex((context) -> {
-            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+            SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
             try {
                 if (queryBuilder.getQueryVectors() == null) {
                     QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, context);
@@ -423,16 +423,5 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 throw new RuntimeException(e);
             }
         });
-    }
-
-    @InjectSparseVectorIndexOptions
-    public void testWeCorrectlyRewriteQueryIntoVectorsWithIndexOptions() {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(null);
-        QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
-        assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
-        assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
     }
 }

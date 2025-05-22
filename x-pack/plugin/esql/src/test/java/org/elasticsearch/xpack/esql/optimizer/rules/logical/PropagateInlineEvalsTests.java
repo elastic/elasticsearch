@@ -81,7 +81,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      *     \_StubRelation[[emp_no{f}#11, languages{f}#14, gender{f}#13, y{r}#10]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V6.isEnabled());
+        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender
@@ -124,7 +124,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * {r}#21]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V6.isEnabled());
+        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender, last_name, first_name

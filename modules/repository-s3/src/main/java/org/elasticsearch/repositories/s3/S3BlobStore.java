@@ -9,10 +9,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
-import org.elasticsearch.core.Nullable;
-
 import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -31,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -42,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;

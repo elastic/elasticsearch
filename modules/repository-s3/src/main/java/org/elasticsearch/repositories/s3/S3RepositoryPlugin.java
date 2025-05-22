@@ -9,12 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;

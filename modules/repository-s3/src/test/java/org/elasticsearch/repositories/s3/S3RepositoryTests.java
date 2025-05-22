@@ -9,11 +9,10 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;

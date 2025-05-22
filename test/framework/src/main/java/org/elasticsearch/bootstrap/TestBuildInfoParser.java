@@ -23,7 +23,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-class TestBuildInfoParser {
+public class TestBuildInfoParser {
 
     private static final String PLUGIN_TEST_BUILD_INFO_RESOURCES = "META-INF/plugin-test-build-info.json";
     private static final String SERVER_TEST_BUILD_INFO_RESOURCE = "META-INF/server-test-build-info.json";
@@ -75,7 +75,7 @@ class TestBuildInfoParser {
         return PARSER.parse(parser, null).build();
     }
 
-    static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
+    public static List<TestBuildInfo> parseAllPluginTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
         var resources = TestBuildInfoParser.class.getClassLoader().getResources(PLUGIN_TEST_BUILD_INFO_RESOURCES);
@@ -88,7 +88,7 @@ class TestBuildInfoParser {
         return pluginsTestBuildInfos;
     }
 
-    static TestBuildInfo parseServerTestBuildInfo() throws IOException {
+    public static TestBuildInfo parseServerTestBuildInfo() throws IOException {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         var resource = TestBuildInfoParser.class.getClassLoader().getResource(SERVER_TEST_BUILD_INFO_RESOURCE);
         // No test-build-info for server: this might be a non-gradle build. Proceed without TestBuildInfo

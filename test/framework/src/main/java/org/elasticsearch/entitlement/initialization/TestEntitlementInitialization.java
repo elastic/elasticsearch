@@ -9,8 +9,12 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.bootstrap.TestBuildInfoParser;
+import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
@@ -28,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Test-only version of {@code EntitlementInitialization}
@@ -43,7 +46,8 @@ public class TestEntitlementInitialization {
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        checker = EntitlementInitialization.initChecker(inst, createPolicyManager());
+        TestEntitlementBootstrap.BootstrapArgs bootstrapArgs = TestEntitlementBootstrap.bootstrapArgs();
+        checker = EntitlementInitialization.initChecker(inst, createPolicyManager(bootstrapArgs.pathLookup()));
     }
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
@@ -87,23 +91,18 @@ public class TestEntitlementInitialization {
         return resource.openStream();
     }
 
-    private static PolicyManager createPolicyManager() {
+    private static PolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
 
-        // TODO: uncomment after merging https://github.com/elastic/elasticsearch/pull/127719
-        // var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
-        // var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
-        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver = null; // TestScopeResolver.createScopeResolver(serverTestBuildInfo,
-                                                                            // pluginsTestBuildInfo);
-        List<String> pluginNames = List.of(); // = pluginsTestBuildInfo.stream().map(TestBuildInfo::componentName).toList();
+        var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
+        var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
+        var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
+        List<String> pluginNames = pluginsTestBuildInfo.stream().map(TestBuildInfo::component).toList();
 
         var pluginDescriptors = parsePluginsDescriptors(pluginNames);
         var pluginsData = pluginDescriptors.stream()
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
-
-        // TODO: create here the test pathLookup
-        PathLookup pathLookup = null;
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 

@@ -10,18 +10,29 @@
 package org.elasticsearch.entitlement.bootstrap;
 
 import org.elasticsearch.entitlement.initialization.TestEntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-class TestEntitlementBootstrap {
+public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
+    private static BootstrapArgs bootstrapArgs;
 
     /**
      * Activates entitlement checking in tests.
+     * @param bootstrapArgs arguments used for and passed to entitlement initialization
      */
-    public static void bootstrap() {
+    public static void bootstrap(BootstrapArgs bootstrapArgs) {
+        assert bootstrapArgs != null;
+        TestEntitlementBootstrap.bootstrapArgs = bootstrapArgs;
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), TestEntitlementInitialization.class.getName());
     }
+
+    public static BootstrapArgs bootstrapArgs() {
+        return bootstrapArgs;
+    }
+
+    public record BootstrapArgs(PathLookup pathLookup) {}
 }

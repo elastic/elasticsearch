@@ -70,6 +70,11 @@ public class RerankOperator extends InferenceOperator<RankedDocsResults> {
     }
 
     @Override
+    public Class<RankedDocsResults> inferenceResultsClass() {
+        return RankedDocsResults.class;
+    }
+
+    @Override
     protected void doClose() {
         Releasables.close(rowEncoder);
     }

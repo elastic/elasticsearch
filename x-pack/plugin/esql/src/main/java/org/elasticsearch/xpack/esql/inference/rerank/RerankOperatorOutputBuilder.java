@@ -12,11 +12,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.Comparator;
 
-public class RerankOperatorOutputBuilder implements BulkInferenceOutputBuilder<RankedDocsResults, Page> {
+public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder<RankedDocsResults> {
 
     private final Page inputPage;
     private final DoubleBlock.Builder scoreBlockBuilder;
@@ -26,11 +26,6 @@ public class RerankOperatorOutputBuilder implements BulkInferenceOutputBuilder<R
         this.inputPage = inputPage;
         this.scoreBlockBuilder = scoreBlockBuilder;
         this.scoreChannel = scoreChannel;
-    }
-
-    @Override
-    public Class<RankedDocsResults> inferenceResultsClass() {
-        return RankedDocsResults.class;
     }
 
     @Override

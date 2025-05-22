@@ -12,27 +12,30 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
-public abstract class InferenceOperator<IR extends InferenceServiceResults> extends AsyncOperator<Page> {
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+
+public abstract class InferenceOperator<IR extends InferenceServiceResults> extends AsyncOperator<InferenceOperator.OngoingInference> {
 
     // Move to a setting.
     private static final int MAX_INFERENCE_WORKER = 10;
     private final String inferenceId;
     private final BlockFactory blockFactory;
 
-    private final BulkInferenceExecutor<IR, Page> bulkInferenceExecutor;
+    private final BulkInferenceExecutor bulkInferenceExecutor;
 
     @SuppressWarnings("this-escape")
     public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, ThreadPool threadPool, String inferenceId) {
         super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = new BulkInferenceExecutor<IR, Page>(inferenceRunner, threadPool, bulkExecutionConfig());
+        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig());
         this.inferenceId = inferenceId;
     }
 
@@ -45,29 +48,36 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
     }
 
     @Override
-    protected void releaseFetchedOnAnyThread(Page fetched) {
-        releasePageOnAnyThread(fetched);
+    protected void releaseFetchedOnAnyThread(OngoingInference result) {
+        releasePageOnAnyThread(result.inputPage);
     }
 
     @Override
     public Page getOutput() {
-        return fetchFromBuffer();
+        OngoingInference ongoingInference = fetchFromBuffer();
+        if (ongoingInference == null) {
+            return null;
+        }
+
+        try (OutputBuilder<IR> outputBuilder = outputBuilder(ongoingInference.inputPage)) {
+            for (int i = 0; i < ongoingInference.responses.length; i++) {
+                outputBuilder.addInferenceResults(inferenceResults(ongoingInference.responses[i]));
+            }
+            return outputBuilder.buildOutput();
+        } finally {
+            releaseFetchedOnAnyThread(ongoingInference);
+        }
     }
 
     @Override
-    protected void performAsync(Page input, ActionListener<Page> listener) {
-        ActionListener<Page> completionListener = ActionListener.runAfter(listener, () -> releasePageOnAnyThread(input));
-
+    protected void performAsync(Page input, ActionListener<OngoingInference> listener) {
         try {
             BulkInferenceRequestIterator requests = requests(input);
-            completionListener = ActionListener.releaseBefore(requests, completionListener);
+            listener = ActionListener.releaseBefore(requests, listener);
 
-            BulkInferenceOutputBuilder<IR, Page> outputBuilder = outputBuilder(input);
-            completionListener = ActionListener.releaseBefore(outputBuilder, completionListener);
-
-            bulkInferenceExecutor.execute(requests, outputBuilder, completionListener);
+            bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInference(input, responses)));
         } catch (Exception e) {
-            completionListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 
@@ -75,7 +85,34 @@ public abstract class InferenceOperator<IR extends InferenceServiceResults> exte
         return BulkInferenceExecutionConfig.DEFAULT;
     }
 
+    private IR inferenceResults(InferenceAction.Response inferenceResponse) {
+        InferenceServiceResults results = inferenceResponse.getResults();
+        if (inferenceResultsClass().isInstance(results)) {
+            return inferenceResultsClass().cast(results);
+        }
+
+        throw new IllegalStateException(
+            format(
+                "Inference result has wrong type. Got [{}] while expecting [{}]",
+                results.getClass().getName(),
+                inferenceResultsClass().getName()
+            )
+        );
+    }
+
     protected abstract BulkInferenceRequestIterator requests(Page input);
 
-    protected abstract BulkInferenceOutputBuilder<IR, Page> outputBuilder(Page input);
+    protected abstract Class<IR> inferenceResultsClass();
+
+    protected abstract OutputBuilder<IR> outputBuilder(Page input);
+
+    public record OngoingInference(Page inputPage, InferenceAction.Response[] responses) {
+
+    }
+
+    public interface OutputBuilder<IR extends InferenceServiceResults> extends Releasable {
+        void addInferenceResults(IR inferenceResults);
+
+        Page buildOutput();
+    }
 }

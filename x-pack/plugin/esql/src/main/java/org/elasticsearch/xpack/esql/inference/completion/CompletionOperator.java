@@ -55,6 +55,11 @@ public class CompletionOperator extends InferenceOperator<ChatCompletionResults>
     }
 
     @Override
+    public Class<ChatCompletionResults> inferenceResultsClass() {
+        return ChatCompletionResults.class;
+    }
+
+    @Override
     protected void doClose() {
         Releasables.close(promptEvaluator);
     }

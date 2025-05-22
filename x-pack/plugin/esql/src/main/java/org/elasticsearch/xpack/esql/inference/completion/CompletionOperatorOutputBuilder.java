@@ -13,11 +13,11 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceOutputBuilder;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class CompletionOperatorOutputBuilder implements BulkInferenceOutputBuilder<ChatCompletionResults, Page> {
+public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder<ChatCompletionResults> {
     private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
@@ -26,11 +26,6 @@ public class CompletionOperatorOutputBuilder implements BulkInferenceOutputBuild
     public CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder, Page inputPage) {
         this.inputPage = inputPage;
         this.outputBlockBuilder = outputBlockBuilder;
-    }
-
-    @Override
-    public Class<ChatCompletionResults> inferenceResultsClass() {
-        return ChatCompletionResults.class;
     }
 
     @Override

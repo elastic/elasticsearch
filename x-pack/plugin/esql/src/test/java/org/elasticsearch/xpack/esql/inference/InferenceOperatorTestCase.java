@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -114,12 +115,25 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
         when(inferenceRunner.threadPool()).thenReturn(threadPool());
         doAnswer(i -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceAction.Response> listener = i.getArgument(1, ActionListener.class);
-            InferenceAction.Request request = i.getArgument(0, InferenceAction.Request.class);
-            InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
-            when(inferenceResponse.getResults()).thenReturn(mockInferenceResult(request));
-            listener.onResponse(inferenceResponse);
+            Runnable sendResponse = () -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<InferenceAction.Response> listener = i.getArgument(1, ActionListener.class);
+                InferenceAction.Request request = i.getArgument(0, InferenceAction.Request.class);
+                InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
+                when(inferenceResponse.getResults()).thenReturn(mockInferenceResult(request));
+                listener.onResponse(inferenceResponse);
+            };
+
+            if (randomBoolean()) {
+                sendResponse.run();
+            } else {
+                threadPool.schedule(
+                    sendResponse,
+                    TimeValue.timeValueNanos(between(1, 1_000)),
+                    threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
+                );
+            }
+
             return null;
         }).when(inferenceRunner).doInference(any(InferenceAction.Request.class), any());
         return inferenceRunner;

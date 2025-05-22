@@ -9,19 +9,18 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-
-public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputType> {
+public class BulkInferenceExecutor {
     private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
     private static final int INFERENCE_RESPONSE_TIMEOUT = 30; // TODO: should be in the config.
     private final ThrottledInferenceRunner throttledInferenceRunner;
@@ -32,12 +31,8 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, executorService, bulkExecutionConfig);
     }
 
-    public void execute(
-        BulkInferenceRequestIterator requests,
-        BulkInferenceOutputBuilder<IR, OutputType> outputBuilder,
-        ActionListener<OutputType> listener
-    ) throws Exception {
-        final ResponseHandler<IR, OutputType> responseHandler = new ResponseHandler<>(outputBuilder);
+    public void execute(BulkInferenceRequestIterator requests, ActionListener<InferenceAction.Response[]> listener) throws Exception {
+        final ResponseHandler responseHandler = new ResponseHandler();
         runInferenceRequests(requests, listener.delegateFailureAndWrap(responseHandler::handleResponses));
     }
 
@@ -66,14 +61,10 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
         }
     }
 
-    private static class ResponseHandler<IR extends InferenceServiceResults, OutputType> {
-        private final BulkInferenceOutputBuilder<IR, OutputType> outputBuilder;
+    private static class ResponseHandler {
+        private final List<InferenceAction.Response> responses = new ArrayList<>();
 
-        private ResponseHandler(BulkInferenceOutputBuilder<IR, OutputType> outputBuilder) {
-            this.outputBuilder = outputBuilder;
-        }
-
-        private void handleResponses(ActionListener<OutputType> listener, BulkInferenceExecutionState bulkExecutionState) {
+        private void handleResponses(ActionListener<InferenceAction.Response[]> listener, BulkInferenceExecutionState bulkExecutionState) {
 
             try {
                 persistsInferenceResponses(bulkExecutionState);
@@ -84,7 +75,7 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
 
             if (bulkExecutionState.hasFailure() == false) {
                 try {
-                    listener.onResponse(outputBuilder.buildOutput());
+                    listener.onResponse(responses.toArray(InferenceAction.Response[]::new));
                     return;
                 } catch (Exception e) {
                     bulkExecutionState.addFailure(e);
@@ -105,7 +96,7 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
                     assert response != null || bulkExecutionState.hasFailure();
                     if (bulkExecutionState.hasFailure() == false) {
                         try {
-                            persistsInferenceResponse(response);
+                            responses.add(response);
                         } catch (Exception e) {
                             bulkExecutionState.addFailure(e);
                         }
@@ -113,22 +104,6 @@ public class BulkInferenceExecutor<IR extends InferenceServiceResults, OutputTyp
                     bulkExecutionState.markSeqNoAsPersisted(persistedSeqNo);
                 }
             }
-        }
-
-        private void persistsInferenceResponse(InferenceAction.Response inferenceResponse) {
-            InferenceServiceResults results = inferenceResponse.getResults();
-            if (outputBuilder.inferenceResultsClass().isInstance(results)) {
-                outputBuilder.addInferenceResults(outputBuilder.inferenceResultsClass().cast(results));
-                return;
-            }
-
-            throw new IllegalStateException(
-                format(
-                    "Inference result has wrong type. Got [{}] while expecting [{}]",
-                    results.getClass().getName(),
-                    outputBuilder.inferenceResultsClass().getName()
-                )
-            );
         }
     }
 

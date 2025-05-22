@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -143,9 +145,9 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             ) {
                 return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
             } catch (Exception e) {
-                logger.warn("Failed to parse Google Vertex AI error response body", e);
+                var resultAsString = new String(response.body(), StandardCharsets.UTF_8);
+                return new ErrorResponse(Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", resultAsString));
             }
-            return ErrorResponse.UNDEFINED_ERROR;
         }
 
         static ErrorResponse fromString(String response) {
@@ -155,9 +157,8 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             ) {
                 return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
             } catch (Exception e) {
-                logger.warn("Failed to parse Google Vertex AI error string", e);
+                return new ErrorResponse(Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", response));
             }
-            return ErrorResponse.UNDEFINED_ERROR;
         }
 
         private final int code;

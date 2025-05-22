@@ -2031,12 +2031,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
+            // Ensure that the search shard is in the routing table before the upload finishes, otherwise it might release the
+            // last reference before the commit registration and therefore the test would fail.
+            stateRef.set(stateWithSearchShards);
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
             commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
             var mergedCommitPTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
-
-            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
-            stateRef.set(stateWithSearchShards);
 
             var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
             commitService.registerCommitForUnpromotableRecovery(

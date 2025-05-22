@@ -22,7 +22,6 @@ import org.elasticsearch.search.sort.SortOrder;
  */
 public class LongTopNUniqueSort implements Releasable {
 
-    private final BigArrays bigArrays;
     private final SortOrder order;
     private int limit;
 
@@ -32,44 +31,43 @@ public class LongTopNUniqueSort implements Releasable {
     private int count;
 
     public LongTopNUniqueSort(BigArrays bigArrays, SortOrder order, int limit) {
-        this.bigArrays = bigArrays;
         this.order = order;
         this.limit = limit;
+        this.count = 0;
         this.values = bigArrays.newLongArray(limit, false);
         this.searcher = new LongBinarySearcher(values, order);
-        this.count = 0;
     }
 
-    public void collect(long value) {
+    public boolean collect(long value) {
         if (limit == 0) {
-            return;
+            return false;
         }
 
         // Short-circuit if the value is worse than the worst value on the top.
         // This avoids a O(log(n)) check in the binary search
-        if (count == limit && betterThan(values.get(count - 1), value)) {
-            return;
+        if (count == limit && betterThan(getWorstValue(), value)) {
+            return false;
         }
 
         if (count == 0) {
             values.set(0, value);
             count++;
-            return;
+            return true;
         }
 
         int insertionIndex = this.searcher.search(0, count - 1, value);
 
         if (insertionIndex == count - 1) {
-            if (betterThan(values.get(count - 1), value)) {
+            if (betterThan(getWorstValue(), value)) {
                 values.set(count, value);
                 count++;
-                return;
+                return true;
             }
         }
 
         if (values.get(insertionIndex) == value) {
             // Only unique values are stored here
-            return;
+            return true;
         }
 
         // The searcher returns the upper bound, so we move right the elements from there
@@ -79,6 +77,8 @@ public class LongTopNUniqueSort implements Releasable {
 
         values.set(insertionIndex, value);
         count = Math.min(count + 1, limit);
+
+        return true;
     }
 
     /**

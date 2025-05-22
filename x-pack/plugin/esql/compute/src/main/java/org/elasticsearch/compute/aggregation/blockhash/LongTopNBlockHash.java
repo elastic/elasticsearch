@@ -38,12 +38,7 @@ public final class LongTopNBlockHash extends BlockHash {
     private final boolean nullsFirst;
     private final int limit;
     private final LongHash hash;
-    private LongTopNUniqueSort topValues;
-    private final LongHash seenUniqueValues;
-    /**
-     * Helper field to keep track of the last top value, and avoid expensive accesses.
-     */
-    private long lastTopValue;
+    private final LongTopNUniqueSort topValues;
 
     /**
      * Have we seen any {@code null} values?
@@ -63,8 +58,6 @@ public final class LongTopNBlockHash extends BlockHash {
         this.limit = limit;
         this.hash = new LongHash(1, blockFactory.bigArrays());
         this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
-        this.seenUniqueValues = new LongHash(1, blockFactory.bigArrays());
-        this.lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
 
         assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
     }
@@ -105,13 +98,6 @@ public final class LongTopNBlockHash extends BlockHash {
         if (nullsFirst) {
             hasNull = true;
             migrateToSmallTop();
-            if (topValues.getCount() == limit - 1) {
-                if (topValues.getCount() == 0) {
-                    lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
-                } else {
-                    lastTopValue = topValues.getWorstValue();
-                }
-            }
             return true;
         }
 
@@ -127,35 +113,13 @@ public final class LongTopNBlockHash extends BlockHash {
      * Tries to add the value to the top values, and returns true if it was successful.
      */
     private boolean acceptValue(long value) {
-        // Ignore values that are worse than the current worst value
-        if (isAcceptable(value) == false) {
+        if (topValues.collect(value) == false) {
             return false;
         }
 
-        // O(1) operation to check if the value is already in the hash, and avoid adding it again
-        if (seenUniqueValues.add(value) < 0) {
-            return true;
-        }
-
-        topValues.collect(value);
-
-        if (topValues.getCount() == limit) {
-            lastTopValue = topValues.getWorstValue();
-        } else if (topValues.getCount() == 1 || isBetterThan(lastTopValue, value)) {
-            lastTopValue = value;
-        }
-
         // Full top and null, there's an extra value/null we must remove
-        if (topValues.getCount() == limit && hasNull) {
-            if (nullsFirst) {
-                if (topValues.getCount() == 1) {
-                    lastTopValue = asc ? Long.MAX_VALUE : Long.MIN_VALUE;
-                } else {
-                    lastTopValue = topValues.getWorstValue();
-                }
-            } else {
-                hasNull = false;
-            }
+        if (topValues.getCount() == limit && hasNull && nullsFirst == false) {
+            hasNull = false;
         }
 
         return true;
@@ -169,10 +133,6 @@ public final class LongTopNBlockHash extends BlockHash {
         assert topValues.getLimit() == limit : "The top values can't be migrated twice";
 
         topValues.reduceLimitByOne();
-    }
-
-    private boolean isBetterThan(long value, long other) {
-        return asc ? value < other : value > other;
     }
 
     /**
@@ -189,7 +149,7 @@ public final class LongTopNBlockHash extends BlockHash {
      * </p>
      */
     private boolean isInTop(long value) {
-        return asc ? value <= lastTopValue : value >= lastTopValue;
+        return asc ? value <= topValues.getWorstValue() : value >= topValues.getWorstValue();
     }
 
     /**
@@ -349,7 +309,7 @@ public final class LongTopNBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        Releasables.close(hash, topValues, seenUniqueValues);
+        Releasables.close(hash, topValues);
     }
 
     @Override

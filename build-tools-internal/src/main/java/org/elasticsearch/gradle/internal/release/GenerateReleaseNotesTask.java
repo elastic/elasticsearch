@@ -14,10 +14,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
@@ -25,7 +23,6 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -45,8 +42,6 @@ import javax.inject.Inject;
 public class GenerateReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
-    private final ConfigurableFileCollection changelogs;
-
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
@@ -63,8 +58,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     @Inject
     public GenerateReleaseNotesTask(ObjectFactory objectFactory, ExecOperations execOperations) {
-        changelogs = objectFactory.fileCollection();
-
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
@@ -107,7 +100,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @VisibleForTesting
     static List<ChangelogBundle> getSortedBundlesWithUniqueChangelogs(List<ChangelogBundle> bundles) {
         List<ChangelogBundle> sorted = bundles.stream()
-            // .map(ChangelogBundle::copy)
             .sorted(Comparator.comparing(ChangelogBundle::released).reversed().thenComparing(ChangelogBundle::generated))
             .toList();
 
@@ -174,15 +166,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         }
 
         return true;
-    }
-
-    @InputFiles
-    public FileCollection getChangelogs() {
-        return changelogs;
-    }
-
-    public void setChangelogs(FileCollection files) {
-        this.changelogs.setFrom(files);
     }
 
     @InputDirectory

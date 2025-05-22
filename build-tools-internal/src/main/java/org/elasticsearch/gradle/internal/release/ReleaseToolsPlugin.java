@@ -56,6 +56,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
 
         final Directory changeLogDirectory = projectDirectory.dir("docs/changelog");
+        final Directory changeLogBundlesDirectory = projectDirectory.dir("docs/release-notes/changelog-bundles");
         final FileTree yamlFiles = changeLogDirectory.getAsFileTree().matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
@@ -67,23 +68,19 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
-        final Function<Boolean, Action<BundleChangelogsTask>> configureBundleTask = shouldConfigureYamlFiles -> task -> {
+        final Action<BundleChangelogsTask> configureBundleTask = task -> {
             task.setGroup("Documentation");
             task.setDescription("Generates release notes from changelog files held in this checkout");
             task.setChangelogs(yamlFiles);
             task.setChangelogDirectory(changeLogDirectory);
+            task.setChangelogBundlesDirectory(changeLogBundlesDirectory);
             task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
             task.getOutputs().upToDateWhen(o -> false);
         };
 
-        final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {
+        final Action<GenerateReleaseNotesTask> configureGenerateTask = task -> {
             task.setGroup("Documentation");
-            if (shouldConfigureYamlFiles) {
-                task.setChangelogs(yamlFiles);
-                task.setDescription("Generates release notes from changelog files held in this checkout");
-            } else {
-                task.setDescription("Generates stub release notes e.g. after feature freeze");
-            }
+            task.setDescription("Generates release notes for all versions/branches using changelog bundles in this checkout");
 
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/index.md"));
             task.setReleaseNotesFile(projectDirectory.file("docs/release-notes/index.md"));
@@ -97,18 +94,15 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
             task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
 
-            task.setChangelogBundleDirectory(projectDirectory.dir("docs/release-notes/changelog-bundles"));
+            task.setChangelogBundleDirectory(changeLogBundlesDirectory);
 
             task.getOutputs().upToDateWhen(o -> false);
 
             task.dependsOn(validateChangelogsTask);
         };
 
-        project.getTasks().register("bundleChangelogs", BundleChangelogsTask.class).configure(configureBundleTask.apply(true));
-        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(configureGenerateTask.apply(true));
-        project.getTasks()
-            .register("generateStubReleaseNotes", GenerateReleaseNotesTask.class)
-            .configure(configureGenerateTask.apply(false));
+        project.getTasks().register("bundleChangelogs", BundleChangelogsTask.class).configure(configureBundleTask);
+        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(configureGenerateTask);
 
         project.getTasks().register("pruneChangelogs", PruneChangelogsTask.class).configure(task -> {
             task.setGroup("Documentation");

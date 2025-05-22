@@ -53,6 +53,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
     private final RegularFileProperty bundleFile;
     private final DirectoryProperty changelogDirectory;
+    private final DirectoryProperty changelogBundlesDirectory;
 
     private final GitWrapper gitWrapper;
 
@@ -60,16 +61,8 @@ public class BundleChangelogsTask extends DefaultTask {
     private String branch;
     @Nullable
     private String bcRef;
-    // private boolean updateExisting;
-    private boolean finalize;
 
-    // @Option(
-    // option = "update-existing",
-    // description = "Only update entries that are already in the bundle. Useful for updating the bundle after a BC has been cut."
-    // )
-    // public void setUpdateExisting(boolean updateExisting) {
-    // this.updateExisting = updateExisting;
-    // }
+    private boolean finalize;
 
     @Option(option = "branch", description = "Branch (or other ref) to use for generating the changelog bundle.")
     public void setBranch(String branch) {
@@ -105,6 +98,7 @@ public class BundleChangelogsTask extends DefaultTask {
 
         bundleFile = objectFactory.fileProperty();
         changelogDirectory = objectFactory.directoryProperty();
+        changelogBundlesDirectory = objectFactory.directoryProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
@@ -118,12 +112,13 @@ public class BundleChangelogsTask extends DefaultTask {
         final String upstreamRemote = gitWrapper.getUpstream();
         Set<String> entriesFromBc = Set.of();
 
+        var didCheckoutChangelogs = false;
         try {
             var usingBcRef = bcRef != null && bcRef.isEmpty() == false;
             if (usingBcRef) {
                 // Check out all the changelogs that existed at the time of the BC
                 checkoutChangelogs(gitWrapper, upstreamRemote, bcRef);
-                entriesFromBc = this.changelogDirectory.getAsFileTree().getFiles().stream().map(File::getName).collect(Collectors.toSet());
+                entriesFromBc = changelogDirectory.getAsFileTree().getFiles().stream().map(File::getName).collect(Collectors.toSet());
 
                 // Then add/update changelogs from the HEAD of the branch
                 // We do an "add" here, rather than checking out the entire directory, in case changelogs have been removed for some reason
@@ -131,14 +126,20 @@ public class BundleChangelogsTask extends DefaultTask {
             } else {
                 checkoutChangelogs(gitWrapper, upstreamRemote, branch);
             }
+
+            didCheckoutChangelogs = true;
             Properties props = new Properties();
-            props.load(new StringReader(gitWrapper.runCommand("git", "show", upstreamRemote + "/" + branch + ":build-tools-internal/version.properties")));
+            props.load(
+                new StringReader(
+                    gitWrapper.runCommand("git", "show", upstreamRemote + "/" + branch + ":build-tools-internal/version.properties")
+                )
+            );
             String version = props.getProperty("elasticsearch");
 
             LOGGER.info("Finding changelog files for " + version + "...");
 
             Set<String> finalEntriesFromBc = entriesFromBc;
-            List<ChangelogEntry> entries = this.changelogDirectory.getAsFileTree().getFiles().stream().filter(f -> {
+            List<ChangelogEntry> entries = changelogDirectory.getAsFileTree().getFiles().stream().filter(f -> {
                 // When not using a bc ref, we just take everything from the branch/sha passed in
                 if (usingBcRef == false) {
                     return true;
@@ -157,42 +158,38 @@ public class BundleChangelogsTask extends DefaultTask {
                 return output.trim().isEmpty() == false;
             }).map(ChangelogEntry::parse).sorted(Comparator.comparing(ChangelogEntry::getPr)).collect(toList());
 
-            ChangelogBundle existingBundle = null;
-            // if (updateExisting) {
-            // var existingBundleFile = new File("docs/release-notes/changelog-bundles/" + version + ".yml");
-            // if (existingBundleFile.exists()) {
-            // var bundle = ChangelogBundle.parse(existingBundleFile);
-            // existingBundle = bundle;
-            // entries = entries.stream()
-            // .filter(e -> bundle.changelogs().stream().anyMatch(c -> c.getPr().equals(e.getPr())))
-            // .toList();
-            // }
-            // }
-
-            var isReleased = finalize == true;
-
-            ChangelogBundle bundle = new ChangelogBundle(version, isReleased, Instant.now().toString(), entries);
+            ChangelogBundle bundle = new ChangelogBundle(version, finalize, Instant.now().toString(), entries);
 
             yamlMapper.writeValue(new File("docs/release-notes/changelog-bundles/" + version + ".yml"), bundle);
         } finally {
-            gitWrapper.runCommand("git", "restore", "-s@", "-SW", "--", "docs/changelog");
+            if (didCheckoutChangelogs) {
+                gitWrapper.runCommand("git", "restore", "-s@", "-SW", "--", changelogDirectory.get().toString());
+            }
         }
     }
 
-    private static void checkoutChangelogs(GitWrapper gitWrapper, String upstream, String ref) {
+    private void checkoutChangelogs(GitWrapper gitWrapper, String upstream, String ref) {
         gitWrapper.updateRemote(upstream);
-        // TODO check for changes first
-        gitWrapper.runCommand("rm", "-rf", "docs/changelog");
+
+        // If the changelog directory contains modified/new files, we should error out instead of wiping them out silently
+        var output = gitWrapper.runCommand("git", "status", "--porcelain", changelogDirectory.get().toString()).trim();
+        if (output.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Changelog directory contains changes that will be wiped out by this task:\n" + changelogDirectory.get() + "\n" + output
+            );
+        }
+
+        gitWrapper.runCommand("rm", "-rf", changelogDirectory.get().toString());
         var refSpec = upstream + "/" + ref;
         if (ref.contains("upstream/")) {
             refSpec = ref.replace("upstream/", upstream + "/");
         } else if (ref.matches("^[0-9a-f]+$")) {
             refSpec = ref;
         }
-        gitWrapper.runCommand("git", "checkout", refSpec, "--", "docs/changelog");
+        gitWrapper.runCommand("git", "checkout", refSpec, "--", changelogDirectory.get().toString());
     }
 
-    private static void addChangelogsFromRef(GitWrapper gitWrapper, String upstream, String ref) {
+    private void addChangelogsFromRef(GitWrapper gitWrapper, String upstream, String ref) {
         var refSpec = upstream + "/" + ref;
         if (ref.contains("upstream/")) {
             refSpec = ref.replace("upstream/", upstream + "/");
@@ -200,7 +197,7 @@ public class BundleChangelogsTask extends DefaultTask {
             refSpec = ref;
         }
 
-        gitWrapper.runCommand("git", "checkout", refSpec, "--", "docs/changelog/*.yaml");
+        gitWrapper.runCommand("git", "checkout", refSpec, "--", changelogDirectory.get() + "/*.yaml");
     }
 
     @InputDirectory
@@ -210,6 +207,15 @@ public class BundleChangelogsTask extends DefaultTask {
 
     public void setChangelogDirectory(Directory dir) {
         this.changelogDirectory.set(dir);
+    }
+
+    @InputDirectory
+    public DirectoryProperty getChangelogBundlesDirectory() {
+        return changelogBundlesDirectory;
+    }
+
+    public void setChangelogBundlesDirectory(Directory dir) {
+        this.changelogBundlesDirectory.set(dir);
     }
 
     @InputFiles

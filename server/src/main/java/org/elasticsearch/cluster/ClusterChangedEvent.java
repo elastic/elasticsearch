@@ -163,6 +163,23 @@ public class ClusterChangedEvent {
         return result;
     }
 
+    /**
+     * Returns a set of custom meta data types when any custom metadata for the project metadata has changed
+     * between the previous cluster state and the new cluster state. custom metadata types are
+     * returned iff they have been added, updated or removed between the previous and the current state
+     */
+    public Set<String> changedCustomProjectMetadataSet(ProjectId projectId) {
+        Set<String> result = new HashSet<>();
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
+        if (previousProject != null && project != null) {
+            result.addAll(changedCustoms(project.customs(), previousProject.customs()));
+        } else if (previousProject != null || project != null) {
+            result.addAll(previousProject.customs().keySet());
+        }
+        return result;
+    }
+
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(
         Map<String, C> currentCustoms,
         Map<String, C> previousCustoms

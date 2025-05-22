@@ -40,16 +40,16 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
             );
             // The pipeline is not used in any index, expected to return false.
-            var clusterState = clusterStateWithIndex(b -> {}, ingestMetadata);
-            assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
+            assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
 
             // The pipeline is set as default pipeline in an index, expected to return true.
-            clusterState = clusterStateWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1"), ingestMetadata);
-            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1"), ingestMetadata);
+            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
 
             // The pipeline is set as final pipeline in an index, expected to return true.
-            clusterState = clusterStateWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1"), ingestMetadata);
-            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1"), ingestMetadata);
+            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
         }
 
     }
@@ -64,10 +64,8 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 var ingestMetadata = new IngestMetadata(
                     Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
                 );
-                ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                    .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
-                    .build();
-                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+                ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+                assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
             }
         }
         {
@@ -76,10 +74,8 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 var ingestMetadata = new IngestMetadata(
                     Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
                 );
-                ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                    .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
-                    .build();
-                assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+                ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+                assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
             }
         }
         {
@@ -97,10 +93,8 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
             }
             var ingestMetadata = new IngestMetadata(configs);
-            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
-                .build();
-            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
+            ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+            assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
         }
     }
 
@@ -286,5 +280,15 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             .put(indexMetadata, false)
             .build();
         return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+    }
+
+    private ProjectMetadata projectMetadataWithIndex(Consumer<Settings.Builder> consumer, IngestMetadata ingestMetadata) {
+        var builder = indexSettings(IndexVersion.current(), 1, 1);
+        consumer.accept(builder);
+        var indexMetadata = new IndexMetadata.Builder("index").settings(builder.build()).build();
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .put(indexMetadata, false)
+            .build();
     }
 }

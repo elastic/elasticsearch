@@ -201,8 +201,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
-
-
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
         return createExpiredResultsRemover(jobIterator, true);
     }

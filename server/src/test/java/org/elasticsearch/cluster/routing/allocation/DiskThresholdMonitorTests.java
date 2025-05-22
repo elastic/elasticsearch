@@ -1471,7 +1471,6 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     public void testSkipReplaceSourceNodeNotInRoutingTable() {
         doTestSkipNodesNotInRoutingTable(false, true);
-        ;
     }
 
     public void testSkipReplaceTargetNodeNotInRoutingTable() {

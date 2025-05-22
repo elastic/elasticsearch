@@ -11,12 +11,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +51,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private OriginSettingClient originSettingClient;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
-    private ClusterService clusterService;
-    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     @SuppressWarnings("unchecked")
@@ -65,7 +60,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
-        clusterService = mock(ClusterService.class);
         when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
@@ -141,6 +135,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(listener).onFailure(any());
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
+        // Prepare one job with a retention policy
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(20L).build()
+        );
+
+        createExpiredResultsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // Assert: success callback invoked, no DBQ requests
+        verify(listener).onResponse(true);
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testCalcCutoffEpochMs() {
         String jobId = "calc-cutoff";
@@ -191,7 +201,13 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
+
+
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
+        return createExpiredResultsRemover(jobIterator, true);
+    }
+
+    private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator, boolean isResultsIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -203,11 +219,13 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
+        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(isResultsIndexWritable);
+
         return new ExpiredResultsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            new WritableIndexExpander(clusterService, indexNameExpressionResolver),
+            writableIndexExpander,
             mock(AnomalyDetectionAuditor.class),
             threadPool
         );

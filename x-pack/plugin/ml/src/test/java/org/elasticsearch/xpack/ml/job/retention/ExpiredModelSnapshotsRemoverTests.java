@@ -35,14 +35,12 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
-import org.mockito.ArgumentMatchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -60,7 +58,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -330,7 +327,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
-        WritableIndexExpander writableIndexExpander = mockWritableIndexExpander(isStateIndexWritable);
+        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(isStateIndexWritable);
 
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
@@ -341,30 +338,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             resultsProvider,
             mock(AnomalyDetectionAuditor.class)
         );
-    }
-
-    private static WritableIndexExpander mockWritableIndexExpander(boolean stateIndexWritable) {
-        WritableIndexExpander writableIndexExpander = mock(WritableIndexExpander.class);
-        if (stateIndexWritable) {
-            mockWhenIndicesAreWritable(writableIndexExpander);
-        } else {
-            mockWhenIndicesAreNotWritable(writableIndexExpander);
-        }
-        return writableIndexExpander;
-    }
-
-    private static void mockWhenIndicesAreNotWritable(WritableIndexExpander writableIndexExpander) {
-        when(writableIndexExpander.getWritableIndices(anyString()))
-            .thenReturn(new ArrayList<>());
-        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any()))
-            .thenReturn(new ArrayList<>());
-    }
-
-    private static void mockWhenIndicesAreWritable(WritableIndexExpander writableIndexExpander) {
-        when(writableIndexExpander.getWritableIndices(anyString()))
-            .thenAnswer(invocation -> List.of(invocation.getArgument(0)));
-        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any()))
-            .thenAnswer(invocation -> new ArrayList<>(invocation.getArgument(0)));
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

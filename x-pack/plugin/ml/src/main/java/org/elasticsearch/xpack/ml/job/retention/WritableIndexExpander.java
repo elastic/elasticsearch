@@ -18,6 +18,10 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * This class is used to expand index patterns and filter out read-only indices.
+ * It is used in the context of machine learning jobs retention to ensure that only writable indices are considered.
+ */
 public class WritableIndexExpander {
 
     private final ClusterService clusterService;

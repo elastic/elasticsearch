@@ -212,16 +212,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
-        WritableIndexExpander writableIndexExpander = mock(WritableIndexExpander.class);
-        if (annotationIndexWritable) {
-            when(writableIndexExpander.getWritableIndices(AnnotationIndex.READ_ALIAS_NAME)).thenReturn(
-                new ArrayList<>(Collections.singletonList(AnnotationIndex.READ_ALIAS_NAME))
-            );
-        } else {
-            when(writableIndexExpander.getWritableIndices(AnnotationIndex.READ_ALIAS_NAME)).thenReturn(
-                new ArrayList<>(Collections.emptyList())
-            );
-        }
+        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(annotationIndexWritable);
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,

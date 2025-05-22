@@ -1,5 +1,5 @@
 pr: 125408
-summary: Prevent `UnusedStatsRemover` from failing when deleting documents in read-only
+summary: Prevent ML data retention logic from failing when deleting documents in read-only
   indices
 area: Machine Learning
 type: bug

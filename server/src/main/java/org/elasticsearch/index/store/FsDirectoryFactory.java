@@ -157,6 +157,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (directIODelegate != null && context.hints().contains(DirectIOHint.INSTANCE)) {
                 ensureOpen();
                 ensureCanRead(name);
+                Log.debug("Opening {} with direct IO", name);
                 return directIODelegate.openInput(name, context);
             } else if (useDelegate(name, context)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes

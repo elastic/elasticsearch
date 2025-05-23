@@ -1,4 +1,6 @@
 project: 'Elasticsearch'
+products:
+  - id: elasticsearch
 max_toc_depth: 2
 exclude:
   - README.md

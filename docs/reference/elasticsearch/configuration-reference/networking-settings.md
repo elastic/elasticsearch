@@ -428,7 +428,7 @@ The `transport.compress` setting always configures local cluster request compres
 
 ### Response compression [response-compression]
 
-The compression settings do not configure compression for responses. {{es}} will compress a response if the inbound request was compressed—​even when compression is not enabled. Similarly, {{es}} will not compress a response if the inbound request was uncompressed—​even when compression is enabled. The compression scheme used to compress a response will be the same scheme the remote node used to compress the request.
+The compression settings do not configure compression for responses. {{es}} will compress a response if the inbound request was compressed— even when compression is not enabled. Similarly, {{es}} will not compress a response if the inbound request was uncompressed— even when compression is enabled. The compression scheme used to compress a response will be the same scheme the remote node used to compress the request.
 
 
 

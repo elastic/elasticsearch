@@ -1,0 +1,6 @@
+pr: 128153
+summary: "Fix: Add `NamedWriteable` for `RuleQueryRankDoc`"
+area: Relevance
+type: bug
+issues:
+ - 126071

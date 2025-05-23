@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -484,7 +485,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
+        return new NodeIndicesStats(
+            commonStats,
+            statsByIndex(this, flags),
+            statsByShard(this, flags),
+            projectsByIndex(),
+            includeShardsStats
+        );
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -564,6 +571,15 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.searchIdleTime()
                 ) }
         );
+    }
+
+    private Map<Index, ProjectId> projectsByIndex() {
+        Map<Index, ProjectId> map = new HashMap<>(indices.size());
+        for (IndexService indexShards : indices.values()) {
+            Index index = indexShards.index();
+            clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));
+        }
+        return map;
     }
 
     /**

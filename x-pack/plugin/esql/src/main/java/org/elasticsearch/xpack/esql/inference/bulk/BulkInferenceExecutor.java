@@ -31,7 +31,7 @@ public class BulkInferenceExecutor {
         throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, executorService, bulkExecutionConfig);
     }
 
-    public void execute(BulkInferenceRequestIterator requests, ActionListener<InferenceAction.Response[]> listener) throws Exception {
+    public void execute(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) throws Exception {
         final ResponseHandler responseHandler = new ResponseHandler();
         runInferenceRequests(requests, listener.delegateFailureAndWrap(responseHandler::handleResponses));
     }
@@ -64,7 +64,7 @@ public class BulkInferenceExecutor {
     private static class ResponseHandler {
         private final List<InferenceAction.Response> responses = new ArrayList<>();
 
-        private void handleResponses(ActionListener<InferenceAction.Response[]> listener, BulkInferenceExecutionState bulkExecutionState) {
+        private void handleResponses(ActionListener<List<InferenceAction.Response>> listener, BulkInferenceExecutionState bulkExecutionState) {
 
             try {
                 persistsInferenceResponses(bulkExecutionState);
@@ -75,7 +75,7 @@ public class BulkInferenceExecutor {
 
             if (bulkExecutionState.hasFailure() == false) {
                 try {
-                    listener.onResponse(responses.toArray(InferenceAction.Response[]::new));
+                    listener.onResponse(responses);
                     return;
                 } catch (Exception e) {
                     bulkExecutionState.addFailure(e);
@@ -125,9 +125,7 @@ public class BulkInferenceExecutor {
 
         public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
             this.enqueueTask(listener.delegateFailureAndWrap((l, releasable) -> {
-                try (releasable) {
-                    inferenceRunner.doInference(request, l);
-                }
+                inferenceRunner.doInference(request, ActionListener.releaseAfter(l, releasable));
             }));
         }
     }

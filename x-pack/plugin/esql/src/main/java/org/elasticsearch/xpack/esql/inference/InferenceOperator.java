@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
+import java.util.List;
+
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInference> {
@@ -66,9 +68,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         try (OutputBuilder outputBuilder = outputBuilder(ongoingInference.inputPage)) {
-            for (int i = 0; i < ongoingInference.responses.length; i++) {
-                outputBuilder.addInferenceResponse(ongoingInference.responses[i]);
-            }
+            ongoingInference.responses.forEach(outputBuilder::addInferenceResponse);
             return outputBuilder.buildOutput();
         } finally {
             releaseFetchedOnAnyThread(ongoingInference);
@@ -109,7 +109,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
     }
 
-    public record OngoingInference(Page inputPage, InferenceAction.Response[] responses) {
+    public record OngoingInference(Page inputPage, List<InferenceAction.Response> responses) {
 
     }
 }

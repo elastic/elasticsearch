@@ -45,6 +45,7 @@ Logs::
 Machine Learning::
 * Append all data to Chat Completion buffer {es-pull}127658[#127658]
 * Fix services API Google Vertex AI Rerank location field requirement {es-pull}127856[#127856]
+* Use internal user for internal inference action {es-pull}128327[#128327]
 
 Relevance::
 * Fix: Add `NamedWriteable` for `RuleQueryRankDoc` {es-pull}128153[#128153] (issue: {es-issue}126071[#126071])

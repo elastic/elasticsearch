@@ -304,6 +304,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                     spanBuilder.setAttribute(key, (Double) value);
                 } else if (value instanceof Boolean) {
                     spanBuilder.setAttribute(key, (Boolean) value);
+                } else if (value == null) {
+                    throw new IllegalArgumentException("span attributes cannot have a null value");
                 } else {
                     throw new IllegalArgumentException(
                         "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"

@@ -46,7 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -109,10 +108,11 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
 
         final Map<String, Integer> allocations = getShardCounts(mountedSnapshotName);
 
-        // Create another node to relocate to
-        assertThat(internalCluster().numDataNodes(), equalTo(1));
-        internalCluster().startNode();
-        ensureStableCluster(2);
+        // Create another node to relocate to if we need to
+        if (internalCluster().numDataNodes() == 1) {
+            internalCluster().startNode();
+            ensureStableCluster(2);
+        }
 
         final String nodeToVacateId = randomFrom(allocations.keySet());
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", nodeToVacateId));
@@ -139,13 +139,11 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
             .collect(Collectors.toSet());
         final String indexUUID = indicesStatsResponse.getIndex(mountedSnapshotName).getUuid();
 
-        // Start another node to relocate to
-        assertThat(internalCluster().numDataNodes(), equalTo(1));
-        final String newNodeName = internalCluster().startNode();
-        ensureStableCluster(2);
+        // Add a node to the cluster, we'll force relocation to it
+        final String targetNode = internalCluster().startNode();
 
         // Put some conflicting shard state in the new node's shard paths to trigger a failure
-        final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, newNodeName);
+        final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, targetNode);
         for (ShardId shardId : allShards) {
             for (Path p : nodeEnvironment.availableShardPaths(shardId)) {
                 ShardStateMetadata.FORMAT.write(
@@ -156,18 +154,16 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
         }
 
         // Force relocation, it should fail
-        final Map<String, Integer> allocations = getShardCounts(mountedSnapshotName);
-        final String nodeToVacateId = randomFrom(allocations.keySet());
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", nodeToVacateId));
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.require._name", targetNode));
 
         try {
             waitForRelocation();
 
-            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = sharedBlobCacheServices.get(getNodeId(newNodeName));
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = sharedBlobCacheServices.get(getNodeId(targetNode));
             verify(sharedBlobCacheService, never()).forceEvictAsync(ArgumentMatchers.any());
             verify(sharedBlobCacheService, Mockito.atLeast(allShards.size())).forceEvict(ArgumentMatchers.any());
         } finally {
-            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._id"));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.require._name"));
         }
     }
 

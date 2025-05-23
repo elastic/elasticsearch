@@ -135,7 +135,7 @@ Refer to the following documentation for setting [SharePoint permissions](https:
 
 To configure `Sites.Selected` permissions, follow these steps in the Microsoft Entra ID (formerly Azure Active Directory) portal. These permissions enable precise access control to specific SharePoint sites.
 
-1. Sign in to the [Microsoft Entra ID portal](https://portal.azure.com/).
+1. Sign in to the [Microsoft Entra ID (formerly Azure Active Directory) portal](https://portal.azure.com/).
 2. Navigate to **App registrations** and locate the application created for the connector.
 3. Under **API permissions**, click **Add permission**.
 4. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.

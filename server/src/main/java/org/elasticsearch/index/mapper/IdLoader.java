@@ -142,7 +142,7 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
                 boolean found = idDocValues.advanceExact(docId);
                 assert found;
                 BytesRef id = idDocValues.lookupOrd(idDocValues.ordValue());
-                ids[i] = id.utf8ToString();
+                ids[i] = Uid.decodeId(id.bytes, id.offset, id.length);
             }
             return new DocValueLeaf(docIdsInLeaf, ids);
         }

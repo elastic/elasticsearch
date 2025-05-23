@@ -53,7 +53,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
     private final TermsEnum termsEnum;
-    private SortedDocValues idDocValues;
     private final LeafReader reader;
 
     /** Reused for iteration (when the term exists) */
@@ -73,9 +72,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.reader = reader;
         final Terms terms = reader.terms(IdFieldMapper.NAME);
         if (terms == null) {
-            idDocValues = reader.getSortedDocValues(IdFieldMapper.NAME);
-            termsEnum = null;
-            if (idDocValues == null) {
+            if (reader.getSortedDocValues(IdFieldMapper.NAME) == null) {
                 // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
                 final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
                 final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
@@ -92,8 +89,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     );
                 }
             }
+            termsEnum = null;
         } else {
-            idDocValues = null;
             termsEnum = terms.iterator();
         }
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
@@ -179,9 +176,12 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 docID = d;
             }
             return docID;
-        } else if (idDocValues != null) {
-            idDocValues = reader.getSortedDocValues(IdFieldMapper.NAME);
-//            var needle = id.utf8ToString();
+        } else {
+            var idDocValues = reader.getSortedDocValues(IdFieldMapper.NAME);
+            if (idDocValues == null) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+
             final Bits liveDocs = context.reader().getLiveDocs();
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
@@ -192,14 +192,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
                 int ord = idDocValues.ordValue();
                 var possibleMatch = idDocValues.lookupOrd(ord);
-                var uidForm = Uid.encodeId(possibleMatch.utf8ToString());
-                if (id.bytesEquals(uidForm)) {
+                if (id.bytesEquals(possibleMatch)) {
                     docID = doc;
                 }
             }
             return docID;
-        } else {
-            return DocIdSetIterator.NO_MORE_DOCS;
         }
     }
 

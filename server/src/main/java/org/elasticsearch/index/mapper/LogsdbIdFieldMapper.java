@@ -39,7 +39,8 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
             throw new IllegalStateException("_id should have been set on the coordinating node");
         }
         context.id(context.sourceToParse().id());
-        context.doc().add(new SortedDocValuesField(fieldType().name(), new BytesRef(context.id())));
+        BytesRef uidEncoded = Uid.encodeId(context.id());
+        context.doc().add(new SortedDocValuesField(fieldType().name(), uidEncoded));
     }
 
     @Override

@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test120DockerLogsIncludeElasticsearchLogs
   issue: https://github.com/elastic/elasticsearch/issues/128117
+- class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
+  method: test21AcceptsCustomPathInDocker
+  issue: https://github.com/elastic/elasticsearch/issues/128114
 
 # Examples:
 #

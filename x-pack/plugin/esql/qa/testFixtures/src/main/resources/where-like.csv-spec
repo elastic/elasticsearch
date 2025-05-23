@@ -319,3 +319,63 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 emp_no:integer | job_positions:keyword 
 10025          | Accountant 
 ;
+
+likeWithUpper
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) LIKE "GEOR*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+likeWithLower
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) LIKE "geor*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithUpper
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) RLIKE "GEOR.*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithLower
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE "geor.*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+negatedRLikeWithLower
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) NOT RLIKE "geor.*"
+| STATS c = COUNT()
+;
+
+c:long
+88
+;

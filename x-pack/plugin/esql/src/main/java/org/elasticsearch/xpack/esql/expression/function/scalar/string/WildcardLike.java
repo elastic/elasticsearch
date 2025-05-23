@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.automaton.Automata;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -43,6 +45,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         "WildcardLike",
         WildcardLike::new
     );
+    public static final String NAME = "LIKE";
 
     @FunctionInfo(returnType = "boolean", description = """
         Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
@@ -63,17 +66,26 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
-        """, operator = "LIKE", examples = @Example(file = "docs", tag = "like"))
+        """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
         @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern
     ) {
-        super(source, left, pattern, false);
+        this(source, left, pattern, false);
+    }
+
+    public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
+        super(source, left, pattern, caseInsensitive);
     }
 
     private WildcardLike(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), new WildcardPattern(in.readString()));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            new WildcardPattern(in.readString()),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean()
+        );
     }
 
     @Override
@@ -81,6 +93,16 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeString(pattern().pattern());
+        if (caseInsensitive() && out.getTransportVersion().before(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {
+            // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
+            // the serialization of the boolean would result in wrong results.
+            throw new EsqlIllegalArgumentException(
+                NAME + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                out.getTransportVersion(),
+                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
+            );
+        }
+        out.writeBoolean(caseInsensitive());
     }
 
     @Override
@@ -90,7 +112,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
 
     @Override
     protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike> info() {
-        return NodeInfo.create(this, WildcardLike::new, field(), pattern());
+        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
@@ -114,7 +136,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
             source(),
             toEvaluator.apply(field()),
             // The empty pattern will accept the empty string
-            pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton()
+            pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton(caseInsensitive())
         );
     }
 
@@ -138,5 +160,10 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     @Override
     public Expression singleValueField() {
         return field();
+    }
+
+    @Override
+    public String nodeString() {
+        return NAME + "(" + field().nodeString() + ", \"" + pattern().pattern() + "\", " + caseInsensitive() + ")";
     }
 }

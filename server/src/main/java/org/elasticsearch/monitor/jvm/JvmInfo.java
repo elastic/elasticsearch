@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -47,7 +48,16 @@ public class JvmInfo implements ReportingService.Info {
             Class<?> vmClass = Class.forName("sun.misc.VM");
             directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
         } catch (Exception t) {
-            // ignore
+            try {
+                for (String arg : runtimeMXBean.getInputArguments()) {
+                    String prefix = "-XX:MaxDirectMemorySize=";
+                    if (arg.startsWith(prefix)) {
+                        directMemoryMax = SizeValue.parseSizeValue(arg.substring(prefix.length())).singles();
+                    }
+                }
+            } catch (Exception ignore) {
+                // ignore
+            }
         }
         String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
@@ -496,5 +506,8 @@ public class JvmInfo implements ReportingService.Info {
             return ByteSizeValue.ofBytes(heapMax);
         }
 
+        public ByteSizeValue getTotalMax() {
+            return ByteSizeValue.ofBytes(heapMax + nonHeapMax + directMemoryMax);
+        }
     }
 }

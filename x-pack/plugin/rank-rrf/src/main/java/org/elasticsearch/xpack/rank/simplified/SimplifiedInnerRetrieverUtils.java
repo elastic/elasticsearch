@@ -80,7 +80,8 @@ public class SimplifiedInnerRetrieverUtils {
         // and apply the boost after secondary normalization, like is done for inference fields?
         List<CompoundRetrieverBuilder.RetrieverSource> inferenceFieldRetrievers = new ArrayList<>();
         List<Float> inferenceFieldWeights = new ArrayList<>();
-        MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query);
+        MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query)
+            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS);
 
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
         for (Map.Entry<String, Float> entry : fieldsAndWeightsToQuery.entrySet()) {

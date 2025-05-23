@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLog;
@@ -1338,34 +1339,28 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestSkipNodesNotInRoutingTable(boolean sourceNodeInTable, boolean targetNodeInTable) {
-        final var projectId = randomProjectIdOrDefault();
-        final Metadata.Builder metadataBuilder = Metadata.builder()
-            .put(
-                ProjectMetadata.builder(projectId)
-                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-                    .build()
-            );
-
-        metadataBuilder.putCustom(
-            NodesShutdownMetadata.TYPE,
-            new NodesShutdownMetadata(
-                Collections.singletonMap(
-                    "node1",
-                    SingleNodeShutdownMetadata.builder()
-                        .setNodeId("node1")
-                        .setNodeEphemeralId("node1")
-                        .setReason("testing")
-                        .setType(SingleNodeShutdownMetadata.Type.REPLACE)
-                        .setTargetNodeName("node3")
-                        .setStartedAtMillis(randomNonNegativeLong())
-                        .build()
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    Collections.singletonMap(
+                        "node1",
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId("node1")
+                            .setNodeEphemeralId("node1")
+                            .setReason("testing")
+                            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                            .setTargetNodeName("node3")
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .build()
+                    )
                 )
-            )
-        );
+            );
 
         final Metadata metadata = metadataBuilder.build();
         final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject(projectId).index("test"))
+            .addAsNew(metadata.index("test"))
             .build();
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder().add(newNormalNode("node2", "node2"));
         // node1 which is replaced by node3 may or may not be in the cluster
@@ -1377,11 +1372,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             discoveryNodes.add(newNormalNode("node3", "node3"));
         }
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
-                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
-                .nodes(discoveryNodes)
-                .build(),
+            ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build(),
             createAllocationService(Settings.EMPTY)
         );
         final Index testIndex = routingTable.index("test").getIndex();
@@ -1390,9 +1381,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         diskUsages.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
         final ClusterInfo clusterInfo = clusterInfo(diskUsages);
-        Tuple<Boolean, Set<Index>> result = runDiskThresholdMonitor(clusterState, clusterInfo);
+        Tuple<Boolean, Set<String>> result = runDiskThresholdMonitor(clusterState, clusterInfo);
         assertTrue(result.v1()); // reroute on new nodes
-        assertThat(result.v2(), contains(testIndex));
+        assertEquals(Set.of("test"), result.v2());
     }
 
     public void testSkipReplaceSourceNodeNotInRoutingTable() {

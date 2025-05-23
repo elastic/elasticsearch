@@ -37,6 +37,16 @@ public interface SearchStats {
 
     boolean isSingleValue(String field);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value);
+
+    /**
+     * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
+     * NULL if the field is not a constant.
+     */
+    default String constantValue(String name) {
+        return null;
+    }
+
     /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
      */
@@ -92,5 +102,9 @@ public interface SearchStats {
             return true;
         }
 
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+            return false;
+        }
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.system.SystemResourceDescriptor;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +46,7 @@ import java.util.stream.Stream;
  * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
  * indices.
  */
-public class SystemDataStreamDescriptor {
+public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
 
     private final String dataStreamName;
     private final String description;
@@ -53,6 +54,7 @@ public class SystemDataStreamDescriptor {
     private final ComposableIndexTemplate composableIndexTemplate;
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
+    private final String origin;
     private final ExecutorNames executorNames;
 
     /**
@@ -66,6 +68,7 @@ public class SystemDataStreamDescriptor {
      *                           {@link ComposableIndexTemplate}
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
+     * @param origin specifies the origin to use when creating or updating the data stream
      * @param executorNames thread pools that should be used for operations on the system data stream
      */
     public SystemDataStreamDescriptor(
@@ -75,6 +78,7 @@ public class SystemDataStreamDescriptor {
         ComposableIndexTemplate composableIndexTemplate,
         Map<String, ComponentTemplate> componentTemplates,
         List<String> allowedElasticProductOrigins,
+        String origin,
         ExecutorNames executorNames
     ) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
@@ -96,6 +100,7 @@ public class SystemDataStreamDescriptor {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+        this.origin = origin;
     }
 
     public String getDataStreamName() {
@@ -125,6 +130,11 @@ public class SystemDataStreamDescriptor {
         return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(Index::getName).toList();
     }
 
+    @Override
+    public List<String> getMatchingIndices(ProjectMetadata metadata) {
+        return getBackingIndexNames(metadata);
+    }
+
     public String getDescription() {
         return description;
     }
@@ -133,6 +143,17 @@ public class SystemDataStreamDescriptor {
         return composableIndexTemplate;
     }
 
+    @Override
+    public String getOrigin() {
+        return origin;
+    }
+
+    @Override
+    public boolean isAutomaticallyManaged() {
+        return true;
+    }
+
+    @Override
     public boolean isExternal() {
         return type == Type.EXTERNAL;
     }
@@ -142,9 +163,10 @@ public class SystemDataStreamDescriptor {
     }
 
     private static String backingIndexPatternForDataStream(String dataStream) {
-        return DataStream.BACKING_INDEX_PREFIX + dataStream + "-*";
+        return ".(migrated-){0,}[fd]s-" + dataStream + "-*";
     }
 
+    @Override
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
     }
@@ -157,6 +179,7 @@ public class SystemDataStreamDescriptor {
      * Get the names of the thread pools that should be used for operations on this data stream.
      * @return Names for get, search, and write executors.
      */
+    @Override
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;
     }

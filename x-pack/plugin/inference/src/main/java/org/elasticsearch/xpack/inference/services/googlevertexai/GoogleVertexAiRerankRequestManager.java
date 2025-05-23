@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiRerankResponseEntity;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRerankRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiRerankResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;

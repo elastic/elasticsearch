@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIErrorResponseEntity;
 
 /**
  * Defines how to handle various errors returned from the VoyageAI integration.

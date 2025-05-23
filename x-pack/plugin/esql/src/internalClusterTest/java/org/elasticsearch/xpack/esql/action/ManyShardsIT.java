@@ -25,7 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -72,6 +71,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
             .build();
     }
@@ -109,26 +109,27 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         for (int q = 0; q < numQueries; q++) {
             threads[q] = new Thread(() -> {
-                try {
-                    assertTrue(latch.await(1, TimeUnit.MINUTES));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 final var pragmas = Settings.builder();
                 if (randomBoolean() && canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings())
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
-            });
+                try (var response = run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()))) {
+                    // do nothing
+                } catch (Exception | AssertionError e) {
+                    logger.warn("Query failed with exception", e);
+                    throw e;
+                }
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
         }
         latch.countDown();
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
         }
     }
 
@@ -260,10 +261,6 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/125947",
-        value = "logger.org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE"
-    )
     public void testCancelUnnecessaryRequests() {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -284,8 +281,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 
-        try {
-            var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(2));
         } finally {

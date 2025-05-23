@@ -1,3 +1,5 @@
+### Match operator (`:`) [esql-match-operator]
+
 The only search operator is match (`:`).
 
 **Syntax**
@@ -15,9 +17,9 @@ Do not use on production environments. This functionality is in technical previe
 
 The match operator performs a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on the specified field. Returns true if the provided query matches the row.
 
-The match operator is equivalent to the [match function](../../../esql-functions-operators.md#esql-match).
+The match operator is equivalent to the [match function](../../../functions-operators/search-functions.md#esql-match).
 
-For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../esql-functions-operators.md#esql-match).
+For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../functions-operators/search-functions.md#esql-match).
 
 
 :::{include} ../types/match_operator.md

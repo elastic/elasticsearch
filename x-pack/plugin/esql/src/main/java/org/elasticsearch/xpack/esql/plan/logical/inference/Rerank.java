@@ -37,7 +37,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogicalPlan {
+public class Rerank extends InferencePlan<Rerank> implements SortAgnostic, SurrogateLogicalPlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     private final Attribute scoreAttribute;

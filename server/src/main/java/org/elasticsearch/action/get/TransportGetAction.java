@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -235,10 +236,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
+            // All of the following exceptions can be thrown if the shard is relocated
             if (cause instanceof ShardNotFoundException
                 || cause instanceof IndexNotFoundException
+                || cause instanceof IllegalIndexShardStateException
                 || cause instanceof AlreadyClosedException) {
-                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -253,13 +255,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
-                        if (cause instanceof AlreadyClosedException) {
-                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
-                            tryGetFromTranslog(request, indexShard, node, l);
-                        } else {
-                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
-                        }
+                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
                     }
                 });
             } else {

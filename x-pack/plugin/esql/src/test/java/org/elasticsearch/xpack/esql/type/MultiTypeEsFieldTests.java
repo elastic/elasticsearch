@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -156,7 +156,7 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
                 case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIP(Source.EMPTY, fromField);
+                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
                 case KEYWORD -> new ToString(Source.EMPTY, fromField);
                 case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
                 case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);

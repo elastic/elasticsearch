@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
@@ -79,7 +80,10 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
@@ -93,6 +97,8 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
@@ -158,6 +164,8 @@ public class InferenceNamedWriteablesProvider {
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
+        namedWriteables.addAll(SageMakerModel.namedWriteables());
+        namedWriteables.addAll(SageMakerSchemas.namedWriteables());
 
         return namedWriteables;
     }
@@ -175,8 +183,13 @@ public class InferenceNamedWriteablesProvider {
                 AmazonBedrockEmbeddingsServiceSettings::new
             )
         );
-
-        // no task settings for Amazon Bedrock Embeddings
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AmazonBedrockEmbeddingsTaskSettings.NAME,
+                AmazonBedrockEmbeddingsTaskSettings::new
+            )
+        );
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -348,6 +361,23 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, HuggingFaceServiceSettings.NAME, HuggingFaceServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                HuggingFaceChatCompletionServiceSettings.NAME,
+                HuggingFaceChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, HuggingFaceRerankTaskSettings.NAME, HuggingFaceRerankTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                HuggingFaceRerankServiceSettings.NAME,
+                HuggingFaceRerankServiceSettings::new
+            )
         );
     }
 

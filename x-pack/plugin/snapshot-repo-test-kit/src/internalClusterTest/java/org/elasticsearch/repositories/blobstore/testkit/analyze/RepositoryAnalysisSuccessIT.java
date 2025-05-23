@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -467,6 +468,24 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             } finally {
                 writeSemaphore.release();
             }
+        }
+
+        @Override
+        public void copyBlob(
+            OperationPurpose purpose,
+            BlobContainer sourceBlobContainer,
+            String sourceBlobName,
+            String blobName,
+            long blobSize
+        ) throws IOException {
+            assertPurpose(purpose);
+            assertThat(sourceBlobContainer, instanceOf(AssertingBlobContainer.class));
+            final var source = (AssertingBlobContainer) sourceBlobContainer;
+            final var sourceBlob = source.blobs.get(sourceBlobName);
+            if (sourceBlob == null) {
+                throw new FileNotFoundException(sourceBlobName + " not found");
+            }
+            blobs.put(blobName, sourceBlob);
         }
 
         @Override

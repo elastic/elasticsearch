@@ -40,7 +40,7 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String dimension : dimensions) {
             MappedFieldType fieldType = context.getFieldType(dimension);
-            assert fieldType != null : "Unknown dimension field type for dimension field: [" + dimension + "]";
+            assert fieldType != null : "Unknown type for dimension field: [" + dimension + "]";
 
             if (context.fieldExistsInIndex(fieldType.name())) {
                 final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);

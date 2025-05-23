@@ -131,9 +131,9 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 
 ## JVM heap dump path setting [heap-dump-path-setting]
 
-By default, {{es}} configures the JVM to dump the heap on out of memory exceptions to the default data directory. On [RPM](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-rpm.md) and [Debian](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-debian-package.md) packages, the data directory is `/var/lib/elasticsearch`. On [Linux and MacOS](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md) and [Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md) distributions, the `data` directory is located under the root of the {{es}} installation.
+By default, {{es}} configures the JVM to dump the heap on out of memory exceptions to the default logs directory. On [RPM](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-rpm.md) and [Debian](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-debian-package.md) packages, the logs directory is `/var/log/elasticsearch`. On [Linux and MacOS](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-from-archive-on-linux-macos.md) and [Windows](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-zip-on-windows.md) distributions, the `logs` directory is located under the root of the {{es}} installation.
 
-If this path is not suitable for receiving heap dumps, modify the `-XX:HeapDumpPath=...` entry in [`jvm.options`](#set-jvm-options):
+If this path is not suitable for receiving heap dumps, add the `-XX:HeapDumpPath=...` entry in [`jvm.options`](#set-jvm-options):
 
 * If you specify a directory, the JVM will generate a filename for the heap dump based on the PID of the running instance.
 * If you specify a fixed filename instead of a directory, the file must not exist when the JVM needs to perform a heap dump on an out of memory exception. Otherwise, the heap dump will fail.

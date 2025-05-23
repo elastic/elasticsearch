@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -273,7 +274,8 @@ public class FollowingEngineTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            mapperService
+            mapperService,
+            new EngineResetLock()
         );
     }
 

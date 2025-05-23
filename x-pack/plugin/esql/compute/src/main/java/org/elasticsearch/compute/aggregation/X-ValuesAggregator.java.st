@@ -28,12 +28,19 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int||double||float||BytesRef)$
+$if(int||double||float)$
 import org.elasticsearch.compute.data.$Type$Block;
+$elseif(BytesRef)$
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 $endif$
 import org.elasticsearch.compute.data.IntVector;
 $if(long)$
 import org.elasticsearch.compute.data.LongBlock;
+$endif$
+$if(BytesRef)$
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
 $if(BytesRef)$
@@ -86,6 +93,24 @@ $endif$
     public static GroupingState initGrouping(BigArrays bigArrays) {
         return new GroupingState(bigArrays);
     }
+
+$if(BytesRef)$
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+$endif$
 
     public static void combine(GroupingState state, int groupId, $type$ v) {
 $if(long)$
@@ -234,8 +259,8 @@ $if(long||double)$
         private final LongLongHash values;
 
 $elseif(BytesRef)$
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
 $elseif(int||float)$
         private final LongHash values;
@@ -364,40 +389,88 @@ $endif$
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-
-                /*
-                 * Insert the ids in order.
-                 */
 $if(BytesRef)$
-                BytesRef scratch = new BytesRef();
-$endif$
-                try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
-                    int start = 0;
-                    for (int s = 0; s < selected.getPositionCount(); s++) {
-                        int group = selected.getInt(s);
-                        int end = selectedCounts[group];
-                        int count = end - start;
-                        switch (count) {
-                            case 0 -> builder.appendNull();
-                            case 1 -> append(builder, ids[start]$if(BytesRef)$, scratch$endif$);
-                            default -> {
-                                builder.beginPositionEntry();
-                                for (int i = start; i < end; i++) {
-                                    append(builder, ids[i]$if(BytesRef)$, scratch$endif$);
-                                }
-                                builder.endPositionEntry();
-                            }
-                        }
-                        start = end;
-                    }
-                    return builder.build();
+                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                    return buildOrdinalOutputBlock(blockFactory, selected, selectedCounts, ids);
+                } else {
+                    return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
                 }
+$else$
+                return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
+$endif$
             } finally {
                 blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
             }
         }
 
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
+            /*
+             * Insert the ids in order.
+             */
 $if(BytesRef)$
+            BytesRef scratch = new BytesRef();
+$endif$
+            try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+                int start = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int end = selectedCounts[group];
+                    int count = end - start;
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> append(builder, ids[start]$if(BytesRef)$, scratch$endif$);
+                        default -> {
+                            builder.beginPositionEntry();
+                            for (int i = start; i < end; i++) {
+                                append(builder, ids[i]$if(BytesRef)$, scratch$endif$);
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                    start = end;
+                }
+                return builder.build();
+            }
+        }
+
+$if(BytesRef)$
+        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
+            BytesRefVector dict = null;
+            IntBlock ordinals = null;
+            BytesRefBlock result = null;
+            var dictArray = bytes.takeBytesRefsOwnership();
+            bytes = null; // transfer ownership to dictArray
+            try (var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+                int start = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int end = selectedCounts[group];
+                    int count = end - start;
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> builder.appendInt(Math.toIntExact(values.getKey2(ids[start])));
+                        default -> {
+                            builder.beginPositionEntry();
+                            for (int i = start; i < end; i++) {
+                                builder.appendInt(Math.toIntExact(values.getKey2(ids[i])));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                    start = end;
+                }
+                ordinals = builder.build();
+                dict = blockFactory.newBytesRefArrayVector(dictArray, Math.toIntExact(dictArray.size()));
+                dictArray = null; // transfer ownership to dict
+                result = new OrdinalBytesRefBlock(ordinals, dict);
+                return result;
+            } finally {
+                if (result == null) {
+                    Releasables.close(dictArray, dict, ordinals);
+                }
+            }
+        }
+
         private void append($Type$Block.Builder builder, int id, BytesRef scratch) {
             BytesRef value = bytes.get(values.getKey2(id), scratch);
             builder.appendBytesRef(value);

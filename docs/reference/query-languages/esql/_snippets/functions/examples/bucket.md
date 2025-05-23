@@ -29,7 +29,7 @@ FROM employees
 The goal isn’t to provide **exactly** the target number of buckets,
 it’s to pick a range that people are comfortable with that provides at most the target number of buckets.
 
-Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/esql-functions-operators.md#esql-agg-functions) to create a histogram:
+Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/functions-operators/aggregation-functions.md) to create a histogram:
 
 ```esql
 FROM employees
@@ -75,7 +75,7 @@ FROM employees
 ::::{note}
 `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
 For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) to filter rows.
+Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) to filter rows.
 ::::
 
 If the desired bucket size is known in advance, simply provide it as the second
@@ -100,8 +100,7 @@ FROM employees
 
 ::::{note}
 When providing the bucket size as the second parameter, it must be a time
-duration or date period. Also the reference is epoch, which starts
-at `0001-01-01T00:00:00Z`.
+duration or date period. Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
 ::::
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
@@ -180,7 +179,7 @@ FROM employees
 | 54539.75 | 1985-11-01T00:00:00.000Z |
 
 `BUCKET` may be used in both the aggregating and grouping part of the
-[STATS ... BY ...](/reference/query-languages/esql/esql-commands.md#esql-stats-by) command provided that in the aggregating
+[STATS ... BY ...](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command provided that in the aggregating
 part the function is referenced by an alias defined in the
 grouping part, or that it is invoked with the exact same expression:
 

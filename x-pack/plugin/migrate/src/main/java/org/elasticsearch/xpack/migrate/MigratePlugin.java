@@ -89,7 +89,8 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         registry.initialize();
         return List.of(registry);
@@ -183,7 +184,13 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         IndexNameExpressionResolver expressionResolver
     ) {
         return List.of(
-            new SystemIndexMigrationExecutor(client, clusterService, systemIndices.get(), settingsModule.getIndexScopedSettings()),
+            new SystemIndexMigrationExecutor(
+                client,
+                clusterService,
+                systemIndices.get(),
+                settingsModule.getIndexScopedSettings(),
+                threadPool
+            ),
             new ReindexDataStreamPersistentTaskExecutor(
                 new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN),
                 clusterService,

@@ -380,7 +380,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
             caDN = "CN=" + randomAlphaOfLengthBetween(3, 8);
             caYears = randomIntBetween(1, 3);
             caKeySize = randomFrom(2048, 3072, 4096);
-            caKeyUsage = randomSubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet());
+            caKeyUsage = randomNonEmptySubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet());
             terminal.addTextInput(caDN);
             terminal.addTextInput(caYears + "y");
             terminal.addTextInput(Integer.toString(caKeySize));

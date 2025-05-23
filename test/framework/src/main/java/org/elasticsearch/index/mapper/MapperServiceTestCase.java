@@ -207,6 +207,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
+        throws IOException {
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(IndexVersion version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
@@ -852,7 +858,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), filter, SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), filter, SourceFieldMetrics.NOOP);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();

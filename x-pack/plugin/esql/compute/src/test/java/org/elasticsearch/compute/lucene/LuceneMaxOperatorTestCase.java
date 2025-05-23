@@ -73,7 +73,7 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneMaxFactory simple() {
+    protected LuceneMaxFactory simple(SimpleOptions options) {
         return simple(getNumberTypeTest(), randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
@@ -203,7 +203,7 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
         return matchesRegex(
             "LuceneMaxOperator\\[type = "
                 + getNumberType().name()
-                + ", dataPartitioning = (DOC|SHARD|SEGMENT), fieldName = "
+                + ", dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD_NAME
                 + ", limit = 100]"
         );

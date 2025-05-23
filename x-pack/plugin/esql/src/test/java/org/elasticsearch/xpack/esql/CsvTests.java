@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -306,6 +307,14 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "CSV tests cannot currently handle scoring that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle FORK",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V4.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle multi_match function that depends on Lucene",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
@@ -720,6 +729,9 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
+        runner.runToCompletion(
+            drivers,
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+        );
     }
 }

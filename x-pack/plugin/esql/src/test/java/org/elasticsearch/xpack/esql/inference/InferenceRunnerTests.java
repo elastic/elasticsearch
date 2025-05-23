@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 public class InferenceRunnerTests extends ESTestCase {
     public void testResolveInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
-        List<InferencePlan> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
+        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
         inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
@@ -53,7 +53,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     public void testResolveMultipleInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
-        List<InferencePlan> inferencePlans = List.of(
+        List<InferencePlan<?>> inferencePlans = List.of(
             mockInferencePlan("rerank-plan"),
             mockInferencePlan("rerank-plan"),
             mockInferencePlan("completion-plan")
@@ -81,7 +81,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     public void testResolveMissingInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
-        List<InferencePlan> inferencePlans = List.of(mockInferencePlan("missing-plan"));
+        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
@@ -138,8 +138,8 @@ public class InferenceRunnerTests extends ESTestCase {
         return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
     }
 
-    private static InferencePlan mockInferencePlan(String inferenceId) {
-        InferencePlan plan = mock(InferencePlan.class);
+    private static InferencePlan<?> mockInferencePlan(String inferenceId) {
+        InferencePlan<?> plan = mock(InferencePlan.class);
         when(plan.inferenceId()).thenReturn(new Literal(Source.EMPTY, inferenceId, DataType.KEYWORD));
         return plan;
     }

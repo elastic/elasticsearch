@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceErrorResponseEntity;
 
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
 
@@ -40,6 +40,8 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             throw new RetryException(false, buildError(METHOD_NOT_ALLOWED, request, result));
         } else if (statusCode == 413) {
             throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+        } else if (statusCode == 429) {
+            throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         }
 
         throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));

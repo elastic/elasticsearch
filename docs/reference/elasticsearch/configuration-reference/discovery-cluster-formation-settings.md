@@ -12,11 +12,10 @@ applies_to:
 
 `discovery.seed_hosts`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Provides a list of the addresses of the master-eligible nodes in the cluster. May also be a single string containing the addresses separated by commas. Each address has the format `host:port` or `host`. The `host` is either a host name to be resolved by DNS, an IPv4 address, or an IPv6 address. IPv6 addresses must be enclosed in square brackets. If a host name resolves via DNS to multiple addresses, {{es}} uses all of them. DNS lookups are subject to [JVM DNS caching](docs-content://deploy-manage/deploy/self-managed/networkaddress-cache-ttl.md). If the `port` is not given then it is determined by checking the following settings in order:
+    1. `transport.profiles.default.port`
+    2. `transport.port`
 
-1. `transport.profiles.default.port`
-2. `transport.port`
-
-If neither of these is set then the default port is `9300`. The default value for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See [`discovery.seed_hosts`](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#unicast.hosts).
+    If neither of these is set then the default port is `9300`. The default value for `discovery.seed_hosts` is `["127.0.0.1", "[::1]"]`. See [`discovery.seed_hosts`](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#unicast.hosts).
 
 
 `discovery.seed_providers`

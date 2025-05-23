@@ -1,0 +1,5 @@
+pr: 127006
+summary: Correctly handle non-integers in nested paths in the remove processor
+area: Ingest Node
+type: bug
+issues: []

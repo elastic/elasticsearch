@@ -14,8 +14,8 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;

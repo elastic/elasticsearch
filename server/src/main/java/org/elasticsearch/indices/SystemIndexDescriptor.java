@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
+import org.elasticsearch.indices.system.SystemResourceDescriptor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -103,7 +105,7 @@ import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WO
  * A system index that is fully internal to Elasticsearch will not allow any product origins; such an index is fully "locked down,"
  * and in general can only be changed by restoring feature states from snapshots.
  */
-public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
+public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourceDescriptor, Comparable<SystemIndexDescriptor> {
 
     public static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
 
@@ -297,7 +299,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
 
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
-        if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
+        if (type.isExternal() == false && allowedElasticProductOrigins.isEmpty() == false) {
             throw new IllegalArgumentException("Allowed origins are not valid for internal system indices");
         } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
@@ -442,9 +444,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return project.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
-    /**
-     * @return A short description of the purpose of this system index.
-     */
+    @Override
     public String getDescription() {
         return description;
     }
@@ -473,16 +473,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.indexFormat;
     }
 
+    @Override
     public boolean isAutomaticallyManaged() {
         return type.isManaged();
     }
 
-    /**
-     * Get an origin string suitable for use in an {@link org.elasticsearch.client.internal.OriginSettingClient}. See
-     * {@link Builder#setOrigin(String)} for more information.
-     *
-     * @return an origin string to use for sub-requests
-     */
+    @Override
     public String getOrigin() {
         // TODO[wrb]: most unmanaged system indices do not set origins; could we assert on that here?
         return this.origin;
@@ -493,20 +489,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.hasDynamicMappings;
     }
 
+    @Override
     public boolean isExternal() {
         return type.isExternal();
     }
 
-    public boolean isInternal() {
-        return type.isInternal();
-    }
-
-    /**
-     * Requests from these products, if made with the proper security credentials, are allowed non-deprecated access to this descriptor's
-     * indices. (Product names may be specified in requests with the
-     * {@link org.elasticsearch.tasks.Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER}).
-     * @return A list of product names.
-     */
+    @Override
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
     }
@@ -574,6 +562,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /**
      * @return The names of thread pools that should be used for operations on this system index.
      */
+    @Override
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;
     }
@@ -625,10 +614,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
         public boolean isManaged() {
             return managed;
-        }
-
-        public boolean isInternal() {
-            return external == false;
         }
     }
 

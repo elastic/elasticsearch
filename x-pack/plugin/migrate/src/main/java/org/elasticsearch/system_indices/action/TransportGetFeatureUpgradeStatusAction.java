@@ -139,11 +139,11 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             (FeatureMigrationResults) state.metadata().getProject().custom(FeatureMigrationResults.TYPE)
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
-        final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
-        final String failedFeatureUpgradedName = failedFeatureName == null ? null : failedFeatureName + UPGRADED_INDEX_SUFFIX;
+        final String failedResourceName = featureStatus == null ? null : featureStatus.getFailedResourceName();
+        final String failedFeatureUpgradedName = failedResourceName == null ? null : failedResourceName + UPGRADED_INDEX_SUFFIX;
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
-        return feature.getIndexDescriptors()
+        Stream<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfoStream = feature.getIndexDescriptors()
             .stream()
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata().getProject()).stream())
             .sorted(String::compareTo)
@@ -152,11 +152,32 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),
                     indexMetadata.getCreationVersion(),
-                    (indexMetadata.getIndex().getName().equals(failedFeatureName)
+                    (indexMetadata.getIndex().getName().equals(failedResourceName)
                         || indexMetadata.getIndex().getName().equals(failedFeatureUpgradedName)) ? exception : null
                 )
-            )
-            .toList();
+            );
+
+        Stream<GetFeatureUpgradeStatusResponse.IndexInfo> dataStreamsIndexInfoStream = feature.getDataStreamDescriptors()
+            .stream()
+            .flatMap(descriptor -> {
+                Exception dsException = (descriptor.getDataStreamName().equals(failedResourceName)) ? exception : null;
+
+                // we don't know migration of which backing index has failed,
+                // so, unfortunately, have to report exception for all indices for now
+                return descriptor.getMatchingIndices(state.metadata().getProject())
+                    .stream()
+                    .sorted(String::compareTo)
+                    .map(index -> state.metadata().getProject().index(index))
+                    .map(
+                        indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
+                            indexMetadata.getIndex().getName(),
+                            indexMetadata.getCreationVersion(),
+                            dsException
+                        )
+                    );
+            });
+
+        return Stream.concat(indexInfoStream, dataStreamsIndexInfoStream).toList();
     }
 
     @Override

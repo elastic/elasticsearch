@@ -8,21 +8,11 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.util.EnumSet;
@@ -41,23 +31,14 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ServiceUtilsTests extends ESTestCase {
-
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
-
     public void testRemoveAsTypeWithTheCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
 
@@ -901,96 +882,6 @@ public class ServiceUtilsTests extends ESTestCase {
         assertNull(result);
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(validationException.validationErrors().get(0), is("[testscope] does not contain the required setting [missing_key]"));
-    }
-
-    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
-        var service = mock(InferenceService.class);
-
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
-        doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
-            listener.onResponse(new TextEmbeddingFloatResults(List.of()));
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
-        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
-    }
-
-    public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingByteResults_IsEmpty() {
-        var service = mock(InferenceService.class);
-
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
-        doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
-            listener.onResponse(new TextEmbeddingByteResults(List.of()));
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-        assertThat(thrownException.getMessage(), is("Could not determine embedding size"));
-        assertThat(thrownException.getCause().getMessage(), is("Embeddings list is empty"));
-    }
-
-    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingResults() {
-        var service = mock(InferenceService.class);
-
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
-        var textEmbedding = TextEmbeddingFloatResultsTests.createRandomResults();
-
-        doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
-            listener.onResponse(textEmbedding);
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var size = listener.actionGet(TIMEOUT);
-
-        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
-    }
-
-    public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
-        var service = mock(InferenceService.class);
-
-        var model = mock(Model.class);
-        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
-        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
-
-        doAnswer(invocation -> {
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(9);
-            listener.onResponse(textEmbedding);
-
-            return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
-
-        PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        getEmbeddingSize(model, service, listener);
-
-        var size = listener.actionGet(TIMEOUT);
-
-        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
     }
 
     public void testValidateInputType_NoValidationErrorsWhenInternalType() {

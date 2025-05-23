@@ -27,7 +27,6 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,7 +46,6 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * IT tests that can block EQL execution at different places
  */
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
 public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegTestCase {
 
     protected List<SearchBlockPlugin> initBlockFactory(boolean searchBlock, boolean fieldCapsBlock) {

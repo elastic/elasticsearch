@@ -36,7 +36,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         assumeTrue(
             "If inference_cluster_aware_rate_limiting_feature_flag_enabled=false we'll fallback to "
                 + "NoopNodeLocalRateLimitCalculator, which shouldn't be tested by this class.",
-            InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()
+            InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG
         );
     }
 

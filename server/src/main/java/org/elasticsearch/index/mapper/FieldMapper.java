@@ -451,7 +451,12 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public List<FieldMapper> getSourceFields() {
-        return List.of(this);
+        List<FieldMapper> fields = new ArrayList<>();
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            fields.addAll(mapper.getSourceFields());
+        }
+        fields.add(this);
+        return fields;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {

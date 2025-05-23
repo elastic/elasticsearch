@@ -57,15 +57,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  */
 public class RequestExecutorService implements RequestExecutor {
 
-    /**
-     * Provides dependency injection mainly for testing
-     */
-    interface Sleeper {
-        void sleep(TimeValue sleepTime) throws InterruptedException;
-    }
-
-    // default for tests
-    static final Sleeper DEFAULT_SLEEPER = sleepTime -> sleepTime.timeUnit().sleep(sleepTime.duration());
     // default for tests
     static final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> DEFAULT_QUEUE_CREATOR =
         new AdjustableCapacityBlockingQueue.QueueCreator<>() {
@@ -118,7 +109,6 @@ public class RequestExecutorService implements RequestExecutor {
     private final Clock clock;
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> queueCreator;
-    private final Sleeper sleeper;
     private final RateLimiterCreator rateLimiterCreator;
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -129,16 +119,7 @@ public class RequestExecutorService implements RequestExecutor {
         RequestExecutorServiceSettings settings,
         RequestSender requestSender
     ) {
-        this(
-            threadPool,
-            DEFAULT_QUEUE_CREATOR,
-            startupLatch,
-            settings,
-            requestSender,
-            Clock.systemUTC(),
-            DEFAULT_SLEEPER,
-            DEFAULT_RATE_LIMIT_CREATOR
-        );
+        this(threadPool, DEFAULT_QUEUE_CREATOR, startupLatch, settings, requestSender, Clock.systemUTC(), DEFAULT_RATE_LIMIT_CREATOR);
     }
 
     public RequestExecutorService(
@@ -148,7 +129,6 @@ public class RequestExecutorService implements RequestExecutor {
         RequestExecutorServiceSettings settings,
         RequestSender requestSender,
         Clock clock,
-        Sleeper sleeper,
         RateLimiterCreator rateLimiterCreator
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -157,7 +137,6 @@ public class RequestExecutorService implements RequestExecutor {
         this.requestSender = Objects.requireNonNull(requestSender);
         this.settings = Objects.requireNonNull(settings);
         this.clock = Objects.requireNonNull(clock);
-        this.sleeper = Objects.requireNonNull(sleeper);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
     }
 
@@ -213,15 +192,10 @@ public class RequestExecutorService implements RequestExecutor {
             startCleanupTask();
             signalStartInitiated();
 
-            while (isShutdown() == false) {
-                handleTasks();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            shutdown();
-            notifyRequestsOfShutdown();
-            terminationLatch.countDown();
+            handleTasks();
+        } catch (Exception e) {
+            logger.warn("Failed to start request executor", e);
+            cleanup();
         }
     }
 
@@ -256,13 +230,44 @@ public class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void handleTasks() throws InterruptedException {
-        var timeToWait = settings.getTaskPollFrequency();
-        for (var endpoint : rateLimitGroupings.values()) {
-            timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+    private void scheduleNextHandleTasks(TimeValue timeToWait) {
+        if (shutdown.get()) {
+            logger.debug("Shutdown requested while scheduling next handle task call, cleaning up");
+            cleanup();
+            return;
         }
 
-        sleeper.sleep(timeToWait);
+        threadPool.schedule(this::handleTasks, timeToWait, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+    }
+
+    private void cleanup() {
+        try {
+            shutdown();
+            notifyRequestsOfShutdown();
+            terminationLatch.countDown();
+        } catch (Exception e) {
+            logger.warn("Encountered an error while cleaning up", e);
+        }
+    }
+
+    private void handleTasks() {
+        try {
+            if (shutdown.get()) {
+                logger.debug("Shutdown requested while handling tasks, cleaning up");
+                cleanup();
+                return;
+            }
+
+            var timeToWait = settings.getTaskPollFrequency();
+            for (var endpoint : rateLimitGroupings.values()) {
+                timeToWait = TimeValue.min(endpoint.executeEnqueuedTask(), timeToWait);
+            }
+
+            scheduleNextHandleTasks(timeToWait);
+        } catch (Exception e) {
+            logger.warn("Encountered an error while handling tasks", e);
+            cleanup();
+        }
     }
 
     private void notifyRequestsOfShutdown() {

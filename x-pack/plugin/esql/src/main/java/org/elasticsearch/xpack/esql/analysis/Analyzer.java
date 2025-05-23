@@ -756,7 +756,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            Set<String> forkColumns = fork.outputSet().names();
+            List<Attribute> outputUnion = Fork.outputUnion(fork.children());
+            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -764,7 +765,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // find the missing columns
                 List<Attribute> missing = new ArrayList<>();
                 Set<String> currentNames = logicalPlan.outputSet().names();
-                for (Attribute attr : fork.outputSet()) {
+                for (Attribute attr : outputUnion) {
                     if (currentNames.contains(attr.name()) == false) {
                         missing.add(attr);
                     }
@@ -799,7 +800,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            return changed ? new Fork(fork.source(), newSubPlans) : fork;
+            if (changed == false) {
+                return fork;
+            }
+
+            List<Attribute> newOutput = new ArrayList<>();
+
+            // We don't want to keep the same attributes that are outputted by the FORK branches.
+            // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+            for (Attribute attr : newSubPlans.getFirst().output()) {
+                newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
+            }
+
+            return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {

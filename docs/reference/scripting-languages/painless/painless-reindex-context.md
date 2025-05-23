@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-reindex-context.html
+products:
+  - id: painless
 ---
 
 # Reindex context [painless-reindex-context]

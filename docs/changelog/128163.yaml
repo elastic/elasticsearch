@@ -1,7 +1,7 @@
 pr: 128163
 summary: Make `skip_unavailable` catch all errors
 area: ES|QL
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Cluster setting "skip_unavailable" catches all runtime errors

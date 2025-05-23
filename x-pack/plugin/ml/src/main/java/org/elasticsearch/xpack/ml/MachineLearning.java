@@ -845,7 +845,8 @@ public class MachineLearning extends Plugin
                 machineMemoryAttrName,
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
-            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+
+            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(JvmInfo.jvmInfo().getMem().getTotalMax().getBytes()));
             addMlNodeAttribute(
                 additionalSettings,
                 deprecatedAllocatedProcessorsAttrName,

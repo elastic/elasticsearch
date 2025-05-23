@@ -116,6 +116,9 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                     doneCollecting = true;
                     return null;
                 }
+                if (slice.extra().isEmpty() == false) {
+                    throw new UnsupportedOperationException("extra not supported by " + getClass());
+                }
                 Releasables.close(fieldsReader);
                 fieldsReader = new ShardLevelFieldsReader(blockFactory, slice.shardContext(), fieldsToExtracts);
                 iterator = new SegmentsIterator(slice);

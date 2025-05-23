@@ -97,7 +97,7 @@ public abstract class LuceneOperator extends SourceOperator {
          */
         protected Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
             int taskConcurrency,
@@ -158,7 +158,7 @@ public abstract class LuceneOperator extends SourceOperator {
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
                 final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
+                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.extra(), leaf);
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
             currentScorer.maxPosition = partialLeaf.maxDoc();
@@ -177,15 +177,17 @@ public abstract class LuceneOperator extends SourceOperator {
         private final ShardContext shardContext;
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
+        private final List<Object> tags;
 
         private BulkScorer bulkScorer;
         private int position;
         private int maxPosition;
         private Thread executingThread;
 
-        LuceneScorer(ShardContext shardContext, Weight weight, LeafReaderContext leafReaderContext) {
+        LuceneScorer(ShardContext shardContext, Weight weight, List<Object> tags, LeafReaderContext leafReaderContext) {
             this.shardContext = shardContext;
             this.weight = weight;
+            this.tags = tags;
             this.leafReaderContext = leafReaderContext;
             reinitialize();
         }
@@ -229,6 +231,13 @@ public abstract class LuceneOperator extends SourceOperator {
 
         int position() {
             return position;
+        }
+
+        /**
+         * Tags to add to the data returned by this query.
+         */
+        List<Object> tags() {
+            return tags;
         }
     }
 

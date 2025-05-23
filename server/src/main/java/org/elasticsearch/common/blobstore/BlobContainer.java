@@ -10,6 +10,7 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,6 +24,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -143,6 +145,24 @@ public interface BlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException;
+
+    /**
+     * Indicates if the implementation supports writing large blobs using concurrent multipart uploads.
+     * @return {@code true} if the implementation supports writing large blobs using concurrent multipart uploads, {@code false} otherwise
+     */
+    default boolean supportsConcurrentMultipartUploads() {
+        return false;
+    }
+
+    default void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,

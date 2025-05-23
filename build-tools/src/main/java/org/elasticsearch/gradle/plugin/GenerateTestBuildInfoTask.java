@@ -299,7 +299,10 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
                 String name = candidate.getFileName().toString(); // Just the part after the last dir separator
                 if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    result = candidate.toAbsolutePath().toString().substring(dir.getAbsolutePath().length() + 1);
+                    result = candidate.toAbsolutePath()
+                        .toString()
+                        .substring(dir.getAbsolutePath().length() + 1)
+                        .replace(File.separatorChar, '/');
                     return TERMINATE;
                 } else {
                     return CONTINUE;

@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-import java.nio.file.Path
-
 class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
     def "basic functionality"() {
         given:
@@ -54,7 +52,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         def location = Map.of(
             "module", "com.example",
-            "representative_class", Path.of("com", "example", "Example.class").toString()
+            "representative_class", "com/example/Example.class"
         )
         def expectedOutput = Map.of(
             "component", "example-component",
@@ -102,15 +100,15 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         def locationFromModuleInfo = Map.of(
             "module", "org.objectweb.asm",
-            "representative_class", Path.of('org', 'objectweb', 'asm', 'AnnotationVisitor.class').toString()
+            "representative_class", 'org/objectweb/asm/AnnotationVisitor.class'
         )
         def locationFromManifest = Map.of(
             "module", "junit",
-            "representative_class", Path.of('junit', 'textui', 'TestRunner.class').toString()
+            "representative_class", 'junit/textui/TestRunner.class'
         )
         def locationFromJarFileName = Map.of(
             "module", "hamcrest.core",
-            "representative_class", Path.of('org', 'hamcrest', 'BaseDescription.class').toString()
+            "representative_class", 'org/hamcrest/BaseDescription.class'
         )
         def expectedOutput = Map.of(
             "component", "example-component",

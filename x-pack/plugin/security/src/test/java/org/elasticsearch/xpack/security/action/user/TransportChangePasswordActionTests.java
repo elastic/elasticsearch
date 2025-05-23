@@ -111,6 +111,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false) // simulate cloud set up
             .build();
         ElasticUser elasticUser = new ElasticUser(true);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -160,7 +161,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(ValidationException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is not a native user and cannot be managed via this API"));
+        assertThat(throwableRef.get().getMessage(), containsString("To update the user [elastic] in a cloud deployment, use the console."));
         verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
     }
 

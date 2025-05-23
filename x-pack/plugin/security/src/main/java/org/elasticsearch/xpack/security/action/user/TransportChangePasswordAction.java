@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -31,14 +33,9 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.ELASTIC_NAME;
 import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.USER_NOT_FOUND_MESSAGE;
@@ -85,10 +82,24 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             return;
         }
 
+        if (ClientReservedRealm.isReservedCandidate(username) && XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false) {
+            // when on cloud and resetting the elastic operator user by mistake
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError(
+                ELASTIC_NAME.equalsIgnoreCase(username)
+                    ? " To update the user [" + ELASTIC_NAME + "] in a cloud deployment, use the console."
+                    : "user [" + username + "] belongs to the " + ReservedRealm.NAME + " realm which is disabled." // shouldn't be
+                                                                                                                   // happening
+            );
+            listener.onFailure(validationException);
+            return;
+        }
+
         // check if user exists in the native realm
         nativeUsersStore.getUser(username, new ActionListener<>() {
             @Override
             public void onResponse(User user) {
+                // nativeUsersStore.changePassword can create a missing reserved user, so enter only if not reserved
                 if (ClientReservedRealm.isReserved(username, settings) == false && user == null) {
                     List<Realm> nonNativeRealms = realms.getActiveRealms()
                         .stream()
@@ -99,53 +110,41 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                     if (nonNativeRealms.isEmpty()) {
                         listener.onFailure(createUserNotFoundException());
                     }
-                    CountDownLatch latch = new CountDownLatch(nonNativeRealms.size());
-                    List<Exception> realmErrors = Collections.synchronizedList(new ArrayList<>());
-                    nonNativeRealms.forEach(realm -> {
-                        // we should check if this request is mistakenly trying to reset a user in some other realm
-                        realm.lookupUser(username, new ActionListener<>() {
-                            @Override
-                            public void onResponse(User user) {
+
+                    GroupedActionListener<User> gal = new GroupedActionListener<>(nonNativeRealms.size(), new ActionListener<>() {
+                        @Override
+                        public void onResponse(Collection<User> users) {
+                            List<String> realmErrors = new ArrayList<>();
+                            for (User user : users) {
                                 if (user != null) {
-                                    ValidationException validationException = new ValidationException();
-                                    validationException.addValidationError(
+                                    realmErrors.add(
                                         "user ["
                                             + username
-                                            + "] is a(n)"
-                                            + realm
-                                            + " user and cannot be managed via this API."
-                                            + (ELASTIC_NAME.equalsIgnoreCase(username)
-                                                ? " To update the '" + ELASTIC_NAME + "' user in a cloud deployment, use the console."
-                                                : "")
+                                            + "] does not belong to the native realm and cannot be"
+                                            + " managed via this API."
                                     );
-                                    onFailure(validationException);
-                                } else {
-                                    onFailure(null);
+                                    break;
                                 }
                             }
+                            if (realmErrors.isEmpty()) {
+                                // user wasn't found in any other realm, display standard not-found message
+                                listener.onFailure(createUserNotFoundException());
+                            } else {
+                                ValidationException validationException = new ValidationException();
+                                realmErrors.forEach(validationException::addValidationError);
+                                listener.onFailure(validationException);
+                            }
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (e != null) {
-                                    realmErrors.add(e);
-                                }
-                                latch.countDown();
-                            }
-                        });
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
                     });
-                    try {
-                        latch.await();
-                        // combine errors across realms
-                        ValidationException validationException = new ValidationException();
-                        List<String> errors = realmErrors.stream()
-                            .map(t -> ((ValidationException) t).validationErrors())
-                            .flatMap((Function<List<String>, Stream<String>>) Collection::stream)
-                            .collect(Collectors.toList());
-                        validationException.addValidationErrors(errors);
-                        listener.onFailure(validationException);
-                    } catch (InterruptedException e) {
-                        logger.info("Interrupted while waiting for user lookups across realms", e);
-                        listener.onFailure(e);
+                    for (Realm realm : nonNativeRealms) {
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE.execute(
+                            ActionRunnable.wrap(gal, userActionListener -> realm.lookupUser(username, userActionListener))
+                        );
                     }
                 } else {
                     // safe to proceed

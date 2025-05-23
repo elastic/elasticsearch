@@ -182,7 +182,7 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
         final String snapshotName = randomIdentifier();
 
         createRepository(repositoryName, "fs");
-        createIndexWithRandomDocs(indexName, 100);
+        createIndexWithRandomDocs(indexName, randomIntBetween(10, 300));
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
         mountSnapshot(repositoryName, snapshotName, indexName, mountedSnapshotName, Settings.EMPTY, storage);
         ensureGreen(mountedSnapshotName);

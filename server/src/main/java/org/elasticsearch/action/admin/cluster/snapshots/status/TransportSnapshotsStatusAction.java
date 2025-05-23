@@ -196,13 +196,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
-                        // We should have information about this shard from the shard:
+                        // We should have information about this shard from the node:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
-                            Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshot());
-                            if (shardStatues != null) {
+                            Map<ShardId, SnapshotIndexShardStatus> shardStatuses = nodeStatus.status().get(entry.snapshot());
+                            if (shardStatuses != null) {
                                 final ShardId sid = entry.shardId(shardEntry.getKey());
-                                SnapshotIndexShardStatus shardStatus = shardStatues.get(sid);
+                                SnapshotIndexShardStatus shardStatus = shardStatuses.get(sid);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
@@ -228,8 +228,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     // We failed to find the status of the shard from the responses we received from data nodes.
                     // This can happen if nodes drop out of the cluster completely or restart during the snapshot.
-                    // We rebuild the information they would have provided from their in memory state from the cluster
-                    // state and the repository contents in the below logic
                     final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
                         case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
                         case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
@@ -237,17 +235,18 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     };
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
-                        // Shard snapshot completed successfully so we should be able to load the exact statistics for this
-                        // shard from the repository already.
-                        final ShardId shardId = entry.shardId(shardEntry.getKey());
+                        // When processing currently running snapshots, instead of reading the statistics from the repository, which can be
+                        // expensive, we choose instead to provide a message to the caller explaining why the stats are missing and the API
+                        // that can be used to load them.
                         shardStatus = new SnapshotIndexShardStatus(
-                            shardId,
-                            repositoriesService.repository(entry.repository())
-                                .getShardSnapshotStatus(
-                                    entry.snapshot().getSnapshotId(),
-                                    entry.indices().get(shardId.getIndexName()),
-                                    shardId
-                                )
+                            entry.shardId(shardEntry.getKey()),
+                            stage,
+                            new SnapshotStats(),
+                            null,
+                            null,
+                            """
+                               Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
+                               completing the snapshot; use /_snapshot/<repository>/<snapshot>/_status to load from the repository."""
                         );
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(entry.shardId(shardEntry.getKey()), stage);

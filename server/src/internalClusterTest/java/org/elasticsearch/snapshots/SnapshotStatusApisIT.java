@@ -212,7 +212,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
      * 1. Start snapshot of two shards (both located on separate data nodes).
      * 2. Have one of the shards snapshot completely and the other block
      * 3. Restart the data node that completed its shard snapshot
-     * 4. Make sure that snapshot status APIs show correct file-counts and -sizes
+     * 4. Make sure that snapshot status APIs show correct file-counts and -sizes for non-restarted nodes
+     * 5. Make sure the description string is set for shard snapshots on restarted nodes.
      *
      * @throws Exception on failure
      */
@@ -261,8 +262,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             indexTwo
         );
         assertThat(snapshotShardStateAfterNodeRestart.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalFileCount(), equalTo(totalFiles));
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalSize(), equalTo(totalFileSize));
+        assertNotNull("expected a description string for missing stats", snapshotShardStateAfterNodeRestart.getDescription());
+        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalFileCount(), equalTo(0));
+        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalSize(), equalTo(0L));
 
         unblockAllDataNodes(repoName);
         assertThat(responseSnapshotOne.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));

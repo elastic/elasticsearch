@@ -41,9 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class AzureGraphHttpFixture extends ExternalResource {
+public class MsGraphHttpFixture extends ExternalResource {
 
-    private static final Logger logger = LogManager.getLogger(AzureGraphHttpFixture.class);
+    private static final Logger logger = LogManager.getLogger(MsGraphHttpFixture.class);
 
     private final String tenantId;
     private final String clientId;
@@ -55,7 +55,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
 
     private HttpsServer server;
 
-    public AzureGraphHttpFixture(
+    public MsGraphHttpFixture(
         String tenantId,
         String clientId,
         String clientSecret,
@@ -70,7 +70,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
         this.displayName = displayName;
         this.email = email;
 
-        jwt = "test jwt";
+        this.jwt = "test jwt";
     }
 
     @Override
@@ -219,6 +219,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
             }
 
             var nextLink = getBaseUrl() + exchange.getRequestURI().toString() + "&$skiptoken=" + skipToken;
+            // TODO should really pass this through the constructor or something rather than hard-coding it
             var groups = new Object[] { Map.of("id", "group-id-1"), Map.of("id", "group-id-2") };
 
             // return multiple pages of results, to ensure client correctly supports paging

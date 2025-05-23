@@ -16,7 +16,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -51,7 +50,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     private static final String CLIENT_SECRET = "client_secret";
     private static final String USERNAME = "Thor";
 
-    private static final AzureGraphHttpFixture graphFixture = new AzureGraphHttpFixture(
+    private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(
         TENANT_ID,
         CLIENT_ID,
         CLIENT_SECRET,

@@ -154,18 +154,6 @@ constant_keyword:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | stats x = max(kind)'
-  - match: {columns.0.name: x}
-  - match: {columns.0.type: keyword}
-
-  - length: {values: 1}
-  - match: {values.0.0: wow such constant}
-
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
           query: 'from test,test_2 | where kind == "wow such constant" | keep color, kind'
   - match: {columns.0.name: color}
   - match: {columns.0.type: keyword}
@@ -272,6 +260,70 @@ constant_keyword:
   - match: {values.1.1: "wow such constant"}
 
 
+---
+constant_keyword_2:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [agg_max_min_string_support]
+      reason: "Needs support for min/max aggs on keywords"
+  - skip:
+      features: warnings
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: wow such constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      indices.create:
+        index:  text_test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: text
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: text_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"a text field", "color": "green" }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats x = max(kind)'
+  - match: {columns.0.name: x}
+  - match: {columns.0.type: keyword}
+
+  - length: {values: 1}
+  - match: {values.0.0: wow such constant}
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -317,7 +369,6 @@ constant_keyword:
   - match: {values.0.1: "a text field"}
   - match: {values.1.0: red}
   - match: {values.1.1: "wow such constant"}
-
 
 ---
 constant_keyword with null value:

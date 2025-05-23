@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStatsRemover;
-import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -49,12 +48,10 @@ import java.util.Collections;
 public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     private OriginSettingClient client;
-    private WritableIndexExpander writableIndexExpander;
 
     @Before
     public void createComponents() {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        writableIndexExpander = new WritableIndexExpander(clusterService(), TestIndexNameExpressionResolver.newInstance());
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(
             client(),

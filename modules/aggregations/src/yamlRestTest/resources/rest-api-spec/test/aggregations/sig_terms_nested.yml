@@ -1,0 +1,177 @@
+setup:
+  - requires:
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  type:
+                    type: keyword
+                  value:
+                    type: integer
+
+  # Type:normal has many "1" and just one "2". Type:outlier has the same amount of "1" and "2"
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 1, "nested": { "type": "normal", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "normal", "value": 2, "nested": { "type": "normal", "value": 2 } }'
+
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 1, "nested": { "type": "outlier", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 1, "nested": { "type": "outlier", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 1, "nested": { "type": "outlier", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 1, "nested": { "type": "outlier", "value": 1 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 2, "nested": { "type": "outlier", "value": 2 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 2, "nested": { "type": "outlier", "value": 2 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 2, "nested": { "type": "outlier", "value": 2 } }'
+          - '{ "index": {} }'
+          - '{ "type": "outlier", "value": 2, "nested": { "type": "outlier", "value": 2 } }'
+
+---
+"Data checks":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+  - match: {hits.total: 16}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "aggs": {
+            "value_terms": {
+              "terms": {
+                "field": "value"
+              }
+            },
+            "nested": {
+              "nested": {
+                "path": "nested"
+              },
+              "aggs": {
+                "nested_value_terms": {
+                  "terms": {
+                    "field": "nested.value"
+                  }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.value_terms.buckets.0.key: 1}
+  - match: {aggregations.value_terms.buckets.0.doc_count: 11}
+  - match: {aggregations.value_terms.buckets.1.key: 2}
+  - match: {aggregations.value_terms.buckets.1.doc_count: 5}
+
+  - match: {aggregations.nested.doc_count: 16}
+  - match: {aggregations.nested.nested_value_terms.buckets.0.key: 1}
+  - match: {aggregations.nested.nested_value_terms.buckets.0.doc_count: 11}
+  - match: {aggregations.nested.nested_value_terms.buckets.1.key: 2}
+  - match: {aggregations.nested.nested_value_terms.buckets.1.doc_count: 5}
+
+---
+"Normal fields":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+  - match: {hits.total: 16}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "significant_terms": {
+              "significant_terms": {
+                "field": "value"
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.significant_terms.doc_count: 8}
+  - match: {aggregations.significant_terms.bg_count: 16}
+  - length: {aggregations.significant_terms.buckets: 1}
+  - match: {aggregations.significant_terms.buckets.0.key: 2}
+  - match: {aggregations.significant_terms.buckets.0.doc_count: 4}
+  - match: {aggregations.significant_terms.buckets.0.bg_count: 5}
+  - close_to: { aggregations.significant_terms.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+---
+"Nested fields":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+  - match: {hits.total: 16}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "nested": {
+              "nested": {
+                "path": "nested"
+              },
+              "aggs": {
+                "significant_terms": {
+                  "significant_terms": {
+                    "field": "nested.value"
+                  }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.nested.significant_terms.doc_count: 8}
+  - match: {aggregations.nested.significant_terms.bg_count: 16}
+  - length: {aggregations.nested.significant_terms.buckets: 1}
+  - match: {aggregations.nested.significant_terms.buckets.0.key: 2}
+  - match: {aggregations.nested.significant_terms.buckets.0.doc_count: 4}
+  - match: {aggregations.nested.significant_terms.buckets.0.bg_count: 5}
+  - close_to: { aggregations.nested.significant_terms.buckets.0.score: {value: 0.3, error: 0.000001 }}

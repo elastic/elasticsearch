@@ -49,7 +49,7 @@ To get started, first log in to SharePoint Online and access your administrative
 
 Follow these steps:
 
-* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Azure Active Directory**.
+* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Microsoft Entra ID**.
 * Locate **App Registrations** and Click **New Registration**.
 * Give your app a name - like "Search".
 * Leave the **Redirect URIs** blank for now.
@@ -133,9 +133,9 @@ Refer to the following documentation for setting [SharePoint permissions](https:
 
 #### Granting `Sites.Selected` permissions [es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
 
-To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+To configure `Sites.Selected` permissions, follow these steps in the Microsoft Entra ID portal. These permissions enable precise access control to specific SharePoint sites.
 
-1. Sign in to the [Azure Active Directory portal](https://portal.azure.com/).
+1. Sign in to the [Microsoft Entra ID portal](https://portal.azure.com/).
 2. Navigate to **App registrations** and locate the application created for the connector.
 3. Under **API permissions**, click **Add permission**.
 4. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.

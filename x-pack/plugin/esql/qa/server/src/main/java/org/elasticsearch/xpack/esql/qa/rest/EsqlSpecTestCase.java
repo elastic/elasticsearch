@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
@@ -246,7 +247,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean requiresInferenceEndpoint() {
-        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName())
+        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName(), COMPLETION.capabilityName())
             .anyMatch(testCase.requiredCapabilities::contains);
     }
 

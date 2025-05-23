@@ -41,6 +41,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -208,6 +209,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * @return a {@link StringBuilder} with the {@code META-INF/versions/<version number>} if it exists; otherwise null
      */
     private static StringBuilder versionDirectoryIfExists(JarFile jarFile) {
+        Comparator<Integer> numericOrder = Integer::compareTo;
         List<Integer> versions = jarFile.stream()
             .filter(je -> je.getName().startsWith(META_INF_VERSIONS_PREFIX) && je.getName().endsWith("/module-info.class"))
             .map(
@@ -215,10 +217,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                     je.getName().substring(META_INF_VERSIONS_PREFIX.length(), je.getName().length() - META_INF_VERSIONS_PREFIX.length())
                 )
             )
+            .sorted(numericOrder.reversed())
             .toList();
-        versions = new ArrayList<>(versions);
-        versions.sort(Integer::compareTo);
-        versions = versions.reversed();
         int major = Runtime.version().feature();
         StringBuilder path = new StringBuilder(META_INF_VERSIONS_PREFIX);
         for (int version : versions) {

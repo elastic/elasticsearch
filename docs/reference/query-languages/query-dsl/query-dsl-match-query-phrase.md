@@ -34,7 +34,6 @@ GET /_search
 
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
-
   - `none` (Default)
   No documents are returned if the `analyzer` removes all tokens.
   - `all`

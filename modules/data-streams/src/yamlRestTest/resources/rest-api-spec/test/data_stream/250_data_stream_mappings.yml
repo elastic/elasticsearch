@@ -1,0 +1,92 @@
+setup:
+  - skip:
+      features: allowed_warnings
+
+---
+"Test single data stream":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: {} }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: my-data-stream-1
+        body:
+          properties:
+            name:
+              type: keyword
+              fields:
+                english:
+                  type: text
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.mappings.properties.name.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings.properties.name.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings.properties.name.type: "keyword" }
+  - match: { data_streams.0.effective_mappings: null }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: my-data-stream-1
+  - match: { .$idx0name.mappings.properties.name.type: "keyword" }

@@ -425,20 +425,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.startObject(SETTINGS_FIELD.getPreferredName());
                     dataStream.getSettings().toXContent(builder, params);
                     builder.endObject();
-                }
 
-                builder.startObject(SETTINGS_FIELD.getPreferredName());
-                dataStream.getSettings().toXContent(builder, params);
-                builder.endObject();
-
-                Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(
-                    dataStream.getMappings().uncompressed(),
-                    true,
-                    XContentType.JSON
-                ).v2();
-                if (uncompressedMapping.isEmpty() == false) {
                     builder.field(MAPPINGS_FIELD.getPreferredName());
-                    builder.map(uncompressedMapping);
+                    Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
+                        dataStream.getMappings().uncompressed(),
+                        true,
+                        XContentType.JSON
+                    ).v2();
+                    builder.map(uncompressedMappings);
                 }
 
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());

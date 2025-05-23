@@ -2562,7 +2562,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()));
     }
 
-    public void testGetEffectiveIndexTemplateTemplateSettingsOnly() {
+    public void testGetEffectiveIndexTemplateTemplateSettingsOnly() throws IOException {
         // We only have settings from the template, so the effective template will just be the original template
         DataStream dataStream = createDataStream(Settings.EMPTY);
         Settings templateSettings = randomSettings();
@@ -2577,7 +2577,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(indexTemplate));
     }
 
-    public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() {
+    public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() throws IOException {
         // We only have settings from the data stream, so we expect to get only those back in the effective template
         Settings dataStreamSettings = randomSettings();
         DataStream dataStream = createDataStream(dataStreamSettings);
@@ -2600,7 +2600,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
-    public void testGetEffectiveIndexTemplate() {
+    public void testGetEffectiveIndexTemplate() throws IOException {
         // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
         Settings dataStreamSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")

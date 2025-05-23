@@ -32,7 +32,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -333,7 +332,7 @@ public class MetadataCreateDataStreamService {
             initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             Settings.EMPTY,
-            Mapping.EMPTY.toCompressedXContent(),
+            DataStream.EMPTY_MAPPINGS,
             hidden,
             false,
             isSystem,

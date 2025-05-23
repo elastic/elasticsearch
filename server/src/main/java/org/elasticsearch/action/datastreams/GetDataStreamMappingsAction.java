@@ -123,19 +123,15 @@ public class GetDataStreamMappingsAction extends ActionType<GetDataStreamMapping
             builder.startObject();
             builder.field("name", dataStreamName);
             Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(mappings.uncompressed(), true, XContentType.JSON).v2();
-            if (uncompressedMappings.isEmpty() == false) {
-                builder.field("mappings");
-                builder.map(uncompressedMappings);
-            }
+            builder.field("mappings");
+            builder.map(uncompressedMappings);
             Map<String, Object> uncompressedEffectiveMappings = XContentHelper.convertToMap(
                 effectiveMappings.uncompressed(),
                 true,
                 XContentType.JSON
             ).v2();
-            if (uncompressedEffectiveMappings.isEmpty() == false) {
-                builder.field("effective_mappings");
-                builder.map(uncompressedEffectiveMappings);
-            }
+            builder.field("effective_mappings");
+            builder.map(uncompressedEffectiveMappings);
             builder.endObject();
             return builder;
         }

@@ -94,6 +94,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+
+    public static final CompressedXContent EMPTY_MAPPINGS;
+    static {
+        try {
+            EMPTY_MAPPINGS = new CompressedXContent(Map.of());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -300,7 +310,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (in.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
             mappings = CompressedXContent.readCompressedString(in);
         } else {
-            mappings = Mapping.EMPTY.toCompressedXContent();
+            mappings = EMPTY_MAPPINGS;
         }
         return new DataStream(
             name,
@@ -409,7 +419,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata) throws IOException {
-        return getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
+        CompressedXContent mergedMappings = getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
+        if (mergedMappings == null) {
+            return EMPTY_MAPPINGS;
+        } else {
+            return mergedMappings;
+        }
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
@@ -1413,7 +1428,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (Long) args[2],
             (Map<String, Object>) args[3],
             args[17] == null ? Settings.EMPTY : (Settings) args[17],
-            args[18] == null ? Mapping.EMPTY.toCompressedXContent() : (CompressedXContent) args[18],
+            args[18] == null ? EMPTY_MAPPINGS : (CompressedXContent) args[18],
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
@@ -1919,7 +1934,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable
         private Map<String, Object> metadata = null;
         private Settings settings = Settings.EMPTY;
-        private CompressedXContent mappings = Mapping.EMPTY.toCompressedXContent();
+        private CompressedXContent mappings = EMPTY_MAPPINGS;
         private boolean hidden = false;
         private boolean replicated = false;
         private boolean system = false;

@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/127365
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
@@ -465,6 +462,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
   method: testForkWithStatsInAllBranches
   issue: https://github.com/elastic/elasticsearch/issues/128272
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test080ConfigurePasswordThroughEnvironmentVariableFile
+  issue: https://github.com/elastic/elasticsearch/issues/128075
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testInvalidTimestamp
+  issue: https://github.com/elastic/elasticsearch/issues/128284
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test120DockerLogsIncludeElasticsearchLogs
+  issue: https://github.com/elastic/elasticsearch/issues/128117
+- class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
+  method: test21AcceptsCustomPathInDocker
+  issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
+  method: testSymlinkUpdateTriggerReload
+  issue: https://github.com/elastic/elasticsearch/issues/128369
 
 # Examples:
 #

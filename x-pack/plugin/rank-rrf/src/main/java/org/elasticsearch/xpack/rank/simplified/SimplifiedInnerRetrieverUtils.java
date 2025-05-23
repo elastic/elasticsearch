@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.simplified;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -20,23 +21,24 @@ import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 public class SimplifiedInnerRetrieverUtils {
-    private static final String ALL_FIELDS_WILDCARD = "*";
-
     private SimplifiedInnerRetrieverUtils() {}
+
+    public record WeightedRetrieverSource(CompoundRetrieverBuilder.RetrieverSource retrieverSource, float weight) {}
 
     public static List<RetrieverBuilder> generateInnerRetrievers(
         List<String> fieldsAndWeights,
         String query,
         Collection<IndexMetadata> indicesMetadata,
-        BiFunction<List<CompoundRetrieverBuilder.RetrieverSource>, List<Float>, CompoundRetrieverBuilder<?>> innerNormalizerGenerator,
+        Function<List<WeightedRetrieverSource>, CompoundRetrieverBuilder<?>> innerNormalizerGenerator,
         @Nullable Consumer<Float> weightValidator
     ) {
         Map<String, Float> parsedFieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fieldsAndWeights);
@@ -58,7 +60,7 @@ public class SimplifiedInnerRetrieverUtils {
         Map<String, Float> parsedFieldsAndWeights,
         String query,
         IndexMetadata indexMetadata,
-        BiFunction<List<CompoundRetrieverBuilder.RetrieverSource>, List<Float>, CompoundRetrieverBuilder<?>> innerNormalizerGenerator,
+        Function<List<WeightedRetrieverSource>, CompoundRetrieverBuilder<?>> innerNormalizerGenerator,
         @Nullable Consumer<Float> weightValidator
     ) {
         Map<String, Float> fieldsAndWeightsToQuery = parsedFieldsAndWeights;
@@ -71,42 +73,55 @@ public class SimplifiedInnerRetrieverUtils {
             }
         }
 
-        if (fieldsAndWeightsToQuery.size() == 1 && fieldsAndWeightsToQuery.get(ALL_FIELDS_WILDCARD) != null) {
-            // TODO: Implement support for this case
-            throw new UnsupportedOperationException("All fields wildcard is not supported yet");
-        }
-
-        // TODO: Should we use a separate match query for each non-inference field, perform secondary normalization,
-        // and apply the boost after secondary normalization, like is done for inference fields?
-        List<CompoundRetrieverBuilder.RetrieverSource> inferenceFieldRetrievers = new ArrayList<>();
-        List<Float> inferenceFieldWeights = new ArrayList<>();
-        MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query)
-            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS);
-
+        Map<String, Float> inferenceFields = new HashMap<>();
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
         for (Map.Entry<String, Float> entry : fieldsAndWeightsToQuery.entrySet()) {
             String field = entry.getKey();
             Float weight = entry.getValue();
 
-            // TODO: Support glob matches for inference fields
-            InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(field);
-            if (inferenceFieldMetadata != null) {
-                RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(new MatchQueryBuilder(field, query));
-                inferenceFieldRetrievers.add(new CompoundRetrieverBuilder.RetrieverSource(retrieverBuilder, null));
-                inferenceFieldWeights.add(weight);
+            if (Regex.isMatchAllPattern(field)) {
+                indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFields, f, weight));
+            } else if (Regex.isSimpleMatchPattern(field)) {
+                indexInferenceFields.keySet()
+                    .stream()
+                    .filter(f -> Regex.simpleMatch(field, f))
+                    .forEach(f -> addToInferenceFieldsMap(inferenceFields, f, weight));
             } else {
-                nonInferenceFieldQueryBuilder.field(field, weight);
+                // No wildcards in field name
+                if (indexInferenceFields.containsKey(field)) {
+                    addToInferenceFieldsMap(inferenceFields, field, weight);
+                }
             }
         }
 
+        Map<String, Float> nonInferenceFields = new HashMap<>(fieldsAndWeightsToQuery);
+        nonInferenceFields.keySet().removeAll(inferenceFields.keySet());  // Remove all inference fields from non-inference fields map
+
         // TODO: Set index pre-filters on returned retrievers when we want to implement multi-index support
+        // TODO: Should we use a separate match query for each non-inference field, perform secondary normalization,
+        // and apply the boost after secondary normalization, like is done for inference fields?
         List<RetrieverBuilder> innerRetrievers = new ArrayList<>(2);
-        if (nonInferenceFieldQueryBuilder.fields().isEmpty() == false) {
+        if (nonInferenceFields.isEmpty() == false) {
+            MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query).type(
+                MultiMatchQueryBuilder.Type.MOST_FIELDS
+            ).fields(nonInferenceFields);
             innerRetrievers.add(new StandardRetrieverBuilder(nonInferenceFieldQueryBuilder));
         }
-        if (inferenceFieldRetrievers.isEmpty() == false) {
-            innerRetrievers.add(innerNormalizerGenerator.apply(inferenceFieldRetrievers, inferenceFieldWeights));
+        if (inferenceFields.isEmpty() == false) {
+            List<WeightedRetrieverSource> inferenceFieldRetrievers = new ArrayList<>(inferenceFields.size());
+            inferenceFields.forEach((f, w) -> {
+                RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(new MatchQueryBuilder(f, query));
+                inferenceFieldRetrievers.add(
+                    new WeightedRetrieverSource(new CompoundRetrieverBuilder.RetrieverSource(retrieverBuilder, null), w)
+                );
+            });
+
+            innerRetrievers.add(innerNormalizerGenerator.apply(inferenceFieldRetrievers));
         }
         return innerRetrievers;
+    }
+
+    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
+        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 }

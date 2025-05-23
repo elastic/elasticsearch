@@ -213,7 +213,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 fields,
                 query,
                 localIndicesMetadata.values(),
-                (r, w) -> new RRFRetrieverBuilder(r, rankWindowSize, rankConstant),
+                r -> {
+                    List<RetrieverSource> retrievers = r.stream()
+                        .map(SimplifiedInnerRetrieverUtils.WeightedRetrieverSource::retrieverSource)
+                        .toList();
+                    return new RRFRetrieverBuilder(retrievers, rankWindowSize, rankConstant);
+                },
                 w -> {
                     if (w != 1.0f) {
                         throw new IllegalArgumentException(

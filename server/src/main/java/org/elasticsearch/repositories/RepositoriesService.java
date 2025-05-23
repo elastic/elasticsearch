@@ -825,7 +825,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
-    @FixForMultiProject
+    @FixForMultiProject(description = "resolve the actual ProjectId")
     @Deprecated(forRemoval = true)
     private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
@@ -877,7 +877,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @return the started repository
      * @throws RepositoryException if repository type is not registered
      */
-    @FixForMultiProject
+    @FixForMultiProject(description = "resolve the actual ProjectId")
     @Deprecated(forRemoval = true)
     public Repository createRepository(RepositoryMetadata repositoryMetadata) {
         return createRepository(ProjectId.DEFAULT, repositoryMetadata);

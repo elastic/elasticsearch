@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryInfo;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
@@ -26,20 +25,6 @@ import java.util.Map;
 
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
-
-    @FixForMultiProject
-    @Deprecated(forRemoval = true)
-    public MeteredBlobStoreRepository(
-        RepositoryMetadata metadata,
-        NamedXContentRegistry namedXContentRegistry,
-        ClusterService clusterService,
-        BigArrays bigArrays,
-        RecoverySettings recoverySettings,
-        BlobPath basePath,
-        Map<String, String> location
-    ) {
-        this(ProjectId.DEFAULT, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, location);
-    }
 
     public MeteredBlobStoreRepository(
         ProjectId projectId,

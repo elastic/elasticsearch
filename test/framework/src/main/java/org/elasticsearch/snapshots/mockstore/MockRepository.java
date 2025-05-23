@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -90,6 +91,7 @@ public class MockRepository extends FsRepository {
             return Collections.singletonMap(
                 "mock",
                 (projectId, metadata) -> new MockRepository(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -183,6 +185,7 @@ public class MockRepository extends FsRepository {
     private volatile boolean failOnDeleteContainer = false;
 
     public MockRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -190,7 +193,7 @@ public class MockRepository extends FsRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(projectId, overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();

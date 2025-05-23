@@ -42,6 +42,7 @@ public class LatencySimulatingRepositoryPlugin extends Plugin implements Reposit
         return Map.of(
             TYPE,
             (projectId, metadata) -> new LatencySimulatingBlobStoreRepository(
+                projectId,
                 metadata,
                 env,
                 namedXContentRegistry,

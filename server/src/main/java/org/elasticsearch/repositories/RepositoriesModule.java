@@ -54,7 +54,7 @@ public final class RepositoriesModule {
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
-            (projectId, metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+            (projectId, metadata) -> new FsRepository(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
         );
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {

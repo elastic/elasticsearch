@@ -66,6 +66,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageService storageService = azureStoreService.get();
             assert storageService != null;
             return new AzureRepository(
+                projectId,
                 metadata,
                 namedXContentRegistry,
                 storageService,

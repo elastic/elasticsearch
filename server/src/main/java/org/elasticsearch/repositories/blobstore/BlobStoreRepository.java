@@ -481,19 +481,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ThrottledTaskRunner staleBlobDeleteRunner;
 
-    @FixForMultiProject
-    @Deprecated(forRemoval = true)
-    protected BlobStoreRepository(
-        final RepositoryMetadata metadata,
-        final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService,
-        final BigArrays bigArrays,
-        final RecoverySettings recoverySettings,
-        final BlobPath basePath
-    ) {
-        this(ProjectId.DEFAULT, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
-    }
-
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings

@@ -111,6 +111,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         return new CcrRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             mock(Client.class),
             Settings.EMPTY,

@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -50,6 +51,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         );
 
         public UnstableRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -57,7 +59,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             List<String> unstableNodes = UNSTABLE_NODES.get(metadata.settings());
             if (unstableNodes.contains(clusterService.getNodeName())) {
                 throw new RepositoryException(metadata.name(), "Failed to create repository: current node is not stable");
@@ -77,6 +79,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
                 return Collections.singletonMap(
                     TYPE,
                     (projectId, metadata) -> new UnstableRepository(
+                        projectId,
                         metadata,
                         env,
                         namedXContentRegistry,

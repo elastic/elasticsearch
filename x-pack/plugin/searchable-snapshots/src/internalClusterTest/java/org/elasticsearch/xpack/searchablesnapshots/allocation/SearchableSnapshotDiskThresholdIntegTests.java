@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -381,6 +382,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             return Collections.singletonMap(
                 TYPE,
                 (projectId, metadata) -> new CustomMockRepository(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -397,6 +399,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         private static final CountDownLatch RESTORE_SHARD_LATCH = new CountDownLatch(1);
 
         public CustomMockRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -404,7 +407,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         private void unlockRestore() {

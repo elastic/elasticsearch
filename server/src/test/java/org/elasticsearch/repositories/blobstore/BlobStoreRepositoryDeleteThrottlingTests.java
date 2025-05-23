@@ -76,6 +76,7 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
             return Collections.singletonMap(
                 TEST_REPO_TYPE,
                 (projectId, metadata) -> new FsRepository(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,

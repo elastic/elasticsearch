@@ -455,6 +455,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             return Collections.singletonMap(
                 "tracking",
                 (projectId, metadata) -> new FsRepository(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,

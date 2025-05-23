@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.lucene.bwc;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +68,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
             return Map.of(
                 FAKE_VERSIONS_TYPE,
                 (projectId, metadata) -> new FakeVersionsRepo(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -80,6 +82,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
         // fakes an old index version format to activate license checks
         private static class FakeVersionsRepo extends FsRepository {
             FakeVersionsRepo(
+                ProjectId projectId,
                 RepositoryMetadata metadata,
                 Environment env,
                 NamedXContentRegistry namedXContentRegistry,
@@ -87,7 +90,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings
             ) {
-                super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+                super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             }
 
             @Override

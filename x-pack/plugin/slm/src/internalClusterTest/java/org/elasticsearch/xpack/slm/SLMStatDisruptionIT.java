@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -138,6 +139,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             return Map.of(
                 TestDelayedRepo.TYPE,
                 (projectId, metadata) -> new TestDelayedRepo(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -164,6 +166,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         private final Runnable delayFn;
 
         protected TestDelayedRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
@@ -172,7 +175,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             Runnable delayFn
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.delayFn = delayFn;
         }
 
@@ -208,6 +211,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             return Map.of(
                 TestRestartBeforeListenersRepo.TYPE,
                 (projectId, metadata) -> new TestRestartBeforeListenersRepo(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -231,6 +235,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         private final Runnable beforeResponseRunnable;
 
         protected TestRestartBeforeListenersRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
@@ -239,7 +244,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             Runnable beforeResponseRunnable
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.beforeResponseRunnable = beforeResponseRunnable;
         }
 

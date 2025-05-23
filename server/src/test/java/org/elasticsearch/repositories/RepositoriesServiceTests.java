@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -124,9 +125,9 @@ public class RepositoriesServiceTests extends ESTestCase {
             VerificationFailRepository.TYPE,
             (projectId, metadata3) -> new VerificationFailRepository(metadata3),
             MeteredRepositoryTypeA.TYPE,
-            (projectId, metadata) -> new MeteredRepositoryTypeA(metadata, clusterService),
+            (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            (projectId, metadata) -> new MeteredRepositoryTypeB(metadata, clusterService)
+            (projectId, metadata) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
@@ -685,8 +686,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13)));
 
-        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeA(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
@@ -712,8 +714,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-b";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new BlobStoreActionStats(20, 25)));
 
-        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeB(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,

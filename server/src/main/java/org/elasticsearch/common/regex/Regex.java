@@ -73,9 +73,9 @@ public class Regex {
     }
 
     /**
-     * Return an Automaton that matches the union of the provided patterns.
+     * Return an non-determinized Automaton that matches the union of the provided patterns.
      */
-    public static Automaton simpleMatchToAutomaton(String... patterns) {
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String... patterns) {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
@@ -113,7 +113,14 @@ public class Regex {
             prefixAutomaton.add(Automata.makeAnyString());
             automata.add(Operations.concatenate(prefixAutomaton));
         }
-        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.union(automata);
+    }
+
+    /**
+     * Return a deterministic Automaton that matches the union of the provided patterns.
+     */
+    public static Automaton simpleMatchToAutomaton(String... patterns) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(patterns), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

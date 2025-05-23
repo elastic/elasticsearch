@@ -10,9 +10,12 @@ package org.elasticsearch.common.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Random;
 import java.util.function.Predicate;
@@ -20,6 +23,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
@@ -249,5 +253,15 @@ public class RegexTests extends ESTestCase {
         for (int i = 0; i < patterns.length / 2; i++) {
             assertTrue(predicate.test(patterns[i]));
         }
+    }
+
+    public void testIntersectNonDeterminizedAutomaton() {
+        String[] patterns = randomArray(20, 100, size -> new String[size], () -> "*" + randomAlphanumericOfLength(10) + "*");
+        Automaton a = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        Automaton b = Regex.simpleMatchToNonDeterminizedAutomaton(Arrays.copyOfRange(patterns, patterns.length / 2, patterns.length));
+        assertFalse(Operations.isEmpty(Operations.intersection(a, b)));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> assertMatchesAll(a, "my_test"));
+        assertThat(exc.getMessage(), containsString("deterministic"));
+        expectThrows(TooComplexToDeterminizeException.class, () -> Regex.simpleMatchToAutomaton(patterns));
     }
 }

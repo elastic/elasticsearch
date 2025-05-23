@@ -150,7 +150,7 @@ public class PushQueriesIT extends ESRestTestCase {
                  * single_value_match is here because there are extra documents hiding in the index
                  * that don't have the `foo` field.
                  */
-                List.of("#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]");
+                List.of("#(#foo:[1 TO 1] #single_value_match(foo)) #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]");
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
         boolean filterInCompute = switch (type) {

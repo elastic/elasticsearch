@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
+import java.nio.file.Path
+
 class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
     def "works"() {
         given:
@@ -52,7 +54,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         def location = Map.of(
             "module", "com.example",
-            "representative_class", "com/example/Example.class"
+            "representative_class", Path.of("com", "example", "Example.class").toString()
         )
         def expectedOutput = Map.of(
             "component", "example-component",

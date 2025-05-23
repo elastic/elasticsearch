@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.wildcardToJavaPattern;
-
 import static org.hamcrest.Matchers.is;
 
 public class StringUtilsTests extends ESTestCase {

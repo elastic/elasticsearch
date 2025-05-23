@@ -2322,7 +2322,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
     }
 
-
     public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test

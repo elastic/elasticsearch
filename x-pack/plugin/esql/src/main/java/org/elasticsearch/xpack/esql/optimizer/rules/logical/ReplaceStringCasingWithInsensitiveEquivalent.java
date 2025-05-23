@@ -80,9 +80,7 @@ public class ReplaceStringCasingWithInsensitiveEquivalent extends OptimizerRules
         Expression e = regexMatch;
         if (regexMatch.field() instanceof ChangeCase changeCase) {
             var pattern = regexMatch.pattern().pattern();
-            e = changeCase.caseType().matchesCase(pattern)
-                ? insensitiveRegexMatch(regexMatch)
-                : Literal.of(regexMatch, Boolean.FALSE);
+            e = changeCase.caseType().matchesCase(pattern) ? insensitiveRegexMatch(regexMatch) : Literal.of(regexMatch, Boolean.FALSE);
         }
         return e;
     }

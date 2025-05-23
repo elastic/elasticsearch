@@ -212,7 +212,14 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
         ) {
             return Map.of(
                 REPO_TYPE,
-                metadata -> new TestRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new TestRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }

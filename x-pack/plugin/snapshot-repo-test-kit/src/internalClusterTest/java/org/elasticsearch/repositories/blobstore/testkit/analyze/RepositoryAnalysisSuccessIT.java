@@ -187,7 +187,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                metadata -> new AssertingRepository(
+                (projectId, metadata) -> new AssertingRepository(
                     metadata,
                     namedXContentRegistry,
                     clusterService,

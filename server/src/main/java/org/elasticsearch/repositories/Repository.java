@@ -58,9 +58,11 @@ public interface Repository extends LifecycleComponent {
     interface Factory {
         /**
          * Constructs a repository.
-         * @param metadata    metadata for the repository including name and settings
+         *
+         * @param projectId
+         * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(RepositoryMetadata metadata) throws Exception;
+        Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception;
 
         /**
          * Constructs a repository.
@@ -70,11 +72,7 @@ public interface Repository extends LifecycleComponent {
          */
         default Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
             throws Exception {
-            return create(metadata, typeLookup);
-        }
-
-        default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
-            return create(metadata);
+            return create(projectId, metadata);
         }
     }
 

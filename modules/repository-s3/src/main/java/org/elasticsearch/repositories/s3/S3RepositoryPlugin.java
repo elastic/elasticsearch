@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -109,18 +108,18 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RepositoriesMetrics repositoriesMetrics
     ) {
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
-        return Collections.singletonMap(S3Repository.TYPE, new Repository.Factory() {
-            @Override
-            public Repository create(RepositoryMetadata metadata) throws Exception {
-                throw new IllegalStateException("Must use the create(ProjectId, RepositoryMetadata) method");
-            }
-
-            @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
-                throws Exception {
-                return createRepository(projectId, metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
-            }
-        });
+        return Collections.singletonMap(
+            S3Repository.TYPE,
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            )
+        );
     }
 
     @Override

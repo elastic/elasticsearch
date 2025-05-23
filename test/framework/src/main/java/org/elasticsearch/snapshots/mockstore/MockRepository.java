@@ -89,7 +89,14 @@ public class MockRepository extends FsRepository {
         ) {
             return Collections.singletonMap(
                 "mock",
-                (metadata) -> new MockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new MockRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
 

@@ -75,7 +75,14 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         ) {
             return Collections.singletonMap(
                 TEST_REPO_TYPE,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
+                (projectId, metadata) -> new FsRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                ) {
                     @Override
                     protected BlobStore createBlobStore() throws Exception {
                         return new ConcurrencyLimitingBlobStore(super.createBlobStore());

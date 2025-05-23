@@ -119,15 +119,23 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
-                    if (doDelay.get()) {
-                        try {
-                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                (projectId, metadata) -> new TestDelayedRepo(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    () -> {
+                        if (doDelay.get()) {
+                            try {
+                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
-                })
+                )
             );
         }
     }

@@ -76,7 +76,14 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
             ) {
                 return Collections.singletonMap(
                     TYPE,
-                    (metadata) -> new UnstableRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                    (projectId, metadata) -> new UnstableRepository(
+                        metadata,
+                        env,
+                        namedXContentRegistry,
+                        clusterService,
+                        bigArrays,
+                        recoverySettings
+                    )
                 );
             }
 

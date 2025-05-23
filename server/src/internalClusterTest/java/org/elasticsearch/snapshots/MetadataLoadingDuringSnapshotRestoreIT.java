@@ -216,7 +216,14 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         ) {
             return Collections.singletonMap(
                 TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new CountingMockRepository(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }

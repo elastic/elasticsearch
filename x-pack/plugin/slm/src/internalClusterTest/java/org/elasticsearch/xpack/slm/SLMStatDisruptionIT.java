@@ -137,16 +137,24 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
-                    // Only delay the first request
-                    if (doDelay.getAndSet(false)) {
-                        try {
-                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                (projectId, metadata) -> new TestDelayedRepo(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    () -> {
+                        // Only delay the first request
+                        if (doDelay.getAndSet(false)) {
+                            try {
+                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
-                })
+                )
             );
         }
     }
@@ -199,7 +207,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestRestartBeforeListenersRepo.TYPE,
-                metadata -> new TestRestartBeforeListenersRepo(
+                (projectId, metadata) -> new TestRestartBeforeListenersRepo(
                     metadata,
                     env,
                     namedXContentRegistry,

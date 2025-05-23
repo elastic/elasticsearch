@@ -66,7 +66,14 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
         ) {
             return Map.of(
                 FAKE_VERSIONS_TYPE,
-                metadata -> new FakeVersionsRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new FakeVersionsRepo(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
 

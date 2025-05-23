@@ -118,15 +118,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            TestRepository::new,
+            (projectId, metadata1) -> new TestRepository(metadata1),
             UnstableRepository.TYPE,
-            UnstableRepository::new,
+            (projectId, metadata2) -> new UnstableRepository(metadata2),
             VerificationFailRepository.TYPE,
-            VerificationFailRepository::new,
+            (projectId, metadata3) -> new VerificationFailRepository(metadata3),
             MeteredRepositoryTypeA.TYPE,
-            metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+            (projectId, metadata) -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            metadata -> new MeteredRepositoryTypeB(metadata, clusterService)
+            (projectId, metadata) -> new MeteredRepositoryTypeB(metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,

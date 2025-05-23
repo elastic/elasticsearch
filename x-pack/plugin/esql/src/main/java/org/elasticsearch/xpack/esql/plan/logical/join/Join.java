@@ -284,11 +284,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private static boolean comparableTypes(Attribute left, Attribute right) {
-        if (left.dataType().isNumeric() && right.dataType().isNumeric()) {
+        DataType leftType = left.dataType();
+        DataType rightType = right.dataType();
+        if (leftType.isNumeric() && rightType.isNumeric()) {
             // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
-            return commonType(left.dataType(), right.dataType()) != null;
-        } else {
-            return left.dataType().noText() == right.dataType().noText();
+            return commonType(leftType, rightType) != null;
         }
+        return leftType.noText() == rightType.noText();
     }
 }

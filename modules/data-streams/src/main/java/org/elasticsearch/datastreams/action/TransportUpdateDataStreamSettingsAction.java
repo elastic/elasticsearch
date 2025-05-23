@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -54,7 +55,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     UpdateDataStreamSettingsAction.Request,
     UpdateDataStreamSettingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamSettingsAction.class);
-    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name");
+    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name", IndexSettings.PREFER_ILM);
     private static final Set<String> APPLY_TO_DATA_STREAM_ONLY = Set.of("index.number_of_shards");
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final MetadataUpdateSettingsService updateSettingsService;

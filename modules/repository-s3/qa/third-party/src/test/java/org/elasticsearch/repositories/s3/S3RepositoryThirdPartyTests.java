@@ -18,7 +18,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -148,7 +147,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
-                ProjectId.DEFAULT,
+                randomProjectIdOrDefault(),
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),

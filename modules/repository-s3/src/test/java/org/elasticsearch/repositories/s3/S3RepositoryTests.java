@@ -12,7 +12,6 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -154,7 +153,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
         return new S3Repository(
-            ProjectId.DEFAULT,
+            randomProjectIdOrDefault(),
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(mock(Environment.class), mock(ResourceWatcherService.class)),

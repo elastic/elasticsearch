@@ -53,7 +53,6 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -62,7 +61,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -2347,26 +2345,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsEmptyInputArray() {
         return false;
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        return new BlockReaderSupport(true, true, mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        DenseVectorFieldType ft = (DenseVectorFieldType) blockReaderSupport.mapper().fieldType(blockReaderSupport.loaderFieldName());
-        if (ft.getElementType() != ElementType.FLOAT) {
-            return null;
-        }
-
-        return Function.identity();
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return equalTo(((Double) expected).floatValue());
     }
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {

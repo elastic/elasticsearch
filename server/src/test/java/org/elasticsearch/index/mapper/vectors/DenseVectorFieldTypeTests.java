@@ -672,7 +672,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsHnswQuantized(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
 
             // Test with a filter search threshold

@@ -50,16 +50,22 @@ public class BulkInferenceExecutor {
         private final ActionListener<InferenceAction.Response[]> completionListener;
         private final AtomicBoolean responseSent = new AtomicBoolean(false);
 
-        private ResponseHandler(BulkInferenceExecutionState bulkExecutionState, ActionListener<InferenceAction.Response[]> completionListener) {
+        private ResponseHandler(
+            BulkInferenceExecutionState bulkExecutionState,
+            ActionListener<InferenceAction.Response[]> completionListener
+        ) {
             this.bulkExecutionState = bulkExecutionState;
             this.completionListener = completionListener;
         }
 
         ActionListener<InferenceAction.Response> inferenceResponseListener(long seqNo) {
-            return ActionListener.runAfter(ActionListener.wrap(
-                r -> bulkExecutionState.onInferenceResponse(seqNo, r),
-                e -> bulkExecutionState.onInferenceException(seqNo, e)
-            ), this::persistPendingResponses);
+            return ActionListener.runAfter(
+                ActionListener.wrap(
+                    r -> bulkExecutionState.onInferenceResponse(seqNo, r),
+                    e -> bulkExecutionState.onInferenceException(seqNo, e)
+                ),
+                this::persistPendingResponses
+            );
         }
 
         private void persistPendingResponses() {

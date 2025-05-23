@@ -41,6 +41,7 @@ steps:
             image:
               - windows-2019
               - windows-2022
+              - windows-2025
             GRADLE_TASK:
               - checkPart1
               - checkPart2

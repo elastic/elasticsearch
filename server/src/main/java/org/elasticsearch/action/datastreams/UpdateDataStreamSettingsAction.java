@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -47,10 +48,16 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
         private final Settings settings;
         private String[] dataStreamNames = Strings.EMPTY_ARRAY;
+        private final boolean dryRun;
 
         public Request(Settings settings, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            this(settings, false, masterNodeTimeout, ackTimeout);
+        }
+
+        public Request(Settings settings, boolean dryRun, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
             super(masterNodeTimeout, ackTimeout);
             this.settings = settings;
+            this.dryRun = dryRun;
         }
 
         @Override
@@ -63,6 +70,10 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             return settings;
         }
 
+        public boolean isDryRun() {
+            return dryRun;
+        }
+
         @Override
         public boolean includeDataStreams() {
             return true;
@@ -72,6 +83,11 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super(in);
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)) {
+                this.dryRun = in.readBoolean();
+            } else {
+                this.dryRun = false;
+            }
         }
 
         @Override
@@ -79,6 +95,9 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super.writeTo(out);
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)) {
+                out.writeBoolean(dryRun);
+            }
         }
 
         @Override
@@ -103,13 +122,14 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             Request request = (Request) o;
             return Arrays.equals(dataStreamNames, request.dataStreamNames)
                 && settings.equals(request.settings)
+                && dryRun == request.dryRun
                 && Objects.equals(masterNodeTimeout(), request.masterNodeTimeout())
                 && Objects.equals(ackTimeout(), request.ackTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(dataStreamNames), settings, masterNodeTimeout(), ackTimeout());
+            return Objects.hash(Arrays.hashCode(dataStreamNames), settings, dryRun, masterNodeTimeout(), ackTimeout());
         }
 
     }

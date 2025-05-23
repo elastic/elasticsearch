@@ -221,7 +221,7 @@ public class JobDataDeleter {
         try {
             indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indicesToQuery);
         } catch (Exception e) {
-            logger.error("Failed to get writable indices for [{}]", jobId, e);
+            logger.error("Failed to get writable indices for [" + jobId + "]", e);
             listener.onFailure(e);
             return new String[0];
         }

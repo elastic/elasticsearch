@@ -1,39 +1,54 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
+    public static final String PRUNING_CONFIG_FIELD = "pruning_config";
+
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
     public static final ParseField TOKENS_WEIGHT_THRESHOLD = new ParseField("tokens_weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
 
     // Tokens whose frequency is more than 5 times the average frequency of all tokens in the specified field are considered outliers.
     public static final float DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD = 5;
+    public static final float MIN_TOKENS_FREQ_RATIO_THRESHOLD = 1;
     public static final float MAX_TOKENS_FREQ_RATIO_THRESHOLD = 100;
+
     // A token's weight should be > 40% of the best weight in the query to be considered significant.
     public static final float DEFAULT_TOKENS_WEIGHT_THRESHOLD = 0.4f;
+    public static final float MIN_TOKENS_WEIGHT_THRESHOLD = 0.0f;
+    public static final float MAX_TOKENS_WEIGHT_THRESHOLD = 1.0f;
 
     private final float tokensFreqRatioThreshold;
     private final float tokensWeightThreshold;
@@ -150,7 +165,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 ).contains(currentFieldName) == false) {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD + "] unknown token [" + currentFieldName + "]"
                     );
                 }
             } else if (token.isValue()) {
@@ -163,16 +178,53 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD + "] does not support [" + currentFieldName + "]"
                     );
                 }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                    "[" + PRUNING_CONFIG_FIELD + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                 );
             }
         }
         return new TokenPruningConfig(ratioThreshold, weightThreshold, onlyScorePrunedTokens);
+    }
+
+    private static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
+        PRUNING_CONFIG_FIELD,
+        args -> new TokenPruningConfig(
+            args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float) args[0],
+            args[1] == null ? DEFAULT_TOKENS_WEIGHT_THRESHOLD : (Float) args[1],
+            args[2] != null && (Boolean) args[2]
+        )
+    );
+
+    static {
+        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, TOKENS_FREQ_RATIO_THRESHOLD);
+        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_WEIGHT_THRESHOLD, TOKENS_WEIGHT_THRESHOLD);
+        PARSER.declareBooleanOrNull(optionalConstructorArg(), false, ONLY_SCORE_PRUNED_TOKENS_FIELD);
+    }
+
+    public static TokenPruningConfig parseFromMap(Map<String, Object> pruningConfigMap) {
+        if (pruningConfigMap == null) {
+            return null;
+        }
+
+        try {
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                pruningConfigMap,
+                XContentType.JSON
+            );
+
+            return PARSER.parse(parser, null);
+        } catch (Exception exc) {
+            if (exc.getCause() != null && exc.getCause().getClass().equals(IllegalArgumentException.class)) {
+                throw new ElasticsearchException(exc.getCause());
+            }
+            throw new ElasticsearchException(exc);
+        }
     }
 }

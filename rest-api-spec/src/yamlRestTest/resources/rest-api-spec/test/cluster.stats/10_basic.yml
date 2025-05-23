@@ -1,3 +1,15 @@
+
+---
+teardown:
+  # ensure indices are cleaned up after each test
+  # mainly for the sparse vector tests
+  - do:
+      indices.delete:
+        index: ["test1", "test2"]
+        ignore: 404
+  - do:
+      indices.refresh: { }
+
 ---
 "cluster stats test":
   - do:
@@ -358,6 +370,7 @@
   - requires:
       cluster_features: [ "gte_v8.15.0" ]
       reason: "sparse vector stats added in 8.15"
+
   - do:
       indices.create:
         index: test1

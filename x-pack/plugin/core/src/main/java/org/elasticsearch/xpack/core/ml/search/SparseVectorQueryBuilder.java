@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -40,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -61,7 +64,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
     private final String query;
-    private final boolean shouldPruneTokens;
+    private final Boolean shouldPruneTokens;
 
     private final SetOnce<TextExpansionResults> weightedTokensSupplier;
 
@@ -81,13 +84,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a [" + FIELD_FIELD.getPreferredName() + "]");
-        this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
+        this.shouldPruneTokens = shouldPruneTokens;
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
         this.query = query;
-        this.tokenPruningConfig = (tokenPruningConfig != null
-            ? tokenPruningConfig
-            : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
+        this.tokenPruningConfig = tokenPruningConfig;
         this.weightedTokensSupplier = null;
 
         // Preserve BWC error messaging
@@ -124,7 +125,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.shouldPruneTokens = in.readBoolean();
+        if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
+            || in.getTransportVersion().onOrAfter(TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+            this.shouldPruneTokens = in.readOptionalBoolean();
+        } else {
+            this.shouldPruneTokens = in.readBoolean();
+        }
         this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
         this.query = in.readOptionalString();
@@ -158,7 +164,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return query;
     }
 
-    public boolean shouldPruneTokens() {
+    public Boolean shouldPruneTokens() {
         return shouldPruneTokens;
     }
 
@@ -173,7 +179,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         out.writeString(fieldName);
-        out.writeBoolean(shouldPruneTokens);
+        if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
+            || out.getTransportVersion().onOrAfter(TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+            out.writeOptionalBoolean(shouldPruneTokens);
+        } else {
+            out.writeBoolean(shouldPruneTokens != null && shouldPruneTokens);
+        }
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
         out.writeOptionalString(query);
@@ -196,7 +207,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             }
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        if (shouldPruneTokens != null) {
+            builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+        }
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);
         }
@@ -222,8 +235,23 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        return (shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
+        Boolean pruneTokensToUse = shouldPruneTokens;
+        TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
+
+        // if the query options for pruning are not set, we need to check the index options for this field
+        // and use those if set - however, only if the index was created after we added this support.
+        if (ft.getClass().equals(SparseVectorFieldMapper.SparseVectorFieldType.class)
+            && context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType = (SparseVectorFieldMapper.SparseVectorFieldType) ft;
+
+            if (asSVFieldType.getIndexOptions() != null) {
+                pruneTokensToUse = pruneTokensToUse == null ? asSVFieldType.getIndexOptions().getPrune() : pruneTokensToUse;
+                pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
+            }
+        }
+
+        return (pruneTokensToUse != null && pruneTokensToUse)
+            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningConfigToUse, queryVectors, ft, context)
             : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 
@@ -231,7 +259,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (queryVectors != null) {
             return this;
-        } else if (weightedTokensSupplier != null) {
+        }
+
+        if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
                 return this; // No results yet

@@ -299,3 +299,21 @@ r:double           | author: text
 4.670000076293945  | Walter Scheps            
 4.559999942779541  | J.R.R. Tolkien           
 ;
+
+testQstrInStatsWithGroupingBy
+required_capability: full_text_functions_in_stats_where
+FROM airports 
+| STATS c = COUNT(*) where qstr("country: \"United States\"") BY scalerank
+| SORT scalerank desc
+;
+
+c: long     |   scalerank: long   
+0              | 9              
+44             | 8              
+10             | 7              
+28             | 6              
+10             | 5              
+12             | 4              
+10             | 3              
+15             | 2              
+;

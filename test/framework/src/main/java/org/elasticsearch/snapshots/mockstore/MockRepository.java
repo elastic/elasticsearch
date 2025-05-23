@@ -193,7 +193,15 @@ public class MockRepository extends FsRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(projectId, overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(
+            projectId,
+            overrideSettings(metadata, environment),
+            environment,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings
+        );
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();

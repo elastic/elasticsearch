@@ -153,7 +153,14 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final SingleResultDeduplicator<ClusterState> csDeduplicator;
 
-    public CcrRepository(ProjectId projectId,  RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
+    public CcrRepository(
+        ProjectId projectId,
+        RepositoryMetadata metadata,
+        Client client,
+        Settings settings,
+        CcrSettings ccrSettings,
+        ThreadPool threadPool
+    ) {
         this.projectId = projectId;
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;

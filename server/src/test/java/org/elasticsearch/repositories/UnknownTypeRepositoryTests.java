@@ -16,7 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 
 public class UnknownTypeRepositoryTests extends ESTestCase {
 
-    private UnknownTypeRepository repository = new UnknownTypeRepository(randomProjectIdOrDefault(), new RepositoryMetadata("name", "type", Settings.EMPTY));
+    private UnknownTypeRepository repository = new UnknownTypeRepository(
+        randomProjectIdOrDefault(),
+        new RepositoryMetadata("name", "type", Settings.EMPTY)
+    );
 
     public void testShouldThrowWhenGettingMetadata() {
         expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));

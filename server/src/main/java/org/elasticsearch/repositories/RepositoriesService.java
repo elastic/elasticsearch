@@ -69,7 +69,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -846,7 +845,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
-        @FixForMultiProject(description = "should defaultFactory handle projectId?")
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
             return defaultFactory.apply(projectId, repositoryMetadata);

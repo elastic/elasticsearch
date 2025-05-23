@@ -68,7 +68,9 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
 
     public void testGetHealthUnknownType() {
         var repo = createRepositoryMetadata();
-        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(randomProjectIdOrDefault(), repo)));
+        when(repositoriesService.getRepositories()).thenReturn(
+            Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(randomProjectIdOrDefault(), repo))
+        );
 
         var health = repositoriesHealthTracker.determineCurrentHealth();
 

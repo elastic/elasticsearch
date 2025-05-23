@@ -572,7 +572,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             BlobPath basePath
         ) {
-            super(projectId,metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         }
 
         void setBlobStore(BlobStore blobStore) {

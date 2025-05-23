@@ -50,8 +50,21 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id("com.gradleup.nmcp.aggregation").version("0.1.4")
+}
+version = VersionProperties.elasticsearch
+nmcpAggregation {
+  centralPortal {
+    username = 'blubb' // TODO("Create a token username at https://central.sonatype.com/account")
+    password = 'blubb' // TODO("Create a token password at https://central.sonatype.com/account")
+    // publish manually from the portal
+    publishingType = "USER_MANAGED"
+  }
 }
 
+dependencies {
+  nmcpAggregation(project(":libs:cli"))
+}
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability

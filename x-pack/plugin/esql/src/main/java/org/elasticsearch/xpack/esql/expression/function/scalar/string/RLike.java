@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -37,6 +39,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
+    public static final String NAME = "RLIKE";
 
     @FunctionInfo(returnType = "boolean", description = """
         Use `RLIKE` to filter data based on string patterns using using
@@ -52,13 +55,13 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
-        """, operator = "RLIKE", examples = @Example(file = "docs", tag = "rlike"))
+        """, operator = NAME, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
         @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern pattern
     ) {
-        super(source, value, pattern);
+        this(source, value, pattern, false);
     }
 
     public RLike(Source source, Expression field, RLikePattern rLikePattern, boolean caseInsensitive) {
@@ -66,7 +69,12 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     private RLike(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), new RLikePattern(in.readString()));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            new RLikePattern(in.readString()),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean()
+        );
     }
 
     @Override
@@ -74,6 +82,16 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeString(pattern().asJavaRegex());
+        if (caseInsensitive() && out.getTransportVersion().before(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {
+            // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
+            // the serialization of the boolean would result in wrong results.
+            throw new EsqlIllegalArgumentException(
+                NAME + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                out.getTransportVersion(),
+                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
+            );
+        }
+        out.writeBoolean(caseInsensitive());
     }
 
     @Override
@@ -103,7 +121,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
+        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton(caseInsensitive()));
     }
 
     @Override
@@ -121,5 +139,10 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     @Override
     public Expression singleValueField() {
         return field();
+    }
+
+    @Override
+    public String nodeString() {
+        return NAME + "(" + field().nodeString() + ", \"" + pattern().pattern() + "\", " + caseInsensitive() + ")";
     }
 }

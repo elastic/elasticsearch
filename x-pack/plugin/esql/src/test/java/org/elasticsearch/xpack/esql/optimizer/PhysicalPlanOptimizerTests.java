@@ -2201,6 +2201,128 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.query(), nullValue());
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *      ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *          ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"esql_single_value":{"field":"first_name","next":{"regexp":{"first_name":
+     *       {"value":"foo*","flags_value":65791,"case_insensitive":true,"max_determinized_states":10000,"boost":0.0}}},
+     *       "source":"TO_LOWER(first_name) RLIKE \"foo*\"@2:9"}}][_doc{f}#25], limit[1000], sort[] estimatedRowSize[332]
+     */
+    private void doTestPushDownCaseChangeRegexMatch(String query, String expected) {
+        var plan = physicalPlan(query);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(stripThrough(singleValue.toString()), is(stripThrough(expected)));
+    }
+
+    public void testPushDownLowerCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) RLIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "foo*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) RLIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) RLIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "FOO*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) RLIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownLowerCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) LIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "foo*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) LIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "FOO*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) LIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+
     public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test

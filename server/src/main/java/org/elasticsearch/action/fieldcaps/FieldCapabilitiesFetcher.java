@@ -273,20 +273,9 @@ class FieldCapabilitiesFetcher {
             // Check if the parent field contains sub-fields
             if (context.getFieldType(parentField) == null) {
                 // No field type, it must be an object field
-                String type = context.nestedLookup().getNestedMappers().get(parentField) != null
-                    ? "nested"
-                    : "object";
+                String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
 
-                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                    parentField,
-                    type,
-                    false,
-                    false,
-                    false,
-                    false,
-                    null,
-                    Map.of()
-                );
+                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type, false, false, false, false, null, Map.of());
                 responseMap.put(parentField, fieldCap);
             }
 

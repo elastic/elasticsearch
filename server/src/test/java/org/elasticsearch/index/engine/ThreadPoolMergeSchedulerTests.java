@@ -68,8 +68,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testMergesExecuteInSizeOrder() throws IOException {
         DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()
-                .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0")
-                .build();
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0")
+            .build();
         nodeEnvironment = newNodeEnvironment(settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
             .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);

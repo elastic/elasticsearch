@@ -438,7 +438,17 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                for (ExtractField e : extractFields) {
+                    if (e.ft.name().equals(name)) {
+                        return e.ft;
+                    }
+                }
+                throw new IllegalArgumentException("Unknown field [" + name + "]");
+            }
+        };
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
 
         var fieldInfos = extractFields.stream()

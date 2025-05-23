@@ -878,7 +878,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V6(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1013,7 +1013,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V3(Build.current().isSnapshot()),
+        FORK_V4(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.

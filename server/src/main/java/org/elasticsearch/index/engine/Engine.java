@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
@@ -86,6 +87,7 @@ import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,6 +109,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -144,6 +147,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -173,6 +177,9 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
     }
@@ -443,11 +450,18 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final PauseLock throttlingLock;
+        private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
+
+        public IndexThrottle(boolean pause) {
+            throttlingLock = new PauseLock(pause ? 0 : 1);
+            lockReference = new ReleasableLock(throttlingLock);
+        }
 
         public Releasable acquireThrottle() {
             return lock.acquire();
@@ -457,12 +471,15 @@ public abstract class Engine implements Closeable {
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
+            throttlingLock.throttle();
             lock = lockReference;
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
+            throttlingLock.unthrottle();
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
@@ -549,6 +566,58 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
+        }
+    }
+
+    /* A lock implementation that allows us to control how many threads can take the lock
+     * In particular, this is used to set the number of allowed threads to 1 or 0
+     * when index throttling is activated.
+     */
+    protected static final class PauseLock implements Lock {
+        private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        private final int allowThreads;
+
+        public PauseLock(int allowThreads) {
+            this.allowThreads = allowThreads;
+        }
+
+        public void lock() {
+            semaphore.acquireUninterruptibly();
+        }
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+            semaphore.acquire();
+        }
+
+        @Override
+        public void unlock() {
+            semaphore.release();
+        }
+
+        @Override
+        public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
+
+        public void throttle() {
+            assert semaphore.availablePermits() == Integer.MAX_VALUE;
+            semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
+        }
+
+        public void unthrottle() {
+            assert semaphore.availablePermits() <= allowThreads;
+            semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
     }
 

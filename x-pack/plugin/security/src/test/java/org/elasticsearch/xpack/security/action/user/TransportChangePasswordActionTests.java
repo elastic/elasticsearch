@@ -62,9 +62,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
             .build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
-
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),

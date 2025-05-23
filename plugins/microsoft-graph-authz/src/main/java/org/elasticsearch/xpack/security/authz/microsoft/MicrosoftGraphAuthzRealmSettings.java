@@ -25,10 +25,7 @@ public class MicrosoftGraphAuthzRealmSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<SecureString> CLIENT_SECRET = RealmSettings.secureString(
-        REALM_TYPE,
-        "client_secret"
-    );
+    public static final Setting.AffixSetting<SecureString> CLIENT_SECRET = RealmSettings.secureString(REALM_TYPE, "client_secret");
 
     public static final Setting.AffixSetting<String> TENANT_ID = RealmSettings.simpleString(
         REALM_TYPE,

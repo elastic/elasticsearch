@@ -142,7 +142,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     }
 
     private Tuple<String, String> sdkFetchUserProperties(GraphServiceClient client, String userId) {
-        var response = client.users().byUserId(userId)
+        var response = client.users()
+            .byUserId(userId)
             .get(requestConfig -> requestConfig.queryParameters.select = new String[] { "displayName", "mail" });
 
         logger.trace("User [{}] has email [{}]", response.getDisplayName(), response.getMail());
@@ -154,8 +155,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         List<String> groups = new ArrayList<>();
 
         // TODO figure out exactly what we need to fetch here - we may need to fetch transitive groups as well, and may need to remove
-        //  the `graph.group` cast (i.e. fetch "directory roles" and "administrative units" as well);
-        //  see https://learn.microsoft.com/en-us/graph/api/user-list-transitivememberof
+        // the `graph.group` cast (i.e. fetch "directory roles" and "administrative units" as well);
+        // see https://learn.microsoft.com/en-us/graph/api/user-list-transitivememberof
         var groupMembership = client.users().byUserId(userId).memberOf().graphGroup().get(requestConfig -> {
             requestConfig.queryParameters.select = new String[] { "id" };
             requestConfig.queryParameters.top = 999;

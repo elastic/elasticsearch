@@ -57,12 +57,7 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .build();
 
-        final var config = new RealmConfig(
-            realmId,
-            realmSettings,
-            env,
-            threadContext
-        );
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config);
         final var future = new PlainActionFuture<User>();

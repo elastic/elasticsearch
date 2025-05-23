@@ -61,8 +61,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     public static ElasticsearchCluster cluster = initTestCluster();
 
-    private static final TestTrustStore trustStore = new TestTrustStore(() ->
-        MicrosoftGraphAuthzPluginIT.class.getClassLoader().getResourceAsStream("server/cert.pem"));
+    private static final TestTrustStore trustStore = new TestTrustStore(
+        () -> MicrosoftGraphAuthzPluginIT.class.getClassLoader().getResourceAsStream("server/cert.pem")
+    );
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(graphFixture).around(trustStore).around(cluster);

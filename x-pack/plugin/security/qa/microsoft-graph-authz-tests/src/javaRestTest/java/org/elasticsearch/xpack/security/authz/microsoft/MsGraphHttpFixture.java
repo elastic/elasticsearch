@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz.microsoft;
 
 import com.sun.net.httpserver.HttpExchange;
-
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
@@ -25,9 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.rules.ExternalResource;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
@@ -40,6 +36,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
 
 public class MsGraphHttpFixture extends ExternalResource {
 
@@ -55,14 +54,7 @@ public class MsGraphHttpFixture extends ExternalResource {
 
     private HttpsServer server;
 
-    public MsGraphHttpFixture(
-        String tenantId,
-        String clientId,
-        String clientSecret,
-        String principal,
-        String displayName,
-        String email
-    ) {
+    public MsGraphHttpFixture(String tenantId, String clientId, String clientSecret, String principal, String displayName, String email) {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;

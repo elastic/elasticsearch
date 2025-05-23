@@ -20,6 +20,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -1132,27 +1133,46 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutUserAction.NAME, request3, authentication), equalTo(false));
 
         final IsResourceAuthorizedPredicate allowedRead = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
-        assertThat(allowedRead.test(mockIndexAbstraction("abc-123")), equalTo(true));
-        assertThat(allowedRead.test(mockIndexAbstraction("xyz-000")), equalTo(true));
-        assertThat(allowedRead.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
-        assertThat(allowedRead.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
-        assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-1-1")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-2-1")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-3-1")), equalTo(false));
+        IndexAbstraction indexAbstraction18 = mockIndexAbstraction("abc-123");
+        assertThat(allowedRead.test(indexAbstraction18, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction17 = mockIndexAbstraction("xyz-000");
+        assertThat(allowedRead.test(indexAbstraction17, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction16 = mockIndexAbstraction("ind-1-a");
+        assertThat(allowedRead.test(indexAbstraction16, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction15 = mockIndexAbstraction("ind-2-a");
+        assertThat(allowedRead.test(indexAbstraction15, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction("foo");
+        assertThat(allowedRead.test(indexAbstraction14, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction("abc");
+        assertThat(allowedRead.test(indexAbstraction13, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction("xyz");
+        assertThat(allowedRead.test(indexAbstraction12, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction("ind-3-a");
+        assertThat(allowedRead.test(indexAbstraction11, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction("remote-idx-1-1");
+        assertThat(allowedRead.test(indexAbstraction10, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction("remote-idx-2-1");
+        assertThat(allowedRead.test(indexAbstraction9, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction("remote-idx-3-1");
+        assertThat(allowedRead.test(indexAbstraction8, IndexComponentSelector.DATA), equalTo(false));
 
         final IsResourceAuthorizedPredicate allowedWrite = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
-        assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
-        assertThat(allowedWrite.test(mockIndexAbstraction("xyz-000")), equalTo(false));
-        assertThat(allowedWrite.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
-        assertThat(allowedWrite.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
-        assertThat(allowedWrite.test(mockIndexAbstraction("foo")), equalTo(false));
-        assertThat(allowedWrite.test(mockIndexAbstraction("abc")), equalTo(false));
-        assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
-        assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction("abc-123");
+        assertThat(allowedWrite.test(indexAbstraction7, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction("xyz-000");
+        assertThat(allowedWrite.test(indexAbstraction6, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction("ind-1-a");
+        assertThat(allowedWrite.test(indexAbstraction5, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction("ind-2-a");
+        assertThat(allowedWrite.test(indexAbstraction4, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction("foo");
+        assertThat(allowedWrite.test(indexAbstraction3, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("abc");
+        assertThat(allowedWrite.test(indexAbstraction2, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction("xyz");
+        assertThat(allowedWrite.test(indexAbstraction1, IndexComponentSelector.DATA), equalTo(false));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("ind-3-a");
+        assertThat(allowedWrite.test(indexAbstraction, IndexComponentSelector.DATA), equalTo(false));
 
         role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "write"), "user/joe");
         role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "read"), "settings/hostname");
@@ -1382,8 +1402,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("index-1"));
         assertHasRemoteIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
         final IsResourceAuthorizedPredicate allowedRead = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
-        assertThat(allowedRead.test(mockIndexAbstraction("index-1")), equalTo(true));
-        assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction("index-1");
+        assertThat(allowedRead.test(indexAbstraction1, IndexComponentSelector.DATA), equalTo(true));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("foo");
+        assertThat(allowedRead.test(indexAbstraction, IndexComponentSelector.DATA), equalTo(false));
     }
 
     public void testBuildRoleWithRemoteIndicesDoesNotCombineRemotesAndLocals() {
@@ -1401,9 +1423,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndicesGroupsForClusters(role.remoteIndices(), Set.of("*"));
         assertHasRemoteIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("index-1"));
         final IsResourceAuthorizedPredicate allowedRead = role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
-        assertThat(allowedRead.test(mockIndexAbstraction("index-1")), equalTo(true));
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction("index-1");
+        assertThat(allowedRead.test(indexAbstraction1, IndexComponentSelector.DATA), equalTo(true));
         final IsResourceAuthorizedPredicate allowedWrite = role.indices().allowedIndicesMatcher(TransportIndexAction.NAME);
-        assertThat(allowedWrite.test(mockIndexAbstraction("index-1")), equalTo(true));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("index-1");
+        assertThat(allowedWrite.test(indexAbstraction, IndexComponentSelector.DATA), equalTo(true));
     }
 
     public void testBuildRoleWithRemoteIndicesDoesNotMergeRestrictedAndNonRestricted() {
@@ -3420,13 +3444,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IsResourceAuthorizedPredicate predicate = getXPackSecurityRole().indices().allowedIndicesMatcher(action);
 
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            assertThat(predicate.test(index), Matchers.is(true));
+            assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(true));
 
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            assertThat(predicate.test(index), Matchers.is(true));
+            assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(true));
 
             index = mockIndexAbstraction(".security-" + randomIntBetween(1, 16));
-            assertThat(predicate.test(index), Matchers.is(true));
+            assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(true));
         }
     }
 
@@ -3443,7 +3467,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 ".security-profile",
                 ".security-profile-8",
                 ".security-profile-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10)
-            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(true)));
+            ).forEach(name -> {
+                IndexAbstraction indexAbstraction = mockIndexAbstraction(name);
+                assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            });
 
             List.of(
                 ".security-profile" + randomAlphaOfLengthBetween(1, 10),
@@ -3451,7 +3478,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 ".security",
                 ".security-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10),
                 "." + randomAlphaOfLengthBetween(1, 20)
-            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(false)));
+            ).forEach(name -> {
+                IndexAbstraction indexAbstraction = mockIndexAbstraction(name);
+                assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            });
         }
 
         final Subject subject = mock(Subject.class);
@@ -3469,11 +3499,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
-                assertThat(predicate.test(index), Matchers.is(true));
+                assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(true));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
-                assertThat(predicate.test(index), Matchers.is(true));
+                assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(true));
             }
         }
     }
@@ -3487,12 +3517,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         )) {
             IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
-                assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
+                IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+                assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
             }
-            assertThat(
-                predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-                Matchers.is(false)
-            );
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+            assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
         }
     }
 
@@ -3506,11 +3535,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
-                assertThat(predicate.test(index), Matchers.is(false));
+                assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(false));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
-                assertThat(predicate.test(index), Matchers.is(false));
+                assertThat(predicate.test(index, IndexComponentSelector.DATA), Matchers.is(false));
             }
         }
     }
@@ -3524,12 +3553,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         )) {
             final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
-                assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
+                IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+                assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(false));
             }
-            assertThat(
-                predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 3))),
-                Matchers.is(true)
-            );
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 3));
+            assertThat(predicate.test(indexAbstraction, IndexComponentSelector.DATA), Matchers.is(true));
         }
     }
 

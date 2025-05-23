@@ -57,6 +57,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
@@ -182,6 +183,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -326,47 +328,40 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(snapshotUserRole.cluster().check(WatcherServiceAction.NAME, request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
-        assertThat(
-            snapshotUserRole.indices()
-                .allowedIndicesMatcher(TransportIndexAction.NAME)
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            snapshotUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            snapshotUserRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            snapshotUserRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = snapshotUserRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = snapshotUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = snapshotUserRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = snapshotUserRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
 
-        assertThat(
-            snapshotUserRole.indices()
-                .allowedIndicesMatcher(GetIndexAction.NAME)
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = snapshotUserRole.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
 
         for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
             // This test might cease to be true if we ever have non-security restricted names
             // but that depends on how users are supposed to perform snapshots of those new indices.
-            assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = snapshotUserRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         }
-        assertThat(
-            snapshotUserRole.indices()
-                .allowedIndicesMatcher(GetIndexAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = snapshotUserRole.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
         assertNoAccessAllowed(snapshotUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(snapshotUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -397,17 +392,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            ingestAdminRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = ingestAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = ingestAdminRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = ingestAdminRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(ingestAdminRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(ingestAdminRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -592,15 +588,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
         assertThat(kibanaRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(true));
 
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate40 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction16 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate40.test(indexAbstraction16, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate39 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction15 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate39.test(indexAbstraction15, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate38 = kibanaRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate38.test(indexAbstraction14, IndexComponentSelector.DATA), is(false));
 
         Arrays.asList(
             ".kibana",
@@ -627,35 +626,50 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // read-only index access, including cross cluster
         Arrays.asList(".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only index access, excluding cross cluster
@@ -664,35 +678,50 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".ml-stats-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.trace("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // read/write index access, excluding cross cluster
@@ -701,69 +730,102 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".ml-notifications-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.trace("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // read-only indices for APM telemetry
         Arrays.asList("apm-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only indices for APM telemetry under Fleet
@@ -773,126 +835,203 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-apm." + randomAlphaOfLength(randomIntBetween(0, 13)),
             "metrics-apm." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only indices for Endpoint diagnostic information
         Arrays.asList(".logs-endpoint.diagnostic.collection-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction13 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction12 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
 
             // Privileges needed for Fleet package upgrades
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
             // Privileges needed for installing current ILM policy with delete action
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only indices for Endpoint events (to build timelines)
         Arrays.asList("logs-endpoint.events.process-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only indices for Endpoint events (to build timelines)
         Arrays.asList("logs-endpoint.events.network-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList(
@@ -906,22 +1045,36 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         final IndexAbstraction dotFleetSecretsIndex = mockIndexAbstraction(".fleet-secrets");
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(dotFleetSecretsIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(dotFleetSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(dotFleetSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotFleetSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotFleetSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotFleetSecretsIndex),
-            is(false)
-        );
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(dotFleetSecretsIndex),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate37 = kibanaRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        assertThat(isResourceAuthorizedPredicate37.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate36 = kibanaRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        assertThat(isResourceAuthorizedPredicate36.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate35 = kibanaRole.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        assertThat(isResourceAuthorizedPredicate35.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate34 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        assertThat(isResourceAuthorizedPredicate34.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate33 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        assertThat(isResourceAuthorizedPredicate33.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate32 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        assertThat(isResourceAuthorizedPredicate32.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate31 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        assertThat(isResourceAuthorizedPredicate31.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate30 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        assertThat(isResourceAuthorizedPredicate30.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate29 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        assertThat(isResourceAuthorizedPredicate29.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate28 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        assertThat(isResourceAuthorizedPredicate28.test(dotFleetSecretsIndex, IndexComponentSelector.DATA), is(false));
 
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(false));
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
@@ -929,103 +1082,181 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Elastic Defend internal index for response actions results
         Arrays.asList(".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList(".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList("logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Tests for third-party agent indices that `kibana_system` has only `read` access
@@ -1036,246 +1267,444 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-m365_defender." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Index for Endpoint specific actions
         Arrays.asList(".logs-endpoint.actions-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only index for Endpoint specific heartbeats
         Arrays.asList(".logs-endpoint.heartbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // index for Security Solution workflow insights
         Arrays.asList(".edr-workflow-insights-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Data telemetry reads mappings, metadata and stats of indices
         Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
             assertViewIndexMetadata(kibanaRole, index);
 
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // Data telemetry does not have access to system indices that aren't specified
         List.of(".watches", ".geoip_databases", ".logstash", ".snapshot-blob-cache").forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetMappingsAction.NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // Data telemetry does not have access to security and async search
         TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES.forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetMappingsAction.NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME);
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // read-only datastream for Endpoint policy responses
         Arrays.asList("metrics-endpoint.policy-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only datastream for Endpoint metrics
         Arrays.asList("metrics-endpoint.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Beats management index
         final String index = ".management-beats";
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate27 = kibanaRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate27.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate26 = kibanaRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate26.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate25 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate25.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate24 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate24.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate23 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate23.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate22 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate22.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate21 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate21.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate20 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate20.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate19 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate19.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = kibanaRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate18.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = kibanaRole.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate17.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(kibanaRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1317,23 +1746,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put").test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put");
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-");
@@ -1343,23 +1773,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith(".logs-endpoint.heartbeat-");
 
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(isAlsoCreateIndex)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoCreateIndex));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction),
-                is(isAlsoCreateIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction),
-                is(isAlsoAutoCreateIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction),
-                is(isAlsoAutoCreateIndex)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoCreateIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoCreateIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(CreateDataStreamAction.NAME);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoCreateIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoAutoCreateIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoAutoCreateIndex));
 
             // Endpoint diagnostic and actions data streams also have read access, all others should not.
             final boolean isAlsoReadIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
@@ -1367,18 +1795,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith(".logs-endpoint.action.responses-")
                 || indexName.startsWith(".logs-endpoint.heartbeat-")
                 || indexName.startsWith(".logs-osquery_manager.actions-");
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction),
-                is(isAlsoReadIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction),
-                is(isAlsoReadIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction),
-                is(isAlsoReadIndex)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoReadIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoReadIndex));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoReadIndex));
 
             // Endpoint diagnostic, APM and Synthetics data streams also have an ILM policy with a delete action, all others should not.
             final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
@@ -1395,10 +1820,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith("synthetics-browser.network-*")
                 || indexName.startsWith("synthetics-browser.screenshot-*")
                 || indexName.startsWith("profiling-*");
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(isAlsoIlmDeleteIndex)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(isAlsoIlmDeleteIndex));
         });
 
         // 4. Transform for endpoint package
@@ -1429,40 +1853,68 @@ public class ReservedRolesStoreTests extends ESTestCase {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow indexing
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate16.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate15.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             // Allow create and delete index, modifying aliases, and updating index settings
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteDataStreamAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(CreateDataStreamAction.NAME);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(DeleteDataStreamAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Granted by bwc for index privilege
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
             assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction),
+                isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA),
                 is(indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)
             );
 
             // Deny deleting documents and rollover
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // Test allow permissions on Threat Intel (ti*) dest indices created by latest transform : "create_index", "delete_index", "read",
@@ -1470,30 +1922,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList("logs-ti_recordedfuture_latest.threat", "logs-ti_anomali_latest.threatstream").forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow search and indexing
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             // Allow create and delete index, modifying aliases, and updating index settings
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Allow deleting documents
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Test allow permissions on Threat Intel (ti*) source indices required by latest transform : "read", "view_index_metadata",
@@ -1506,31 +1976,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow read-only
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList(
@@ -1540,102 +2027,182 @@ public class ReservedRolesStoreTests extends ESTestCase {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow indexing
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             // Allow create and delete index
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(CreateDataStreamAction.NAME);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only index for Osquery actions responses
         Arrays.asList("logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // read-only datastream for csp indices
         Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
             // Ensure privileges necessary for ILM policies in Cloud Security Posture Package
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList("logs-cloud_security_posture.vulnerabilities-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
             // Ensure privileges necessary for ILM policies in Cloud Security Posture Package
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList(
@@ -1655,29 +2222,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-carbon_black_cloud.asset_vulnerability_summary-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList(
@@ -1693,28 +2279,46 @@ public class ReservedRolesStoreTests extends ESTestCase {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow indexing
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             // Allow create and delete index, modifying aliases, and updating index settings
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(AutoCreateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(CreateDataStreamAction.NAME);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
         });
 
@@ -1727,29 +2331,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "metrics-cloud_defend.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
@@ -1772,39 +2395,58 @@ public class ReservedRolesStoreTests extends ESTestCase {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
 
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         // Example transform package
         Arrays.asList("kibana_sample_data_ecommerce", "kibana_sample_data_ecommerce_transform" + randomInt()).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow search and indexing
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportBulkAction.NAME);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             // Allow create and delete index, modifying aliases, and updating index settings
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8));
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
 
         Arrays.asList("risk-score.risk-score-" + randomAlphaOfLength(randomIntBetween(0, 13)))
@@ -1812,37 +2454,62 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(".asset-criticality.asset-criticality-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.TYPE.name()).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = kibanaRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = kibanaRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = kibanaRole.indices()
+                .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaRole.indices()
+                .allowedIndicesMatcher(TransportPutMappingAction.TYPE.name());
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaRole.indices()
+                .allowedIndicesMatcher(RolloverAction.NAME);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
         });
     }
 
@@ -1873,15 +2540,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(kibanaAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(kibanaAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            kibanaAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            kibanaAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaAdminRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
@@ -1937,15 +2607,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(kibanaUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(kibanaUserRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            kibanaUserRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = kibanaUserRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = kibanaUserRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = kibanaUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
@@ -2025,67 +2698,76 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(".kibana")),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".kibana")),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction16 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate16.test(indexAbstraction16, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction15 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate15.test(indexAbstraction15, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction14, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = monitoringUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
 
         final String index = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            monitoringUserRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = monitoringUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = monitoringUserRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = monitoringUserRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = monitoringUserRole.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
         assertNoAccessAllowed(monitoringUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -2183,166 +2865,126 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(".kibana")),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate28 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction28 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate28.test(indexAbstraction28, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate27 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction27 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate27.test(indexAbstraction27, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate26 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction26 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate26.test(indexAbstraction26, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate25 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction25 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate25.test(indexAbstraction25, IndexComponentSelector.DATA), is(false));
 
         final String monitoringIndex = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name())
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name())
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportIndexAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportDeleteAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name())
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate24 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction24 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate24.test(indexAbstraction24, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate23 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction23 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate23.test(indexAbstraction23, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate22 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction22 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate22.test(indexAbstraction22, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate21 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction21 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate21.test(indexAbstraction21, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate20 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction20 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate20.test(indexAbstraction20, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate19 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction19 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate19.test(indexAbstraction19, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction18 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate18.test(indexAbstraction18, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction17 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate17.test(indexAbstraction17, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction16 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate16.test(indexAbstraction16, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        IndexAbstraction indexAbstraction15 = mockIndexAbstraction(monitoringIndex);
+        assertThat(isResourceAuthorizedPredicate15.test(indexAbstraction15, IndexComponentSelector.DATA), is(true));
 
         final String metricbeatIndex = "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name())
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name())
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportIndexAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportDeleteAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name())
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringAgentRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(metricbeatIndex)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction14, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(GetAliasesAction.NAME);
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportIndicesAliasesAction.NAME);
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(RolloverAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(IndicesSegmentsAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME);
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = remoteMonitoringAgentRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(metricbeatIndex);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(remoteMonitoringAgentRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringAgentRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -2386,223 +3028,165 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(remoteMonitoringCollectorRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(
-            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RecoveryAction.NAME).test(mockIndexAbstraction("foo")),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(".kibana")),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(".kibana")),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate23 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(RecoveryAction.NAME);
+        IndexAbstraction indexAbstraction23 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate23.test(indexAbstraction23, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate22 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction22 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate22.test(indexAbstraction22, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate21 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction21 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate21.test(indexAbstraction21, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate20 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction20 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate20.test(indexAbstraction20, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate19 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction19 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate19.test(indexAbstraction19, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate18 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction18 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate18.test(indexAbstraction18, IndexComponentSelector.DATA), is(false));
 
         Arrays.asList(
             ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name())
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name())
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name())
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices()
-                    .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                    .test(mockIndexAbstraction(index)),
-                is(false)
-            );
-            assertThat(
-                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)),
-                is(false)
-            );
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher("indices:foo");
+            IndexAbstraction indexAbstraction12 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher("indices:bar");
+            IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+            IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportIndexAction.NAME);
+            IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetAliasesAction.NAME);
+            IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME);
+            IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportDeleteAction.NAME);
+            IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+            IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+            IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+            IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         });
 
         // These tests might need to change if we add new non-security restricted indices that the monitoring user isn't supposed to see
         // (but ideally, the monitoring user should see all indices).
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name())
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name())
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(true)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate17 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(GetSettingsAction.NAME);
+        IndexAbstraction indexAbstraction17 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate17.test(indexAbstraction17, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate16 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(GetSettingsAction.NAME);
+        IndexAbstraction indexAbstraction16 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate16.test(indexAbstraction16, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate15 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name());
+        IndexAbstraction indexAbstraction15 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate15.test(indexAbstraction15, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name());
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction14, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(RecoveryAction.NAME);
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(RecoveryAction.NAME);
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(IndicesStatsAction.NAME);
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(IndicesStatsAction.NAME);
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(IndicesSegmentsAction.NAME);
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(IndicesSegmentsAction.NAME);
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
 
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportSearchAction.TYPE.name())
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportGetAction.TYPE.name())
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportDeleteAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportDeleteAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportIndexAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
-            is(false)
-        );
-        assertThat(
-            remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(TransportIndexAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES));
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = remoteMonitoringCollectorRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertMonitoringOnRestrictedIndices(remoteMonitoringCollectorRole);
 
@@ -2717,62 +3301,68 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(reportingUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(".kibana")),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction14, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction(".kibana");
+        assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = reportingUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
 
         final String index = ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            reportingUserRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = reportingUserRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = reportingUserRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = reportingUserRole.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(reportingUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -2906,32 +3496,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
 
         // Read security indices => allowed
-        assertThat(
-            superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(TransportGetAction.TYPE.name(), IndicesStatsAction.NAME))
-                .test(mockIndexAbstraction(TestRestrictedIndices.SECURITY_MAIN_ALIAS)),
-            is(true)
-        );
-        assertThat(
-            superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(TransportGetAction.TYPE.name(), IndicesStatsAction.NAME))
-                .test(mockIndexAbstraction(internalSecurityIndex)),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = superuserRole.indices()
+            .allowedIndicesMatcher(randomFrom(TransportGetAction.TYPE.name(), IndicesStatsAction.NAME));
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(TestRestrictedIndices.SECURITY_MAIN_ALIAS);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = superuserRole.indices()
+            .allowedIndicesMatcher(randomFrom(TransportGetAction.TYPE.name(), IndicesStatsAction.NAME));
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(internalSecurityIndex);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
 
         // Write security indices => denied
-        assertThat(
-            superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(TransportIndexAction.NAME, TransportDeleteIndexAction.TYPE.name()))
-                .test(mockIndexAbstraction(TestRestrictedIndices.SECURITY_MAIN_ALIAS)),
-            is(false)
-        );
-        assertThat(
-            superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(TransportIndexAction.NAME, TransportDeleteIndexAction.TYPE.name()))
-                .test(mockIndexAbstraction(internalSecurityIndex)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = superuserRole.indices()
+            .allowedIndicesMatcher(randomFrom(TransportIndexAction.NAME, TransportDeleteIndexAction.TYPE.name()));
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(TestRestrictedIndices.SECURITY_MAIN_ALIAS);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = superuserRole.indices()
+            .allowedIndicesMatcher(randomFrom(TransportIndexAction.NAME, TransportDeleteIndexAction.TYPE.name()));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(internalSecurityIndex);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
         assertThat(
             superuserRole.remoteCluster().collapseAndRemoveUnsupportedPrivileges("*", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
@@ -2962,18 +3544,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(
-            logstashSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            logstashSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = logstashSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = logstashSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = logstashSystemRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(logstashSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(logstashSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -3008,41 +3590,53 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(beatsAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = beatsAdminRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
 
         final String index = ".management-beats";
         logger.info("index name [{}]", index);
-        assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));
-        assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(beatsAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(beatsAdminRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            beatsAdminRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = beatsAdminRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = beatsAdminRole.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = beatsAdminRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
         assertNoAccessAllowed(beatsAdminRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsAdminRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -3075,25 +3669,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         final String index = ".monitoring-beats-" + randomIntBetween(0, 5);
         logger.info("beats monitoring index name [{}]", index);
-        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            beatsSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
-        assertThat(
-            beatsSystemRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            beatsSystemRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = beatsSystemRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = beatsSystemRole.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
 
         assertNoAccessAllowed(beatsSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(beatsSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -3119,40 +3722,47 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(APMSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            APMSystemRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = APMSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = APMSystemRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = APMSystemRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
 
         final String index = ".monitoring-beats-" + randomIntBetween(10, 15);
         logger.info("APM beats monitoring index name [{}]", index);
 
-        assertThat(
-            APMSystemRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/create").test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = APMSystemRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = APMSystemRole.indices()
+            .allowedIndicesMatcher("indices:data/write/index:op_type/create");
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = APMSystemRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = APMSystemRole.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
 
-        assertThat(
-            APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/index").test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            APMSystemRole.indices()
-                .allowedIndicesMatcher("indices:data/write/index:op_type/" + randomAlphaOfLengthBetween(3, 5))
-                .test(mockIndexAbstraction(index)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = APMSystemRole.indices()
+            .allowedIndicesMatcher("indices:data/write/index:op_type/index");
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = APMSystemRole.indices()
+            .allowedIndicesMatcher("indices:data/write/index:op_type/" + randomAlphaOfLengthBetween(3, 5));
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(APMSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(APMSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -3542,7 +4152,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         for (String index : new String[] { Watch.INDEX, HistoryStoreField.DATA_STREAM, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
@@ -3573,11 +4186,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         for (String index : new String[] { Watch.INDEX, HistoryStoreField.DATA_STREAM }) {
             assertOnlyReadAllowed(role, index);
@@ -3803,117 +4419,237 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private void assertAllIndicesAccessAllowed(Role role, String index) {
         logger.info("index name [{}]", index);
-        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+            .allowedIndicesMatcher("indices:bar");
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher(GetIndexAction.NAME);
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
         // inherits from 'all'
-        assertThat(role.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
     }
 
     private void assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(Role role, String index) {
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:admin/refresh*").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:admin/flush*").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:admin/synced_flush").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:admin/forcemerge*").test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher("indices:admin/refresh*");
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher("indices:admin/flush*");
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher("indices:admin/synced_flush");
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher("indices:admin/forcemerge*");
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
     }
 
     private void assertReadWriteDocsButNotDeleteIndexAllowed(Role role, String index) {
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
 
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
     }
 
     private void assertReadWriteAndManage(Role role, String index) {
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportFieldCapabilitiesAction.NAME + "*").test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(GetRollupIndexCapsAction.NAME + "*").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:admin/*").test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher("indices:monitor/*").test(mockIndexAbstraction(index)), is(true));
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate14 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction14 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate14.test(indexAbstraction14, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate13 = role.indices()
+            .allowedIndicesMatcher(TransportFieldCapabilitiesAction.NAME + "*");
+        IndexAbstraction indexAbstraction13 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate13.test(indexAbstraction13, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate12 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction12 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate12.test(indexAbstraction12, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = role.indices()
+            .allowedIndicesMatcher(GetRollupIndexCapsAction.NAME + "*");
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = role.indices()
+            .allowedIndicesMatcher("indices:admin/*");
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher("indices:monitor/*");
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(AutoCreateAction.NAME);
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
 
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
     }
 
     private void assertOnlyReadAllowed(Role role, String index) {
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -3934,7 +4670,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ResolveIndexAction.NAME,
             TransportFieldCapabilitiesAction.NAME + "*",
             GetRollupIndexCapsAction.NAME + "*"
-        ).forEach(action -> assertThat(role.indices().allowedIndicesMatcher(action).test(mockIndexAbstraction(index)), is(true)));
+        ).forEach(action -> {
+            IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices().allowedIndicesMatcher(action);
+            IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
+        });
     }
 
     private void assertNoAccessAllowed(Role role, Collection<String> indices) {
@@ -3944,24 +4684,42 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     private void assertNoAccessAllowed(Role role, String index) {
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(
-            role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(false)
-        );
-        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = role.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = role.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = role.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = role.indices()
+            .allowedIndicesMatcher(TransportUpdateAction.NAME);
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = role.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportBulkAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(false));
     }
 
     public void testLogstashAdminRole() {
@@ -3989,57 +4747,57 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(logstashAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")),
-            is(false)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".reporting")),
-            is(false)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(".logstash")),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-            is(false)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate11 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction11 = mockIndexAbstraction("foo");
+        assertThat(isResourceAuthorizedPredicate11.test(indexAbstraction11, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate10 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction10 = mockIndexAbstraction(".reporting");
+        assertThat(isResourceAuthorizedPredicate10.test(indexAbstraction10, IndexComponentSelector.DATA), is(false));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate9 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction9 = mockIndexAbstraction(".logstash");
+        assertThat(isResourceAuthorizedPredicate9.test(indexAbstraction9, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate8 = logstashAdminRole.indices()
+            .allowedIndicesMatcher("indices:foo");
+        IndexAbstraction indexAbstraction8 = mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24));
+        assertThat(isResourceAuthorizedPredicate8.test(indexAbstraction8, IndexComponentSelector.DATA), is(false));
 
         final String index = ".logstash-" + randomIntBetween(0, 5);
 
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
-        assertThat(
-            logstashAdminRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(mockIndexAbstraction(index)),
-            is(true)
-        );
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate7 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportDeleteAction.NAME);
+        IndexAbstraction indexAbstraction7 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate7.test(indexAbstraction7, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate6 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction6 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate6.test(indexAbstraction6, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate5 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name());
+        IndexAbstraction indexAbstraction5 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate5.test(indexAbstraction5, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate4 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction4 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate4.test(indexAbstraction4, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate3 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IndexAbstraction indexAbstraction3 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate3.test(indexAbstraction3, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate2 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction2 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate2.test(indexAbstraction2, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate1 = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name());
+        IndexAbstraction indexAbstraction1 = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate1.test(indexAbstraction1, IndexComponentSelector.DATA), is(true));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = logstashAdminRole.indices()
+            .allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name());
+        IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        assertThat(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA), is(true));
     }
 
     public void testIncludeReservedRolesSetting() {
@@ -4133,7 +4891,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/resolve", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/lookup", request, authentication));
         assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
-        assertFalse(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")));
+        IndicesPermission.IsResourceAuthorizedPredicate isResourceAuthorizedPredicate = role.indices()
+            .allowedIndicesMatcher(TransportIndexAction.NAME);
+        IndexAbstraction indexAbstraction = mockIndexAbstraction("foo");
+        assertFalse(isResourceAuthorizedPredicate.test(indexAbstraction, IndexComponentSelector.DATA));
         assertOnlyReadAllowed(role, ".enrich-foo");
     }
 

@@ -131,4 +131,71 @@ public class ESVectorUtil {
         }
         return distance;
     }
+
+    /**
+     * Calculate the loss for optimized-scalar quantization for the given parameteres
+     * @param target The vector being quantized, assumed to be centered
+     * @param interval The interval for which to calculate the loss
+     * @param points the quantization points
+     * @param norm2 The norm squared of the target vector
+     * @param lambda The lambda parameter for controlling anisotropic loss calculation
+     * @return The loss for the given parameters
+     */
+    public static float calculateOSQLoss(float[] target, float[] interval, int points, float norm2, float lambda) {
+        assert interval.length == 2;
+        float step = ((interval[1] - interval[0]) / (points - 1.0F));
+        float invStep = 1f / step;
+        return IMPL.calculateOSQLoss(target, interval, step, invStep, norm2, lambda);
+    }
+
+    /**
+     * Calculate the grid points for optimized-scalar quantization
+     * @param target The vector being quantized, assumed to be centered
+     * @param interval The interval for which to calculate the grid points
+     * @param points the quantization points
+     * @param pts The array to store the grid points, must be of length 5
+     */
+    public static void calculateOSQGridPoints(float[] target, float[] interval, int points, float[] pts) {
+        assert interval.length == 2;
+        assert pts.length == 5;
+        float invStep = (points - 1.0F) / (interval[1] - interval[0]);
+        IMPL.calculateOSQGridPoints(target, interval, points, invStep, pts);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
+        assert target.length == centroid.length;
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
 }

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.time.Instant;
 import java.time.ZoneId;

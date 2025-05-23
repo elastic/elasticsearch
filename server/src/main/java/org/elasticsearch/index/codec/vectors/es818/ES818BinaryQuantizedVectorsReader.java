@@ -43,6 +43,7 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 import java.util.HashMap;

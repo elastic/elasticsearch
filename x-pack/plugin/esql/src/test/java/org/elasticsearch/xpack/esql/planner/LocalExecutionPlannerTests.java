@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -103,6 +104,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -129,6 +131,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -155,6 +158,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -224,7 +228,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null);
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, DataPartitioning.AUTO);
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {

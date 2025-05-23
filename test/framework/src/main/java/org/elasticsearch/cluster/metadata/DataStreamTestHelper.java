@@ -341,6 +341,11 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore) {
+        // Some tests don't work well with system data streams, since these data streams require special handling
+        return randomInstance(dataStreamName, timeProvider, failureStore, false);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore, boolean system) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -365,13 +370,13 @@ public final class DataStreamTestHelper {
             dataStreamName,
             generation,
             metadata,
-            randomBoolean(),
+            system ? true : randomBoolean(),
             replicated,
-            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            system,
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -496,12 +501,7 @@ public final class DataStreamTestHelper {
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .template(
-                    Template.builder()
-                        .dataStreamOptions(
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? createDataStreamOptionsTemplate(storeFailures) : null
-                        )
-                )
+                .template(Template.builder().dataStreamOptions(createDataStreamOptionsTemplate(storeFailures)))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
@@ -517,7 +517,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE.equals(storeFailures)) {
+            if (Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -798,12 +798,10 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
-    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
-        if (failureStore == null) {
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
             return DataStreamOptions.Template.EMPTY;
         }
-        return new DataStreamOptions.Template(
-            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
-        );
+        return new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(failureStoreEnabled).buildTemplate());
     }
 }

@@ -37,7 +37,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 15 }
+  - length: { esql.features: 19 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -53,6 +53,10 @@ setup:
   - set: {esql.features.sort: sort_counter}
   - set: {esql.features.stats: stats_counter}
   - set: {esql.features.where: where_counter}
+  - set: {esql.features.lookup_join: lookup_join_counter}
+  - set: {esql.features.lookup: lookup_counter}
+  - set: {esql.features.change_point: change_point_counter}
+  - set: {esql.features.inlinestats: inlinestats_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -81,6 +85,10 @@ setup:
   - gt: {esql.features.sort: $sort_counter}
   - gt: {esql.features.stats: $stats_counter}
   - gt: {esql.features.where: $where_counter}
+  - match: {esql.features.lookup_join: $lookup_join_counter}
+  - match: {esql.features.lookup: $lookup_counter}
+  - match: {esql.features.change_point: $change_point_counter}
+  - match: {esql.features.inlinestats: $inlinestats_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -109,7 +117,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 15 }
+  - length: { esql.features: 19 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -125,6 +133,10 @@ setup:
   - set: {esql.features.sort: sort_counter}
   - set: {esql.features.stats: stats_counter}
   - set: {esql.features.where: where_counter}
+  - set: {esql.features.lookup_join: lookup_join_counter}
+  - set: {esql.features.lookup: lookup_counter}
+  - set: {esql.features.change_point: change_point_counter}
+  - set: {esql.features.inlinestats: inlinestats_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -153,6 +165,10 @@ setup:
   - gt: {esql.features.sort: $sort_counter}
   - gt: {esql.features.stats: $stats_counter}
   - gt: {esql.features.where: $where_counter}
+  - match: {esql.features.lookup_join: $lookup_join_counter}
+  - match: {esql.features.lookup: $lookup_counter}
+  - match: {esql.features.change_point: $change_point_counter}
+  - match: {esql.features.inlinestats: $inlinestats_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}

@@ -13,6 +13,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -452,8 +454,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
-        return in.newSourceLoader();
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
+        return in.newSourceLoader(filter);
     }
 
     @Override

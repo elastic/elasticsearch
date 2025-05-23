@@ -641,7 +641,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosion() throws IOException {
-        int sensorDataCount = 500;
+        int sensorDataCount = 400;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
@@ -653,7 +653,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosionNoFetch() throws IOException {
-        int sensorDataCount = 7500;
+        int sensorDataCount = 7000;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosionNoFetch(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));

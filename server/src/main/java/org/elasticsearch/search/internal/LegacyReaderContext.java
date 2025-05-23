@@ -72,6 +72,11 @@ public final class LegacyReaderContext extends ReaderContext {
 
     @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
+        if (other != null) {
+            // The top level knn search modifies the source after the DFS phase.
+            // so we need to update the source stored in the context.
+            shardSearchRequest.source(other.source());
+        }
         return shardSearchRequest;
     }
 

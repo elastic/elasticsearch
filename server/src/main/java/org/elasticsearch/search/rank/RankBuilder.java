@@ -117,9 +117,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked")
         RankBuilder other = (RankBuilder) obj;
-        return Objects.equals(rankWindowSize, other.rankWindowSize()) && doEquals(other);
+        return rankWindowSize == other.rankWindowSize && doEquals(other);
     }
 
     protected abstract boolean doEquals(RankBuilder other);

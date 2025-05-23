@@ -9,9 +9,10 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.services.s3.AmazonS3;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,12 +90,15 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        final AmazonS3 client = repository.createBlobStore().clientReference().client();
-        assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
-
-        final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
-        assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-        assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
+        try (var clientReference = repository.createBlobStore().clientReference()) {
+            final ProxyS3RepositoryPlugin.ClientAndCredentials client = asInstanceOf(
+                ProxyS3RepositoryPlugin.ClientAndCredentials.class,
+                clientReference.client()
+            );
+            final AwsCredentials credentials = client.credentials.resolveCredentials();
+            assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
+            assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
+        }
 
         assertCriticalWarnings(
             "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
@@ -125,19 +129,19 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final S3Client client = clientReference.client();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-            final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
+            final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.resolveCredentials();
             if (hasInsecureSettings) {
-                assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
+                assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
+                assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
             } else if ("other".equals(clientName)) {
-                assertThat(credentials.getAWSAccessKeyId(), is("secure_other_key"));
-                assertThat(credentials.getAWSSecretKey(), is("secure_other_secret"));
+                assertThat(credentials.accessKeyId(), is("secure_other_key"));
+                assertThat(credentials.secretAccessKey(), is("secure_other_secret"));
             } else {
-                assertThat(credentials.getAWSAccessKeyId(), is("secure_default_key"));
-                assertThat(credentials.getAWSSecretKey(), is("secure_default_secret"));
+                assertThat(credentials.accessKeyId(), is("secure_default_key"));
+                assertThat(credentials.secretAccessKey(), is("secure_default_secret"));
             }
 
             // new settings
@@ -155,29 +159,29 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             // check the not-yet-closed client reference still has the same credentials
             if (hasInsecureSettings) {
-                assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
+                assertThat(credentials.accessKeyId(), is("insecure_aws_key"));
+                assertThat(credentials.secretAccessKey(), is("insecure_aws_secret"));
             } else if ("other".equals(clientName)) {
-                assertThat(credentials.getAWSAccessKeyId(), is("secure_other_key"));
-                assertThat(credentials.getAWSSecretKey(), is("secure_other_secret"));
+                assertThat(credentials.accessKeyId(), is("secure_other_key"));
+                assertThat(credentials.secretAccessKey(), is("secure_other_secret"));
             } else {
-                assertThat(credentials.getAWSAccessKeyId(), is("secure_default_key"));
-                assertThat(credentials.getAWSSecretKey(), is("secure_default_secret"));
+                assertThat(credentials.accessKeyId(), is("secure_default_key"));
+                assertThat(credentials.secretAccessKey(), is("secure_default_secret"));
             }
         }
 
         // check credentials have been updated
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final S3Client client = clientReference.client();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-            final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
+            final AwsCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.resolveCredentials();
             if (hasInsecureSettings) {
-                assertThat(newCredentials.getAWSAccessKeyId(), is("insecure_aws_key"));
-                assertThat(newCredentials.getAWSSecretKey(), is("insecure_aws_secret"));
+                assertThat(newCredentials.accessKeyId(), is("insecure_aws_key"));
+                assertThat(newCredentials.secretAccessKey(), is("insecure_aws_secret"));
             } else {
-                assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));
-                assertThat(newCredentials.getAWSSecretKey(), is("new_secret_aws_secret"));
+                assertThat(newCredentials.accessKeyId(), is("new_secret_aws_key"));
+                assertThat(newCredentials.secretAccessKey(), is("new_secret_aws_secret"));
             }
         }
 
@@ -252,27 +256,51 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }
 
+        /**
+         * This wrapper exposes a copy of the AWS credentials that the S3Client uses.
+         */
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
-            final AWSCredentialsProvider credentials;
+            final AwsCredentialsProvider credentials;
+            // The httpClient must be explicitly closed. Closure of the S3Client, which uses the httpClient, will not do so.
+            private final SdkHttpClient httpClient;
 
-            ClientAndCredentials(AmazonS3 delegate, AWSCredentialsProvider credentials) {
+            ClientAndCredentials(S3Client delegate, SdkHttpClient httpClient, AwsCredentialsProvider credentials) {
                 super(delegate);
+                this.httpClient = httpClient;
                 this.credentials = credentials;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ClientAndCredentials";
+            }
+
+            @Override
+            public void close() {
+                super.close();
+                httpClient.close();
             }
         }
 
+        /**
+         * A {@link S3Service} wrapper that supports access to a copy of the credentials given to the S3Client.
+         */
         public static final class ProxyS3Service extends S3Service {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
             ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-                super(environment, nodeSettings, resourceWatcherService);
+                super(environment, nodeSettings, resourceWatcherService, () -> null);
             }
 
             @Override
-            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3 client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings, webIdentityTokenCredentialsProvider));
+            S3Client buildClient(final S3ClientSettings clientSettings, SdkHttpClient httpClient) {
+                final S3Client client = super.buildClient(clientSettings, httpClient);
+                return new ClientAndCredentials(
+                    client,
+                    httpClient,
+                    buildCredentials(logger, clientSettings, webIdentityTokenCredentialsProvider)
+                );
             }
 
         }

@@ -378,7 +378,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {

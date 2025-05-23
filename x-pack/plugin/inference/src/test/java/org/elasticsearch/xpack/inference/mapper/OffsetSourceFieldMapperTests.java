@@ -106,7 +106,7 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), null, b -> minimalMapping(b));
+                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), b -> minimalMapping(b));
             }
 
             @Override
@@ -167,7 +167,8 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             assertThat(fromNative.size(), equalTo(1));

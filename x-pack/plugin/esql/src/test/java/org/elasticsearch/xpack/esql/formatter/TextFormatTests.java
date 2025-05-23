@@ -269,18 +269,18 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
+        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword", null)), emptyList(), null, false, false, null);
     }
 
     private static EsqlQueryResponse regularData() {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         // headers
         List<ColumnInfoImpl> headers = asList(
-            new ColumnInfoImpl("string", "keyword"),
-            new ColumnInfoImpl("number", "integer"),
-            new ColumnInfoImpl("location", "geo_point"),
-            new ColumnInfoImpl("location2", "cartesian_point"),
-            new ColumnInfoImpl("null_field", "keyword")
+            new ColumnInfoImpl("string", "keyword", null),
+            new ColumnInfoImpl("number", "integer", null),
+            new ColumnInfoImpl("location", "geo_point", null),
+            new ColumnInfoImpl("location2", "cartesian_point", null),
+            new ColumnInfoImpl("null_field", "keyword", null)
         );
 
         BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -308,7 +308,10 @@ public class TextFormatTests extends ESTestCase {
 
     private static EsqlQueryResponse escapedData() {
         // headers
-        List<ColumnInfoImpl> headers = asList(new ColumnInfoImpl("first", "keyword"), new ColumnInfoImpl("\"special\"", "keyword"));
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("first", "keyword", null),
+            new ColumnInfoImpl("\"special\"", "keyword", null)
+        );
 
         // values
         List<Page> values = List.of(

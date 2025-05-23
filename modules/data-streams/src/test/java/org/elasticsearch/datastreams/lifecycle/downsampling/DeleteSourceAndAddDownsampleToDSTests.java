@@ -52,7 +52,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -79,7 +79,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -115,7 +115,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -150,7 +150,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -203,7 +203,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -245,7 +245,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);

@@ -174,7 +174,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -182,7 +182,8 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
-            settings
+            settings,
+            shardContexts
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -195,7 +196,7 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
+                new DriverSupplier(taskDescription, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
                 context.driverParallelism().get()
             )
         );
@@ -846,7 +847,8 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
-        Settings settings
+        Settings settings,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -871,6 +873,7 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
+        String taskDescription,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
@@ -897,6 +900,7 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    taskDescription,
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,

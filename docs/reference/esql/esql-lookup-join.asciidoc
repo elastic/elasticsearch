@@ -1,8 +1,18 @@
 === LOOKUP JOIN
-
 ++++
 <titleabbrev>Correlate data with LOOKUP JOIN</titleabbrev>
 ++++
+
+// hack because page didn't have explicit id originally we could link to using internal link syntax
+[[esql-lookup-join-landing-page]]
+
+[WARNING]
+====
+This functionality is in technical preview and may be
+changed or removed in a future release. Elastic will work to fix any
+issues, but features in technical preview are not subject to the support
+SLA of official GA features.
+====
 
 The {esql} <<esql-lookup-join,LOOKUP join>>
 processing command combines data from your {esql} query results
@@ -23,6 +33,10 @@ your metrics data.
 * Tag logs with the owning team or escalation info for faster triage and
 incident response.
 
+[discrete]
+[[esql-compare-with-enrich]]
+==== Compare with ENRICH
+
 <<esql-lookup-join,LOOKUP join>> is similar to <<esql-enrich-data,ENRICH>>
 in the fact that they both help you join data together. You should use
 `LOOKUP JOIN` when:
@@ -37,19 +51,23 @@ in the fact that they both help you join data together. You should use
 
 [discrete]
 [[esql-how-lookup-join-works]]
-==== How the `LOOKUP JOIN` command works
+==== How the command works
 
-The `LOOKUP JOIN` command adds new columns to a table, with data from
-{es} indices.
+The `LOOKUP JOIN` command adds fields from the lookup index as new columns 
+to your results table based on matching values in the join field.
 
-image::images/esql/esql-lookup-join.png[align="center"]
+[source,esql]
+----
+LOOKUP JOIN <lookup_index> ON <field_name>
+----
+
+The command requires two parameters:
 
 [[esql-lookup-join-lookup-index]]
 lookup_index::
 The name of the lookup index. This must
 be a specific index name - wildcards, aliases, and remote cluster
 references are not supported. Indices used for lookups must be configured with the <<index-mode-setting,`lookup` mode>>.
-
 
 [[esql-lookup-join-field-name]]
 field_name::
@@ -58,84 +76,135 @@ in both your current query results and in the lookup index. If the field
 contains multi-valued entries, those entries will not match anything
 (the added fields will contain `null` for those rows).
 
+image::images/esql/esql-lookup-join.png[align="center"]
+
+If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that 
+if no rows match in the lookup index, the incoming row is retained and `null` values are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+
 [discrete]
 [[esql-lookup-join-example]]
 ==== Example
 
-`LOOKUP JOIN` has left-join behavior. If no rows match in the lookup index, `LOOKUP JOIN` retains the incoming row and adds nulls. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+You can run this example for yourself to see how it works by setting up the indices and adding sample data. Otherwise, you just inspect the query and response.
 
-In this example, we have two sample tables:
+[discrete]
+[[esql-lookup-join-example-setup-sample-data]]
+===== Sample data
 
-*employees*
+.*Expand for setup instructions*
+[%collapsible]
+==============
 
-[cols=",,,,,",options="header",]
-|===
-|birth++_++date |emp++_++no |first++_++name |gender |hire++_++date
-|language
-|1955-10-04T00:00:00Z |10091 |Amabile |M |1992-11-18T00:00:00Z |3
+**Set up indices**
 
-|1964-10-18T00:00:00Z |10092 |Valdiodio |F |1989-09-22T00:00:00Z |1
+First, let's create two indices with mappings: `threat_list` and `firewall_logs`.
 
-|1964-06-11T00:00:00Z |10093 |Sailaja |M |1996-11-05T00:00:00Z |3
+[source,console]
+----
+PUT threat_list
+{
+  "settings": {
+    "index.mode": "lookup" <1>
+  },
+  "mappings": {
+    "properties": {
+      "source.ip": { "type": "ip" },
+      "threat_level": { "type": "keyword" },
+      "threat_type": { "type": "keyword" },
+      "last_updated": { "type": "date" }
+    }
+  }
+}
+----
+<1> The lookup index must be set up using this mode
 
-|1957-05-25T00:00:00Z |10094 |Arumugam |F |1987-04-18T00:00:00Z |5
+[source,console]
+----
+PUT firewall_logs
+{
+  "mappings": {
+    "properties": {
+      "timestamp": { "type": "date" },
+      "source.ip": { "type": "ip" },
+      "destination.ip": { "type": "ip" },
+      "action": { "type": "keyword" },
+      "bytes_transferred": { "type": "long" }
+    }
+  }
+}
+----
 
-|1965-01-03T00:00:00Z |10095 |Hilari |M |1986-07-15T00:00:00Z |4
-|===
+*Add sample data*
 
-*languages++_++non++_++unique++_++key*
+Next, let's add some sample data to both indices. The `threat_list` index contains known malicious IPs, while the `firewall_logs` index contains logs of network traffic.
 
-[cols=",,",options="header",]
-|===
-|language++_++code |language++_++name |country
-|1 |English |Canada
-|1 |English |
-|1 | |United Kingdom
-|1 |English |United States of America
-|2 |German |++[++Germany{vbar}Austria++]++
-|2 |German |Switzerland
-|2 |German |
-|4 |Quenya |
-|5 | |Atlantis
-|++[++6{vbar}7++]++ |Mv-Lang |Mv-Land
-|++[++7{vbar}8++]++ |Mv-Lang2 |Mv-Land2
-|Null-Lang |Null-Land |
-|Null-Lang2 |Null-Land2 |
-|===
+[source,console]
+----
+POST threat_list/_bulk
+{"index":{}}
+{"source.ip":"203.0.113.5","threat_level":"high","threat_type":"C2_SERVER","last_updated":"2025-04-22"}
+{"index":{}}
+{"source.ip":"198.51.100.2","threat_level":"medium","threat_type":"SCANNER","last_updated":"2025-04-23"}
+----
 
-Running the following query would provide the results shown below.
+[source,console]
+----
+POST firewall_logs/_bulk
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:01Z","source.ip":"192.0.2.1","destination.ip":"10.0.0.100","action":"allow","bytes_transferred":1024}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:05Z","source.ip":"203.0.113.5","destination.ip":"10.0.0.55","action":"allow","bytes_transferred":2048}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:08Z","source.ip":"198.51.100.2","destination.ip":"10.0.0.200","action":"block","bytes_transferred":0}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:15Z","source.ip":"203.0.113.5","destination.ip":"10.0.0.44","action":"allow","bytes_transferred":4096}
+{"index":{}}
+{"timestamp":"2025-04-23T10:00:30Z","source.ip":"192.0.2.1","destination.ip":"10.0.0.100","action":"allow","bytes_transferred":512}
+----
+==============
+
+[discrete]
+[[esql-lookup-join-example-query]]
+===== Query the Data
 
 [source,esql]
 ----
-FROM employees
-| EVAL language_code = emp_no % 10
-| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| WHERE emp_no > 10090 AND emp_no < 10096
-| SORT emp_no, country
-| KEEP emp_no, language_code, language_name, country;
+FROM firewall_logs <1>
+| LOOKUP JOIN threat_list ON source.ip <2>
+| WHERE threat_level IS NOT NULL <3>
+| SORT timestamp <4>
+| KEEP source.ip, action, threat_level, threat_type <5>
+| LIMIT 10 <6>
 ----
 
-[cols=",,,",options="header",]
+<1> The source index
+<2> The lookup index and join field
+<3> Filter for rows with non-null threat levels
+<4> LOOKUP JOIN does not guarantee output order, so you must explicitly sort
+<5> Keep only relevant fields
+<6> Limit the output to 10 rows
+
+[discrete]
+[[esql-lookup-join-example-response]]
+===== Response
+
+A successful query will output a table like this:
+
+[cols="4*",options="header"]
 |===
-|emp++_++no |language++_++code |language++_++name |country
-|10091 |1 |English |Canada
-|10091 |1 |null |United Kingdom
-|10091 |1 |English |United States of America
-|10091 |1 |English |null
-|10092 |2 |German |++[++Germany, Austria++]++
-|10092 |2 |German |Switzerland
-|10092 |2 |German |null
-|10093 |3 |null |null
-|10094 |4 |Spanish |null
-|10095 |5 |null |France
+|source.ip    |action     |threat_type  |threat_level
+|203.0.113.5  |allow      |C2_SERVER    |high
+|198.51.100.2 |block      |SCANNER      |medium
+|203.0.113.5  |allow      |C2_SERVER    |high
 |===
 
-[IMPORTANT]
-====
-`LOOKUP JOIN` does not guarantee the output to be in
-any particular order. If a certain order is required, users should use a
-<<esql-sort,`SORT`>> somewhere after the `LOOKUP JOIN`.
-====
+In this example, you can see that the `source.ip` field from the `firewall_logs` index is matched with the `source.ip` field in the `threat_list` index, and the corresponding `threat_level` and `threat_type` fields are added to the output.
+
+[discrete]
+[[esql-lookup-join-additional-examples]]
+===== Additional examples
+
+Refer to the examples section of the <<esql-lookup-join,LOOKUP JOIN>> command reference for more examples.
 
 [discrete]
 [[esql-lookup-join-prereqs]]
@@ -161,6 +230,29 @@ To obtain a join key with a compatible type, use a
 
 For a complete list of supported data types and their internal
 representations, see the <<esql-supported-types,Supported Field Types documentation>>.
+
+[discrete]
+[[esql-lookup-join-usage-notes]]
+==== Usage notes
+
+This section covers important details about `LOOKUP JOIN` that impact query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
+
+[discrete]
+[[esql-lookup-join-usage-notes-name-collisions]]
+===== Handling name collisions
+
+When fields from the lookup index match existing column names, the new columns override the existing ones.
+Before the `LOOKUP JOIN` command, preserve columns by either:
+
+* Using `RENAME` to assign non-conflicting names
+* Using `EVAL` to create new columns with different names
+
+[discrete]
+[[esql-lookup-join-usage-notes-sorting]]
+===== Sorting behavior
+
+The output rows produced by `LOOKUP JOIN` can be in any order and may not
+respect preceding `SORT` commands. To guarantee a certain ordering, place a `SORT` after any `LOOKUP JOIN` commands.
 
 [discrete]
 [[esql-lookup-join-limitations]]

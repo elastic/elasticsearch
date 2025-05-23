@@ -52,6 +52,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -110,7 +111,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             request.setJsonEntity("{\"f\":" + i + "}");
             assertOK(client().performRequest(request));
         }
-        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
+        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f").allowPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -303,7 +304,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
             equalTo(List.of(List.of(499.5d)))
         );
 
-        List<List<String>> signatures = new ArrayList<>();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
@@ -315,25 +315,34 @@ public class RestEsqlIT extends RestEsqlTestCase {
             for (Map<String, Object> o : operators) {
                 sig.add(checkOperatorProfile(o));
             }
-            signatures.add(sig);
+            String taskDescription = p.get("task_description").toString();
+            switch (taskDescription) {
+                case "data" -> assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("AggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+                case "node_reduce" -> assertThat(
+                    sig,
+                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
+                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
+                    )
+                );
+                case "final" -> assertMap(
+                    sig,
+                    matchesList().item("ExchangeSourceOperator")
+                        .item("AggregationOperator")
+                        .item("ProjectOperator")
+                        .item("LimitOperator")
+                        .item("EvalOperator")
+                        .item("ProjectOperator")
+                        .item("OutputOperator")
+                );
+                default -> throw new IllegalArgumentException("can't match " + taskDescription);
+            }
         }
-        assertThat(
-            signatures,
-            containsInAnyOrder(
-                matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("AggregationOperator")
-                    .item("ExchangeSinkOperator"),
-                matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"),
-                matchesList().item("ExchangeSourceOperator")
-                    .item("AggregationOperator")
-                    .item("ProjectOperator")
-                    .item("LimitOperator")
-                    .item("EvalOperator")
-                    .item("ProjectOperator")
-                    .item("OutputOperator")
-            )
-        );
     }
 
     private final String PROCESS_NAME = "process_name";
@@ -520,6 +529,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             }
             signatures.add(sig);
         }
+        // TODO adapt this to use task_description once this is reenabled
         assertThat(
             signatures,
             containsInAnyOrder(
@@ -620,28 +630,39 @@ public class RestEsqlIT extends RestEsqlTestCase {
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
                 .entry("wake_millis", greaterThan(0L));
-            if (operators.contains("LuceneSourceOperator")) {
-                assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-            } else if (operators.contains("ExchangeSourceOperator")) {
-                assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                for (Map<String, Object> s : first) {
-                    assertMap(s, sleepMatcher);
+            String taskDescription = p.get("task_description").toString();
+            switch (taskDescription) {
+                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
+                case "node_reduce" -> {
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
+                    for (Map<String, Object> s : first) {
+                        assertMap(s, sleepMatcher);
+                    }
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
+                    for (Map<String, Object> s : last) {
+                        assertMap(s, sleepMatcher);
+                    }
                 }
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                for (Map<String, Object> s : last) {
-                    assertMap(s, sleepMatcher);
+                case "final" -> {
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
+                            .entry("first", List.of(sleepMatcher))
+                            .entry("last", List.of(sleepMatcher))
+                    );
                 }
-            } else {
-                fail("unknown signature: " + operators);
+                default -> throw new IllegalArgumentException("unknown task: " + taskDescription);
             }
         }
     }
 
-    private MapMatcher commonProfile() {
-        return matchesMap().entry("start_millis", greaterThan(0L))
+    public static MapMatcher commonProfile() {
+        return matchesMap() //
+            .entry("task_description", any(String.class))
+            .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
             .entry("cpu_nanos", greaterThan(0L))
@@ -655,7 +676,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    public static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
@@ -675,7 +696,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("processing_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"));
+                .entry("processed_queries", List.of("*:*"))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))

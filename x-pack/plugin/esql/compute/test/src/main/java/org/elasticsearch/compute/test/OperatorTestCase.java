@@ -189,6 +189,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             List<Page> in = source.next();
             try (
                 Driver d = new Driver(
+                    "test",
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
@@ -263,6 +264,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
@@ -290,6 +292,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 new Driver(
+                    "test",
                     "dummy-session",
                     0,
                     0,

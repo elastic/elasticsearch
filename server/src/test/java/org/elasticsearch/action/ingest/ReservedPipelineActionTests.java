@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.FakeProcessor;
 import org.elasticsearch.ingest.IngestInfo;
@@ -51,7 +53,9 @@ import java.util.Map;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -85,6 +89,9 @@ public class ReservedPipelineActionTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE))).thenReturn(true);
+
         Client client = mock(Client.class);
         ingestService = new IngestService(
             mock(ClusterService.class),
@@ -96,7 +103,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
             client,
             null,
             DocumentParsingProvider.EMPTY_INSTANCE,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            featureService
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));

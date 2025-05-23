@@ -20,9 +20,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -609,7 +611,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
+        return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
+    }
+
+    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+        boolean anyBytesRef = false;
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
+                anyBytesRef = true;
+                break;
+            }
+        }
+        return anyBytesRef && randomBoolean() ? BlockTestUtils.convertBytesRefsToOrdinals(page) : page;
     }
 
     /**
@@ -661,7 +674,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
 
-            pages.add(new Page(pageSize, blocks));
+            pages.add(maybeConvertBytesRefsToOrdinals(new Page(pageSize, blocks)));
             initialRow += pageSize;
             pageSize = randomIntBetween(1, 100);
         }

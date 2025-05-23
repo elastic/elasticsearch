@@ -72,7 +72,7 @@ PUT _index_template/dsl-data-stream-template
 ----
 // TEST[continued]
 
-We'll now index a document targetting `dsl-data-stream` to create the data stream
+We'll now index a document targeting `dsl-data-stream` to create the data stream
 and we'll also manually rollover the data stream to have another generation index created:
 
 [source,console]
@@ -118,14 +118,16 @@ and that the next generation index will also be managed by {ilm-init}:
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,                                       <2>
           "ilm_policy": "pre-dsl-ilm-policy",                       <3>
-          "managed_by": "Index Lifecycle Management"                <4>
+          "managed_by": "Index Lifecycle Management",               <4>
+          "index_mode": "standard"
         },
         {
           "index_name": ".ds-dsl-data-stream-2023.10.19-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"
+          "managed_by": "Index Lifecycle Management",
+          "index_mode": "standard"
         }
       ],
       "generation": 2,
@@ -138,6 +140,7 @@ and that the next generation index will also be managed by {ilm-init}:
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -251,14 +254,16 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"                <1>
+          "managed_by": "Index Lifecycle Management",               <1>
+          "index_mode": "standard"
         },
         {
           "index_name": ".ds-dsl-data-stream-2023.10.19-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"                <2>
+          "managed_by": "Index Lifecycle Management",               <2>
+          "index_mode": "standard"
         }
       ],
       "generation": 2,
@@ -277,6 +282,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -286,7 +292,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":$body.data_streams.0.failure_store/]
 
 <1> The existing backing index will continue to be managed by {ilm-init}
 <2> The existing backing index will continue to be managed by {ilm-init}
@@ -324,6 +330,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <1>
         },
         {
@@ -331,6 +338,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <2>
         },
         {
@@ -338,6 +346,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8abcd1",
           "prefer_ilm": false,                                      <3>
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Data stream lifecycle"                     <4>
         }
       ],
@@ -357,6 +366,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -368,7 +378,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":$body.data_streams.0.failure_store/]
 
 <1> The backing indices that existed before rollover will continue to be managed by {ilm-init}
 <2> The backing indices that existed before rollover will continue to be managed by {ilm-init}
@@ -424,6 +434,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"
         },
         {
@@ -431,6 +442,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"
         },
         {
@@ -438,6 +450,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8abcd1",
           "prefer_ilm": false,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <1>
         }
       ],
@@ -455,6 +468,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -466,7 +480,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_store":$body.data_streams.0.failure_store/]
 <1> The write index is now managed by {ilm-init}
 <2> The `lifecycle` configured on the data stream is now disabled.
 <3> The next write index will be managed by {ilm-init}

@@ -105,7 +105,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
     private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
@@ -241,8 +241,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
 
             SourceLoader sourceLoader = null;
+            ShardContext shardContext = shardContexts.get(shard);
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                sourceLoader = shardContext.newSourceLoader.get();
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
@@ -255,7 +256,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docs)) {
+            if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -432,9 +433,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
-        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
+        if (count < SEQUENTIAL_BOUNDARY) {
+            return false;
+        }
+        int range = docs.get(count - 1) - docs.get(0);
+        return range * storedFieldsSequentialProportion <= count;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {

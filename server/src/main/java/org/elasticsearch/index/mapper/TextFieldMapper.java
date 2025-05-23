@@ -970,12 +970,11 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for loading and querying (ie. either isIndexed or isStored is true)
+         * Returns true if the delegate sub-field can be used for loading.
+         * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
-                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
         }
 
         /**
@@ -985,6 +984,21 @@ public final class TextFieldMapper extends FieldMapper {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
                 && syntheticSourceDelegate.isIndexed();
+        }
+
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         */
+        public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
+            if (syntheticSourceDelegate == null
+                // Can't push equality to an index if there isn't an index
+                || syntheticSourceDelegate.isIndexed() == false
+                // ESQL needs docs values to push equality
+                || syntheticSourceDelegate.hasDocValues() == false) {
+                return false;
+            }
+            // Can't push equality if the field we're checking for is so big we'd ignore it.
+            return str.length() <= syntheticSourceDelegate.ignoreAbove();
         }
 
         @Override
@@ -1021,9 +1035,13 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will only be present if text field is not stored
-            // and there is no syntheticSourceDelegate
-            if (isSyntheticSource && syntheticSourceDelegate == null) {
+            // _ignored_source field will contain entries for this field if it is not stored
+            // and there is no syntheticSourceDelegate.
+            // See #syntheticSourceSupport().
+            // But if a text field is a multi field it won't have an entry in _ignored_source.
+            // The parent might, but we don't have enough context here to figure this out.
+            // So we bail.
+            if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader();
             }
 
@@ -1072,6 +1090,13 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (isSyntheticSource && syntheticSourceDelegate != null) {
+                // Since we are using synthetic source and a delegate, we can't use this field
+                // to determine if the delegate has values in the document (f.e. handling of `null` is different
+                // between text and keyword).
+                return BlockSourceReader.lookupMatchingAll();
+            }
+
             if (isIndexed()) {
                 if (getTextSearchInfo().hasNorms()) {
                     return BlockSourceReader.lookupFromNorms(name());

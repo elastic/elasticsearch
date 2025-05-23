@@ -1,0 +1,5 @@
+pr: 126806
+summary: Workaround max name limit imposed by Jackson 2.17
+area: Infra/Core
+type: bug
+issues: []

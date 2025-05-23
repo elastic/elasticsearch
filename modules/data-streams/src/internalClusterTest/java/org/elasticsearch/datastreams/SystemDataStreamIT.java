@@ -398,17 +398,23 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                         Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(".test-failure-store"))
-                            .template(Template.builder().mappings(new CompressedXContent("""
-                                {
-                                    "properties": {
-                                      "@timestamp" : {
-                                        "type": "date"
-                                      },
-                                      "count": {
-                                        "type": "long"
-                                      }
-                                    }
-                                }""")).dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true))))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .dataStreamOptions(
+                                        new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
+                                    )
+                            )
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

@@ -11,7 +11,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.StoredFieldsReader;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
@@ -19,9 +18,6 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -33,6 +29,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
@@ -174,49 +171,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public CacheHelper getReaderCacheHelper() {
             return null;
-        }
-
-        private static class FilterDocValuesProducer extends DocValuesProducer {
-            private final DocValuesProducer in;
-
-            FilterDocValuesProducer(DocValuesProducer in) {
-                this.in = in;
-            }
-
-            @Override
-            public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-                return in.getNumeric(field);
-            }
-
-            @Override
-            public BinaryDocValues getBinary(FieldInfo field) throws IOException {
-                return in.getBinary(field);
-            }
-
-            @Override
-            public SortedDocValues getSorted(FieldInfo field) throws IOException {
-                return in.getSorted(field);
-            }
-
-            @Override
-            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-                return in.getSortedNumeric(field);
-            }
-
-            @Override
-            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-                return in.getSortedSet(field);
-            }
-
-            @Override
-            public void checkIntegrity() throws IOException {
-                in.checkIntegrity();
-            }
-
-            @Override
-            public void close() throws IOException {
-                in.close();
-            }
         }
 
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {

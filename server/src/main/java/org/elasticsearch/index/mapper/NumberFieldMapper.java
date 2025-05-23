@@ -1975,7 +1975,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromDocValues(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce);
             }
 

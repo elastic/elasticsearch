@@ -48,7 +48,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -85,7 +84,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1182,11 +1180,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
-    }
-
-    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
@@ -1307,7 +1300,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
-            } : SourceProvider.fromStoredFields();
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
                 new FieldDataContext("", null, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
@@ -1320,41 +1313,5 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(dv.advanceExact(2));
             assertFalse(dv.advanceExact(3));
         });
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
-    }
-
-    public void testBlockLoaderFromParentColumnReader() throws IOException {
-        testBlockLoaderFromParent(true, randomBoolean());
-    }
-
-    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
-        testBlockLoaderFromParent(false, randomBoolean());
-    }
-
-    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
-        boolean storeParent = randomBoolean();
-        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(null, storeParent, null, false);
-        SyntheticSourceExample example = kwdSupport.example(5);
-        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
-            b.startObject("field");
-            {
-                example.mapping().accept(b);
-                b.startObject("fields").startObject("sub");
-                {
-                    b.field("type", "text");
-                }
-                b.endObject().endObject();
-            }
-            b.endObject();
-        };
-        XContentBuilder mapping = mapping(buildFields);
-        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
-        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
-        var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 }

@@ -1,0 +1,7 @@
+pr: 126990
+summary: "Fix: consider case sensitiveness differences in Windows/Unix-like filesystems\
+  \ for files entitlements"
+area: Infra/Core
+type: bug
+issues:
+ - 127047

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Locale;
@@ -12,78 +11,110 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ChangeCase}.
- * This class is generated. Edit {@code EvaluatorImplementer} instead.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
-public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Source source;
-
+public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
   private final Locale locale;
 
   private final ChangeCase.Case caseType;
 
-  private final DriverContext driverContext;
-
-  private Warnings warnings;
-
   public ChangeCaseEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
       ChangeCase.Case caseType, DriverContext driverContext) {
-    this.source = source;
+    super(driverContext, source);
     this.val = val;
     this.locale = locale;
     this.caseType = caseType;
-    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
-      BytesRefVector valVector = valBlock.asVector();
-      if (valVector == null) {
-        return eval(page.getPositionCount(), valBlock);
+  public EvalOperator.ExpressionEvaluator next() {
+    return val;
+  }
+
+  @Override
+  public Block evalVector(Vector v) {
+    BytesRefVector vector = (BytesRefVector) v;
+    OrdinalBytesRefVector ordinals = vector.asOrdinals();
+    if (ordinals != null) {
+      return evalOrdinals(ordinals);
+    }
+    int positionCount = v.getPositionCount();
+    BytesRef scratchPad = new BytesRef();
+    if (vector.isConstant()) {
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+    }
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendBytesRef(evalValue(vector, p, scratchPad));
       }
-      return eval(page.getPositionCount(), valVector).asBlock();
+      return builder.build();
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
+    return ChangeCase.process(value, this.locale, this.caseType);
+  }
+
+  @Override
+  public Block evalBlock(Block b) {
+    BytesRefBlock block = (BytesRefBlock) b;
+    int positionCount = block.getPositionCount();
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef scratchPad = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          BytesRef value = evalValue(block, i, scratchPad);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
-          result.appendNull();
-          continue position;
+          builder.appendBytesRef(value);
+          valuesAppended = true;
         }
-        result.appendBytesRef(ChangeCase.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale, this.caseType));
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
+        }
       }
-      return result.build();
+      return builder.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ChangeCase.process(valVector.getBytesRef(p, valScratch), this.locale, this.caseType));
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
+    return ChangeCase.process(value, this.locale, this.caseType);
+  }
+
+  private Block evalOrdinals(OrdinalBytesRefVector v) {
+    int positionCount = v.getDictionaryVector().getPositionCount();
+    BytesRef scratchPad = new BytesRef();
+    try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendBytesRef(evalValue(v.getDictionaryVector(), p, scratchPad));
       }
-      return result.build();
+      IntVector ordinals = v.getOrdinalsVector();
+      ordinals.incRef();
+      return new OrdinalBytesRefVector(ordinals, builder.build()).asBlock();
     }
   }
 
@@ -97,19 +128,7 @@ public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluat
     Releasables.closeExpectNoException(val);
   }
 
-  private Warnings warnings() {
-    if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
-    }
-    return warnings;
-  }
-
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory val;

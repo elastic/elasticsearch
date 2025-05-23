@@ -1,0 +1,5 @@
+pr: 126583
+summary: Cancel expired async search task when a remote returns its results
+area: CCS
+type: bug
+issues: []

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -143,6 +142,11 @@ public class EsqlCapabilities {
         AGG_TOP_STRING_SUPPORT,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -248,6 +252,12 @@ public class EsqlCapabilities {
         UNION_TYPES_AGG_CAST,
 
         /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES,
+
+        /**
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
@@ -276,6 +286,18 @@ public class EsqlCapabilities {
          * </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
+         * Support for removing empty attribute in merging output.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> EVAL after STATS produces an empty column #126392 </a>
+         */
+        REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
 
         /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
@@ -772,7 +794,7 @@ public class EsqlCapabilities {
         /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+        INDEX_COMPONENT_SELECTORS,
 
         /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
@@ -790,6 +812,17 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support for filter in converted null.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/125832"> ESQL: Fix `NULL` handling in `IN` clause #125832 </a>
+         */
+        FILTER_IN_CONVERTED_NULL,
+
+        /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES,
+
+        /**
          * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
@@ -799,7 +832,47 @@ public class EsqlCapabilities {
         /**
          * Support loading of ip fields if they are not indexed.
          */
-        LOADING_NON_INDEXED_IP_FIELDS;
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV,
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467</a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
+         * found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

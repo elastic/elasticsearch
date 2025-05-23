@@ -91,7 +91,7 @@ public class ClusterInfoSimulator {
 
         var size = getExpectedShardSize(
             shard,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            shard.getExpectedShardSize(),
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
             allocation.metadata(),

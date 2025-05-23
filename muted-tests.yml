@@ -52,12 +52,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testMultiIndexDelete
   issue: https://github.com/elastic/elasticsearch/issues/112381
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/112471
@@ -185,8 +179,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
-- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
-  issue: https://github.com/elastic/elasticsearch/issues/116126
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
@@ -457,3 +449,24 @@ tests:
 - class: org.elasticsearch.search.SearchServiceSingleNodeTests
   method: testLookUpSearchContext
   issue: https://github.com/elastic/elasticsearch/issues/126813
+- class: org.elasticsearch.test.index.IndexVersionUtilsTests
+  method: testIndexCompatibleVersionMatches
+  issue: https://github.com/elastic/elasticsearch/issues/120760
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityFcActionAuthorizationIT
+  method: testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions
+  issue: https://github.com/elastic/elasticsearch/issues/127782
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
+  method: testSearchWhileRelocating
+  issue: https://github.com/elastic/elasticsearch/issues/127188
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/128077
+- class: org.elasticsearch.compute.operator.ChangePointOperatorTests
+  method: testSimpleFinishClose
+  issue: https://github.com/elastic/elasticsearch/issues/127106
+- class: org.elasticsearch.search.CCSDuelIT
+  method: testTerminateAfter
+  issue: https://github.com/elastic/elasticsearch/issues/126085
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized/Test index configured rescore vector score consistency}
+  issue: https://github.com/elastic/elasticsearch/issues/128353

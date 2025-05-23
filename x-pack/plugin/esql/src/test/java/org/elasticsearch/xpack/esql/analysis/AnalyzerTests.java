@@ -4054,16 +4054,25 @@ public class AnalyzerTests extends ESTestCase {
             toDateNanos.field()
         );
         a = aliases.get(5); // f = date_and_date_nanos::date_nanos::datetime
-        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "f", DATETIME, a.child());
+        verifyNameAndType(a.name(), a.dataType(), "f", DATETIME);
+        toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
         a = aliases.get(6); // g = date_and_date_nanos::date_nanos::date_nanos
-        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "g", DATE_NANOS, a.child());
+        verifyNameAndType(a.name(), a.dataType(), "g", DATE_NANOS);
+        toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
         a = aliases.get(7); // h = date_and_date_nanos::datetime::long
         verifyNameAndType(a.name(), a.dataType(), "h", LONG);
         ToLong toLong = as(a.child(), ToLong.class);
         fa = as(toLong.field(), FieldAttribute.class);
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$datetime", DATETIME, fa);
         a = aliases.get(8); // i = date_and_date_nanos::date_nanos::long
-        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "i", LONG, a.child());
+        verifyNameAndType(a.name(), a.dataType(), "i", LONG);
+        toLong = as(a.child(), ToLong.class);
+        fa = as(toLong.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
         a = aliases.get(9); // j = date_and_date_nanos::long::datetime
         verifyNameAndType(a.name(), a.dataType(), "j", DATETIME);
         toDatetime = as(a.child(), ToDatetime.class);

@@ -101,9 +101,9 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -815,14 +815,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final SortAndFormats formatsLongDate = new SortAndFormats(sortLongDate, new DocValueFormat[] { DocValueFormat.RAW, dvFormatDate });
         final SortAndFormats formatsDateLong = new SortAndFormats(sortDateLong, new DocValueFormat[] { dvFormatDate, DocValueFormat.RAW });
 
-        Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs);
-
-        // 0. test assertion - the query rewritten to a match all - https://github.com/apache/lucene/pull/14609/
-        // TODO: reflow total hits expectations
-        try (TestSearchContext searchContext = createContext(newContextSearcher(reader), q)) {
-            var rewrittenQ = q.rewrite(searchContext.searcher());
-            assertTrue(rewrittenQ instanceof MatchAllDocsQuery);
-        }
+        // query all but one doc to avoid optimizations that may rewrite to a MatchAllDocs, which simplifies assertions
+        Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs - 2);
 
         // 1. Test sort optimization on long field
         try (TestSearchContext searchContext = createContext(newContextSearcher(reader), q)) {
@@ -890,7 +884,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.addCollectorsAndSearch(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
             assertThat(searchContext.queryResult().topDocs().topDocs.scoreDocs, arrayWithSize(0));
-            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs));
+            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs - 1));
             assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
         }
 
@@ -959,9 +953,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     // assert score docs are in order and their number is as expected
     private static void assertSortResults(TopDocs topDocs, long totalNumDocs, boolean isDoubleSort) {
-        // TODO: fix java.lang.AssertionError: expected:<GREATER_THAN_OR_EQUAL_TO> but was:<EQUAL_TO>
-        // assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
-        // assertThat(topDocs.totalHits.value(), lessThan(totalNumDocs)); // we collected less docs than total number
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
+        assertThat(topDocs.totalHits.value(), lessThan(totalNumDocs)); // we collected less docs than total number
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;
@@ -1002,11 +995,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.addCollectorsAndSearch(context);
             TotalHits totalHits = context.queryResult().topDocs().topDocs.totalHits;
             assertThat(totalHits.value(), greaterThanOrEqualTo(5L));
-            var expectedRelation = totalHits.value() == 10 ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
-            // TODO: re assert expected total hits relation
-            // var expectedRelation = totalHits.value() == 10 ?
-            // Set.of(Relation.GREATER_THAN_OR_EQUAL_TO, Relation.EQUAL_TO) : Set.of(Relation.GREATER_THAN_OR_EQUAL_TO);
-            // assertThat(totalHits.relation(), is(expectedRelation));
+            assertThat(totalHits.relation(), is(Relation.GREATER_THAN_OR_EQUAL_TO));
         }
     }
 

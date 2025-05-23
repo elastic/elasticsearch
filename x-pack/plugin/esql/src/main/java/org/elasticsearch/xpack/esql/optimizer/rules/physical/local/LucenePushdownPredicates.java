@@ -7,21 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-
-import java.util.Map;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
 /**
  * When deciding if a filter or topN can be pushed down to Lucene, we need to check a few things on the field.
@@ -105,46 +97,6 @@ public interface LucenePushdownPredicates {
     }
 
     /**
-     * Extract the real field name from a MultiTypeEsField, limit to MultiTypeEsField that has date_nanos type only.
-     *
-     * For example, the name of a MultiTypeEsField can be $$myfield$converted_to$date_nanos, and the real field name extract from the
-     * MultiTypeEsField is myfield, this method return myfield given a MultiTypeEsField.
-     *
-     * If the real field name is found, and the original field data types contain only date and date_nanos types, return the real field
-     * name, so that the real field name will be used to check for eligibility of being pushed down, and the real field name will be used
-     * in the push down query, instead of the name of the MultiTypeEsField, which should not match any field in an index.
-     *
-     * This method can be extended to support the other data types in the future if there is a need.
-     */
-    static String extractFieldNameFromMultiTypeEsField(TypedAttribute attribute) {
-        if (EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled()
-            && attribute instanceof FieldAttribute fa
-            && fa.field() instanceof MultiTypeEsField multiTypeEsField
-            && fa.dataType() == DATE_NANOS
-            &&  // limit to casting to date_nanos only
-            mixedDateAndDateNanosOnly(multiTypeEsField, DataType::isMillisOrNanos) // limit to mixed date and date_nanos only
-        ) {
-            return fa.fieldName();
-        }
-        return null;
-    }
-
-    /**
-     * Check if the original field types in a MultiTypeEsField satisfy the required data types defined in the predicate.
-     */
-    private static boolean mixedDateAndDateNanosOnly(MultiTypeEsField multiTypeEsField, Predicate<DataType> predicate) {
-        Map<String, Expression> indexToConversionExpressions = multiTypeEsField.getIndexToConversionExpressions();
-        for (Map.Entry<String, Expression> entry : indexToConversionExpressions.entrySet()) {
-            Expression conversionFunction = entry.getValue();
-            if (conversionFunction instanceof AbstractConvertFunction abstractConvertFunction
-                && predicate.test(abstractConvertFunction.field().dataType()) == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * The default implementation of this has no access to SearchStats, so it can only make decisions based on the FieldAttribute itself.
      * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
@@ -186,14 +138,10 @@ public interface LucenePushdownPredicates {
 
             @Override
             public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-                // If this is a MultiTypeEsField cast to date_nanos, make it eligible for being pushed down by checking the real
-                // field name against SearchStats
-                String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(attr);
-                String name = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : attr.name();
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?
-                return attr.field().isAggregatable() || stats.isIndexed(name) && stats.hasDocValues(name);
+                return attr.field().isAggregatable() || stats.isIndexed(attr.name()) && stats.hasDocValues(attr.name());
             }
 
             @Override

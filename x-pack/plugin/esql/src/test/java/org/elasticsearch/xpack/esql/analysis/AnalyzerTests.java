@@ -49,7 +49,10 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -118,7 +121,10 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValu
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -3945,57 +3951,135 @@ public class AnalyzerTests extends ESTestCase {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 
-        // validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again
+        // Validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again, and include some cases of
+        // nested casting as well.
         LogicalPlan plan = analyze("""
             FROM tests
-            | Eval x = date_and_date_nanos::datetime, y = date_and_date_nanos, z = date_and_date_nanos::date_nanos
+            | Eval a = date_and_date_nanos, b = date_and_date_nanos::datetime, c = date_and_date_nanos::date_nanos,
+                   d = date_and_date_nanos::datetime::datetime, e = date_and_date_nanos::datetime::date_nanos,
+                   f = date_and_date_nanos::date_nanos::datetime, g = date_and_date_nanos::date_nanos::date_nanos,
+                   h = date_and_date_nanos::datetime::long, i = date_and_date_nanos::date_nanos::long,
+                   j = date_and_date_nanos::long::datetime, k = date_and_date_nanos::long::date_nanos
             """, analyzer);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
-        assertEquals(5, projections.size());
+        assertEquals(13, projections.size());
         // implicit casting
         FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
-        assertEquals("date_and_date_nanos", fa.name());
-        assertEquals(DataType.DATE_NANOS, fa.dataType());
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "date_and_date_nanos", DATE_NANOS, fa);
         // long is not cast to date_nanos
         UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class);
-        assertEquals("date_and_date_nanos_and_long", ua.name());
-        assertEquals(DataType.UNSUPPORTED, ua.dataType());
-        // explicit casting
-        ReferenceAttribute ra = as(projections.get(2), ReferenceAttribute.class);
-        assertEquals("x", ra.name());
-        assertEquals(DataType.DATETIME, ra.dataType());
+        verifyNameAndType(ua.name(), ua.dataType(), "date_and_date_nanos_and_long", UNSUPPORTED);
         // implicit casting
-        ra = as(projections.get(3), ReferenceAttribute.class);
-        assertEquals("y", ra.name());
-        assertEquals(DataType.DATE_NANOS, ra.dataType());
+        ReferenceAttribute ra = as(projections.get(2), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "a", DATE_NANOS);
         // explicit casting
+        ra = as(projections.get(3), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "b", DATETIME);
         ra = as(projections.get(4), ReferenceAttribute.class);
-        assertEquals("z", ra.name());
-        assertEquals(DataType.DATE_NANOS, ra.dataType());
+        verifyNameAndType(ra.name(), ra.dataType(), "c", DATE_NANOS);
+        ra = as(projections.get(5), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "d", DATETIME);
+        ra = as(projections.get(6), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "e", DATE_NANOS);
+        ra = as(projections.get(7), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "f", DATETIME);
+        ra = as(projections.get(8), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "g", DATE_NANOS);
+        ra = as(projections.get(9), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "h", LONG);
+        ra = as(projections.get(10), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "i", LONG);
+        ra = as(projections.get(11), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "j", DATETIME);
+        ra = as(projections.get(12), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "k", DATE_NANOS);
+
         Limit limit = as(project.child(), Limit.class);
         // original Eval coded in the query
         Eval eval = as(limit.child(), Eval.class);
         List<Alias> aliases = eval.fields();
-        assertEquals(3, aliases.size());
-        // explicit casting
-        Alias a = aliases.get(0);
-        assertEquals("x", a.name());
-        assertEquals(DataType.DATETIME, a.dataType());
-        assertTrue(isMultiTypeEsField(a.child()));
+        assertEquals(11, aliases.size());
         // implicit casting
-        a = aliases.get(1);
-        assertEquals("y", a.name());
-        assertEquals(DataType.DATE_NANOS, a.dataType());
-        assertTrue(a.child() instanceof FieldAttribute);
+        Alias a = aliases.get(0); // a = date_and_date_nanos
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "a", DATE_NANOS, a.child());
         // explicit casting
-        a = aliases.get(2);
-        assertEquals("z", a.name());
-        assertEquals(DataType.DATE_NANOS, a.dataType());
-        assertTrue(isMultiTypeEsField(a.child()));
+        a = aliases.get(1); // b = date_and_date_nanos::datetime
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "b", DATETIME, a.child());
+        a = aliases.get(2); // c = date_and_date_nanos::date_nanos
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "c", DATE_NANOS, a.child());
+        a = aliases.get(3); // d = date_and_date_nanos::datetime::datetime
+        verifyNameAndType(a.name(), a.dataType(), "d", DATETIME);
+        ToDatetime toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(
+            fa.name(),
+            fa.dataType(),
+            "$$date_and_date_nanos$converted_to$datetime",
+            DATETIME,
+            toDatetime.field()
+        );
+        a = aliases.get(4); // e = date_and_date_nanos::datetime::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "e", DATE_NANOS);
+        ToDateNanos toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(
+            fa.name(),
+            fa.dataType(),
+            "$$date_and_date_nanos$converted_to$datetime",
+            DATETIME,
+            toDateNanos.field()
+        );
+        a = aliases.get(5); // f = date_and_date_nanos::date_nanos::datetime
+        verifyNameAndType(a.name(), a.dataType(), "f", DATETIME);
+        toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(6); // g = date_and_date_nanos::date_nanos::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "g", DATE_NANOS);
+        toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(7); // h = date_and_date_nanos::datetime::long
+        verifyNameAndType(a.name(), a.dataType(), "h", LONG);
+        ToLong toLong = as(a.child(), ToLong.class);
+        fa = as(toLong.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$datetime", DATETIME, fa);
+        a = aliases.get(8); // i = date_and_date_nanos::date_nanos::long
+        verifyNameAndType(a.name(), a.dataType(), "i", LONG);
+        toLong = as(a.child(), ToLong.class);
+        fa = as(toLong.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(9); // j = date_and_date_nanos::long::datetime
+        verifyNameAndType(a.name(), a.dataType(), "j", DATETIME);
+        toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
+        a = aliases.get(10); // k = date_and_date_nanos::long::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "k", DATE_NANOS);
+        toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("test*", esRelation.indexPattern());
+    }
+
+    private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
+        assertEquals(expectedName, actualName);
+        assertEquals(expectedType, actualType);
+    }
+
+    private void verifyNameAndTypeAndMultiTypeEsField(
+        String actualName,
+        DataType actualType,
+        String expectedName,
+        DataType expectedType,
+        Expression e
+    ) {
+        assertEquals(expectedName, actualName);
+        assertEquals(expectedType, actualType);
+        assertTrue(isMultiTypeEsField(e));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

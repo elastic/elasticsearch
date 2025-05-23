@@ -173,7 +173,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
-            new ResolveUnionTypesInEsRelation()
+            new DateMillisToNanosInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -1665,9 +1665,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
-                        TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                        var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
-                        typeResolutions.put(key, concreteConvert);
+                        typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
@@ -1676,53 +1674,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by ResolveUnionTypesInEsRelation has synthetic = false
+                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
                 && fa.field() instanceof MultiTypeEsField mtf) {
                     // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
                     // ResolveUnionTypesInEsRelation, it is not necessary to cast it into date_nanos and then do explicit casting.
                     if (((Expression) convert).dataType() == mtf.getDataType()) {
-                        // The same data type between implicit(date_nanos) and explicit casting, explicit conversion is not needed
-                        return convert.field();
-                    } else {
-                        // Data type is different between implicit(date_nanos) and explicit casting, create a new MultiTypeEsField with
-                        // explicit casting type. TODO Is there an easy way to convert one MultiTypeEsField to another MultiTypeEsField?
-                        HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        Set<DataType> supportedTypes = convert.supportedTypes();
-                        Holder<Boolean> conversionSupported = new Holder<>(true);
-                        // Get the type of each field in the multi typed field and check if the explicit conversion is supported
-                        mtf.getIndexToConversionExpressions().forEach((indexName, conversionExpression) -> {
-                            AbstractConvertFunction c = (AbstractConvertFunction) conversionExpression;
-                            FieldAttribute fieldAttribute = (FieldAttribute) c.field();
-                            DataType type = fieldAttribute.dataType();
-                            if (supportedTypes.contains(type.widenSmallNumeric())) {
-                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                                var concreteConvert = typeSpecificConvert(convert, fa.source(), fieldAttribute.field());
-                                typeResolutions.putIfAbsent(key, concreteConvert);
-                            } else {
-                                conversionSupported.set(false);
-                            }
-                        });
-                        // If the conversions are supported, all the data types in a MultiTypeEsField can be cast to the explicit casting
-                        // data type, create a new FieldAttribute with a new MultiTypeEsField, and add it to unionFieldAttributes.
-                        if (conversionSupported.get()) {
-                            // Build the mapping between index name and conversion expressions, as a MultiTypeEsField does not store the
-                            // mapping between data types and index names,
-                            Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-                            for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
-                                String indexName = entry.getKey();
-                                AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
-                                TypeResolutionKey key = new TypeResolutionKey(fa.name(), originalConversionFunction.field().dataType());
-                                Expression newConversionFunction = typeResolutions.get(key);
-                                indexToConversionExpressions.put(indexName, newConversionFunction);
-                            }
-                            MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                                fa.name(),
-                                ((Expression) convert).dataType(),
-                                false,
-                                indexToConversionExpressions
-                            );
-                            return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                        // The same data type between implicit(date_nanos) and explicit casting, explicit conversion is not needed, mark is
+                        // as synthetic = true as it is an explicit conversion
+                        return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
+                    }
+
+                    // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
+                    // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
+                    Set<DataType> supportedTypes = convert.supportedTypes();
+                    if (supportedTypes.contains(fa.dataType())) {
+                        // Build the mapping between index name and conversion expressions
+                        Map<String, Expression> indexToConversionExpressions = new HashMap<>();
+                        for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
+                            String indexName = entry.getKey();
+                            AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
+                            Expression originalField = originalConversionFunction.field();
+                            Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
+                            indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
+                        MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
+                            fa.name(),
+                            convertExpression.dataType(),
+                            false,
+                            indexToConversionExpressions
+                        );
+                        return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
@@ -1852,7 +1833,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
-    private static class ResolveUnionTypesInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+    private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             return plan.transformUp(EsRelation.class, relation -> {
@@ -1863,11 +1844,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f);
-                        imf.types().forEach(type -> {
-                            ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(f.name(), type);
-                            var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, f.source(), type, imf);
-                            typeResolutions.put(key, concreteConvert);
-                        });
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
                         return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
                     }
@@ -1875,5 +1852,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             });
         }
+    }
+
+    private static void typeResolutions(
+        FieldAttribute fieldAttribute,
+        ConvertFunction convert,
+        DataType type,
+        InvalidMappedField imf,
+        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+    ) {
+        ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
+        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
+        typeResolutions.put(key, concreteConvert);
     }
 }

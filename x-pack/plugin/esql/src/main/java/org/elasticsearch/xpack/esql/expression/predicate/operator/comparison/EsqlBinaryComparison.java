@@ -378,9 +378,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
-        String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(attribute);
-        name = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : name;
         Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
         String format = null;
         boolean isDateLiteralComparison = false;
@@ -455,10 +452,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             return new RangeQuery(source(), name, null, false, value, true, format, zoneId);
         }
         if (this instanceof Equals || this instanceof NotEquals) {
-            // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
-            name = fieldNameFromMultiTypeEsField != null
-                ? fieldNameFromMultiTypeEsField
-                : LucenePushdownPredicates.pushableAttributeName(attribute);
+            name = LucenePushdownPredicates.pushableAttributeName(attribute);
 
             Query query;
             if (isDateLiteralComparison) {

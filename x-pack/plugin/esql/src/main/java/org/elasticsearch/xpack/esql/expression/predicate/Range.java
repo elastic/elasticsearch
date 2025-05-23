@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -280,13 +279,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             }
         }
         logger.trace("Building range query with format string [{}]", format);
-        // This is a similar check as in EsqlBinaryComparison
-        // Extract the real field name from MultiTypeEsField, and use it in the push down query if it is found
-        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value);
-        String name = handler.nameOf(attribute);
-        String fieldNameFromMultiTypeEsField = LucenePushdownPredicates.extractFieldNameFromMultiTypeEsField(attribute);
-        name = fieldNameFromMultiTypeEsField != null ? fieldNameFromMultiTypeEsField : name;
-        return new RangeQuery(source(), name, l, includeLower(), u, includeUpper(), format, zoneId);
+        return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 
     @Override

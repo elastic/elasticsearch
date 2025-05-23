@@ -1712,15 +1712,15 @@ required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
 
 FROM employees, employees_incompatible
-| EVAL x = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, y = hire_date::datetime, z = hire_date::date_nanos
-| KEEP x, languages, hire_date, avg_worked_seconds, y, z
+| EVAL x = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, y = hire_date::datetime, z = hire_date::date_nanos, w = hire_date
+| KEEP x, languages, hire_date, avg_worked_seconds, y, z, w
 | SORT x, z
 | LIMIT 2
 ;
 
-x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |y:datetime               |z:date_nanos
-10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
-10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |y:datetime               |z:date_nanos             |w:date_nanos
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedFieldsDropKeepSort
@@ -2074,6 +2074,39 @@ millis:date_nanos              | nanos:date_nanos               | num:long
 1999-10-23T12:15:03.360103847Z | 2023-02-23T13:33:34.937Z       | 0
 1999-10-23T12:15:03.360Z       | 2023-02-23T13:33:34.937193Z    | 0
 ;
+
+ImplicitCastingMultiTypedFieldsBackAndForth
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| MV_EXPAND nanos
+| EVAL a = nanos::datetime, b = nanos::date_nanos, c = nanos, d = nanos::datetime::date_nanos, e = nanos::date_nanos::datetime
+| KEEP millis, nanos, a, b, c, d, e
+| SORT nanos, millis
+| LIMIT 14
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+millis:date_nanos              | nanos:date_nanos               | a:datetime               | b:date_nanos                   | c:date_nanos                   | d:date_nanos             | e:datetime              
+1999-10-23T12:15:03.360103847Z | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360Z       | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360103847Z | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z
+1999-10-23T12:15:03.360Z       | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z
+;
+
 
 ImplicitCastingMultiTypedMVFieldsEval
 required_capability: date_nanos_type

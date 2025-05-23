@@ -1440,9 +1440,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder()
-            // .add(newNormalNode("node1", "node1"))
             .add(newNormalNode("node2", "node2"));
-        // node1 which is replaced by node1 may or may not be in the cluster
+        // node1 which is replaced by node3 may or may not be in the cluster
         if (sourceNodeInTable) {
             discoveryNodes.add(newNormalNode("node1", "node1"));
         }

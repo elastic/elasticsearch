@@ -109,6 +109,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                         .toList();
                     if (nonNativeRealms.isEmpty()) {
                         listener.onFailure(createUserNotFoundException());
+                        return;
                     }
 
                     GroupedActionListener<User> gal = new GroupedActionListener<>(nonNativeRealms.size(), new ActionListener<>() {

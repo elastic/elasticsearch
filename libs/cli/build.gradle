@@ -6,8 +6,27 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+plugins {
+  id("com.gradleup.nmcp").version("0.1.4")
+}
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+
+
+// Create your publications
+
+// Create your publications
+
+nmcp {
+  centralPortal {
+    username = "blubb" //TODO("Create a token username at https://central.sonatype.com/account")
+    password = "blubb" //TODO("Create a token password at https://central.sonatype.com/account")
+    // publish manually from the portal
+    publishingType = "USER_MANAGED"
+    // or if you want to publish automatically
+    publishingType = "AUTOMATIC"
+  }
+}
 
 dependencies {
   api 'net.sf.jopt-simple:jopt-simple:5.0.2'

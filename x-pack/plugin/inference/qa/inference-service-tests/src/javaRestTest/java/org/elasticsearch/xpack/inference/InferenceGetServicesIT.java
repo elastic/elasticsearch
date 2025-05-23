@@ -142,7 +142,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googleaistudio",
                     "openai",
                     "streaming_completion_test_service",
-                    "hugging_face"
+                    "hugging_face",
+                    "sagemaker"
                 ).toArray()
             )
         );
@@ -156,7 +157,9 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
         assertThat(
             providers,
-            containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face").toArray())
+            containsInAnyOrder(
+                List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face", "sagemaker").toArray()
+            )
         );
     }
 

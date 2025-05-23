@@ -1105,6 +1105,11 @@ public class EsqlCapabilities {
         KEEP_REGEX_EXTRACT_ATTRIBUTES,
 
         /**
+         * The {@code ROUND_TO} function.
+         */
+        ROUND_TO,
+
+        /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;

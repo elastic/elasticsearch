@@ -25,6 +25,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
  * the provided rank window.
@@ -114,7 +117,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(featureData);
                 try {
-                    client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {
                     inferenceRequest.decRef();
                 }

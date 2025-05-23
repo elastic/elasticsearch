@@ -2304,6 +2304,8 @@ foo ( bar
 ;
 
 mvStringEquals
+required_capability: mv_warn
+
 FROM mv_text
 | WHERE message == "Connected to 10.1.0.1"
 | KEEP @timestamp, message
@@ -2316,6 +2318,8 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvStringEqualsLongString
+required_capability: mv_warn
+
 FROM mv_text
 | WHERE message == "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
 | KEEP @timestamp, message
@@ -2328,6 +2332,8 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvStringNotEquals
+required_capability: mv_warn
+
 FROM mv_text
 | WHERE message != "Connected to 10.1.0.2"
 | KEEP @timestamp, message
@@ -2342,6 +2348,8 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvStringNotEqualsFound
+required_capability: mv_warn
+
 FROM mv_text
 | WHERE message != "Connected to 10.1.0.1"
 | KEEP @timestamp, message
@@ -2354,6 +2362,8 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvStringNotEqualsLong
+required_capability: mv_warn
+
 FROM mv_text
 | WHERE message != "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
 | KEEP @timestamp, message

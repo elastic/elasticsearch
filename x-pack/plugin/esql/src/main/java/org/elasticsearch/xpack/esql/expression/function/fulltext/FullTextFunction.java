@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -304,6 +305,8 @@ public abstract class FullTextFunction extends Function
         forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
+                && (parent instanceof EsqlBinaryComparison == false)
+                && (parent instanceof Score == false) // e.g., WHERE score($ftf) > ...
                 && (parent instanceof Not == false)) {
                 failures.add(
                     fail(

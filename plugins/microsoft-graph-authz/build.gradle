@@ -76,6 +76,7 @@ dependencies {
 
   testRuntimeOnly "net.minidev:json-smart:2.5.2"
   testRuntimeOnly "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  testRuntimeOnly "com.nimbusds:content-type:2.3"
 
   attributesSchema {
     attribute(patched)

@@ -64,9 +64,6 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             );
         }
 
-        // FIXME both of these lines are load bearing, because this project is cursed
-        new com.google.gson.JsonParser();
-        kotlin.jvm.internal.Intrinsics.checkParameterIsNotNull(clientSecret, "clientSecret");
         // TODO license check
     }
 

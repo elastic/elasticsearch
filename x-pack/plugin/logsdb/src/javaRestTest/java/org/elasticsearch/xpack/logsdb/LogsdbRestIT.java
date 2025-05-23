@@ -368,7 +368,7 @@ public class LogsdbRestIT extends ESRestTestCase {
         String indexName = "test-foo";
         createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
 
-        int numDocs = 10;
+        int numDocs = 1000;
         var sb = new StringBuilder();
         var now = Instant.now();
         for (int i = 0; i < numDocs; i++) {
@@ -445,7 +445,7 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertOK(searchResponse);
         var searchResponseBody = responseAsMap(searchResponse);
         int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
-        assertThat(totalHits, equalTo(10));
+        assertThat(totalHits, equalTo(numDocs));
 
         var shardsHeader = (Map<?, ?>) searchResponseBody.get("_shards");
         assertThat(shardsHeader.get("failed"), equalTo(0));

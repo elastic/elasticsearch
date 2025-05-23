@@ -29,7 +29,7 @@ $if(BytesRef)$
 $endif$
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 

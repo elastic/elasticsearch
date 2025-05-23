@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -49,6 +50,13 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     private static final String USER_FIELD = "user";
     private static final String USER_ROLE = "user";
     private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
+    private static final ResponseHandler ERROR_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+        "sagemaker openai chat completion",
+        ((request, result) -> {
+            assert false : "do not call this";
+            throw new UnsupportedOperationException("SageMaker should not call this object's response parser.");
+        })
+    );
 
     @Override
     public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception {

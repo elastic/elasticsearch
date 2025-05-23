@@ -50,6 +50,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -289,6 +290,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                 if (repositoryMetadata.name().equals(request.name())) {
+                    rejectInvalidReadonlyFlagChange(repositoryMetadata, request.settings());
                     final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
                         request.name(),
                         // Copy the UUID from the existing instance rather than resetting it back to MISSING_UUID which would force us to
@@ -601,6 +603,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
+            assert assertReadonlyRepositoriesNotInUseForWrites(state);
             final RepositoriesMetadata oldMetadata = RepositoriesMetadata.get(event.previousState());
             final RepositoriesMetadata newMetadata = RepositoriesMetadata.get(state);
 
@@ -885,7 +888,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+    private static void ensureRepositoryNotInUseForWrites(ClusterState clusterState, String repository) {
         if (SnapshotsInProgress.get(clusterState).forRepo(repository).isEmpty() == false) {
             throw newRepositoryConflictException(repository, "snapshot is in progress");
         }
@@ -899,10 +902,54 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 throw newRepositoryConflictException(repository, "repository clean up is in progress");
             }
         }
+    }
+
+    private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+        ensureRepositoryNotInUseForWrites(clusterState, repository);
         for (RestoreInProgress.Entry entry : RestoreInProgress.get(clusterState)) {
             if (repository.equals(entry.snapshot().getRepository())) {
                 throw newRepositoryConflictException(repository, "snapshot restore is in progress");
             }
+        }
+    }
+
+    public static boolean isReadOnly(Settings repositorySettings) {
+        return Boolean.TRUE.equals(repositorySettings.getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
+    }
+
+    /**
+     * Test-only check for the invariant that read-only repositories never have any write activities.
+     */
+    private static boolean assertReadonlyRepositoriesNotInUseForWrites(ClusterState clusterState) {
+        for (final var repositoryMetadata : RepositoriesMetadata.get(clusterState).repositories()) {
+            if (isReadOnly(repositoryMetadata.settings())) {
+                try {
+                    ensureRepositoryNotInUseForWrites(clusterState, repositoryMetadata.name());
+                } catch (Exception e) {
+                    throw new AssertionError("repository [" + repositoryMetadata + "] is readonly but still in use", e);
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Reject a change to the {@code readonly} setting if there is a pending generation change in progress, i.e. some node somewhere is
+     * updating the root {@link RepositoryData} blob.
+     */
+    private static void rejectInvalidReadonlyFlagChange(RepositoryMetadata existingRepositoryMetadata, Settings newSettings) {
+        if (isReadOnly(newSettings)
+            && isReadOnly(existingRepositoryMetadata.settings()) == false
+            && existingRepositoryMetadata.generation() >= RepositoryData.EMPTY_REPO_GEN
+            && existingRepositoryMetadata.generation() != existingRepositoryMetadata.pendingGeneration()) {
+            throw newRepositoryConflictException(
+                existingRepositoryMetadata.name(),
+                Strings.format(
+                    "currently updating root blob generation from [%d] to [%d], cannot update readonly flag",
+                    existingRepositoryMetadata.generation(),
+                    existingRepositoryMetadata.pendingGeneration()
+                )
+            );
         }
     }
 

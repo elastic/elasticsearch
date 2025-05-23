@@ -72,7 +72,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneSourceOperator.Factory simple() {
+    protected LuceneSourceOperator.Factory simple(SimpleOptions options) {
         return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100, scoring);
     }
 
@@ -323,6 +323,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public String shardIdentifier() {
             return "test";
+        }
+
+        @Override
+        public MappedFieldType fieldType(String name) {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -122,8 +122,8 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  # Testing for the entire function set isn't feasbile, so we just check that we return the correct count as an approximation.
-  - length: {esql.functions: 140} # check the "sister" test below for a likely update to the same esql.functions length check
+  # Testing for the entire function set isn't feasible, so we just check that we return the correct count as an approximation.
+  - length: {esql.functions: 142} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -221,7 +221,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 132} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 133} # check the "sister" test above for a likely update to the same esql.functions length check
 
 ---
 took:

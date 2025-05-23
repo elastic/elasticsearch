@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -37,10 +38,18 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         super(requestType, parseFunction, OpenAiErrorResponse::fromResponse);
     }
 
+    public OpenAiUnifiedChatCompletionResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
+        super(requestType, parseFunction, errorParseFunction);
+    }
+
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request.getInferenceEntityId(), m, e));
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
         return new StreamingUnifiedChatCompletionResults(openAiProcessor);
@@ -58,12 +67,20 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                 : new UnifiedChatCompletionException(
                     restStatus,
                     errorMessage,
-                    errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
+                    createErrorType(errorResponse),
                     restStatus.name().toLowerCase(Locale.ROOT)
                 );
         } else {
             return super.buildError(message, request, result, errorResponse);
         }
+    }
+
+    protected static String createErrorType(ErrorResponse errorResponse) {
+        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
+    }
+
+    protected Exception buildMidStreamError(Request request, String message, Exception e) {
+        return buildMidStreamError(request.getInferenceEntityId(), message, e);
     }
 
     public static UnifiedChatCompletionException buildMidStreamError(String inferenceEntityId, String message, Exception e) {
@@ -87,7 +104,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
                 format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, inferenceEntityId),
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
+                createErrorType(errorResponse),
                 "stream_error"
             );
         }

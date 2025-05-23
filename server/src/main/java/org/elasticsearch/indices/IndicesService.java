@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -482,7 +483,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
+        return new NodeIndicesStats(
+            commonStats,
+            statsByIndex(this, flags),
+            statsByShard(this, flags),
+            projectsByIndex(),
+            includeShardsStats
+        );
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -562,6 +569,15 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.searchIdleTime()
                 ) }
         );
+    }
+
+    private Map<Index, ProjectId> projectsByIndex() {
+        Map<Index, ProjectId> map = new HashMap<>(indices.size());
+        for (IndexService indexShards : indices.values()) {
+            Index index = indexShards.index();
+            clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));
+        }
+        return map;
     }
 
     /**
@@ -1064,19 +1080,25 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
      * but does not deal with in-memory structures. For those call {@link #removeIndex}
+     *
+     * @param reason the reason why this index should be deleted
+     * @param oldIndexMetadata the index metadata of the index that should be deleted
+     * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
+     *                       anymore - can be null in case the whole project got deleted while there were still indices in it
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject) {
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().getProject().hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().getProject().index(index);
+                if (currentProject != null && currentProject.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = currentProject.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
-                            + "] - it's still part "
-                            + "of the cluster state ["
+                            + "] - it's still part of project ["
+                            + currentProject.id()
+                            + "] with UUIDs ["
                             + currentMetadata.getIndexUUID()
                             + "] ["
                             + oldIndexMetadata.getIndexUUID()

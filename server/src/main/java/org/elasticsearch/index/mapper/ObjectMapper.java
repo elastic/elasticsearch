@@ -269,8 +269,8 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public List<FieldMapper> getSourceFields() {
-        List<FieldMapper> fields = new ArrayList<>();
+    public List<Mapper> getSourceFields() {
+        List<Mapper> fields = new ArrayList<>();
         for (Mapper mapper : mappers.values()) {
             fields.addAll(mapper.getSourceFields());
         }

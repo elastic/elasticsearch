@@ -450,8 +450,8 @@ public abstract class FieldMapper extends Mapper {
     }
 
     @Override
-    public List<FieldMapper> getSourceFields() {
-        List<FieldMapper> fields = new ArrayList<>();
+    public List<Mapper> getSourceFields() {
+        List<Mapper> fields = new ArrayList<>();
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             fields.addAll(mapper.getSourceFields());
         }

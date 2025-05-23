@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
@@ -356,15 +360,9 @@ public class LogsdbRestIT extends ESRestTestCase {
                     },
                     "log" : {
                         "properties": {
-                            "offset": {
-                                "type": "long"
-                            },
                             "level": {
                                 "type": "keyword"
-                            },
-                            "file": {
-                                "type": "keyword"
-                           }
+                            }
                         }
                     }
                 }
@@ -379,38 +377,25 @@ public class LogsdbRestIT extends ESRestTestCase {
         for (int i = 0; i < numDocs; i++) {
             String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
             String msg = randomAlphaOfLength(20);
-            String path = randomAlphaOfLength(8);
             String messageLength = Integer.toString(msg.length());
-            String offset = Integer.toString(randomNonNegativeInt());
             sb.append("{ \"create\": {} }").append('\n');
             if (randomBoolean()) {
                 sb.append(
                     """
-                        {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level","offset":5,"file":"$path","a":"b"}}
+                        {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level"}}
                         """.replace("$now", formatInstant(now))
                         .replace("$level", level)
                         .replace("$msg", msg)
-                        .replace("$path", path)
                         .replace("$l", messageLength)
-                        .replace("$o", offset)
                 );
             } else {
                 sb.append("""
-                    {"@timestamp": "$now", "message": "$msg", "message_length": $l, "log":{"level":"$level"}}
+                    {"@timestamp": "$now", "message": "$msg", "message_length": $l}
                     """.replace("$now", formatInstant(now)).replace("$msg", msg).replace("$l", messageLength));
             }
             sb.append('\n');
             if (i != numDocs - 1) {
                 now = now.plusSeconds(1);
-            }
-
-            if (i % 1000 == 0) {
-                var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
-                bulkRequest.setJsonEntity(sb.toString());
-                var bulkResponse = client().performRequest(bulkRequest);
-                var bulkResponseBody = responseAsMap(bulkResponse);
-                assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
-                sb = new StringBuilder();
             }
         }
 
@@ -426,17 +411,13 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertOK(forceMergeResponse);
 
         var searchRequest = new Request("POST", "/" + indexName + "/_search");
+
         searchRequest.setJsonEntity("""
             {
                 "size": 1,
                 "query": {
                     "bool": {
                         "should": [
-                            {
-                                "term": {
-                                    "log.level": "info"
-                                }
-                            },
                             {
                                 "range": {
                                     "message_length": {
@@ -471,6 +452,9 @@ public class LogsdbRestIT extends ESRestTestCase {
         var searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         var searchResponseBody = responseAsMap(searchResponse);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
+        assertThat(totalHits, equalTo(10));
+
         var shardsHeader = (Map<?, ?>) searchResponseBody.get("_shards");
         assertThat(shardsHeader.get("failed"), equalTo(0));
         assertThat(shardsHeader.get("successful"), equalTo(1));

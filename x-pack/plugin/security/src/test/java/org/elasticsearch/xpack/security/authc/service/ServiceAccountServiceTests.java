@@ -33,10 +33,12 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,7 +85,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
+        serviceAccountService = new ServiceAccountService(
+            client,
+            new CompositeServiceAccountTokenStore(
+                List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                threadPool.getThreadContext()
+            ),
+            indexServiceAccountTokenStore
+        );
     }
 
     @After
@@ -228,16 +237,15 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 List.of(magicBytes, (namespace + "/" + serviceName + "/" + tokenName + ":" + secret).getBytes(StandardCharsets.UTF_8))
             );
             final ServiceAccountToken serviceAccountToken1 = ServiceAccountService.tryParseToken(bearerString5);
-            final ServiceAccountToken serviceAccountToken2 = new ServiceAccountToken(
-                accountId,
-                tokenName,
-                new SecureString(secret.toCharArray())
-            );
-            assertThat(serviceAccountToken1, equalTo(serviceAccountToken2));
+
+            assertNotNull(serviceAccountToken1);
+            assertThat(serviceAccountToken1.getAccountId(), equalTo(accountId));
+            assertThat(serviceAccountToken1.getTokenName(), equalTo(tokenName));
+            assertThat(serviceAccountToken1.getSecret(), equalTo(new SecureString(secret.toCharArray())));
 
             // Serialise and de-serialise service account token
-            final ServiceAccountToken parsedToken = ServiceAccountService.tryParseToken(serviceAccountToken2.asBearerString());
-            assertThat(parsedToken, equalTo(serviceAccountToken2));
+            final ServiceAccountToken parsedToken = ServiceAccountService.tryParseToken(serviceAccountToken1.asBearerString());
+            assertThat(parsedToken, equalTo(serviceAccountToken1));
 
             // Invalid magic byte
             satMockLog.addExpectation(
@@ -295,23 +303,29 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
             sasMockLog.assertAllExpectationsMatched();
 
-            // everything is fine
-            assertThat(
-                ServiceAccountService.tryParseToken(
-                    new SecureString("AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpzdXBlcnNlY3JldA".toCharArray())
-                ),
-                equalTo(
-                    new ServiceAccountToken(
-                        new ServiceAccountId("elastic", "fleet-server"),
-                        "token1",
-                        new SecureString("supersecret".toCharArray())
-                    )
-                )
+            ServiceAccountToken parsedServiceAccountToken = ServiceAccountService.tryParseToken(
+                new SecureString("AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpzdXBlcnNlY3JldA".toCharArray())
             );
+
+            // everything is fine
+            assertNotNull(parsedServiceAccountToken);
+            assertThat(parsedServiceAccountToken.getAccountId(), equalTo(new ServiceAccountId("elastic", "fleet-server")));
+            assertThat(parsedServiceAccountToken.getTokenName(), equalTo("token1"));
+            assertThat(parsedServiceAccountToken.getSecret(), equalTo(new SecureString("supersecret".toCharArray())));
         } finally {
             Loggers.setLevel(satLogger, Level.INFO);
             Loggers.setLevel(sasLogger, Level.INFO);
         }
+    }
+
+    private ServiceAccountToken newMockServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
+        ServiceAccountToken serviceAccountToken = mock(ServiceAccountToken.class);
+        var serviceAccountTokenId = new ServiceAccountToken.ServiceAccountTokenId(accountId, tokenName);
+        when(serviceAccountToken.getQualifiedName()).thenReturn(serviceAccountTokenId.getQualifiedName());
+        when(serviceAccountToken.getSecret()).thenReturn(secret);
+        when(serviceAccountToken.getAccountId()).thenReturn(accountId);
+        when(serviceAccountToken.getTokenName()).thenReturn(tokenName);
+        return serviceAccountToken;
     }
 
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
@@ -325,7 +339,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
                 listener.onResponse(
-                    new ServiceAccountTokenStore.StoreAuthenticationResult(store == authenticatingStore, store.getTokenSource())
+                    ServiceAccountTokenStore.StoreAuthenticationResult.fromBooleanResult(
+                        store.getTokenSource(),
+                        store == authenticatingStore
+                    )
                 );
                 return null;
             }).when(store).authenticate(any(), any());
@@ -333,7 +350,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         serviceAccountService.authenticateToken(
-            new ServiceAccountToken(
+            newMockServiceAccountToken(
                 new ServiceAccountId("elastic", "fleet-server"),
                 "token1",
                 new SecureString("super-secret-value".toCharArray())
@@ -379,7 +396,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 )
             );
             final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
-            final ServiceAccountToken token1 = new ServiceAccountToken(accountId1, randomAlphaOfLengthBetween(3, 8), secret);
+            final ServiceAccountToken token1 = newMockServiceAccountToken(accountId1, randomAlphaOfLengthBetween(3, 8), secret);
             final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
             serviceAccountService.authenticateToken(token1, randomAlphaOfLengthBetween(3, 8), future1);
             final ExecutionException e1 = expectThrows(ExecutionException.class, future1::get);
@@ -409,7 +426,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     "the [" + accountId2.asPrincipal() + "] service account does not exist"
                 )
             );
-            final ServiceAccountToken token2 = new ServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
+            final ServiceAccountToken token2 = newMockServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
             final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
             serviceAccountService.authenticateToken(token2, randomAlphaOfLengthBetween(3, 8), future2);
             final ExecutionException e2 = expectThrows(ExecutionException.class, future2::get);
@@ -429,7 +446,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             // Length of secret value is too short
             final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
             final SecureString secret3 = new SecureString(randomAlphaOfLengthBetween(1, 9).toCharArray());
-            final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
+            final ServiceAccountToken token3 = newMockServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "secret value too short",
@@ -456,7 +473,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
             mockLog.assertAllExpectationsMatched();
 
-            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
+            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.FILE, TokenInfo.TokenSource.INDEX);
             final CachingServiceAccountTokenStore store;
             final CachingServiceAccountTokenStore otherStore;
             if (tokenSource == TokenInfo.TokenSource.FILE) {
@@ -469,8 +486,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Success based on credential store
             final ServiceAccountId accountId4 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
-            final ServiceAccountToken token4 = new ServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8), secret);
-            final ServiceAccountToken token5 = new ServiceAccountToken(
+            final ServiceAccountToken token4 = newMockServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8), secret);
+            final ServiceAccountToken token5 = newMockServiceAccountToken(
                 accountId4,
                 randomAlphaOfLengthBetween(3, 8),
                 new SecureString(randomAlphaOfLength(20).toCharArray())
@@ -480,7 +497,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(true, store.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.successful(store.getTokenSource()));
                 return null;
             }).when(store).authenticate(eq(token4), any());
 
@@ -488,7 +505,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, store.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.failed(store.getTokenSource()));
                 return null;
             }).when(store).authenticate(eq(token5), any());
 
@@ -496,7 +513,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 final ActionListener<ServiceAccountTokenStore.StoreAuthenticationResult> listener = (ActionListener<
                     ServiceAccountTokenStore.StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-                listener.onResponse(new ServiceAccountTokenStore.StoreAuthenticationResult(false, otherStore.getTokenSource()));
+                listener.onResponse(ServiceAccountTokenStore.StoreAuthenticationResult.failed(otherStore.getTokenSource()));
                 return null;
             }).when(otherStore).authenticate(any(), any());
 

@@ -127,7 +127,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         if (reader == null) {
             // Init a reader if one hasn't been built, so things don't blow up
             try {

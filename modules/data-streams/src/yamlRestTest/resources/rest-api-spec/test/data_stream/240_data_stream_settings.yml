@@ -1,0 +1,294 @@
+setup:
+  - skip:
+      features: allowed_warnings
+
+---
+"Test single data stream":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        body:
+          index:
+            number_of_shards: 2
+            lifecycle.name: my-new-policy
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: [index.number_of_shards]}
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: [index.lifecycle.name] }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+
+  - do:
+      indices.get_settings:
+        index: my-data-stream-1
+  - match: { .$idx0name.settings.index.number_of_shards: "1" }
+  - match: { .$idx0name.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { .$idx1name.settings.index.number_of_shards: "2" }
+  - match: { .$idx1name.settings.index.lifecycle.name: "my-new-policy" }
+
+---
+"Test multiple data streams":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-2
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-3
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1,my-data-stream-2,my-data-stream-3"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: "*"
+  - length: { data_streams: 3 }
+
+  - do:
+      indices.get_data_stream_settings:
+        name: "my-data-stream-1,my-data-stream-2"
+  - length: { data_streams: 2 }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1,my-data-stream-2
+        body:
+          index:
+            number_of_shards: 2
+            lifecycle.name: my-new-policy
+  - length: { data_streams: 2 }
+
+---
+"Test invalid settings":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        body:
+          index:
+            fake_setting: 1234
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: false }
+  - match: { data_streams.0.error: "Cannot set the following settings on a data stream: [index.fake_setting]" }
+
+---
+"Test dry run":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        dry_run: true
+        body:
+          index:
+            number_of_shards: 2
+            lifecycle.name: my-new-policy
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: [index.number_of_shards]}
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: [index.lifecycle.name] }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+
+  - do:
+      indices.get_settings:
+        index: my-data-stream-1
+  - match: { .$idx0name.settings.index.number_of_shards: "1" }
+  - match: { .$idx0name.settings.index.lifecycle.name: "my-policy" }
+  - match: { .$idx1name.settings.index.number_of_shards: "1" }
+  - match: { .$idx1name.settings.index.lifecycle.name: "my-policy" }

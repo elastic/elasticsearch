@@ -1,0 +1,19 @@
+pr: 128043
+summary: Make S3 custom query parameter optional
+area: Snapshot/Restore
+type: breaking
+issues: []
+breaking:
+  title: Make S3 custom query parameter optional
+  area: Cluster and node setting
+  details: >-
+    Earlier versions of Elasticsearch would record the purpose of each S3 API
+    call using the `?x-purpose=` custom query parameter. This isn't believed to
+    be necessary outside of the ECH/ECE/ECK/... managed services, and it adds
+    rather a lot to the request logs, so with this change we make the feature
+    optional and disabled by default.
+  impact: >-
+    If you wish to reinstate the old behaviour on a S3 repository, set
+    `s3.client.${CLIENT_NAME}.add_purpose_custom_query_parameter` to `true`
+    for the relevant client.
+  notable: false

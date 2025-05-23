@@ -1554,9 +1554,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         final var project = state.metadata().getProject(projectId);
         DataStream dataStream = project.dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            project,
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
     }
 
@@ -1566,10 +1573,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(projectId, dataStreamName, STARTED);
         final var project = state.metadata().getProject(projectId);
         DataStream dataStream = project.dataStreams().get(dataStreamName);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            project,
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, empty());
     }
 
@@ -1580,9 +1593,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         final var project = state.metadata().getProject(projectId);
         DataStream dataStream = project.dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(project, dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            project,
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;

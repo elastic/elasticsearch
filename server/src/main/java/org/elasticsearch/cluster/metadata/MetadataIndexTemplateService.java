@@ -354,9 +354,14 @@ public class MetadataIndexTemplateService {
                         tempProjectWithComponentTemplateAdded,
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionSettings.get()
+                        globalRetentionSettings.get(false)
                     );
-                    validateDataStreamOptions(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
+                    validateDataStreamOptions(
+                        tempProjectWithComponentTemplateAdded,
+                        composableTemplateName,
+                        composableTemplate,
+                        globalRetentionSettings.get(true)
+                    );
                     validateIndexTemplateV2(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -383,7 +388,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -743,8 +748,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
-        validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(projectMetadata, name, templateToValidate);
+        validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get(false));
+        validateDataStreamOptions(projectMetadata, name, templateToValidate, globalRetentionSettings.get(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, projectMetadata.componentTemplates());
@@ -839,7 +844,12 @@ public class MetadataIndexTemplateService {
     }
 
     // Visible for testing
-    static void validateDataStreamOptions(ProjectMetadata projectMetadata, String indexTemplateName, ComposableIndexTemplate template) {
+    static void validateDataStreamOptions(
+        ProjectMetadata projectMetadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template,
+        DataStreamGlobalRetention globalRetention
+    ) {
         DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, projectMetadata.componentTemplates());
         if (dataStreamOptionsBuilder != null) {
             if (template.getDataStreamTemplate() == null) {
@@ -848,6 +858,17 @@ public class MetadataIndexTemplateService {
                         + indexTemplateName
                         + "] specifies data stream options that can only be used in combination with a data stream"
                 );
+            }
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                DataStreamOptions dataStreamOptions = dataStreamOptionsBuilder.build();
+                if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+                    dataStreamOptions.failureStore()
+                        .lifecycle()
+                        .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+                }
             }
         }
     }
@@ -863,7 +884,12 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams().keySet();
+        final Set<String> dataStreams = project.dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<ProjectMetadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();

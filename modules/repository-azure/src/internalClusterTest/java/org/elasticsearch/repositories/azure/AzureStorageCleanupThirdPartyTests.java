@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * These tests sometimes run against a genuine Azure endpoint with credentials obtained from Vault. These credentials expire periodically
+ * and must be manually renewed; the process is in the onboarding/process docs.
+ */
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final Logger logger = LogManager.getLogger(AzureStorageCleanupThirdPartyTests.class);
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
@@ -133,10 +137,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 .client("default", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
-                SocketAccess.doPrivilegedException(() -> {
-                    final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());
-                    return blobContainer.exists();
-                });
+                final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());
+                blobContainer.exists();
                 future.onFailure(
                     new RuntimeException(
                         "The SAS token used in this test allowed for checking container existence. This test only supports tokens "

@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -255,6 +256,35 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
 
         putRoleRequest.name(randomAlphaOfLength(4));
         assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(false));
+    }
+
+    public void testParseInvalidPrivilege() throws Exception {
+        final XContent xContent = XContentType.JSON.xContent();
+
+        final String invalidJsonString = """
+            {
+                "manage": {
+                    "indices": [
+                        {
+                            "names": ["test-*"],
+                            "privileges": ["foobar"]
+                        }
+                    ]
+                }
+            }
+        """;
+
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, invalidJsonString.getBytes())) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> ManageRolesPrivilege.parse(parser)
+            );
+
+            assertThat(exception.getMessage(), containsString("unknown index privilege [foobar]"));
+        }
     }
 
     private static boolean permissionCheck(ClusterPermission permission, String action, ActionRequest request) {

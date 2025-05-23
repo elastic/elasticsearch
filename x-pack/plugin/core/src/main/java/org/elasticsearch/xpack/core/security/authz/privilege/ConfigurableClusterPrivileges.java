@@ -562,6 +562,11 @@ public final class ConfigurableClusterPrivileges {
                 }
                 for (String privilege : indexPrivilege.privileges) {
                     IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
+
+                    // Use resolveBySelectorAccess  to determine whether the passed privilege is valid.
+                    // IllegalArgumentException is thrown here when an invalid permission is encountered.
+                    IndexPrivilege.resolveBySelectorAccess(Set.of(privilege));
+
                     if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
                         throw new IllegalArgumentException(
                             "Failure store related privileges are not supported as targets of manage roles but found [" + privilege + "]"

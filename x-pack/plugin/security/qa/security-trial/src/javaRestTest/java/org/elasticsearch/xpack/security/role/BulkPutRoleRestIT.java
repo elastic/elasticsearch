@@ -32,9 +32,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             "test1",
             new RoleDescriptor(
                 "test1",
-                new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                new String[]{"all"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
                 null,
                 null,
                 null,
@@ -50,9 +50,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             "test2",
             new RoleDescriptor(
                 "test2",
-                new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build() },
+                new String[]{"all"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build()},
                 null,
                 null,
                 null,
@@ -68,9 +68,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             "test3",
             new RoleDescriptor(
                 "test3",
-                new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build() },
+                new String[]{"all"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build()},
                 null,
                 null,
                 null,
@@ -110,9 +110,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             "test1",
             new RoleDescriptor(
                 "test1",
-                new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                new String[]{"all"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
                 null,
                 null,
                 null,
@@ -129,9 +129,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             "test3",
             new RoleDescriptor(
                 "test3",
-                new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build() },
+                new String[]{"all"},
+                new RoleDescriptor.IndicesPrivileges[]{
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build()},
                 null,
                 null,
                 null,
@@ -195,9 +195,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "test1",
                 new RoleDescriptor(
                     "test1",
-                    new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    new String[]{"all"},
+                    new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
                     null,
                     null,
                     null,
@@ -213,9 +213,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "test2",
                 new RoleDescriptor(
                     "test2",
-                    new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build() },
+                    new String[]{"all"},
+                    new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("read").build()},
                     null,
                     null,
                     null,
@@ -231,19 +231,19 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "test3",
                 new RoleDescriptor(
                     "test3",
-                    new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build() },
+                    new String[]{"all"},
+                    new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("write").build()},
                     null,
                     null,
                     null,
                     null,
                     null,
-                    new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    new RoleDescriptor.RemoteIndicesPrivileges[]{
                         RoleDescriptor.RemoteIndicesPrivileges.builder("my_cluster*", "other_cluster")
                             .indices("logs-*")
                             .privileges("read")
-                            .build() },
+                            .build()},
                     null,
                     null,
                     null
@@ -278,9 +278,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "test2",
                 new RoleDescriptor(
                     "test2",
-                    new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    new String[]{"all"},
+                    new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
                     null,
                     null,
                     null,
@@ -296,9 +296,9 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "test3",
                 new RoleDescriptor(
                     "test3",
-                    new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                    new String[]{"all"},
+                    new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
                     null,
                     null,
                     null,
@@ -312,4 +312,43 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             );
         }
     }
+
+    public void testPutRoleWithInvalidManageRolesPrivilege() throws Exception {
+        final String badRoleName = "bad-role";
+
+        final ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> upsertRoles(String.format("""
+            {
+                "roles": {
+                    "%s": {
+                        "global": {
+                            "role": {
+                                "manage": {
+                                    "indices": [
+                                        {
+                                            "names": ["allowed-index-prefix-*"],
+                                            "privileges": ["foobar"]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }""", badRoleName))
+        );
+
+        assertThat(exception.getMessage(), containsString("unknown index privilege [foobar]"));
+        assertRoleDoesNotExist(badRoleName);
+    }
+
+    private void assertRoleDoesNotExist(final String roleName) throws Exception {
+        final ResponseException roleNotFound = expectThrows(
+            ResponseException.class,
+            () -> adminClient().performRequest(new Request("GET", "/_security/role/" + roleName))
+        );
+        assertEquals(404, roleNotFound.getResponse().getStatusLine().getStatusCode());
+    }
 }
+

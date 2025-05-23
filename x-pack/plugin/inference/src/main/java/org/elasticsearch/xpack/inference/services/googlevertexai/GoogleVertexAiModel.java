@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class GoogleVertexAiModel extends Model {
+public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     private final GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -57,5 +58,16 @@ public abstract class GoogleVertexAiModel extends Model {
 
     public URI uri() {
         return uri;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project and the model. URI already has this information so we are using that
+        return Objects.hash(uri);
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings().rateLimitSettings();
     }
 }

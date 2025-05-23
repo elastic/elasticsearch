@@ -92,7 +92,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             this.isTombstone = isTombstone;
             this.seqNo = switch (seqNoIndexOptions) {
                 case POINTS_AND_DOC_VALUES -> new SingleValueLongField(NAME);
-                case DOC_VALUES_ONLY -> new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                case DOC_VALUES_ONLY -> NumericDocValuesField.indexedField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO);
             };
         }
 

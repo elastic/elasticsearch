@@ -133,7 +133,7 @@ Refer to the following documentation for setting [SharePoint permissions](https:
 
 #### Granting `Sites.Selected` permissions [es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
 
-To configure `Sites.Selected` permissions, follow these steps in the Microsoft Entra ID portal. These permissions enable precise access control to specific SharePoint sites.
+To configure `Sites.Selected` permissions, follow these steps in the Microsoft Entra ID (formerly Azure Active Directory) portal. These permissions enable precise access control to specific SharePoint sites.
 
 1. Sign in to the [Microsoft Entra ID portal](https://portal.azure.com/).
 2. Navigate to **App registrations** and locate the application created for the connector.

@@ -870,9 +870,9 @@ public class EsqlCapabilities {
         KEEP_REGEX_EXTRACT_ATTRIBUTES,
 
         /**
-         * Full text functions in STATS
+         * The {@code ROUND_TO} function.
          */
-        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
+        ROUND_TO;
 
         private final boolean enabled;
 

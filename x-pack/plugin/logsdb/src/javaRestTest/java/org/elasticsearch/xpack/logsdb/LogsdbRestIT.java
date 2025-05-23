@@ -353,6 +353,19 @@ public class LogsdbRestIT extends ESRestTestCase {
                 "properties": {
                     "@timestamp": {
                         "type": "date"
+                    },
+                    "log" : {
+                        "properties": {
+                            "offset": {
+                                "type": "long"
+                            },
+                            "level": {
+                                "type": "keyword"
+                            },
+                            "file": {
+                                "type": "keyword"
+                           }
+                        }
                     }
                 }
             }
@@ -360,17 +373,32 @@ public class LogsdbRestIT extends ESRestTestCase {
         String indexName = "test-foo";
         createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
 
-        int numDocs = 100_000;
+        int numDocs = 10;
         var sb = new StringBuilder();
         var now = Instant.now();
-
         for (int i = 0; i < numDocs; i++) {
+            String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
             String msg = randomAlphaOfLength(20);
+            String path = randomAlphaOfLength(8);
             String messageLength = Integer.toString(msg.length());
+            String offset = Integer.toString(randomNonNegativeInt());
             sb.append("{ \"create\": {} }").append('\n');
-            sb.append("""
-                {"@timestamp": "$now", "message_length": $l}
-                """.replace("$now", formatInstant(now)).replace("$l", messageLength));
+            if (randomBoolean()) {
+                sb.append(
+                    """
+                        {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level","offset":5,"file":"$path","a":"b"}}
+                        """.replace("$now", formatInstant(now))
+                        .replace("$level", level)
+                        .replace("$msg", msg)
+                        .replace("$path", path)
+                        .replace("$l", messageLength)
+                        .replace("$o", offset)
+                );
+            } else {
+                sb.append("""
+                    {"@timestamp": "$now", "message": "$msg", "message_length": $l, "log":{"level":"$level"}}
+                    """.replace("$now", formatInstant(now)).replace("$msg", msg).replace("$l", messageLength));
+            }
             sb.append('\n');
             if (i != numDocs - 1) {
                 now = now.plusSeconds(1);
@@ -404,6 +432,11 @@ public class LogsdbRestIT extends ESRestTestCase {
                 "query": {
                     "bool": {
                         "should": [
+                            {
+                                "term": {
+                                    "log.level": "info"
+                                }
+                            },
                             {
                                 "range": {
                                     "message_length": {
@@ -442,6 +475,5 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(shardsHeader.get("failed"), equalTo(0));
         assertThat(shardsHeader.get("successful"), equalTo(1));
         assertThat(shardsHeader.get("skipped"), equalTo(0));
-        logger.info("searchResponse: {}", searchResponseBody);
     }
 }

@@ -28,7 +28,7 @@ public class FullTextWritables {
             entries.add(Term.ENTRY);
         }
         if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
-            entries.add(ScoreFunction.ENTRY);
+            entries.add(Score.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

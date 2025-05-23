@@ -22,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
+public class ScoreIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {

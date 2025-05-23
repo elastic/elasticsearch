@@ -34,30 +34,26 @@ import java.util.List;
  * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
  * an {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
  */
-public class ScoreFunction extends Function implements EvaluatorMapper {
+public class Score extends Function implements EvaluatorMapper {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "score",
-        ScoreFunction::readFrom
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "score", Score::readFrom);
 
     public static final String NAME = "score";
 
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        description = "Scores a full text function. Returns scores for all the matching docs.",
+        description = "Scores a full text function. Returns scores for all the resulting docs.",
         examples = { @Example(file = "score-function", tag = "score-single") }
     )
-    public ScoreFunction(
+    public Score(
         Source source,
         @Param(name = "query", type = { "keyword", "text" }, description = "full text function.") Expression scorableQuery
     ) {
         this(source, List.of(scorableQuery));
     }
 
-    protected ScoreFunction(Source source, List<Expression> children) {
+    protected Score(Source source, List<Expression> children) {
         super(source, children);
     }
 
@@ -68,12 +64,12 @@ public class ScoreFunction extends Function implements EvaluatorMapper {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ScoreFunction(source(), newChildren);
+        return new Score(source(), newChildren);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ScoreFunction::new, children().getFirst());
+        return NodeInfo.create(this, Score::new, children().getFirst());
     }
 
     @Override
@@ -96,7 +92,7 @@ public class ScoreFunction extends Function implements EvaluatorMapper {
     private static Expression readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readOptionalNamedWriteable(Expression.class);
-        return new ScoreFunction(source, query);
+        return new Score(source, query);
     }
 
     private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)

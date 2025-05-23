@@ -232,10 +232,7 @@ public abstract class FullTextFunction extends Function
         } else {
             // TODO : improve this check, as this is not so nice :(
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
-            plan.forEachExpression(
-                ScoreFunction.class,
-                scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); }
-            );
+            plan.forEachExpression(Score.class, scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 if (scoredFTFs.remove(ftf) == false) {
                     failures.add(

@@ -24,6 +24,8 @@ import java.util.function.Function;
  */
 public final class MapperRegistry {
 
+    // there is one per node of MapperRegistery -. MapperSErvice can get the reserved namesapce from here
+
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
@@ -31,12 +33,27 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, FieldPredicate> fieldFilter;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
+    // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, FieldPredicate> fieldFilter
+    ) {
+        this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, new RootObjectMapperNamespaceValidator() {
+            @Override
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
+        });
+    }
+
+    public MapperRegistry(
+        Map<String, Mapper.TypeParser> mapperParsers,
+        Map<String, RuntimeField.Parser> runtimeFieldParsers,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Function<String, FieldPredicate> fieldFilter,
+        RootObjectMapperNamespaceValidator namespaceValidator  // MP TODO: new SPI for serverless
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -50,6 +67,7 @@ public final class MapperRegistry {
         metadata5x.put(LegacyTypeFieldMapper.NAME, LegacyTypeFieldMapper.PARSER);
         this.metadataMapperParsers5x = metadata5x;
         this.fieldFilter = fieldFilter;
+        this.namespaceValidator = namespaceValidator;
     }
 
     /**
@@ -66,6 +84,10 @@ public final class MapperRegistry {
             assert parser == null || parser.supportsVersion(indexVersionCreated);
             return parser;
         }
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {

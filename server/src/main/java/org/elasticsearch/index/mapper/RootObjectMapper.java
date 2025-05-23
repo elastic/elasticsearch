@@ -76,9 +76,15 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+        protected RootObjectMapperNamespaceValidator namespaceValidator;
 
         public Builder(String name, Optional<Subobjects> subobjects) {
             super(name, subobjects);
+        }
+
+        public Builder addNamespaceValidator(RootObjectMapperNamespaceValidator namespaceValidator) {
+            this.namespaceValidator = namespaceValidator;
+            return this;
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -120,7 +126,8 @@ public class RootObjectMapper extends ObjectMapper {
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
-                numericDetection
+                numericDetection,
+                namespaceValidator
             );
         }
     }
@@ -130,6 +137,7 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<Boolean> numericDetection;
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
     RootObjectMapper(
         String name,
@@ -142,7 +150,8 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
-        Explicit<Boolean> numericDetection
+        Explicit<Boolean> numericDetection,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
@@ -150,6 +159,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+        this.namespaceValidator = namespaceValidator;
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             throw new MapperParsingException(
                 "root object can't be configured with [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + ":" + SourceKeepMode.ALL + "]"
@@ -178,7 +188,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -294,7 +305,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
-            numericDetection
+            numericDetection,
+            namespaceValidator
         );
     }
 
@@ -451,6 +463,7 @@ public class RootObjectMapper extends ObjectMapper {
         throws MapperParsingException {
         Optional<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
+        builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -539,5 +552,13 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     public int getTotalFieldsCount() {
         return super.getTotalFieldsCount() - 1 + runtimeFields.size();
+    }
+
+    @Override
+    protected void validateSubField(Mapper mapper, MappingLookup mappers) {
+        if (namespaceValidator != null) {
+            namespaceValidator.validateNamespace(subobjects(), mapper);
+        }
+        super.validateSubField(mapper, mappers);
     }
 }

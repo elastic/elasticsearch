@@ -117,7 +117,9 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -687,6 +689,15 @@ class NodeConstruction {
             () -> ProjectResolverFactory.DEFAULT
         ).create();
         modules.bindToInstance(ProjectResolver.class, projectResolver);
+
+        // serverless deployments plug-in the namespace validator that prohibits mappings with "_project"
+        RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
+            RootObjectMapperNamespaceValidator.class,
+            () -> new DefaultRootObjectMapperNamespaceValidator()
+        );
+        modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
+        logger.warn("XXX namespaceValidator loaded: " + namespaceValidator);  // MP FIXME remove
+
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
@@ -775,7 +786,8 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
+        // this is the sole place that the IndicesModule is created
+        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList(), namespaceValidator);
         modules.add(indicesModule);
 
         modules.add(new GatewayModule());

@@ -17,14 +17,13 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
@@ -158,7 +157,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
@@ -177,7 +177,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        protected @Nullable MappedFieldType fieldType(String name) {
+        public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName())
                 ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
@@ -249,7 +249,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
         final boolean emitDocIds = ts.attrs().stream().anyMatch(EsQueryExec::isSourceAttribute);
-        LuceneOperator.Factory luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+        LuceneOperator.Factory luceneFactory = TimeSeriesSourceOperatorFactory.create(
             limit,
             context.pageSize(ts.estimatedRowSize()),
             context.queryPragmas().taskConcurrency(),
@@ -380,7 +380,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(false);
+            return ctx.newSourceLoader(null, false);
         }
 
         @Override
@@ -459,7 +459,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
-        protected @Nullable MappedFieldType fieldType(String name) {
+        @Override
+        public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
         }
 

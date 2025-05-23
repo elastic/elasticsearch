@@ -64,7 +64,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
       }
-      return new GroupingAggregatorFunction.AddInput() {
+      var addInput = new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
@@ -84,8 +84,9 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
         public void close() {
         }
       };
+      return ValuesBytesRefAggregator.wrapAddInput(addInput, state, valuesBlock);
     }
-    return new GroupingAggregatorFunction.AddInput() {
+    var addInput = new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
@@ -105,6 +106,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       public void close() {
       }
     };
+    return ValuesBytesRefAggregator.wrapAddInput(addInput, state, valuesVector);
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefBlock values) {

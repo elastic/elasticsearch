@@ -37,7 +37,6 @@ GET /_search
 
   - `none` (Default)
   :   No documents are returned if the `analyzer` removes all tokens.
-
   - `all`
   :   Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
 

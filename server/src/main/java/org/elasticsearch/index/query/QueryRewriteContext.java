@@ -13,7 +13,6 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -407,24 +406,6 @@ public class QueryRewriteContext {
         }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
-    }
-
-    /**
-     * @return An {@link Iterable} with key the field name and value the MappedFieldType
-     */
-    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
-        Map<String, MappedFieldType> allFromMapping = mappingLookup.getFullNameToFieldType();
-        Set<Map.Entry<String, MappedFieldType>> allEntrySet = allowedFields == null
-            ? allFromMapping.entrySet()
-            : allFromMapping.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
-        if (runtimeMappings.isEmpty()) {
-            return allEntrySet;
-        }
-        Set<Map.Entry<String, MappedFieldType>> runtimeEntrySet = allowedFields == null
-            ? runtimeMappings.entrySet()
-            : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
-        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
-        return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
     public ResolvedIndices getResolvedIndices() {

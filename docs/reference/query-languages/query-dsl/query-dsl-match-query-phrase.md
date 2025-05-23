@@ -36,10 +36,9 @@ GET /_search
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
 
   - `none` (Default)
-  :   No documents are returned if the `analyzer` removes all tokens.
+  No documents are returned if the `analyzer` removes all tokens.
   - `all`
-  :   Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
-
+  Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
 
 A phrase query matches terms up to a configurable `slop` (which defaults to 0) in any order. Transposed terms have a slop of 2.
 

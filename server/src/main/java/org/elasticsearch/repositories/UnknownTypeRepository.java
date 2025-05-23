@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,11 +38,11 @@ import java.util.function.BooleanSupplier;
  */
 public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
 
-    @FixForMultiProject(description = "constructor needs to take a ProjectId parameter")
-    @Deprecated(forRemoval = true)
-    public UnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    public UnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
     }
 
@@ -50,6 +51,11 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
             repositoryMetadata.name(),
             "repository type [" + repositoryMetadata.type() + "] is unknown; ensure that all required plugins are installed on this node"
         );
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     @Override

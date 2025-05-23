@@ -68,7 +68,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
 
     public void testGetHealthUnknownType() {
         var repo = createRepositoryMetadata();
-        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(repo)));
+        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(randomProjectIdOrDefault(), repo)));
 
         var health = repositoriesHealthTracker.determineCurrentHealth();
 
@@ -80,7 +80,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     public void testGetHealthInvalid() {
         var repo = createRepositoryMetadata();
         when(repositoriesService.getRepositories()).thenReturn(
-            Map.of(repo.name(), new InvalidRepository(repo, new RepositoryException(repo.name(), "Test")))
+            Map.of(repo.name(), new InvalidRepository(randomProjectIdOrDefault(), repo, new RepositoryException(repo.name(), "Test")))
         );
 
         var health = repositoriesHealthTracker.determineCurrentHealth();

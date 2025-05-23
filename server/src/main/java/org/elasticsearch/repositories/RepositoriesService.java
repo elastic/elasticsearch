@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -656,7 +657,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
                             logger.warn(() -> "failed to change repository [" + repositoryMetadata.name() + "]", ex);
-                            repository = new InvalidRepository(repositoryMetadata, ex);
+                            repository = new InvalidRepository(state.metadata().getProject().id(), repositoryMetadata, ex);
                         }
                     }
                 } else {
@@ -664,7 +665,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> "failed to create repository [" + repositoryMetadata.name() + "]", ex);
-                        repository = new InvalidRepository(repositoryMetadata, ex);
+                        repository = new InvalidRepository(state.metadata().getProject().id(), repositoryMetadata, ex);
                     }
                 }
                 assert repository != null : "repository should not be null here";
@@ -830,7 +831,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        Function<RepositoryMetadata, Repository> defaultFactory
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
     ) {
         return createRepository(ProjectId.DEFAULT, repositoryMetadata, factories, defaultFactory);
     }
@@ -842,13 +843,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         @Nullable ProjectId projectId,
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        Function<RepositoryMetadata, Repository> defaultFactory
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         @FixForMultiProject(description = "should defaultFactory handle projectId?")
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
-            return defaultFactory.apply(repositoryMetadata);
+            return defaultFactory.apply(projectId, repositoryMetadata);
         }
         Repository repository = null;
         try {
@@ -903,17 +904,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return createRepository(projectId, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
-    private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
+    private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
     }
 
-    private static Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    private static Repository createUnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         logger.warn(
             "[{}] repository type [{}] is unknown; ensure that all required plugins are installed on this node",
             repositoryMetadata.name(),
             repositoryMetadata.type()
         );
-        return new UnknownTypeRepository(repositoryMetadata);
+        return new UnknownTypeRepository(projectId, repositoryMetadata);
     }
 
     public static void validateRepositoryName(final String repositoryName) {

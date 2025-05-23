@@ -119,11 +119,11 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            (projectId, metadata1) -> new TestRepository(metadata1),
+            (projectId, metadata1) -> new TestRepository(projectId, metadata1),
             UnstableRepository.TYPE,
-            (projectId, metadata2) -> new UnstableRepository(metadata2),
+            (projectId, metadata2) -> new UnstableRepository(projectId, metadata2),
             VerificationFailRepository.TYPE,
-            (projectId, metadata3) -> new VerificationFailRepository(metadata3),
+            (projectId, metadata3) -> new VerificationFailRepository(projectId, metadata3),
             MeteredRepositoryTypeA.TYPE,
             (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -508,12 +508,19 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
+        private final ProjectId projectId;
         private RepositoryMetadata metadata;
         private boolean isClosed;
         private boolean isStarted;
 
-        private TestRepository(RepositoryMetadata metadata) {
+        private TestRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            this.projectId = projectId;
             this.metadata = metadata;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -663,8 +670,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class UnstableRepository extends TestRepository {
         private static final String TYPE = "unstable";
 
-        private UnstableRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private UnstableRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
@@ -672,8 +679,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class VerificationFailRepository extends TestRepository {
         public static final String TYPE = "verify-fail";
 
-        private VerificationFailRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private VerificationFailRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
         }
 
         @Override

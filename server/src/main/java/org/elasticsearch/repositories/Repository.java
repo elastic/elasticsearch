@@ -80,12 +80,9 @@ public interface Repository extends LifecycleComponent {
      * Get the project-id for the repository.
      *
      * @return the project-id, or null if the repository is at the cluster level.
-     * @throws UnsupportedOperationException if the project-id is not supported by the repository.
      */
     @Nullable
-    default ProjectId getProjectId() {
-        throw new UnsupportedOperationException("getProjectId() not supported");
-    }
+    ProjectId getProjectId();
 
     /**
      * Returns metadata about this repository.

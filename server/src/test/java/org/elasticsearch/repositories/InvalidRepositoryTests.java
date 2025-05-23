@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.isA;
 public class InvalidRepositoryTests extends ESTestCase {
 
     private InvalidRepository repository = new InvalidRepository(
+        randomProjectIdOrDefault(),
         new RepositoryMetadata("name", "type", Settings.EMPTY),
         new RepositoryException("name", "failed to create repository")
     );

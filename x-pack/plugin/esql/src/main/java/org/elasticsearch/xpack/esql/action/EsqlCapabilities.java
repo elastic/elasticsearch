@@ -867,7 +867,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
          * found expression [type] type [INTEGER] #127468 </a>
          */
-        KEEP_REGEX_EXTRACT_ATTRIBUTES;
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

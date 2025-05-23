@@ -184,28 +184,27 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     @Override
     protected boolean doRewrite(QueryRewriteContext ctx) {
-        // TODO: Review error messages
-        // TODO: Rewrite this to handle when only query is supplied by the user
         boolean modified = false;
 
-        if (innerRetrievers.isEmpty() == false && fields.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "Cannot specify both [" + RETRIEVERS_FIELD.getPreferredName() + "] and [" + FIELDS_FIELD.getPreferredName() + "]"
-            );
-        }
-
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
-        if (resolvedIndices != null && fields.isEmpty() == false) {
+        if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
+            // Using the simplified query format
             if (query == null || query.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Cannot specify [" + FIELDS_FIELD.getPreferredName() + "] without [" + QUERY_FIELD.getPreferredName() + "]"
+                    "[" + NAME + "] [" + QUERY_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
+                );
+            }
+
+            if (innerRetrievers.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] does not support [" + RETRIEVERS_FIELD.getPreferredName() + "] and the simplified query format combined"
                 );
             }
 
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
-                    "Cannot specify [" + FIELDS_FIELD.getPreferredName() + "] when querying multiple indices"
+                    "[" + NAME + "] does not support the simplified query format when querying multiple indices"
                 );
             }
 

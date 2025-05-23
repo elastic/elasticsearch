@@ -177,7 +177,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, @Nullable DataType inputDataType);
 
     /**
      * Build the response.
@@ -193,7 +193,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block block,
-        DataType inputDataType
+        @Nullable DataType inputDataType
     ) {
         if (inputDataType == null) {
             return QueryList.rawTermQueryList(field, searchExecutionContext, block);

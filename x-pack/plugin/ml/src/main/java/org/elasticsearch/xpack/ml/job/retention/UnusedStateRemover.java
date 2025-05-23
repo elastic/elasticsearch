@@ -51,12 +51,10 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final TaskId parentTaskId;
-    private final WritableIndexExpander writableIndexExpander;
 
-    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
+    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
-        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -140,7 +138,7 @@ public class UnusedStateRemover implements MlDataRemover {
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
 
-        var indicesToQuery = writableIndexExpander.getWritableIndices(AnomalyDetectorsIndex.jobStateIndexPattern());
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(AnomalyDetectorsIndex.jobStateIndexPattern());
 
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for unused state documents");

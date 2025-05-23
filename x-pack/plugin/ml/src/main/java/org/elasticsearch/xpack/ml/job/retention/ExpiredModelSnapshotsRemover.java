@@ -84,12 +84,11 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander,
         ThreadPool threadPool,
         JobResultsProvider jobResultsProvider,
         AnomalyDetectionAuditor auditor
     ) {
-        super(client, jobIterator, parentTaskId, writableIndexExpander);
+        super(client, jobIterator, parentTaskId);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.jobResultsProvider = jobResultsProvider;
         this.auditor = auditor;
@@ -271,11 +270,11 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         }
 
         // Remove read-only indices
-        List<String> indicesToQuery = new ArrayList<>();
+        List<String> indicesToQuery;
         try {
-            indicesToQuery = writableIndexExpander.getWritableIndices(indices);
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indices);
         } catch (Exception e) {
-            LOGGER.error("Failed to get writable indices for [" + jobId + "] job: " + e.getMessage(), e);
+            LOGGER.error("Failed to get writable indices for [" + jobId + "]", e);
             listener.onFailure(e);
             return;
         }

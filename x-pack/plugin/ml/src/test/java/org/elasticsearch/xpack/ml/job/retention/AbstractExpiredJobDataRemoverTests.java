@@ -52,12 +52,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         private int getRetentionDaysCallCount = 0;
 
         ConcreteExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator) {
-            super(
-                client,
-                jobIterator,
-                new TaskId("test", 0L),
-                new WritableIndexExpander(mock(ClusterService.class), TestIndexNameExpressionResolver.newInstance())
-            );
+            super(client, jobIterator, new TaskId("test", 0L));
         }
 
         @Override
@@ -91,6 +86,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     public void setUpTests() {
         Client client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        WritableIndexExpander.initialize(mock(ClusterService.class), TestIndexNameExpressionResolver.newInstance());
     }
 
     static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents) throws IOException {

@@ -27,17 +27,33 @@ public class WritableIndexExpander {
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private static WritableIndexExpander INSTANCE;
 
-    public WritableIndexExpander(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public static void initialize(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
+        INSTANCE = new WritableIndexExpander(clusterService, indexNameExpressionResolver);
+    }
+
+    public static void initialize(WritableIndexExpander newInstance) {
+        INSTANCE = newInstance;
+    }
+
+    public static WritableIndexExpander getInstance() {
+        if (INSTANCE == null) {
+            throw new IllegalStateException("WritableIndexExpander is not initialized");
+        }
+        return INSTANCE;
+    }
+
+    protected WritableIndexExpander(ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
     }
 
-    protected ArrayList<String> getWritableIndices(String indexPattern) {
+    public ArrayList<String> getWritableIndices(String indexPattern) {
         return getWritableIndices(List.of(indexPattern));
     }
 
-    protected ArrayList<String> getWritableIndices(Collection<String> indices) {
+    public ArrayList<String> getWritableIndices(Collection<String> indices) {
         if (indices == null || indices.isEmpty()) {
             return new ArrayList<>();
         }

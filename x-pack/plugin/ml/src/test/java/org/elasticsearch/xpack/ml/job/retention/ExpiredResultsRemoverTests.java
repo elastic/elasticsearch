@@ -217,13 +217,12 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
-        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(isResultsIndexWritable);
+        MockWritableIndexExpander.create(isResultsIndexWritable);
 
         return new ExpiredResultsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            writableIndexExpander,
             mock(AnomalyDetectionAuditor.class),
             threadPool
         );

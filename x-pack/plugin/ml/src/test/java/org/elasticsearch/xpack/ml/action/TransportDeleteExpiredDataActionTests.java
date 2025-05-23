@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +47,6 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     private ThreadPool threadPool;
     private TransportDeleteExpiredDataAction transportDeleteExpiredDataAction;
     private AnomalyDetectionAuditor auditor;
-    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     /**
      * A data remover that only checks for timeouts.
@@ -64,11 +63,11 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         threadPool = new TestThreadPool("TransportDeleteExpiredDataActionTests thread pool");
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
+        WritableIndexExpander.initialize(clusterService, TestIndexNameExpressionResolver.newInstance());
         auditor = mock(AnomalyDetectionAuditor.class);
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(
             threadPool,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            indexNameExpressionResolver,
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             client,

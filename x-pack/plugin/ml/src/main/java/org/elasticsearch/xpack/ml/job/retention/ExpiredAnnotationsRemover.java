@@ -60,11 +60,10 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander,
         AnomalyDetectionAuditor auditor,
         ThreadPool threadPool
     ) {
-        super(client, jobIterator, parentTaskId, writableIndexExpander);
+        super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
@@ -85,7 +84,7 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         long cutoffEpochMs,
         ActionListener<Boolean> listener
     ) {
-        var indicesToQuery = writableIndexExpander.getWritableIndices(AnnotationIndex.READ_ALIAS_NAME);
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(AnnotationIndex.READ_ALIAS_NAME);
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable annotation indices found for [{}] job. No expired annotations to remove.", job.getId());
             listener.onResponse(true);

@@ -212,12 +212,11 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
-        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(annotationIndexWritable);
+        MockWritableIndexExpander.create(annotationIndexWritable);
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            writableIndexExpander,
             mock(AnomalyDetectionAuditor.class),
             threadPool
         );

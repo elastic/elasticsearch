@@ -76,11 +76,10 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         OriginSettingClient client,
         Iterator<Job> jobIterator,
         TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander,
         AnomalyDetectionAuditor auditor,
         ThreadPool threadPool
     ) {
-        super(client, jobIterator, parentTaskId, writableIndexExpander);
+        super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
@@ -100,7 +99,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
 
-        var indicesToQuery = writableIndexExpander.getWritableIndices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
+        var indicesToQuery = WritableIndexExpander.getInstance()
+            .getWritableIndices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for job [{}]. No expired results removed.", job.getId());
             listener.onResponse(true);

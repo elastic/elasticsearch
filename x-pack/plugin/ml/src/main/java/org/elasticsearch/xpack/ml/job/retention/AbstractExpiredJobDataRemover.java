@@ -12,7 +12,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -27,18 +26,11 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     protected final OriginSettingClient client;
     private final Iterator<Job> jobIterator;
     private final TaskId parentTaskId;
-    protected final WritableIndexExpander writableIndexExpander;
 
-    AbstractExpiredJobDataRemover(
-        OriginSettingClient client,
-        Iterator<Job> jobIterator,
-        TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander
-    ) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId) {
         this.client = client;
         this.jobIterator = jobIterator;
         this.parentTaskId = parentTaskId;
-        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     protected TaskId getParentTaskId() {

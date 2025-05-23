@@ -19,7 +19,8 @@ import static org.mockito.Mockito.when;
 
 public class MockWritableIndexExpander {
     public static WritableIndexExpander create(boolean stateIndexWritable) {
-        WritableIndexExpander writableIndexExpander = mock(WritableIndexExpander.class);
+        WritableIndexExpander.initialize(mock(WritableIndexExpander.class));
+        WritableIndexExpander writableIndexExpander = WritableIndexExpander.getInstance();
         if (stateIndexWritable) {
             mockWhenIndicesAreWritable(writableIndexExpander);
         } else {

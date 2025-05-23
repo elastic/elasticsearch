@@ -44,12 +44,10 @@ public class UnusedStatsRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
     private final TaskId parentTaskId;
-    private final WritableIndexExpander writableIndexExpander;
 
-    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId, WritableIndexExpander writableIndexExpander) {
+    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
-        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -104,7 +102,7 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        var indicesToQuery = writableIndexExpander.getWritableIndices(MlStatsIndex.indexPattern());
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
 
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for unused stats documents");

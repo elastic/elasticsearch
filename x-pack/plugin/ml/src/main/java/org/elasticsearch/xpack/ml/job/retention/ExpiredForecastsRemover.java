@@ -64,19 +64,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     private final ThreadPool threadPool;
     private final long cutoffEpochMs;
     private final TaskId parentTaskId;
-    private final WritableIndexExpander writableIndexExpander;
 
-    public ExpiredForecastsRemover(
-        OriginSettingClient client,
-        ThreadPool threadPool,
-        TaskId parentTaskId,
-        WritableIndexExpander writableIndexExpander
-    ) {
+    public ExpiredForecastsRemover(OriginSettingClient client, ThreadPool threadPool, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
         this.parentTaskId = parentTaskId;
-        this.writableIndexExpander = Objects.requireNonNull(writableIndexExpander);
     }
 
     @Override
@@ -132,7 +125,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        var indicesToQuery = writableIndexExpander.getWritableIndices(RESULTS_INDEX_PATTERN);
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(RESULTS_INDEX_PATTERN);
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for expired forecasts. No expired forecasts to remove.");
             listener.onResponse(true);

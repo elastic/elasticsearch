@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -133,7 +134,21 @@ public class JobDataDeleter {
             indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0])).setRefresh(true)
+        // Remove read-only indices
+        List<String> indicesToQuery;
+        try {
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indices);
+        } catch (Exception e) {
+            logger.error("Failed to get writable indices for [" + jobId + "].", e);
+            listener.onFailure(e);
+            return;
+        }
+        if (indicesToQuery.isEmpty()) {
+            logger.info("No writable model snapshot indices found for [{}] job. No expired model snapshots to remove.", jobId);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
 
@@ -181,7 +196,23 @@ public class JobDataDeleter {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));
         }
         QueryBuilder query = QueryBuilders.constantScoreQuery(boolQuery);
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setQuery(query)
+
+        List<String> indicesToQuery = List.of(AnnotationIndex.READ_ALIAS_NAME);
+        // Remove read-only indices
+        try {
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indicesToQuery);
+        } catch (Exception e) {
+            logger.error("Failed to get writable indices for [" + jobId + "]", e);
+            listener.onFailure(e);
+            return;
+        }
+        if (indicesToQuery.isEmpty()) {
+            logger.info("No writable annotation indices found for [{}] job. No annotations to remove.", jobId);
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)

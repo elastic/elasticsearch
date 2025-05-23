@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStatsRemover;
-import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.WrappedBatchedJobsIterator;
@@ -64,19 +62,16 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
 
     private final ThreadPool threadPool;
     private final Executor executor;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OriginSettingClient client;
     private final ClusterService clusterService;
     private final Clock clock;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
-    private final WritableIndexExpander writableIndexExpander;
 
     @Inject
     public TransportDeleteExpiredDataAction(
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -88,7 +83,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         this(
             threadPool,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            indexNameExpressionResolver,
             transportService,
             actionFilters,
             client,
@@ -103,7 +97,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
     TransportDeleteExpiredDataAction(
         ThreadPool threadPool,
         Executor executor,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -116,14 +109,12 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new, executor);
         this.threadPool = threadPool;
         this.executor = executor;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
         this.clock = clock;
         this.jobConfigProvider = jobConfigProvider;
         this.jobResultsProvider = jobResultsProvider;
         this.auditor = auditor;
-        this.writableIndexExpander = new WritableIndexExpander(clusterService, indexNameExpressionResolver);
     }
 
     @Override
@@ -255,28 +246,25 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                writableIndexExpander,
                 anomalyDetectionAuditor,
                 threadPool
             ),
-            new ExpiredForecastsRemover(originClient, threadPool, parentTaskId, writableIndexExpander),
+            new ExpiredForecastsRemover(originClient, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                writableIndexExpander,
                 threadPool,
                 jobResultsProvider,
                 anomalyDetectionAuditor
             ),
-            new UnusedStateRemover(originClient, parentTaskId, writableIndexExpander),
+            new UnusedStateRemover(originClient, parentTaskId),
             new EmptyStateIndexRemover(originClient, parentTaskId),
-            new UnusedStatsRemover(originClient, parentTaskId, writableIndexExpander),
+            new UnusedStatsRemover(originClient, parentTaskId),
             new ExpiredAnnotationsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                writableIndexExpander,
                 anomalyDetectionAuditor,
                 threadPool
             )
@@ -285,35 +273,20 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
 
     private List<MlDataRemover> createDataRemovers(List<Job> jobs, TaskId parentTaskId, AnomalyDetectionAuditor anomalyDetectionAuditor) {
         return Arrays.asList(
-            new ExpiredResultsRemover(
-                client,
-                new VolatileCursorIterator<>(jobs),
-                parentTaskId,
-                writableIndexExpander,
-                anomalyDetectionAuditor,
-                threadPool
-            ),
-            new ExpiredForecastsRemover(client, threadPool, parentTaskId, writableIndexExpander),
+            new ExpiredResultsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool),
+            new ExpiredForecastsRemover(client, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(
                 client,
                 new VolatileCursorIterator<>(jobs),
                 parentTaskId,
-                writableIndexExpander,
                 threadPool,
                 jobResultsProvider,
                 anomalyDetectionAuditor
             ),
-            new UnusedStateRemover(client, parentTaskId, writableIndexExpander),
+            new UnusedStateRemover(client, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId, writableIndexExpander),
-            new ExpiredAnnotationsRemover(
-                client,
-                new VolatileCursorIterator<>(jobs),
-                parentTaskId,
-                writableIndexExpander,
-                anomalyDetectionAuditor,
-                threadPool
-            )
+            new UnusedStatsRemover(client, parentTaskId),
+            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool)
         );
     }
 

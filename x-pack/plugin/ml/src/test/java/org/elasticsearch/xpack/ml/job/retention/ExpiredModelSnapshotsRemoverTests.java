@@ -327,13 +327,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
-        WritableIndexExpander writableIndexExpander = MockWritableIndexExpander.create(isStateIndexWritable);
+        MockWritableIndexExpander.create(isStateIndexWritable);
 
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
             new TaskId("test", 0L),
-            writableIndexExpander,
             threadPool,
             resultsProvider,
             mock(AnomalyDetectionAuditor.class)

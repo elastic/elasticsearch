@@ -15,8 +15,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -170,16 +170,16 @@ class FieldCapabilitiesFetcher {
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
 
-        // populate field mappers including metadata field mappers
+        // populate with all types of mappers
         RootObjectMapper rootObjectMapper = context.getMappingLookup().getMapping().getRoot();
-        List<FieldMapper> allMappers = new ArrayList<>();
+        List<Mapper> allMappers = new ArrayList<>();
         allMappers.addAll(rootObjectMapper.getSourceFields());
         allMappers.addAll(context.getMetadataFields());
 
-        for (FieldMapper mapper : allMappers) {
+        for (Mapper mapper : allMappers) {
             addFieldToFieldCaps(
                 mapper.fullPath(),
-                mapper.fieldType(),
+                context.getFieldType(mapper.fullPath()),
                 fieldNameFilter,
                 fieldPredicate,
                 filter,

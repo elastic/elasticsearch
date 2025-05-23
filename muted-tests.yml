@@ -474,9 +474,6 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128369
 
 # Examples:
 #

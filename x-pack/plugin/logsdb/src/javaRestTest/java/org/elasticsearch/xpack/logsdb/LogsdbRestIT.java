@@ -7,19 +7,16 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
@@ -380,14 +377,9 @@ public class LogsdbRestIT extends ESRestTestCase {
             String messageLength = Integer.toString(msg.length());
             sb.append("{ \"create\": {} }").append('\n');
             if (randomBoolean()) {
-                sb.append(
-                    """
-                        {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level"}}
-                        """.replace("$now", formatInstant(now))
-                        .replace("$level", level)
-                        .replace("$msg", msg)
-                        .replace("$l", messageLength)
-                );
+                sb.append("""
+                    {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level"}}
+                    """.replace("$now", formatInstant(now)).replace("$level", level).replace("$msg", msg).replace("$l", messageLength));
             } else {
                 sb.append("""
                     {"@timestamp": "$now", "message": "$msg", "message_length": $l}

@@ -558,3 +558,29 @@ from books metadata _score
 avg_score:double   | max_score:double   | min_score:double
 3.869828939437866  | 5.123856544494629  | 3.0124807357788086
 ;
+
+testMatchPhraseWithScore
+required_capability: match_phrase
+required_capability: metadata_score
+
+from books metadata _score
+| where match_phrase(title, "J. R. R. Tolkien")
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                            | author:text      | _score:double
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 1.9662091732025146
+;
+
+testMatchPhraseWithScoreBoost
+required_capability: match_phrase
+required_capability: metadata_score
+
+from books metadata _score
+| where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                            | author:text      | _score:double
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 1.9662091732025146
+;

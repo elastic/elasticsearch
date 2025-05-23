@@ -49,7 +49,7 @@ To get started, first log in to SharePoint Online and access your administrative
 
 Follow these steps:
 
-* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Microsoft Entra ID**.
+* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Microsoft Entra ID** (formerly Azure Active Directory).
 * Locate **App Registrations** and Click **New Registration**.
 * Give your app a name - like "Search".
 * Leave the **Redirect URIs** blank for now.

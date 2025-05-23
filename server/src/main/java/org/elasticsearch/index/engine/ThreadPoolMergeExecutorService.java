@@ -161,10 +161,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     /**
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
+     * The budget (estimation) for a merge task is the disk space (still) required for it to complete. As the merge progresses,
+     * its budget decreases (as the bytes already written have been incorporated into the filesystem stats about the used disk space).
      */
     private final PriorityBlockingQueueWithBudget<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithBudget<>(
-        MergeTask::estimatedRemainingMergeSize,
-        Long.MAX_VALUE
+        MergeTask::estimatedRemainingMergeSize
     );
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
@@ -207,9 +208,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
         // start monitoring the available disk space, and update the available budget for running merge tasks
-        // note that this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
-        // available disk space, so merges will be blocked for shards on data paths with no available disk space, as long as there is
-        // one data path that has enough disk space to run merges for the shards that it stores
+        // Note: this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
+        // available disk space. In this case, merges will NOT be blocked for shards on data paths with insufficient available
+        // disk space, as long as a single data path has enough available disk space to run merges for any shards that it stores
+        // (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
+        // (but nothing blows up either, if using multiple data paths))
         this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
             nodeEnvironment.dataPaths(),
             threadPool,
@@ -300,7 +303,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 while (true) {
                     PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget smallestMergeTaskWithReleasableBudget;
                     try {
-                        // will block if there are backlogged merges until they're enqueued again
+                        // Will block if there are backlogged merges until they're enqueued again
+                        // (for e.g. if the per-shard concurrent merges count limit is reached).
+                        // Will also block if there is insufficient budget (i.e. estimated available disk space
+                        // for the smallest merge task to run to completion)
                         smallestMergeTaskWithReleasableBudget = queuedMergeTasks.take();
                     } catch (InterruptedException e) {
                         // An active worker thread has been interrupted while waiting for backlogged merges to be re-enqueued.
@@ -312,8 +318,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         break;
                     }
                     try {
-                        // let the task's scheduler decide if it can actually run the merge task now
                         MergeTask smallestMergeTask = smallestMergeTaskWithReleasableBudget.element();
+                        // let the task's scheduler decide if it can actually run the merge task now
                         ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
                         if (schedule == RUN) {
                             runMergeTask(smallestMergeTask);
@@ -323,10 +329,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             break;
                         } else {
                             assert schedule == BACKLOG;
-                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
+                            // The merge task is backlogged by the merge scheduler, try to get the next smallest one.
+                            // It's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when
+                            // itself decides that the merge task could be run.
                         }
                     } finally {
+                        // releases any budget that is still being allocated for the merge task
                         smallestMergeTaskWithReleasableBudget.close();
                     }
                 }
@@ -485,6 +493,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         private final ReentrantLock lock;
         private final Condition elementAvailable;
         private long availableBudget;
+
+        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction) {
+            this(budgetFunction, Long.MAX_VALUE);
+        }
 
         PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long availableBudget) {
             this.budgetFunction = budgetFunction;

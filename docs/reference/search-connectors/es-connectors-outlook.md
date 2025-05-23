@@ -116,10 +116,12 @@ To integrate with the Outlook connector using Azure, follow these steps to creat
 4. Click on the **Certificates & secrets** tab and create a new client secret. Keep this secret handy.
 5. Go to the **API permissions** tab.
 
-    * Click on "Add permissions."
-    * Choose "APIs my organization uses."
-    * Search for and select "Office 365 Exchange Online."
-    * Add the `full_access_as_app` application permission.
+    1. Click on "Add permissions".
+    2. Choose "APIs my organization uses".
+    3. Search for and select "Office 365 Exchange Online".
+        * Add the `full_access_as_app` application permission.
+    4. Search for and select "Microsoft Graph"
+        * Add the `User.Read.All` application permission.
 
 
 You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to configure the Outlook connector.

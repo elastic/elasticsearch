@@ -73,8 +73,7 @@ dependencies {
   runtimeOnly "com.squareup.okio:okio-jvm:3.2.0"
   runtimeOnly "io.github.std-uritemplate:std-uritemplate:2.0.0"
   runtimeOnly "com.azure:azure-core-http-okhttp:1.12.10"
-  compileOnly "com.nimbusds:oauth2-oidc-sdk:11.22.2"
-  runtimeOnly "com.nimbusds:content-type:2.3"
+  implementation "com.google.code.gson:gson:2.10"
 
   testRuntimeOnly "net.minidev:json-smart:2.5.2"
 
@@ -89,3 +88,5 @@ dependencies {
     to.attribute(patched, true)
   }
 }
+
+tasks.named("javadoc").configure { enabled = false }

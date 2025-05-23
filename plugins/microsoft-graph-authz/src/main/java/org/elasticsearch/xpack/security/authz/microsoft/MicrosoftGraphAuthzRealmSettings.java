@@ -25,9 +25,10 @@ public class MicrosoftGraphAuthzRealmSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<SecureString> CLIENT_SECRET = RealmSettings.secureString(
+    public static final Setting.AffixSetting<String> CLIENT_SECRET = RealmSettings.simpleString(
         REALM_TYPE,
-        "client_secret"
+        "client_secret",
+        Setting.Property.NodeScope
     );
 
     public static final Setting.AffixSetting<String> TENANT_ID = RealmSettings.simpleString(
@@ -45,7 +46,7 @@ public class MicrosoftGraphAuthzRealmSettings {
     public static final Setting.AffixSetting<String> API_HOST = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(REALM_TYPE),
         "graph_host",
-        key -> Setting.simpleString(key, "https://graph.microsoft.com", Setting.Property.NodeScope)
+        key -> Setting.simpleString(key, "https://graph.microsoft.com/v1.0", Setting.Property.NodeScope)
     );
 
     public static List<Setting<?>> getSettings() {

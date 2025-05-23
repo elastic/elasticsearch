@@ -60,7 +60,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
     private final HttpClient httpClient;
-    private final SecureString clientSecret;
+    private final String clientSecret;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
         this(roleMapper, config, HttpClients.createDefault());
@@ -84,6 +84,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                     + "] is required"
             );
         }
+
+        logger.trace("pls {}", new com.google.gson.JsonParser());
 
         kotlin.jvm.internal.Intrinsics.checkParameterIsNotNull(clientSecret, "clientSecret");
         // TODO license check

@@ -30,6 +30,10 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
+ * an {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
+ */
 public class ScoreFunction extends Function implements EvaluatorMapper {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -44,7 +48,7 @@ public class ScoreFunction extends Function implements EvaluatorMapper {
         returnType = "double",
         preview = true,
         description = "Scores a full text function. Returns scores for all the matching docs.",
-        examples = { @Example(file = "score-function", tag = "score-with-field") }
+        examples = { @Example(file = "score-function", tag = "score-single") }
     )
     public ScoreFunction(
         Source source,
@@ -69,7 +73,7 @@ public class ScoreFunction extends Function implements EvaluatorMapper {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ScoreFunction::new, children());
+        return NodeInfo.create(this, ScoreFunction::new, children().getFirst());
     }
 
     @Override
@@ -79,11 +83,8 @@ public class ScoreFunction extends Function implements EvaluatorMapper {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-
         ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
-
         return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
-
     }
 
     @Override

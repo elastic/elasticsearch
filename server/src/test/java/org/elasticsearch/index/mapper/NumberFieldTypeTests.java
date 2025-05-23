@@ -12,8 +12,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
@@ -151,26 +154,74 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private record TermQueryTestCase(NumberType type, Query[] expectedQueries) {}
+
     public void testTermQuery() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongField.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
-
-        ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
-
-        ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
-        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
-
-        MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
-        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
-
-        MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
-        ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
-        assertEquals(
-            "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
-            e2.getMessage()
+        Query[] expectedIntegerQueries = new Query[] {
+            IntField.newExactQuery("field", 42),
+            IntPoint.newExactQuery("field", 42),
+            SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
+        List<TermQueryTestCase> testCases = List.of(
+            new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
+            new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
+            new TermQueryTestCase(NumberType.INTEGER, expectedIntegerQueries),
+            new TermQueryTestCase(
+                NumberType.LONG,
+                new Query[] {
+                    LongField.newExactQuery("field", 42),
+                    LongPoint.newExactQuery("field", 42),
+                    SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
+            ),
+            new TermQueryTestCase(
+                NumberType.FLOAT,
+                new Query[] {
+                    FloatField.newExactQuery("field", 42),
+                    FloatPoint.newExactQuery("field", 42),
+                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.floatToSortableInt(42)) }
+            ),
+            new TermQueryTestCase(
+                NumberType.DOUBLE,
+                new Query[] {
+                    DoubleField.newExactQuery("field", 42),
+                    DoublePoint.newExactQuery("field", 42),
+                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.doubleToSortableLong(42)) }
+            ),
+            new TermQueryTestCase(
+                NumberType.HALF_FLOAT,
+                new Query[] {
+                    new IndexOrDocValuesQuery(
+                        HalfFloatPoint.newExactQuery("field", 42),
+                        SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42))
+                    ),
+                    HalfFloatPoint.newExactQuery("field", 42),
+                    SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42)) }
+            )
         );
+
+        for (TermQueryTestCase testCase : testCases) {
+            MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", testCase.type());
+            assertEquals(testCase.expectedQueries[0], ft.termQuery("42", MOCK_CONTEXT));
+
+            ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), true, false);
+            assertEquals(testCase.expectedQueries[1], ft.termQuery("42", MOCK_CONTEXT));
+
+            ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, true);
+            assertEquals(testCase.expectedQueries[2], ft.termQuery("42", MOCK_CONTEXT));
+
+            MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
+            assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+            MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, true);
+            ElasticsearchException e2 = expectThrows(
+                ElasticsearchException.class,
+                () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            );
+            assertEquals(
+                "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+                e2.getMessage()
+            );
+        }
     }
 
     private record OutOfRangeTermQueryTestCase(NumberType type, Object value) {}

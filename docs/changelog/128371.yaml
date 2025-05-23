@@ -1,0 +1,5 @@
+pr: 128371
+summary: Fix KQL usage in in STATS .. BY
+area: ES|QL
+type: bug
+issues: []

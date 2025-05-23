@@ -184,7 +184,8 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         private final List<SegmentState> perSegmentState;
 
         ShardState(ShardConfig config) throws IOException {
-            weight = config.searcher.createWeight(config.query, scoreMode(), 1.0f);
+            Query rewritten = config.searcher.rewrite(config.query);
+            weight = config.searcher.createWeight(rewritten, scoreMode(), 1.0f);
             searcher = config.searcher;
             perSegmentState = new ArrayList<>(Collections.nCopies(searcher.getLeafContexts().size(), null));
         }

@@ -245,8 +245,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             null,
                             null,
                             """
-                               Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
-                               completing the snapshot; use /_snapshot/<repository>/<snapshot>/_status to load from the repository."""
+                                Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
+                                completing the snapshot; use /_snapshot/<repository>/<snapshot>/_status to load from the repository."""
                         );
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(entry.shardId(shardEntry.getKey()), stage);

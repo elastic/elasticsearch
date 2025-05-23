@@ -31,7 +31,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
         return texts;
     }
 
-    private ByteBuffer bytes;
+    private volatile ByteBuffer bytes;
     private String text;
     private int hash;
     private int stringLength = -1;

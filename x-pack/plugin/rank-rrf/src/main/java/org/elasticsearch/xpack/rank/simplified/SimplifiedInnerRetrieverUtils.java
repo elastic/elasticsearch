@@ -88,6 +88,7 @@ public class SimplifiedInnerRetrieverUtils {
             String field = entry.getKey();
             Float weight = entry.getValue();
 
+            // TODO: Support glob matches for inference fields
             InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(field);
             if (inferenceFieldMetadata != null) {
                 RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(new MatchQueryBuilder(field, query));

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -18,8 +19,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -27,21 +30,26 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
+    private int numDocs;
+    private int numDims;
 
     public void testKnnDefaults() {
-        var query = """
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, [1.0, 1.0, 1.0])
+            | WHERE knn(vector, %s)
             | KEEP id, floats, _score, vector
             | SORT _score DESC
-            """;
+            """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            assertEquals(indexedVectors.size(), valuesList.size());
+            assertEquals(Math.min(indexedVectors.size(), 10), valuesList.size());
             for (int i = 0; i < valuesList.size(); i++) {
                 List<Object> row = valuesList.get(i);
                 // Vectors should be in order of ID, as they're less similar than the query vector as the ID increases
@@ -62,12 +70,15 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testKnnOptions() {
-        var query = """
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, [1.0, 1.0, 1.0], {"k": 5})
+            | WHERE knn(vector, %s, {"k": 5})
             | KEEP id, floats, _score, vector
             | SORT _score DESC
-            """;
+            """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
@@ -79,20 +90,24 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testKnnNonPushedDown() {
-        var query = """
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // TODO we need to decide what to do when / if user uses k for limit, as no more than k results will be returned from knn query
+        var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, [1.0, 1.0, 1.0], {"k": 5}) OR id % 2 == 0
+            | WHERE knn(vector, %s, {"k": 5}) OR id > 10
             | KEEP id, floats, _score, vector
             | SORT _score DESC
-            """;
+            """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            // K = 5, 2 more for % operator, total 7
-            assertEquals(7, valuesList.size());
+            // K = 5, 1 more for every id > 10
+            assertEquals(5 + Math.max(0, numDocs - 10 - 1), valuesList.size());
         }
     }
 
@@ -120,11 +135,11 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
 
-        var CreateRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
-        assertAcked(CreateRequest);
+        var createRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
+        assertAcked(createRequest);
 
-        int numDocs = 10;
-        int numDims = 3;
+        numDocs = randomIntBetween(10, 20);
+        numDims = randomIntBetween(3, 10);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         float value = 0.0f;
         for (int i = 0; i < numDocs; i++) {

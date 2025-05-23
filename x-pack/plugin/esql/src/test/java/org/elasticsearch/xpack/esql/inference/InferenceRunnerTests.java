@@ -65,7 +65,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
@@ -82,7 +82,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(
             mockInferencePlan("rerank-plan"),
             mockInferencePlan("rerank-plan"),
@@ -110,7 +110,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMissingInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
@@ -132,7 +132,6 @@ public class InferenceRunnerTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "raw-types" })
     private Client mockClient() {
         Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
         doAnswer(i -> {
             Runnable sendResponse = () -> {
                 GetInferenceModelAction.Request request = i.getArgument(1, GetInferenceModelAction.Request.class);

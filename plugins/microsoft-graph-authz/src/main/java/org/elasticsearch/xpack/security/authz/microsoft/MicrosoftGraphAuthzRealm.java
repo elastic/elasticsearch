@@ -17,10 +17,9 @@ import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 
-import org.apache.http.client.HttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,7 +44,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
-    private final String clientSecret;
+    private final SecureString clientSecret;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
         super(config);
@@ -66,7 +65,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         }
 
         // FIXME both of these lines are load bearing, because this project is cursed
-        logger.trace("pls {}", new com.google.gson.JsonParser());
+        new com.google.gson.JsonParser();
         kotlin.jvm.internal.Intrinsics.checkParameterIsNotNull(clientSecret, "clientSecret");
         // TODO license check
     }
@@ -96,10 +95,12 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     @Override
     public void lookupUser(String principal, ActionListener<User> listener) {
         try {
+            // TODO probably want to do this once rather than every time
             final var client = buildClient();
             final var userProperties = sdkFetchUserProperties(client, principal);
             final var groups = sdkFetchGroupMembership(client, principal);
 
+            // TODO confirm we don't need any other fields
             final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
 
             roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
@@ -115,6 +116,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                 l.onResponse(user);
             }));
         } catch (Exception e) {
+            // TODO logging etc
             listener.onFailure(e);
         }
     }
@@ -127,6 +129,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             .clientSecret(clientSecret.toString())
             .tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID))
             .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST))
+            // TODO this is necessary for tests, but we probably want this enabled in prod
+            .disableInstanceDiscovery()
             .build();
 
         return new GraphServiceClient(
@@ -138,8 +142,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     }
 
     private Tuple<String, String> sdkFetchUserProperties(GraphServiceClient client, String userId) {
-        var response = client.usersWithUserPrincipalName(userId)
-            .get(requestConfig -> requestConfig.queryParameters.select = new String[] { "displayName", "email" });
+        var response = client.users().byUserId(userId)
+            .get(requestConfig -> requestConfig.queryParameters.select = new String[] { "displayName", "mail" });
 
         logger.trace("User [{}] has email [{}]", response.getDisplayName(), response.getMail());
 
@@ -149,6 +153,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private List<String> sdkFetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
         List<String> groups = new ArrayList<>();
 
+        // TODO figure out exactly what we need to fetch here - we may need to fetch transitive groups as well, and may need to remove
+        //  the `graph.group` cast (i.e. fetch "directory roles" and "administrative units" as well);
+        //  see https://learn.microsoft.com/en-us/graph/api/user-list-transitivememberof
         var groupMembership = client.users().byUserId(userId).memberOf().graphGroup().get(requestConfig -> {
             requestConfig.queryParameters.select = new String[] { "id" };
             requestConfig.queryParameters.top = 999;

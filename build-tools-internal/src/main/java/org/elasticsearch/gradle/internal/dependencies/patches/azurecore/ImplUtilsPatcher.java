@@ -21,8 +21,8 @@ class ImplUtilsPatcher extends ClassVisitor {
 
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-        // `addShutdownHook` invokes `java.lang.Runtime.addShutdownHook`, which is strictly forbidden in ES (i.e. it will throw an
-        //  Entitlements error).
+        // `addShutdownHook` invokes `java.lang.Runtime.addShutdownHook`, which is strictly forbidden (i.e. it will throw an Entitlements
+        // error).
         // We replace the method body here with `return null`.
         if (name.equals("addShutdownHookSafely")) {
             return new MethodReplacement(mv, () -> {

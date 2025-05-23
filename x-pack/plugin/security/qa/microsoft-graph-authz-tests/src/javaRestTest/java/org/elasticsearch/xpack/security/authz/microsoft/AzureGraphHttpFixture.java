@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz.microsoft;
 
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
@@ -52,6 +51,7 @@ public class AzureGraphHttpFixture extends ExternalResource {
     private final String principal;
     private final String displayName;
     private final String email;
+    private final String jwt;
 
     private HttpsServer server;
 
@@ -69,14 +69,15 @@ public class AzureGraphHttpFixture extends ExternalResource {
         this.principal = principal;
         this.displayName = displayName;
         this.email = email;
+
+        jwt = "test jwt";
     }
 
     @Override
     protected void before() throws Throwable {
-        final var jwt = "test jwt";
-        final var skipToken = UUID.randomUUID().toString();
-
-        final var certificate = PemUtils.readCertificates(List.of(Path.of(getClass().getClassLoader().getResource("server/cert.pem").toURI()))).getFirst();
+        final var certificate = PemUtils.readCertificates(
+            List.of(Path.of(getClass().getClassLoader().getResource("server/cert.pem").toURI()))
+        ).getFirst();
         final var key = PemUtils.readPrivateKey(Path.of(getClass().getClassLoader().getResource("server/cert.key").toURI()), () -> null);
         final var sslContext = SSLContext.getInstance("TLS");
         sslContext.init(
@@ -88,9 +89,31 @@ public class AzureGraphHttpFixture extends ExternalResource {
         server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
 
+        registerGetAccessTokenHandler();
+        registerGetUserHandler();
+        registerGetUserMembershipHandler();
+
+        server.createContext("/", exchange -> {
+            logger.warn("Unhandled request for [{}]", exchange.getRequestURI());
+            exchange.sendResponseHeaders(RestStatus.NOT_IMPLEMENTED.getStatus(), 0);
+            exchange.close();
+        });
+        server.start();
+    }
+
+    @Override
+    protected void after() {
+        server.stop(0);
+    }
+
+    public String getBaseUrl() {
+        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+    }
+
+    private void registerGetAccessTokenHandler() {
         server.createContext("/" + tenantId + "/oauth2/v2.0/token", exchange -> {
             if (exchange.getRequestMethod().equals("POST") == false) {
-                httpError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected POST request");
+                graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected POST request");
                 return;
             }
 
@@ -99,23 +122,27 @@ public class AzureGraphHttpFixture extends ExternalResource {
             RestUtils.decodeQueryString(requestBody, 0, formFields);
 
             if (formFields.get("grant_type").equals("client_credentials") == false) {
-                httpError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));
+                graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));
                 return;
             }
             if (formFields.get("client_id").equals(clientId) == false) {
-                httpError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Client ID: %s", formFields.get("client_id")));
+                graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Client ID: %s", formFields.get("client_id")));
                 return;
             }
             if (formFields.get("client_secret").equals(clientSecret) == false) {
-                httpError(
+                graphError(
                     exchange,
                     RestStatus.BAD_REQUEST,
                     Strings.format("Unexpected Client Secret: %s", formFields.get("client_secret"))
                 );
                 return;
             }
-            if (formFields.get("scope").equals("https://graph.microsoft.com/.default") == false) {
-                httpError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Scope: %s", formFields.get("scope")));
+            if (formFields.get("scope").contains("https://graph.microsoft.com/.default") == false) {
+                graphError(
+                    exchange,
+                    RestStatus.BAD_REQUEST,
+                    Strings.format("Missing required https://graph.microsoft.com/.default scope: [%s]", formFields.get("scope"))
+                );
                 return;
             }
 
@@ -134,20 +161,23 @@ public class AzureGraphHttpFixture extends ExternalResource {
             responseBytes.writeTo(exchange.getResponseBody());
             exchange.close();
         });
+    }
+
+    private void registerGetUserHandler() {
         server.createContext("/v1.0/users/" + principal, exchange -> {
             if (exchange.getRequestMethod().equals("GET") == false) {
-                httpError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
+                graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
                 return;
             }
 
             final var authorization = exchange.getRequestHeaders().getFirst("Authorization");
             if (authorization.equals("Bearer " + jwt) == false) {
-                httpError(exchange, RestStatus.UNAUTHORIZED, Strings.format("Wrong Authorization header: %s", authorization));
+                graphError(exchange, RestStatus.UNAUTHORIZED, Strings.format("Wrong Authorization header: %s", authorization));
                 return;
             }
 
             if (exchange.getRequestURI().getQuery().contains("$select=displayName,mail") == false) {
-                httpError(exchange, RestStatus.BAD_REQUEST, "Must filter fields using $select");
+                graphError(exchange, RestStatus.BAD_REQUEST, "Must filter fields using $select");
                 return;
             }
 
@@ -165,21 +195,26 @@ public class AzureGraphHttpFixture extends ExternalResource {
 
             exchange.close();
         });
-        server.createContext("/v1.0/users/" + principal + "/memberOf/microsoft.graph.group", exchange -> {
+    }
+
+    private void registerGetUserMembershipHandler() {
+        final var skipToken = UUID.randomUUID().toString();
+
+        server.createContext("/v1.0/users/" + principal + "/memberOf", exchange -> {
             if (exchange.getRequestMethod().equals("GET") == false) {
-                httpError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
+                graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
                 return;
             }
 
             final var authorization = exchange.getRequestHeaders().getFirst("Authorization");
             if (authorization.equals("Bearer " + jwt) == false) {
-                httpError(exchange, RestStatus.UNAUTHORIZED, Strings.format("Wrong Authorization header: %s", authorization));
+                graphError(exchange, RestStatus.UNAUTHORIZED, Strings.format("Wrong Authorization header: %s", authorization));
                 return;
             }
 
             if (exchange.getRequestURI().getQuery().contains("$select=id") == false) {
                 // this test server only returns `id`s, so if the client is expecting other fields, it won't work anyway
-                httpError(exchange, RestStatus.BAD_REQUEST, "Must filter fields using $select");
+                graphError(exchange, RestStatus.BAD_REQUEST, "Must filter fields using $select");
                 return;
             }
 
@@ -206,24 +241,19 @@ public class AzureGraphHttpFixture extends ExternalResource {
 
             exchange.close();
         });
-        server.createContext("/", exchange -> {
-            logger.warn("Unhandled request for [{}]", exchange.getRequestURI());
-            exchange.close();
-        });
-        server.start();
     }
 
-    @Override
-    protected void after() {
-        server.stop(0);
-    }
-
-    public String getBaseUrl() {
-        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
-    }
-
-    private void httpError(HttpExchange exchange, RestStatus statusCode, String message) throws IOException {
+    // attempt to comply with https://learn.microsoft.com/en-us/graph/errors
+    private void graphError(HttpExchange exchange, RestStatus statusCode, String message) throws IOException {
         logger.warn(message);
+
+        final var errorResponse = XContentBuilder.builder(XContentType.JSON.xContent());
+        errorResponse.startObject();
+        errorResponse.startObject("error");
+        errorResponse.field("code", statusCode.toString());
+        errorResponse.field("message", message);
+        errorResponse.endObject();
+        errorResponse.endObject();
 
         final var responseBytes = message.getBytes();
         exchange.sendResponseHeaders(statusCode.getStatus(), responseBytes.length);

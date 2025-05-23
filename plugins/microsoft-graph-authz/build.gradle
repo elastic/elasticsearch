@@ -75,6 +75,7 @@ dependencies {
   implementation "com.google.code.gson:gson:2.10"
 
   testRuntimeOnly "net.minidev:json-smart:2.5.2"
+  testRuntimeOnly "com.nimbusds:oauth2-oidc-sdk:11.22.2"
 
   attributesSchema {
     attribute(patched)

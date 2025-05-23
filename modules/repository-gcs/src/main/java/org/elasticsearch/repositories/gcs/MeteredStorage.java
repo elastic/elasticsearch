@@ -140,6 +140,10 @@ public class MeteredStorage {
             get.setReturnRawInputStream(b);
         }
 
+        public void setGeneration(Long generation) {
+            get.setGeneration(generation);
+        }
+
         public HttpHeaders getRequestHeaders() {
             return get.getRequestHeaders();
         }

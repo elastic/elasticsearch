@@ -40,15 +40,11 @@ tasks.named("yamlRestTest").configure {
     '^cluster.desired_balance/10_basic/*',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^health/10_basic/*',
-    '^health/40_diagnosis/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
-    '^test/ingest/15_info_ingest/*', // uses cluster info API
-    '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
-    '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
     '^migration/*/*',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',
@@ -76,7 +72,7 @@ tasks.named("yamlRestTest").configure {
     // Reindex from remote is not supported on Serverless and required additional testing setup
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
-    '^reindex/95_parent_join/Reindex from remote*'
+    '^reindex/95_parent_join/Reindex from remote*',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

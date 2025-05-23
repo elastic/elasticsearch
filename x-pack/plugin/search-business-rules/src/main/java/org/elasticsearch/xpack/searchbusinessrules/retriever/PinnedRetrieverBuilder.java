@@ -106,7 +106,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         }
 
         SortBuilder<?> sort = sorts.get(0);
-        if (!(sort instanceof ScoreSortBuilder)) {
+        if (sort instanceof ScoreSortBuilder == false) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] retriever only supports sorting by score, invalid sort criterion: " + sort.toString()
             );

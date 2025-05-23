@@ -241,7 +241,7 @@ public class NativeUsersStore {
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(getDocType(user), user)).request(),
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, user)).request(),
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
@@ -280,7 +280,12 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        final String docType = getDocType(username);
+        final String docType;
+        if (ClientReservedRealm.isReserved(username, settings)) {
+            docType = RESERVED_USER_TYPE;
+        } else {
+            docType = USER_DOC_TYPE;
+        }
 
         securityIndex.forCurrentProject().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(
@@ -323,16 +328,6 @@ public class NativeUsersStore {
                 client::update
             );
         });
-    }
-
-    private String getDocType(String username) {
-        final String docType;
-        if (ClientReservedRealm.isReserved(username, settings)) {
-            docType = RESERVED_USER_TYPE;
-        } else {
-            docType = USER_DOC_TYPE;
-        }
-        return docType;
     }
 
     /**

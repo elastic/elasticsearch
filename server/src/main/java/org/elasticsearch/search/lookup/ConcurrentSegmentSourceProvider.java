@@ -47,8 +47,12 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             var existing = leaves.put(id, leaf);
             assert existing == null : "unexpected source provider [" + existing + "]";
         } else if (isStoredSource == false && doc < leaf.doc) {
-            // For synthetic source, if a runtime field is used more than once, a new source loader must be used
-            // for each use of the field, as doc value iterators may only be read once in increasing docId order.
+            // Queries which references the same runtime field in multiple clauses re-read values from the source for every clause.
+            // Each clause reads in increasing docId order, so the last docId accessed by the first clause is higher than the subsequent
+            // first docId read by the second clause. This is fine when source is stored, as stored fields do not restrict the order that
+            // docIds that can be accessed. But with synthetic source, the field may come from doc values, which do require than docIds be
+            // read in increasing order. Reading doc values with a docId which is lower than the previously accessed docId will result in
+            // EOF errors. To handle this, we detect the lower docId and create a new doc value reader for each clause.
             leaf = new Leaf(sourceLoader.leaf(ctx.reader(), null), storedFieldLoader.getLoader(ctx, null));
             leaves.put(id, leaf);
         }

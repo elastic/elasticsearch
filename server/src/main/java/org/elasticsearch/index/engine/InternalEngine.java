@@ -2827,6 +2827,7 @@ public class InternalEngine extends Engine {
         assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
         if (count == 1) {
             throttle.activate();
+            logger.info("Activated throttling");
         }
     }
 
@@ -2836,7 +2837,18 @@ public class InternalEngine extends Engine {
         assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
         if (count == 0) {
             throttle.deactivate();
+            logger.info("Deactivated throttling");
         }
+    }
+
+    @Override
+    public void pauseThrottling() {
+        throttle.pauseThrottle();
+    }
+
+    @Override
+    public void unPauseThrottling() {
+        throttle.unpauseThrottle();
     }
 
     @Override
@@ -2920,7 +2932,9 @@ public class InternalEngine extends Engine {
                 numQueuedMerges,
                 configuredMaxMergeCount
             );
-            InternalEngine.this.activateThrottling();
+            // System.out.println("Activate throttling enableIndexingThrottling");
+                InternalEngine.this.activateThrottling();
+
         }
 
         @Override
@@ -2931,7 +2945,9 @@ public class InternalEngine extends Engine {
                 numQueuedMerges,
                 configuredMaxMergeCount
             );
+            // System.out.println("DeActivate throttling disableIndexingThrottling");
             InternalEngine.this.deactivateThrottling();
+
         }
 
         @Override
@@ -2956,10 +2972,13 @@ public class InternalEngine extends Engine {
         @Override
         public synchronized void beforeMerge(OnGoingMerge merge) {
             int maxNumMerges = getMaxMergeCount();
-            if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
-                if (isThrottling.getAndSet(true) == false) {
-                    logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    activateThrottling();
+            synchronized (isThrottling) {
+                if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+                    if (isThrottling.getAndSet(true) == false) {
+                        logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                        // System.out.println("Activate throttling beforeMerge");
+                        activateThrottling();
+                    }
                 }
             }
         }
@@ -2967,10 +2986,14 @@ public class InternalEngine extends Engine {
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
             int maxNumMerges = getMaxMergeCount();
-            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
-                if (isThrottling.getAndSet(false)) {
-                    logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                    deactivateThrottling();
+            synchronized (isThrottling) {
+                if (numMergesInFlight.decrementAndGet() <= maxNumMerges) {
+                    if (isThrottling.getAndSet(false)) {
+                        logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                        // System.out.println("DeActivate throttling afterMerge");
+                        deactivateThrottling();
+                    }
+
                 }
             }
             maybeFlushAfterMerge(merge);

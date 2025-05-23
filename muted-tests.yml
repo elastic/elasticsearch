@@ -444,9 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/120_profile/avg 8.14 or after}
   issue: https://github.com/elastic/elasticsearch/issues/127879
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testThrottleStats
-  issue: https://github.com/elastic/elasticsearch/issues/126359
+#- class: org.elasticsearch.indices.stats.IndexStatsIT
+#  method: testThrottleStats
+#  issue: https://github.com/elastic/elasticsearch/issues/126359
 - class: org.elasticsearch.search.vectors.IVFKnnFloatVectorQueryTests
   method: testRandomWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/127963

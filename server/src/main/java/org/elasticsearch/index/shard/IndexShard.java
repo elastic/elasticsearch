@@ -2752,6 +2752,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void pauseThrottling() {
+        Engine engine = getEngineOrNull();
+        final boolean throttled;
+        if (engine == null) {
+            throttled = false;
+        } else {
+            throttled = engine.isThrottled();
+        }
+        if (throttled) {
+            engine.pauseThrottling();
+        }
+    }
+
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore

@@ -504,6 +504,17 @@ public abstract class Engine implements Closeable {
             return throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS);
         }
 
+        void pauseThrottle() {
+            if (isThrottled()) {
+                throttlingLock.pauseThrottle();
+            }
+            // TODO: calculate pause time
+        }
+
+        void unpauseThrottle() {
+            throttlingLock.unPauseThrottle();
+        }
+
         boolean isThrottled() {
             return lock != NOOP_LOCK;
         }
@@ -577,9 +588,13 @@ public abstract class Engine implements Closeable {
     protected static final class PauseLock implements Lock {
         private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         private final int allowThreads;
+        // If the lock is currently throttled, we might need to pause throttling
+        // to let some threads pass when another task is trying to acquire indexing permits
+        private volatile AtomicBoolean throttlePaused;
 
         public PauseLock(int allowThreads) {
             this.allowThreads = allowThreads;
+            throttlePaused = new AtomicBoolean(false);
         }
 
         public void lock() {
@@ -612,13 +627,33 @@ public abstract class Engine implements Closeable {
         }
 
         public void throttle() {
-            assert semaphore.availablePermits() == Integer.MAX_VALUE;
+            if(throttlePaused.get()) {
+                return;
+            }
+            assert semaphore.availablePermits() == Integer.MAX_VALUE : "Available permits should be " + Integer.MAX_VALUE
+                + " but is " + semaphore.availablePermits();
             semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
         }
 
         public void unthrottle() {
-            assert semaphore.availablePermits() <= allowThreads;
+            unPauseThrottle();
+            assert semaphore.availablePermits() <= allowThreads : "Available permits should be no greater than " + allowThreads
+                + " but is " + semaphore.availablePermits();
             semaphore.release(Integer.MAX_VALUE - allowThreads);
+        }
+
+        // Pause throttling by allowing 1 thread to pass
+        public void pauseThrottle() {
+            // we only need to pause throttling if throttling allows no threads to pass i.e. allowThreads is 0
+            if((allowThreads == 0) && throttlePaused.getAndSet(true) == false) {
+                semaphore.release(1);
+            }
+        }
+
+        public void unPauseThrottle() {
+            if(throttlePaused.getAndSet(false)) {
+                semaphore.acquireUninterruptibly(1);
+            }
         }
     }
 
@@ -2258,6 +2293,18 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * If indexing is throttled to the point where it is paused completely,
+     * another task trying to get indexing permits might want to pause throttling
+     * by letting one thread pass at a time so that it does not get starved.
+     */
+    public abstract void pauseThrottling();
+
+    /**
+     * Reverses a previous {@link #pauseThrottling} call.
+     */
+    public abstract void unPauseThrottling();
 
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.

@@ -54,7 +54,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         def location = Map.of(
             "module", "com.example",
-            "representative_class", "com/example/Example.class"
+            "representative_class", Path.of("com", "example", "Example.class").toString()
         )
         def expectedOutput = Map.of(
             "component", "example-component",

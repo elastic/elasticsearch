@@ -843,6 +843,7 @@ r:double           | author: text
 ;
 
 testMatchInStatsWithGroupingBy
+required_capability: match_function
 required_capability: full_text_functions_in_stats_where
 FROM airports 
 | STATS c = COUNT(*) where match(country, "United States") BY scalerank

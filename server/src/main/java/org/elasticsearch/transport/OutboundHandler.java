@@ -168,6 +168,7 @@ public final class OutboundHandler {
                     ),
                     ex
                 );
+                channel.setCloseException(ex);
                 channel.close();
             } else {
                 sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
@@ -204,6 +205,7 @@ public final class OutboundHandler {
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
             logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.setCloseException(sendException);
             channel.close();
         }
     }
@@ -431,6 +433,7 @@ public final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }

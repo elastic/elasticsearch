@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, p -> {});
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -238,6 +239,9 @@ public class InboundHandlerTests extends ESTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
+            PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+            channel.addCloseListener(closeListener);
+
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersionUtils.getFirstVersion(),
@@ -255,6 +259,8 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
+            assertTrue(closeListener.isDone());
+            expectThrows(Exception.class, () -> closeListener.get());
             assertNull(channel.getMessageCaptor().get());
             mockLog.assertAllExpectationsMatched();
         }

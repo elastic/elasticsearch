@@ -328,7 +328,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return createTimeSeriesSourceOperator(directory, r -> this.reader = r, randomBoolean(), List.of(), 1, 1, false, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
@@ -438,7 +438,17 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                for (ExtractField e : extractFields) {
+                    if (e.ft.name().equals(name)) {
+                        return e.ft;
+                    }
+                }
+                throw new IllegalArgumentException("Unknown field [" + name + "]");
+            }
+        };
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
 
         var fieldInfos = extractFields.stream()

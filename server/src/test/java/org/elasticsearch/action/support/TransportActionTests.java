@@ -10,9 +10,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -147,7 +147,7 @@ public class TransportActionTests extends ESTestCase {
         return transportAction;
     }
 
-    private static class TestRequest extends ActionRequest {
+    private static class TestRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

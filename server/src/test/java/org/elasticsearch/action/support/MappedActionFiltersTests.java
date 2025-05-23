@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 
 public class MappedActionFiltersTests extends ESTestCase {
 
-    static class DummyRequest extends ActionRequest {
+    static class DummyRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

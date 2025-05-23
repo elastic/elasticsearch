@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -45,14 +46,14 @@ public class RepeatStaticTests extends ESTestCase {
 
     public void testAlmostTooBig() {
         String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH;
+        int number = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE;
         String repeated = process(str, number);
         assertThat(repeated, equalTo(str.repeat(number)));
     }
 
     public void testTooBig() {
         String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH + 1;
+        int number = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE + 1;
         String repeated = process(str, number);
         assertNull(repeated);
         assertWarnings(

@@ -54,7 +54,7 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
 
             @Override

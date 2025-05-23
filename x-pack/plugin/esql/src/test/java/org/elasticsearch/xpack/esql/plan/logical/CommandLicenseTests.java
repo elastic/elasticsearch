@@ -156,7 +156,7 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Grok(source, child, null, null, List.of());
             }
             case "Fork" -> {
-                return new Fork(source, List.of(child, child));
+                return new Fork(source, List.of(child, child), List.of());
             }
             case "Sample" -> {
                 return new Sample(source, null, null, child);

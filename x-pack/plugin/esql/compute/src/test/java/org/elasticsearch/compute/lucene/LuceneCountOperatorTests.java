@@ -51,7 +51,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneCountOperator.Factory simple() {
+    protected LuceneCountOperator.Factory simple(SimpleOptions options) {
         return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 

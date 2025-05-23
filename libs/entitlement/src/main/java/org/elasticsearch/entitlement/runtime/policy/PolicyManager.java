@@ -256,7 +256,7 @@ public class PolicyManager {
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, PolicyScope> scopeResolver;
     private final PathLookup pathLookup;
-    private final Set<Class<?>> mutedClasses;
+    private final Set<Package> suppressFailureLogPackages;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
@@ -311,7 +311,7 @@ public class PolicyManager {
         Map<String, Path> sourcePaths,
         Module entitlementsModule,
         PathLookup pathLookup,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Package> suppressFailureLogPackages
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -322,7 +322,7 @@ public class PolicyManager {
         this.sourcePaths = sourcePaths;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
-        this.mutedClasses = suppressFailureLogClasses;
+        this.suppressFailureLogPackages = suppressFailureLogPackages;
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
@@ -688,8 +688,8 @@ public class PolicyManager {
 
     private void notEntitled(String message, Class<?> callerClass, ModuleEntitlements entitlements) {
         var exception = new NotEntitledException(message);
-        // Don't emit a log for muted classes, e.g. classes containing self tests
-        if (mutedClasses.contains(callerClass) == false) {
+        // Don't emit a log for suppressed packages, e.g. packages containing self tests
+        if (suppressFailureLogPackages.contains(callerClass.getPackage()) == false) {
             entitlements.logger().warn("Not entitled: {}", message, exception);
         }
         throw exception;

@@ -199,4 +199,4 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "/operator.is.only.supported.in.WHERE.commands/" }
+  - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }

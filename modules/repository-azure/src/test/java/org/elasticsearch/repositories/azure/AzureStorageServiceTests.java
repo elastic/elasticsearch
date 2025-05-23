@@ -50,7 +50,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void setUpThreadPool() {
         threadPool = new TestThreadPool(
             AzureStorageServiceTests.class.getName(),
-            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
     }

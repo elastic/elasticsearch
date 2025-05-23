@@ -66,7 +66,7 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[KQL] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[KQL] function is only supported in WHERE and STATS commands"));
     }
 
     public void testInvalidKqlQueryEof() {

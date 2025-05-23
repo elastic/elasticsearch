@@ -350,9 +350,9 @@ public class EsqlCCSUtils {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
                 .setTook(executionInfo.tookSoFar())
                 .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setSuccessfulShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setSkippedShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
-                .setFailedShards(Objects.requireNonNullElse(v.getTotalShards(), 0));
+                .setSuccessfulShards(Objects.requireNonNullElse(v.getSuccessfulShards(), 0))
+                .setSkippedShards(Objects.requireNonNullElse(v.getSkippedShards(), 0))
+                .setFailedShards(Objects.requireNonNullElse(v.getFailedShards(), 0));
             if (ex != null) {
                 builder.setFailures(List.of(new ShardSearchFailure(ex)));
             }

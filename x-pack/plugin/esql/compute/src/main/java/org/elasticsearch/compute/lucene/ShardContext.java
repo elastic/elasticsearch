@@ -53,4 +53,10 @@ public interface ShardContext {
      * Returns something to load values from this field into a {@link Block}.
      */
     BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+
+    /**
+     * Returns the {@link MappedFieldType} for the given field name.
+     * By default, this delegate to {@link org.elasticsearch.index.query.SearchExecutionContext#getFieldType(String)}
+     */
+    MappedFieldType fieldType(String name);
 }

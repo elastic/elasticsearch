@@ -453,8 +453,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 Metadata metadata,
                 RoutingNodes routingNodes,
                 ClusterInfo clusterInfo,
+                Runnable ensureNotCancelled,
                 @Nullable DesiredBalance desiredBalance
             ) {
+                ensureNotCancelled.run();
                 return Map.of();
             }
         };

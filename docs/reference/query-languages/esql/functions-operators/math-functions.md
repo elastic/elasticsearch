@@ -66,6 +66,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/round.md
 :::
 
+:::{include} ../_snippets/functions/layout/scalb.md
+:::
+
 :::{include} ../_snippets/functions/layout/signum.md
 :::
 

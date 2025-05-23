@@ -32,7 +32,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -113,9 +112,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
         try {
-            return store.execute(
-                fileContext -> new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
-            );
+            return store.execute(fileContext -> fileContext.open(new Path(path, blobName), bufferSize));
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
@@ -134,7 +131,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 // should direct the datanode to start on the appropriate block, at the
                 // appropriate target position.
                 fsInput.seek(position);
-                return Streams.limitStream(new HDFSPrivilegedInputSteam(fsInput, securityContext), length);
+                return Streams.limitStream(fsInput, length);
             });
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
@@ -324,48 +321,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             }
         }
         return Collections.unmodifiableMap(map);
-    }
-
-    /**
-     * Exists to wrap underlying InputStream methods that might make socket connections in
-     * doPrivileged blocks. This is due to the way that hdfs client libraries might open
-     * socket connections when you are reading from an InputStream.
-     */
-    private static class HDFSPrivilegedInputSteam extends FilterInputStream {
-
-        private final HdfsSecurityContext securityContext;
-
-        HDFSPrivilegedInputSteam(InputStream in, HdfsSecurityContext hdfsSecurityContext) {
-            super(in);
-            this.securityContext = hdfsSecurityContext;
-        }
-
-        public int read() throws IOException {
-            return securityContext.doPrivilegedOrThrow(in::read);
-        }
-
-        public int read(byte b[]) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
-        }
-
-        public int read(byte b[], int off, int len) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
-        }
-
-        public long skip(long n) throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
-        }
-
-        public int available() throws IOException {
-            return securityContext.doPrivilegedOrThrow(() -> in.available());
-        }
-
-        public synchronized void reset() throws IOException {
-            securityContext.doPrivilegedOrThrow(() -> {
-                in.reset();
-                return null;
-            });
-        }
     }
 
     @Override

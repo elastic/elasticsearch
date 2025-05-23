@@ -66,7 +66,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ProjectOperator.ProjectOperatorFactory(Arrays.asList(1));
     }
 

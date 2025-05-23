@@ -73,7 +73,7 @@
   - match: {aggregations.class.buckets.1.sig_terms.buckets.0.key: "good"}
 
 ---
-"Test background filter count ":
+"Test background filter count":
   - requires:
       cluster_features: ["gte_v7.15.0"]
       reason: bugfix introduced in 7.15.0
@@ -153,6 +153,257 @@
         index: goodbad*
         body: {"aggs": {"sig_terms": {"significant_terms": {"field": "text", "background_filter": {"bool": {"filter": [{"term": {"class": "good" }}]}}}}}}
   - match: { aggregations.sig_terms.bg_count: 2 }
+
+---
+"Test background filter count as sub - global ords":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ significant_terms_background_filter_as_sub ]
+      test_runner_features: capabilities
+      reason: "bug fix"
+
+  - do:
+      indices.create:
+        index:  goodbad
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: keyword
+              class:
+                type: keyword
+  - do:
+      indices.create:
+        index: goodbad-2
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: keyword
+              class:
+                type: keyword
+
+  - do:
+      index:
+        index: goodbad-2
+        id: "1"
+        body: { group: 1, class: "bad" }
+  - do:
+      index:
+        index: goodbad-2
+        id: "2"
+        body: { group: 1, class: "bad" }
+
+  - do:
+      index:
+        index:  goodbad
+        id:     "1"
+        body:   { group: 1, text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "2"
+        body:   { group: 1, text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "3"
+        body:   { group: 1, text: "bad", class: "bad" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "4"
+        body:   { group: 2, text: "bad", class: "bad" }
+
+  - do:
+      indices.refresh:
+        index: [goodbad, goodbad-2]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: goodbad*
+  - match: {hits.total: 6}
+
+  - do:
+      search:
+        index: goodbad*
+        body:
+          aggs:
+            group:
+              range:
+                field: group
+                ranges:
+                  # Having many ranges helps catch an issue building no hits buckets
+                  - to: 1
+                  - from: 1
+                    to: 2
+                  - from: 2
+                    to: 3
+                  - from: 3
+                    to: 4
+                  - from: 4
+                    to: 5
+                  - from: 5
+                    to: 6
+              aggs:
+                sig_terms:
+                  significant_terms:
+                    execution_hint: global_ordinals
+                    field: text
+                    background_filter:
+                      bool:
+                        filter: [{term: {class: good }}]
+  - match: { aggregations.group.buckets.0.key: "*-1.0" }
+  - match: { aggregations.group.buckets.0.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.0.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.1.key: "1.0-2.0" }
+  - match: { aggregations.group.buckets.1.sig_terms.doc_count: 5 }
+  - match: { aggregations.group.buckets.1.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.2.key: "2.0-3.0" }
+  - match: { aggregations.group.buckets.2.sig_terms.doc_count: 1 }
+  - match: { aggregations.group.buckets.2.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.3.key: "3.0-4.0" }
+  - match: { aggregations.group.buckets.3.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.3.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.4.key: "4.0-5.0" }
+  - match: { aggregations.group.buckets.4.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.4.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.5.key: "5.0-6.0" }
+  - match: { aggregations.group.buckets.5.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.5.sig_terms.bg_count: 2 }
+
+---
+"Test background filter count as sub - map":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ significant_terms_background_filter_as_sub ]
+      test_runner_features: capabilities
+      reason: "bug fix"
+
+  - do:
+      indices.create:
+        index:  goodbad
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: keyword
+              class:
+                type: keyword
+  - do:
+      indices.create:
+        index: goodbad-2
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: keyword
+              class:
+                type: keyword
+
+  - do:
+      index:
+        index: goodbad-2
+        id: "1"
+        body: { group: 1, class: "bad" }
+  - do:
+      index:
+        index: goodbad-2
+        id: "2"
+        body: { group: 1, class: "bad" }
+
+  - do:
+      index:
+        index:  goodbad
+        id:     "1"
+        body:   { group: 1, text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "2"
+        body:   { group: 1, text: "good", class: "good" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "3"
+        body:   { group: 1, text: "bad", class: "bad" }
+  - do:
+      index:
+        index:  goodbad
+        id:     "4"
+        body:   { group: 2, text: "bad", class: "bad" }
+
+  - do:
+      indices.refresh:
+        index: [goodbad, goodbad-2]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: goodbad*
+  - match: {hits.total: 6}
+
+  - do:
+      search:
+        index: goodbad*
+        body:
+          aggs:
+            group:
+              range:
+                field: group
+                ranges:
+                  # Having many ranges helps catch an issue building no hits buckets
+                  - to: 1
+                  - from: 1
+                    to: 2
+                  - from: 2
+                    to: 3
+                  - from: 3
+                    to: 4
+                  - from: 4
+                    to: 5
+                  - from: 5
+                    to: 6
+              aggs:
+                sig_terms:
+                  significant_terms:
+                    execution_hint: map
+                    field: text
+                    background_filter:
+                      bool:
+                        filter: [{term: {class: good }}]
+  - match: { aggregations.group.buckets.0.key: "*-1.0" }
+  - match: { aggregations.group.buckets.0.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.0.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.1.key: "1.0-2.0" }
+  - match: { aggregations.group.buckets.1.sig_terms.doc_count: 5 }
+  - match: { aggregations.group.buckets.1.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.2.key: "2.0-3.0" }
+  - match: { aggregations.group.buckets.2.sig_terms.doc_count: 1 }
+  - match: { aggregations.group.buckets.2.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.3.key: "3.0-4.0" }
+  - match: { aggregations.group.buckets.3.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.3.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.4.key: "4.0-5.0" }
+  - match: { aggregations.group.buckets.4.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.4.sig_terms.bg_count: 2 }
+  - match: { aggregations.group.buckets.5.key: "5.0-6.0" }
+  - match: { aggregations.group.buckets.5.sig_terms.doc_count: 0 }
+  - match: { aggregations.group.buckets.5.sig_terms.bg_count: 2 }
+
 ---
 "IP test":
   - do:

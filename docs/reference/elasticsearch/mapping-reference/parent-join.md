@@ -139,7 +139,7 @@ The only case where the join field makes sense is if your data contains a one-to
 
 ## Searching with parent-join [_searching_with_parent_join]
 
-The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, …​).
+The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, … ).
 
 It also creates one field per parent/child relation. The name of this field is the name of the `join` field followed by `#` and the name of the parent in the relation. So for instance for the `my_parent` → [`my_child`, `another_child`] relation, the `join` field creates an additional field named `my_join_field#my_parent`.
 

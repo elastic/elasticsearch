@@ -198,7 +198,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         };
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
-            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+            assertEquals(proxyProjectId, GoogleCloudStorageService.getDefaultProjectId(proxy));
         }
     }
 }

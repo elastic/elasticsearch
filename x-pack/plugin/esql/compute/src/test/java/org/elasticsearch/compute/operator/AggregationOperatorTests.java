@@ -35,7 +35,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumInterChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();

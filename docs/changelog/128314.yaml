@@ -1,0 +1,5 @@
+pr: 128314
+summary: Fix NPE in APMTracer through `RestController`
+area: Infra/REST API
+type: bug
+issues: []

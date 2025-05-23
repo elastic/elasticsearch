@@ -90,8 +90,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     };
 
     @Override
-    protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
-        return simpleWithMode(mode, Function.identity());
+    protected final Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
+        return simpleWithMode(options, mode, Function.identity());
     }
 
     protected List<Integer> channels(AggregatorMode mode) {
@@ -99,6 +99,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     private Operator.OperatorFactory simpleWithMode(
+        SimpleOptions options,
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
@@ -108,13 +109,24 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
-        return new RandomizingHashAggregationOperatorFactory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-            mode,
-            List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-            randomPageSize(),
-            null
-        );
+
+        if (options.requiresDeterministicFactory()) {
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                mode,
+                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
+                randomPageSize(),
+                null
+            );
+        } else {
+            return new RandomizingHashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                mode,
+                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
+                randomPageSize(),
+                null
+            );
+        }
     }
 
     @Override
@@ -389,6 +401,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public final void testAllFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(false))
         );
@@ -401,6 +414,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public final void testNoneFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))
         );
@@ -414,6 +428,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     public void testSomeFiltered() {
         Operator.OperatorFactory factory = simpleWithMode(
+            SimpleOptions.DEFAULT,
             AggregatorMode.SINGLE,
             agg -> new FilteredAggregatorFunctionSupplier(agg, AddGarbageRowsSourceOperator.filterFactory())
         );
@@ -656,7 +671,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                             private void addBlock(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                                    try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize)) {
+                                    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(emitChunkSize)) {
                                         int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
                                         for (int p = offset; p < endP; p++) {
                                             int start = groupIds.getFirstValueIndex(p);

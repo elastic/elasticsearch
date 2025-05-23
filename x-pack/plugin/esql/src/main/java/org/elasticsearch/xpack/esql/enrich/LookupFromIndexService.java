@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -83,7 +84,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportRequest request,
         SearchExecutionContext context,
         Block inputBlock,
-        DataType inputDataType,
+        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
         return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(

@@ -16,6 +16,7 @@
 * [`PI`](../../functions-operators/math-functions.md#esql-pi)
 * [`POW`](../../functions-operators/math-functions.md#esql-pow)
 * [`ROUND`](../../functions-operators/math-functions.md#esql-round)
+* [`SCALB`](../../functions-operators/math-functions.md#esql-scalb)
 * [`SIGNUM`](../../functions-operators/math-functions.md#esql-signum)
 * [`SIN`](../../functions-operators/math-functions.md#esql-sin)
 * [`SINH`](../../functions-operators/math-functions.md#esql-sinh)

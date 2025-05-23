@@ -76,6 +76,16 @@ public class Docker {
     public static final int STARTUP_ATTEMPTS_MAX = 30;
 
     /**
+     * The length of the command exceeds what we can use for COLUMNS so we use
+     * a workaround to find the process we're looking for
+     */
+    private static final String ELASTICSEARCH_FULL_CLASSNAME = "org.elasticsearch.bootstrap.Elasticsearch";
+    private static final String FIND_ELASTICSEARCH_PROCESS = "for pid in $(ps -eo pid,comm | grep java | awk '\\''{print $1}'\\''); "
+        + "do cmdline=$(tr \"\\0\" \" \" < /proc/$pid/cmdline 2>/dev/null); [[ $cmdline == *"
+        + ELASTICSEARCH_FULL_CLASSNAME
+        + "* ]] && echo \"$pid: $cmdline\"; done";
+
+    /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
      * but that appeared to cause problems with repeatedly destroying and recreating containers with
      * the same name.
@@ -185,11 +195,8 @@ public class Docker {
             try {
                 // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
-
-                // Set COLUMNS so that `ps` doesn't truncate its output
-                psOutput = dockerShell.run("bash -c 'COLUMNS=4000 ps ax'").stdout();
-
-                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
+                psOutput = dockerShell.run("bash -c '" + FIND_ELASTICSEARCH_PROCESS + " | wc -l'").stdout();
+                if (psOutput.contains("1")) {
                     isElasticsearchRunning = true;
                     break;
                 }

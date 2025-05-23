@@ -96,12 +96,32 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 "close connection log",
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\]$"
             )
         );
 
         final String nodeName = internalCluster().startNode();
         internalCluster().stopNode(nodeName);
+
+        mockLog.assertAllExpectationsMatched();
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.transport.TcpTransport:DEBUG",
+        reason = "to ensure we log exception disconnect events on DEBUG level"
+    )
+    public void testExceptionalDisconnectLogging() throws Exception {
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
+                "exceptional close connection log",
+                TcpTransport.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\], exception:.*"
+            )
+        );
+
+        final String nodeName = internalCluster().startNode();
+        internalCluster().restartNode(nodeName);
 
         mockLog.assertAllExpectationsMatched();
     }

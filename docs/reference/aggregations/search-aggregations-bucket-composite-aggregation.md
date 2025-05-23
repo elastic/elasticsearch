@@ -606,7 +606,7 @@ PUT my-index-000001
 ```
 
 1. This index is sorted by `username` first then by `timestamp`.
-2. …​ in ascending order for the `username` field and in descending order for the `timestamp` field.1. could be used to optimize these composite aggregations:
+2. …  in ascending order for the `username` field and in descending order for the `timestamp` field.1. could be used to optimize these composite aggregations:
 
 
 

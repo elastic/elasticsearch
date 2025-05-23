@@ -28,8 +28,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -246,9 +244,7 @@ public class URLHttpClientTests extends ESTestCase {
     }
 
     private URLHttpClient.HttpResponse executeRequest(String endpoint) throws Exception {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<URLHttpClient.HttpResponse>) () -> {
-            return httpClient.get(getURIForEndpoint(endpoint), Map.of());
-        });
+        return httpClient.get(getURIForEndpoint(endpoint), Map.of());
     }
 
     private URI getURIForEndpoint(String endpoint) throws Exception {

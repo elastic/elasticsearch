@@ -53,6 +53,13 @@ public abstract class AzureCoreClassPatcher implements TransformAction<Transform
 
         if (inputFile.getName().equals(JAR_FILE_TO_PATCH)) {
             System.out.println("Patching " + inputFile.getName());
+            // This would be cleaner if gradle artifact transformers supported temp files https://github.com/gradle/gradle/issues/30440.
+            // We need to patch (or delete) the Manifest file as it contains signatures for the class files, which obviously get
+            //  invalidated when we patch the bytecode, but the existing patch tools only work on class files, so we unfortunately need to
+            //  duplicate the loop here. We _also_ need to create a "temporary" jar to write (or not) the patched manifest and the rest of
+            //  the jar contents.
+            // TODO we could possibly update `Utils.patchJar` to enable patching manifests etc and most of this would be significantly
+            //  simplified
             File firstOutputFile = outputs.file(inputFile.getName().replace(".jar", "-half-patched"));
 
             try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(firstOutputFile))) {

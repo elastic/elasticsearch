@@ -16,7 +16,6 @@ module org.elasticsearch.plugin.security.authz {
     requires org.elasticsearch.logging;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpcore;
-    requires com.nimbusds.jose.jwt;
     requires com.microsoft.kiota;
     requires com.microsoft.graph;
     requires com.azure.identity;

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-import org.apache.http.client.HttpClient;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,9 +63,8 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
             env,
             threadContext
         );
-        final var client = mock(HttpClient.class);
 
-        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client);
+        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config);
         final var future = new PlainActionFuture<User>();
         realm.lookupUser("principal", future);
         final var user = future.actionGet();

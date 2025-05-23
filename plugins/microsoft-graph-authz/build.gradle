@@ -45,11 +45,10 @@ configurations {
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
-  compileOnly "com.nimbusds:nimbus-jose-jwt:10.0.2"
 
   implementation "com.microsoft.graph:microsoft-graph:6.36.0"
   implementation "com.microsoft.graph:microsoft-graph-core:3.6.1"
-  implementation project(path: ":libs:kiota-merged", configuration: 'shadow')
+  implementation project(path: "kiota-merged", configuration: 'shadow')
   implementation "com.azure:azure-identity:1.15.4"
   implementation "com.azure:azure-core:1.55.3"
   implementation "com.azure:azure-json:1.5.0"

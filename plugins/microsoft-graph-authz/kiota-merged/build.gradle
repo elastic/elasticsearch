@@ -1,6 +1,17 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'com.gradleup.shadow'
 
+// because each of these declares a module `com.microsoft.kiota`, the plugin will crash at runtime; we work around this by building a shadow "uber jar"
+//  so that there is only one `com.microsoft.kiota` module
 dependencies {
   implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.8.4"
   implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.8.4"

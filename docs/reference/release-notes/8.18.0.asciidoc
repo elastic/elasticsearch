@@ -485,7 +485,7 @@ authentication to perform outbound network connections. This issue will be fixed
 +
 As a workaround, you can temporarily patch the policy using a JVM option:
 
-1. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-127061.options`.
+1. Create a file called `${ES_CONF_PATH}/jvm_options.d/workaround-127061.options`.
 2. Add the following line to the new file:
 +
      -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr

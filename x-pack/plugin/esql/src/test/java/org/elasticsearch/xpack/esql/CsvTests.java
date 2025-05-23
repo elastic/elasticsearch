@@ -648,6 +648,7 @@ public class CsvTests extends ESTestCase {
         // replace fragment inside the coordinator plan
         List<Driver> drivers = new ArrayList<>();
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
+            "final",
             foldCtx,
             new OutputExec(coordinatorPlan, collectedPages::add)
         );
@@ -669,7 +670,7 @@ public class CsvTests extends ESTestCase {
                     throw new AssertionError("expected no failure", e);
                 })
             );
-            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(foldCtx, csvDataNodePhysicalPlan);
+            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
             Randomness.shuffle(drivers);

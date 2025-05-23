@@ -161,7 +161,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
         if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
@@ -321,7 +322,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(false);
+            return ctx.newSourceLoader(null, false);
         }
 
         @Override

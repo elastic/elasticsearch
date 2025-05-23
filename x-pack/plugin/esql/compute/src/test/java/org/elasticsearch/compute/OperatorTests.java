@@ -123,7 +123,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(new Driver("test", driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -215,6 +215,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     )
                 );
                 Driver driver = new Driver(
+                    "test",
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                     operators,
@@ -248,6 +249,7 @@ public class OperatorTests extends MapperServiceTestCase {
         DriverContext driverContext = driverContext();
         try (
             var driver = new Driver(
+                "test",
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
@@ -335,6 +337,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualPrimeOrds = new ArrayList<>();
             try (
                 var driver = new Driver(
+                    "test",
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(

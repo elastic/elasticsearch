@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
 
 publishing {
   publications {
@@ -30,7 +31,6 @@ dependencies {
 
   api project(':libs:core')
   api project(':libs:logging')
-  api project(':libs:secure-sm')
   api project(':libs:x-content')
   api project(":libs:geo")
   api project(":libs:lz4")
@@ -286,3 +286,10 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

@@ -851,6 +851,25 @@ public class EsqlCapabilities {
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
 
         /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467</a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
+         * found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
          * Full text functions in STATS
          */
         FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;

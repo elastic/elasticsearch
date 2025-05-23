@@ -92,6 +92,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             null,
             Map.of(),
             randomBoolean(),
+            null,
             null
         );
     }

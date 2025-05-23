@@ -182,6 +182,13 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope, Property.DeprecatedWarning)
     );
 
+    /** Whether to include the {@code x-purpose} custom query parameter in all requests. */
+    static final Setting.AffixSetting<Boolean> ADD_PURPOSE_CUSTOM_QUERY_PARAMETER = Setting.affixKeySetting(
+        PREFIX,
+        "add_purpose_custom_query_parameter",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -223,6 +230,9 @@ final class S3ClientSettings {
     /** Whether chunked encoding should be disabled or not. */
     final boolean disableChunkedEncoding;
 
+    /** Whether to add the {@code x-purpose} custom query parameter to all requests. */
+    final boolean addPurposeCustomQueryParameter;
+
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
@@ -240,6 +250,7 @@ final class S3ClientSettings {
         int maxRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
+        boolean addPurposeCustomQueryParameter,
         String region
     ) {
         this.credentials = credentials;
@@ -255,6 +266,7 @@ final class S3ClientSettings {
         this.maxRetries = maxRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
+        this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
     }
 
@@ -287,6 +299,11 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
+        final boolean newAddPurposeCustomQueryParameter = getRepoSettingOrDefault(
+            ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
+            normalizedSettings,
+            addPurposeCustomQueryParameter
+        );
         final AwsCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
@@ -305,6 +322,7 @@ final class S3ClientSettings {
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
+            && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)) {
             return this;
         }
@@ -322,6 +340,7 @@ final class S3ClientSettings {
             newMaxRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
+            newAddPurposeCustomQueryParameter,
             newRegion
         );
     }
@@ -429,6 +448,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
+                getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION)
             );
         }
@@ -455,6 +475,7 @@ final class S3ClientSettings {
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
+            && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region);
     }
 
@@ -473,6 +494,7 @@ final class S3ClientSettings {
             maxRetries,
             maxConnections,
             disableChunkedEncoding,
+            addPurposeCustomQueryParameter,
             region
         );
     }

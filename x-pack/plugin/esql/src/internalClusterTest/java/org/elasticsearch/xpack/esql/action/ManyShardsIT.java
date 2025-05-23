@@ -110,26 +110,27 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         for (int q = 0; q < numQueries; q++) {
             threads[q] = new Thread(() -> {
-                try {
-                    assertTrue(latch.await(1, TimeUnit.MINUTES));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 final var pragmas = Settings.builder();
                 if (randomBoolean() && canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings())
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
-            });
+                try (var response = run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()))) {
+                    // do nothing
+                } catch (Exception | AssertionError e) {
+                    logger.warn("Query failed with exception", e);
+                    throw e;
+                }
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
         }
         latch.countDown();
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
         }
     }
 
@@ -281,8 +282,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 
-        try {
-            var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(1));// 0 if result is populated from coordinating node
         } catch (AssertionError e) {

@@ -37,6 +37,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -177,6 +178,13 @@ class S3Service extends AbstractLifecycleComponent {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
+
+            if (lifecycle.started() == false) {
+                // doClose() calls releaseCachedClients() which is also synchronized (this) so if we're STARTED here then the client we
+                // create will definitely not leak on close.
+                throw new AlreadyClosedException("S3Service is in state [" + lifecycle + "]");
+            }
+
             final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
             Releasable toRelease = httpClient::close;
             try {

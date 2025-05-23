@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGS_PATTERN_USAGE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
@@ -164,6 +165,7 @@ public final class AuthorizationUtils {
             case ENT_SEARCH_ORIGIN:
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
+            case LOGS_PATTERN_USAGE_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

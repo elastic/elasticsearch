@@ -164,6 +164,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             });
             Driver driver = new Driver(
                 "driver" + i,
+                "test",
                 0,
                 0,
                 driverContext,
@@ -229,7 +230,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
 
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            new Driver("test", ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
         );
         OperatorTestCase.assertDriverContext(ctx);
 

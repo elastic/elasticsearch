@@ -303,6 +303,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
+
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();

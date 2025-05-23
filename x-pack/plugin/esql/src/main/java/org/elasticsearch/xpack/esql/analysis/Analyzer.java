@@ -1690,11 +1690,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
                 && fa.field() instanceof MultiTypeEsField mtf) {
                     // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
-                    // ResolveUnionTypesInEsRelation, it is not necessary to cast it into date_nanos and then do explicit casting.
+                    // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type.
                     if (((Expression) convert).dataType() == mtf.getDataType()) {
-                        // The same data type between implicit(date_nanos) and explicit casting, explicit conversion is not needed, mark is
-                        // as synthetic = true as it is an explicit conversion
-                        return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
+                        return fa;
                     }
 
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a

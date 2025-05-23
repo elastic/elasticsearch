@@ -142,7 +142,7 @@ public class MinScoreScorerTests extends ESTestCase {
             random(),
             new ScoreMode[] { ScoreMode.COMPLETE, ScoreMode.TOP_SCORES, ScoreMode.TOP_DOCS_WITH_SCORES }
         );
-        final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, scoreMode, true);
+        final Scorer assertingScorer = AssertingScorer.wrap(scorer, scoreMode.needsScores(), true);
         if (twoPhase && randomBoolean()) {
             return hideTwoPhaseIterator(assertingScorer);
         } else {

@@ -27,13 +27,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -153,7 +153,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     // while equivalent, these different read once contexts are checked by identity in directory implementations
     private static IOContext createReadOnceContext() {
-        var context = IOContext.READONCE.withReadAdvice(ReadAdvice.SEQUENTIAL);
+        var context = IOContext.READONCE.withHints(DataAccessHint.SEQUENTIAL);
         assert context != IOContext.READONCE;
         assert context.equals(IOContext.READONCE);
         return context;

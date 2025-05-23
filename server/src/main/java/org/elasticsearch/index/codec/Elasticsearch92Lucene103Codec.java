@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
-import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -23,10 +23,12 @@ import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 9.0 relying on Lucene 10.1. This extends the Lucene 10.1 codec to compressed
+ * Elasticsearch codec as of 9.2 relying on Lucene 10.3. This extends the Lucene 10.3 codec to compressed
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch92Lucene103Codec extends CodecService.DeduplicateFieldInfosCodec {
+
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene103PostingsFormat();
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -34,7 +36,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getPostingsFormatForField(field);
+            return Elasticsearch92Lucene103Codec.this.getPostingsFormatForField(field);
         }
     };
 
@@ -42,7 +44,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getDocValuesFormatForField(field);
+            return Elasticsearch92Lucene103Codec.this.getDocValuesFormatForField(field);
         }
     };
 
@@ -50,12 +52,12 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return Elasticsearch900Lucene101Codec.this.getKnnVectorsFormatForField(field);
+            return Elasticsearch92Lucene103Codec.this.getKnnVectorsFormatForField(field);
         }
     };
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
-    public Elasticsearch900Lucene101Codec() {
+    public Elasticsearch92Lucene103Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
@@ -63,10 +65,10 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
      * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of
      * worse space-efficiency or vice-versa.
      */
-    public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch900Lucene101", new Lucene101Codec());
+    public Elasticsearch92Lucene103Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        super("Elasticsearch92Lucene103", new Lucene103Codec());
         this.storedFieldsFormat = mode.getFormat();
-        this.defaultPostingsFormat = new Lucene101PostingsFormat();
+        this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     }

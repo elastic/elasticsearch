@@ -274,3 +274,23 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 11.625          | prod            | 2024-05-10T00:12:00.000Z
 11.5            | staging         | 2024-05-10T00:16:00.000Z
 ;
+
+sum_over_time
+required_capability: metrics_command
+required_capability: sum_over_time
+
+TS k8s | STATS cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+cost:double | cluster:keyword | time_bucket:datetime
+12.375          | prod            | 2024-05-10T00:17:00.000Z
+12.375          | qa              | 2024-05-10T00:01:00.000Z
+12.25           | prod            | 2024-05-10T00:19:00.000Z
+12.125          | qa              | 2024-05-10T00:07:00.000Z
+12.125          | staging         | 2024-05-10T00:03:00.000Z
+11.875          | prod            | 2024-05-10T00:15:00.000Z
+11.875          | qa              | 2024-05-10T00:09:00.000Z
+11.75           | qa              | 2024-05-10T00:06:00.000Z
+11.625          | prod            | 2024-05-10T00:12:00.000Z
+11.5            | staging         | 2024-05-10T00:16:00.000Z
+;
+

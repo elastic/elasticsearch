@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
 import java.io.IOException;
@@ -51,6 +53,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
     private final TermsEnum termsEnum;
+    private SortedDocValues idDocValues;
+    private final LeafReader reader;
 
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
@@ -66,25 +70,30 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * Initialize lookup for the provided segment
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean trackReaderKey, boolean loadTimestampRange) throws IOException {
+        this.reader = reader;
         final Terms terms = reader.terms(IdFieldMapper.NAME);
         if (terms == null) {
-            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
-            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
-            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException(
-                    "reader does not have _uid terms but not a no-op segment; "
-                        + "_soft_deletes ["
-                        + softDeletesDV
-                        + "], _tombstone ["
-                        + tombstoneDV
-                        + "]"
-                );
-            }
+            idDocValues = reader.getSortedDocValues(IdFieldMapper.NAME);
             termsEnum = null;
+            if (idDocValues == null) {
+                // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
+                final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
+                final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+                // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
+                final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
+                if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
+                    throw new IllegalArgumentException(
+                        "reader does not have _uid terms but not a no-op segment; "
+                            + "_soft_deletes ["
+                            + softDeletesDV
+                            + "], _tombstone ["
+                            + tombstoneDV
+                            + "]"
+                    );
+                }
+            }
         } else {
+            idDocValues = null;
             termsEnum = terms.iterator();
         }
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
@@ -168,6 +177,25 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     continue;
                 }
                 docID = d;
+            }
+            return docID;
+        } else if (idDocValues != null) {
+            idDocValues = reader.getSortedDocValues(IdFieldMapper.NAME);
+//            var needle = id.utf8ToString();
+            final Bits liveDocs = context.reader().getLiveDocs();
+            int docID = DocIdSetIterator.NO_MORE_DOCS;
+            // there may be more than one matching docID, in the case of nested docs, so we want the last one:
+            for (int doc = idDocValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = idDocValues.nextDoc()) {
+                if (liveDocs != null && liveDocs.get(doc) == false) {
+                    continue;
+                }
+
+                int ord = idDocValues.ordValue();
+                var possibleMatch = idDocValues.lookupOrd(ord);
+                var uidForm = Uid.encodeId(possibleMatch.utf8ToString());
+                if (id.bytesEquals(uidForm)) {
+                    docID = doc;
+                }
             }
             return docID;
         } else {

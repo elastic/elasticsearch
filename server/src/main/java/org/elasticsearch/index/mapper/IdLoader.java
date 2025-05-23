@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.List;
 /**
  * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
+public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance the loads the _id from stored field.
@@ -41,12 +42,19 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         return new TsIdLoader(indexRouting, routingPaths);
     }
 
+    /**
+     * @return returns an {@link IdLoader} instance that loads _id from doc values
+     */
+    static IdLoader createDocValueIdLoader() {
+        return new LogsdbLoader();
+    }
+
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
+    sealed interface Leaf permits DocValueLeaf, StoredLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -120,7 +128,23 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
                 }
             }
-            return new TsIdLeaf(docIdsInLeaf, ids);
+            return new DocValueLeaf(docIdsInLeaf, ids);
+        }
+    }
+
+    final class LogsdbLoader implements IdLoader {
+        public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            String[] ids = new String[docIdsInLeaf.length];
+            // Each document always has exactly one tsid and one timestamp:
+            SortedDocValues idDocValues = DocValues.getSorted(reader, LogsdbIdFieldMapper.NAME);
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                int docId = docIdsInLeaf[i];
+                boolean found = idDocValues.advanceExact(docId);
+                assert found;
+                BytesRef id = idDocValues.lookupOrd(idDocValues.ordValue());
+                ids[i] = id.utf8ToString();
+            }
+            return new DocValueLeaf(docIdsInLeaf, ids);
         }
     }
 
@@ -134,14 +158,14 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
     }
 
-    final class TsIdLeaf implements Leaf {
+    final class DocValueLeaf implements Leaf {
 
         private final String[] ids;
         private final int[] docIdsInLeaf;
 
         private int idx = -1;
 
-        TsIdLeaf(int[] docIdsInLeaf, String[] ids) {
+        DocValueLeaf(int[] docIdsInLeaf, String[] ids) {
             this.ids = ids;
             this.docIdsInLeaf = docIdsInLeaf;
         }

@@ -95,7 +95,7 @@ public class MachineDependentHeap {
              *
              * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
              * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized
-             * could result in repeated autoscaling up and down.
+             * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
                 if (availableMemory <= (GB * 16)) {

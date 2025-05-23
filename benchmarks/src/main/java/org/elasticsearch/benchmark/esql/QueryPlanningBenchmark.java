@@ -123,7 +123,7 @@ public class QueryPlanningBenchmark {
     }
 
     @Benchmark
-    public void run(Blackhole blackhole) {
+    public void manyFields(Blackhole blackhole) {
         blackhole.consume(plan("FROM test | LIMIT 10"));
     }
 }

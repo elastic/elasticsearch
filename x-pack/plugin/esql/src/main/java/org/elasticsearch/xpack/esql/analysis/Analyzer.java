@@ -173,13 +173,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ),
         new Batch<>(
             "Resolution",
-            /*
-             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
-             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
-             * attempts to resolve this reference.
-             */
-            new ImplicitCasting(),
             new ResolveRefs(),
+            new ImplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
@@ -574,7 +569,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+            if (Resolvables.resolved(groupings) == false || Resolvables.resolved(aggregates) == false) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -585,17 +580,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
                 List<NamedExpression> newAggregates = new ArrayList<>();
-                for (NamedExpression ag : aggregate.aggregates()) {
-                    var agg = (NamedExpression) ag.transformUp(UnresolvedAttribute.class, ua -> {
-                        Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                        if (maybeResolved != null) {
-                            changed.set(true);
-                            ne = maybeResolved;
-                        }
-                        return ne;
-                    });
-                    newAggregates.add(agg);
+                // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
+                // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
+                // resolved, and verifier doesn't report field/reference/column not found errors for them.
+                boolean groupingResolved = Resolvables.resolved(groupings);
+                int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
+                for (int i = 0; i < aggregates.size(); i++) {
+                    NamedExpression maybeResolvedAgg = aggregates.get(i);
+                    if (i < size) { // Skip resolving references to groupings in the aggregations if the groupings are not resolved yet.
+                        maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
+                            Expression ne = ua;
+                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
+                            // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
+                            // to get resolved in the next iteration.
+                            // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                            if (groupingResolved || maybeResolved.resolved()) {
+                                changed.set(true);
+                                ne = maybeResolved;
+                            }
+                            return ne;
+                        });
+                    }
+                    newAggregates.add(maybeResolvedAgg);
                 }
 
                 // TODO: remove this when Stats interface is removed
@@ -745,7 +752,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            Set<String> forkColumns = fork.outputSet().names();
+            List<Attribute> outputUnion = Fork.outputUnion(fork.children());
+            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -753,7 +761,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // find the missing columns
                 List<Attribute> missing = new ArrayList<>();
                 Set<String> currentNames = logicalPlan.outputSet().names();
-                for (Attribute attr : fork.outputSet()) {
+                for (Attribute attr : outputUnion) {
                     if (currentNames.contains(attr.name()) == false) {
                         missing.add(attr);
                     }
@@ -788,7 +796,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            return changed ? new Fork(fork.source(), newSubPlans) : fork;
+            if (changed == false) {
+                return fork;
+            }
+
+            List<Attribute> newOutput = new ArrayList<>();
+
+            // We don't want to keep the same attributes that are outputted by the FORK branches.
+            // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+            for (Attribute attr : newSubPlans.getFirst().output()) {
+                newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
+            }
+
+            return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {

@@ -1,5 +1,0 @@
-pr: 126605
-summary: Fix equality bug in `WaitForIndexColorStep`
-area: ILM+SLM
-type: bug
-issues: []

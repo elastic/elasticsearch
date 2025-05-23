@@ -23,7 +23,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
@@ -455,7 +454,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with

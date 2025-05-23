@@ -20,9 +20,11 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -43,6 +45,7 @@ import java.util.function.BiPredicate;
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
+    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -75,12 +78,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
+                    Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
+                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
+                        dir = disableRandomAdvice(dir);
+                    }
+                    return dir;
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                Directory dir = setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
+                    dir = disableRandomAdvice(dir);
+                }
+                return dir;
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -106,6 +117,23 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
         }
         return MMapDirectory.NO_FILES;
+    }
+
+    /**
+     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#readAdvice random
+     * access}.
+     */
+    static Directory disableRandomAdvice(Directory dir) {
+        return new FilterDirectory(dir) {
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                if (context.readAdvice() == ReadAdvice.RANDOM) {
+                    context = context.withReadAdvice(ReadAdvice.NORMAL);
+                }
+                assert context.readAdvice() != ReadAdvice.RANDOM;
+                return super.openInput(name, context);
+            }
+        };
     }
 
     /**

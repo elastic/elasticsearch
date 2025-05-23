@@ -11,10 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -135,7 +135,7 @@ public final class ResponseValueUtils {
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> spatialToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
-            case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((CompositeBlock) block, offset);
+            case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, offset);
             case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

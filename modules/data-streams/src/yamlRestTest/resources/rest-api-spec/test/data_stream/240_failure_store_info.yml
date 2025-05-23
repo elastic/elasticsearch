@@ -189,6 +189,9 @@ teardown:
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.failure_store.enabled: true }
   - match: { data_streams.0.failure_store.lifecycle.enabled: false }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - is_false: data_streams.0.failure_store.lifecycle.effective_retention
+  - is_false: data_streams.0.failure_store.lifecycle.retention_determined_by
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
   - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
@@ -196,6 +199,13 @@ teardown:
 
 ---
 "Get failure store info from cluster setting enabled failure store":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: "Default retention for failures was added in 9.1+"
+      capabilities:
+        - method: GET
+          path: /_data_stream/{target}
+          capabilities: [ 'failure_store.lifecycle.default_retention' ]
   - do:
       indices.create_data_stream:
         name: fs-default-data-stream
@@ -212,6 +222,9 @@ teardown:
   - match: { data_streams.0.template: 'my-template2' }
   - match: { data_streams.0.failure_store.enabled: true }
   - match: { data_streams.0.failure_store.lifecycle.enabled: true }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - match: { data_streams.0.failure_store.lifecycle.effective_retention: '30d' }
+  - match: { data_streams.0.failure_store.lifecycle.retention_determined_by: 'default_failures_retention' }
   - match: { data_streams.0.failure_store.indices: [] }
 
   # Initialize failure store
@@ -234,6 +247,9 @@ teardown:
   - match: { data_streams.0.template: 'my-template2' }
   - match: { data_streams.0.failure_store.enabled: true }
   - match: { data_streams.0.failure_store.lifecycle.enabled: true }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - match: { data_streams.0.failure_store.lifecycle.effective_retention: '30d' }
+  - match: { data_streams.0.failure_store.lifecycle.retention_determined_by: 'default_failures_retention' }
   - length: { data_streams.0.failure_store.indices: 1 }
   - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
   - is_false: data_streams.0.failure_store.indices.0.prefer_ilm

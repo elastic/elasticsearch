@@ -147,7 +147,12 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
     @SuppressWarnings("unchecked")
     public void testDefaultRetention() throws Exception {
         // Set default global retention
-        updateClusterSettings(Settings.builder().put("data_streams.lifecycle.retention.default", "10s").build());
+        updateClusterSettings(
+            Settings.builder()
+                .put("data_streams.lifecycle.retention.default", "10s")
+                .put("data_streams.lifecycle.retention.failures_default", "10s")
+                .build()
+        );
 
         // Verify that the effective retention matches the default retention
         {
@@ -163,7 +168,7 @@ public class DataStreamGlobalRetentionIT extends DisabledSecurityDataStreamTestC
             assertThat(lifecycle.get("data_retention"), nullValue());
             Map<String, Object> failuresLifecycle = ((Map<String, Map<String, Object>>) dataStream.get("failure_store")).get("lifecycle");
             assertThat(failuresLifecycle.get("effective_retention"), is("10s"));
-            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_global_retention"));
+            assertThat(failuresLifecycle.get("retention_determined_by"), is("default_failures_retention"));
             assertThat(failuresLifecycle.get("data_retention"), nullValue());
         }
 

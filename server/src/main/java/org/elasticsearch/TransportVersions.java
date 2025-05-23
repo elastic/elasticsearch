@@ -76,8 +76,8 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_9_X = def(8_500_020);
-    public static final TransportVersion V_8_10_X = def(8_500_061);
+    public static final TransportVersion V_8_9_X = def(8_500_0_20);
+    public static final TransportVersion V_8_10_X = def(8_500_0_61);
     public static final TransportVersion V_8_11_X = def(8_512_0_01);
     public static final TransportVersion V_8_12_0 = def(8_560_0_00);
     public static final TransportVersion V_8_12_1 = def(8_560_0_01);
@@ -96,6 +96,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_17_4 = def(8_797_0_04);
     public static final TransportVersion V_8_17_5 = def(8_797_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_6 = def(8_797_0_06);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_7 = def(8_797_0_07);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -142,6 +143,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
     public static final TransportVersion V_8_18_0 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -160,10 +162,27 @@ public class TransportVersions {
     public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED_8_19 = def(8_841_0_15);
     public static final TransportVersion REMOTE_EXCEPTION_8_19 = def(8_841_0_16);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS_8_19 = def(8_841_0_17);
+    public static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG_8_19 = def(8_841_0_18);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X = def(8_841_0_19);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19 = def(8_841_0_20);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_8_19 = def(8_841_0_21);
+    public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19 = def(8_841_0_22);
+    public static final TransportVersion PINNED_RETRIEVER_8_19 = def(8_841_0_23);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19 = def(8_841_0_24);
+    public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19 = def(8_841_0_25);
+    public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19 = def(8_841_0_26);
+    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19 = def(8_841_0_27);
+    public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19 = def(8_841_0_28);
+    public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING_8_19 = def(8_841_0_29);
+    public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_8_19 = def(8_841_0_30);
+    public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_31);
+    public static final TransportVersion V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS = def(8_841_0_32);
+    public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME_8_19 = def(8_841_0_34);
+    public static final TransportVersion RERANKER_FAILURES_ALLOWED_8_19 = def(8_841_0_35);
+    public static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19 = def(8_841_0_36);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -229,7 +248,22 @@ public class TransportVersions {
     public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
-
+    public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
+    public static final TransportVersion AGGREGATE_METRIC_DOUBLE_BLOCK = def(9_067_0_00);
+    public static final TransportVersion PINNED_RETRIEVER = def(9_068_0_00);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER = def(9_069_0_00);
+    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_0_00);
+    public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = def(9_071_0_00);
+    public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
+    public static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = def(9_073_0_00);
+    public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = def(9_074_0_00);
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = def(9_075_0_00);
+    public static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = def(9_076_0_00);
+    public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = def(9_077_0_00);
+    public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED = def(9_078_0_00);
+    public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);
+    public static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = def(9_080_0_00);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_DRY_RUN = def(9_081_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -295,7 +329,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_9_0_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_1;
 
     /**
      * Sorted list of all versions defined in this class

@@ -1486,6 +1486,15 @@ $$$jwt-claim-pattern-principal$$$
 `client_authentication.rotation_grace_period`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Sets the grace period for how long after rotating the `client_authentication.shared_secret` is valid. `client_authentication.shared_secret` can be rotated by updating the keystore then calling the [reload API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-reload-secure-settings). Defaults to `1m`.
 
+`http.proxy.host`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the address of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL.
+
+`http.proxy.scheme`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the protocol to use to connect to the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Must be `http`.
+
+`http.proxy.port`
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the port of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Defaults to `80`.
+
 `http.connect_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Sets the timeout for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. A value of zero means the timeout is not used. Defaults to `5s`.
 

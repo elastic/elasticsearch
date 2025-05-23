@@ -649,7 +649,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
         @Override
         BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
+            long subsetSize = subsetSize(owningBucketOrd);
             return (spare, ordsEnum, docCount) -> {
                 ordsEnum.readValue(spare.termBytes);
                 spare.subsetDf = docCount;
@@ -696,7 +696,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSizes.get(owningBucketOrd),
+                subsetSize(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)
@@ -711,6 +711,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         @Override
         public void close() {
             Releasables.close(backgroundFrequencies, subsetSizes);
+        }
+
+        private long subsetSize(long owningBucketOrd) {
+            // if the owningBucketOrd is not in the array that means the bucket is empty so the size has to be 0
+            return owningBucketOrd < subsetSizes.size() ? subsetSizes.get(owningBucketOrd) : 0;
         }
     }
 }

@@ -16,10 +16,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;

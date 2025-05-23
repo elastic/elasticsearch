@@ -589,15 +589,9 @@ public final class CsvTestUtils {
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
-                case COMPOSITE -> compositeBlockType(actualType);
+                case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
-            };
-        }
-
-        private static Type compositeBlockType(Type actualType) {
-            return switch (actualType) {
-                case AGGREGATE_METRIC_DOUBLE -> actualType;
-                default -> throw new IllegalArgumentException("can't assert on composite blocks that aren't aggregate metric doubles");
             };
         }
 

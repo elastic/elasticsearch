@@ -240,6 +240,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_47);
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(8_841_0_49); // TODO NO NO NO NO NO, also rename this
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_DRY_RUN = def(8_841_0_50); // TODO NO NO NO NO NO, also rename this
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -12,7 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import java.util.concurrent.TimeUnit;
 
 public record BulkInferenceExecutionConfig(TimeValue inferenceTimeout, int workers) {
-    public static final TimeValue DEFAULT_INFERENCE_TIMEOUT = new TimeValue(10, TimeUnit.SECONDS);
+    public static final TimeValue DEFAULT_INFERENCE_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     public static final int DEFAULT_WORKERS = 10;
 
     public static final BulkInferenceExecutionConfig DEFAULT = new BulkInferenceExecutionConfig(DEFAULT_INFERENCE_TIMEOUT, DEFAULT_WORKERS);

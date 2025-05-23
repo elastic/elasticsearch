@@ -26,10 +26,9 @@ public class InferenceRunner {
     private final Client client;
     private final ThreadPool threadPool;
 
-    public InferenceRunner(Client client) {
+    public InferenceRunner(Client client, ThreadPool threadPool) {
         this.client = client;
-        // TODO: revisit the executor service instantiation and thread pool choice.
-        this.threadPool = client.threadPool();
+        this.threadPool = threadPool;
     }
 
     public ThreadPool threadPool() {

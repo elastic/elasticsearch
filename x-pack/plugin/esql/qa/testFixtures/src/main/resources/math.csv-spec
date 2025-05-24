@@ -813,6 +813,146 @@ ul:ul
 null
 ;
 
+roundToInt
+required_capability: round_to
+ROW v = 1
+| EVAL r1 = ROUND_TO(v, 0, 1, 2)
+     , r2 = ROUND_TO(v, 2, 3)
+     , r3 = ROUND_TO(v, 0, 10, 20, 30, 40, 50, 60, 70, 90)
+     , rl = ROUND_TO(v, 0::LONG, 100)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+v:integer | r1:integer | r2:integer | r3:integer | rl:long | rd:double
+        1 |          1 |          2 |          0 |       0 | 0.0
+;
+
+roundToLong
+required_capability: round_to
+ROW v = 1000000000000::LONG
+| EVAL r1 = ROUND_TO(v, 0, 1000000000000, 2000000000000)
+     , r2 = ROUND_TO(v, 2000000000000, 3000000000000)
+     , r3 = ROUND_TO(v, 0, 1000000000000, 2000000000000, 3000000000000, 4000000000000, 5000000000000, 6000000000000)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+   v:long     |    r1:long    |    r2:long    |    r3:long    | rd:double
+1000000000000 | 1000000000000 | 2000000000000 | 1000000000000 | 2.2
+;
+
+roundToDouble
+required_capability: round_to
+ROW v = 1.1
+| EVAL r1 = ROUND_TO(v, 0, 1, 2)
+     , r2 = ROUND_TO(v, 2, 3)
+     , r3 = ROUND_TO(v, 0, 10, 20, 30, 40, 50, 60, 70, 90)
+     , rl = ROUND_TO(v, 0::LONG, 100)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+v:double | r1:double | r2:double | r3:double | rl:double | rd:double
+     1.1 |       1.0 |       2.0 |       0.0 |       0.0 | 1.1
+;
+
+roundToDate
+required_capability: round_to
+ROW v = "2025-02-02T01:00:00Z"::DATE
+| EVAL r1 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE, "2025-02-01T00:00:00Z"::DATE, "2025-03-01T00:00:00Z"::DATE)
+     , r2 = ROUND_TO(v, "2025-04-01T00:00:00Z"::DATE, "2025-05-01T00:00:00Z"::DATE, "2025-06-01T00:00:00Z"::DATE)
+     , r3 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE, "2025-02-01T00:00:00Z"::DATE, "2025-03-01T00:00:00Z"::DATE, "2025-04-01T00:00:00Z"::DATE, "2025-05-01T00:00:00Z"::DATE, "2025-06-01T00:00:00Z"::DATE);
+
+        v:date       |        r1:date       |        r2:date       |        r3:date
+2025-02-02T01:00:00Z | 2025-02-01T00:00:00Z | 2025-04-01T00:00:00Z | 2025-02-01T00:00:00Z
+;
+
+roundToDateNanos
+required_capability: round_to
+ROW v = "2025-02-02T01:00:00.543123456Z"::DATE_NANOS
+| EVAL r1 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE_NANOS, "2025-02-01T00:00:00Z"::DATE_NANOS, "2025-03-01T00:00:00Z"::DATE_NANOS)
+     , r2 = ROUND_TO(v, "2025-04-01T00:00:00Z"::DATE_NANOS, "2025-05-01T00:00:00Z"::DATE_NANOS, "2025-06-01T00:00:00Z"::DATE_NANOS)
+     , r3 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE_NANOS, "2025-02-01T00:00:00Z"::DATE_NANOS, "2025-03-01T00:00:00Z"::DATE_NANOS, "2025-04-01T00:00:00Z"::DATE_NANOS, "2025-05-01T00:00:00Z"::DATE_NANOS, "2025-06-01T00:00:00Z"::DATE_NANOS);
+
+          v:date_nanos         |          r1:date_nanos         |          r2:date_nanos         |         r3:date_nanos
+2025-02-02T01:00:00.543123456Z | 2025-02-01T00:00:00.000000000Z | 2025-04-01T00:00:00.000000000Z | 2025-02-01T00:00:00.000000000Z
+;
+
+roundToBirthWindow
+required_capability: round_to
+// tag::round_to[]
+FROM employees
+| STATS COUNT(*) BY birth_window=ROUND_TO(
+    birth_date,
+    "1900-01-01T00:00:00Z"::DATETIME,
+    "1950-01-01T00:00:00Z"::DATETIME,
+    "1955-01-01T00:00:00Z"::DATETIME,
+    "1960-01-01T00:00:00Z"::DATETIME,
+    "1965-01-01T00:00:00Z"::DATETIME,
+    "1970-01-01T00:00:00Z"::DATETIME,
+    "1975-01-01T00:00:00Z"::DATETIME
+)
+| SORT birth_window ASC
+// end::round_to[]
+;
+
+// tag::round_to-result[]
+COUNT(*):long | birth_window:datetime
+           27 | 1950-01-01T00:00:00Z
+           29 | 1955-01-01T00:00:00Z
+           33 | 1960-01-01T00:00:00Z
+            1 | 1965-01-01T00:00:00Z
+           10 | null
+// end::round_to-result[]
+;
+
+roundToSalaryWindow
+required_capability: round_to
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    salary,
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+roundToNanos
+required_capability: round_to
+FROM sample_data_ts_nanos
+| STATS COUNT(*) BY @timestamp=ROUND_TO(
+    @timestamp,
+    "2023-10-23T13:33:34.937123456Z"::DATE_NANOS,
+    "2023-10-23T13:52:55.015123456Z"::DATE_NANOS,
+    "2023-10-23T13:55:01.543123456Z"::DATE_NANOS
+)
+| SORT @timestamp ASC
+;
+
+COUNT(*):long | @timestamp:date_nanos
+            4 | 2023-10-23T13:33:34.937123456Z
+            2 | 2023-10-23T13:52:55.015123456Z
+            1 | 2023-10-23T13:55:01.543123456Z
+;
+
+roundToUnsorted
+required_capability: round_to
+ROW v = 1
+| EVAL r = ROUND_TO(v, 2, -1, 9, 0, 100);
+
+v:integer | r:integer
+        1 |         0
+;
+
 mvAvg
 from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 

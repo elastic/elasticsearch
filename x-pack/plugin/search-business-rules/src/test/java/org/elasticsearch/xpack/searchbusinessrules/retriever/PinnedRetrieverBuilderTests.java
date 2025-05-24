@@ -209,7 +209,18 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         multipleSortsSource.query(dummyQuery);
         multipleSortsSource.sort("_score");
         multipleSortsSource.sort("field1");
-        e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(multipleSortsSource));
+        builder.finalizeSourceBuilder(multipleSortsSource);
+        assertThat(multipleSortsSource.sorts().size(), equalTo(2));
+        assertThat(multipleSortsSource.sorts().get(0).getField(), equalTo("_score"));
+        assertThat(multipleSortsSource.sorts().get(0).getOrder(), equalTo(SortOrder.DESC));
+        assertThat(multipleSortsSource.sorts().get(1).getField(), equalTo("field1"));
+        assertThat(multipleSortsSource.sorts().get(1).getOrder(), equalTo(SortOrder.ASC));
+
+        SearchSourceBuilder fieldFirstSource = new SearchSourceBuilder();
+        fieldFirstSource.query(dummyQuery);
+        fieldFirstSource.sort("field1");
+        fieldFirstSource.sort("_score");
+        e = expectThrows(IllegalArgumentException.class, () -> builder.finalizeSourceBuilder(fieldFirstSource));
         assertThat(
             e.getMessage(),
             equalTo(

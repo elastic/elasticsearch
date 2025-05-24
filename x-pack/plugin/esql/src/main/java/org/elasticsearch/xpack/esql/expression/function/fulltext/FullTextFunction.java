@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -229,8 +231,20 @@ public abstract class FullTextFunction extends Function
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
+            // TODO : improve this check, as this is not so nice :(
+            List<FullTextFunction> scoredFTFs = new ArrayList<>();
+            plan.forEachExpression(Score.class, scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
+                if (scoredFTFs.remove(ftf) == false) {
+                    failures.add(
+                        fail(
+                            ftf,
+                            "[{}] {} is only supported in WHERE and STATS commands, or in EVAL within score(.) function",
+                            ftf.functionName(),
+                            ftf.functionType()
+                        )
+                    );
+                }
             });
         }
     }
@@ -291,6 +305,8 @@ public abstract class FullTextFunction extends Function
         forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
+                && (parent instanceof EsqlBinaryComparison == false)
+                && (parent instanceof Score == false) // e.g., WHERE score($ftf) > ...
                 && (parent instanceof Not == false)) {
                 failures.add(
                     fail(

@@ -17,6 +17,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersion;
@@ -135,7 +136,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaultsPreIndexOptions() throws Exception {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            new Random(),
+            Randomness.get(),
             NEW_SPARSE_VECTOR_INDEX_VERSION,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
         );

@@ -52,6 +52,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
     record NodeConnectionHistory(String ephemeralId, Exception disconnectCause) {}
+
     private final ConcurrentMap<String, NodeConnectionHistory> nodeHistory = ConcurrentCollections.newConcurrentMap();
 
     private final Transport transport;

@@ -489,6 +489,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
+- class: org.elasticsearch.xpack.esql.action.ForkIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/128377
 
 # Examples:
 #

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 
 import java.util.HashMap;
@@ -187,6 +189,20 @@ public class InferenceWaitForAllocation {
         public void onFailure(Exception e) {
             pendingRequestCount.decrementAndGet();
             request.listener().onFailure(e);
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            onFailure(
+                new ModelDeploymentTimeoutException(
+                    format(
+                        "Timed out after [%s] waiting for trained model deployment [%s] to start. "
+                            + "Use the trained model stats API to track the state of the deployment and try again once it has started.",
+                        timeout,
+                        request.deploymentId()
+                    )
+                )
+            );
         }
     }
 }

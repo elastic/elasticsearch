@@ -52,6 +52,7 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 
 
@@ -175,6 +176,7 @@ PUT /drivers/_doc/2?refresh
     }
 }
 ```
+% TEST[continued]
 
 You can now use a multi-level nested query to match documents based on the `make` and `model` fields.
 
@@ -201,6 +203,7 @@ GET /drivers/_search
   }
 }
 ```
+% TEST[continued]
 
 The search request returns the following response:
 
@@ -245,6 +248,7 @@ The search request returns the following response:
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 5/"took": $body.took/]
 
 
 ### `must_not` clauses and `nested` queries [must-not-clauses-and-nested-queries]
@@ -320,6 +324,7 @@ POST my-index/_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 The search returns:
 
@@ -360,6 +365,7 @@ The search returns:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 1. This nested object matches the query. As a result, the search returns the object’s parent document as a hit.
 2. This nested object doesn’t match the query. Since another nested object in the same document does match the query, the search still returns the parent document as a hit.
@@ -388,6 +394,8 @@ POST my-index/_search
   }
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 The search returns:
 
@@ -413,6 +421,7 @@ The search returns:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 
 

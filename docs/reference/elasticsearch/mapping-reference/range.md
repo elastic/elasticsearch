@@ -62,6 +62,7 @@ PUT range_index/_doc/1?refresh
   }
 }
 ```
+% TESTSETUP
 
 1. `date_range` types accept the same field parameters defined by the [`date`](/reference/elasticsearch/mapping-reference/date.md) type.
 2. Example indexing a meeting with 10 to 20 attendees, not including 20.
@@ -119,6 +120,7 @@ The result produced by the above query.
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
@@ -177,6 +179,7 @@ This query produces a similar result:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 ## IP Range [ip-range]
 
@@ -270,6 +273,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -291,6 +295,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Values of `ip_range` fields are not sorted but original order is not preserved. Duplicate ranges are removed. If `ip_range` field value is provided as a CIDR, it will be represented as a range of IP addresses in synthetic source.
 
@@ -328,6 +333,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -340,6 +346,7 @@ Will become:
 
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-inclusive$$$
 Range field values are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
@@ -373,6 +380,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -384,6 +392,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-default-bounds$$$
 Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
@@ -416,6 +425,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -427,6 +437,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 `date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format. For example:
 
@@ -465,6 +476,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -482,5 +494,6 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 

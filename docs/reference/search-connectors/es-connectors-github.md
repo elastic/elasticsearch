@@ -52,6 +52,7 @@ PUT _connector/my-github-connector
   "service_type": "github"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -239,6 +240,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -361,6 +363,7 @@ $$$es-connectors-github-client-sync-rules-advanced-branch$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
 **Indexing document based on issue query related to bugs via issue key**
@@ -375,6 +378,7 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
 **Indexing document based on PR query related to open PR’s via PR key**
@@ -389,6 +393,7 @@ $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
 **Indexing document and files based on queries and branch name**
@@ -405,6 +410,7 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 ::::{note}
 All documents pulled by a given rule are indexed regardless of whether the document has already been indexed by a previous rule. This can lead to document duplication, but the indexed documents count will differ in the logs. Check the Elasticsearch index for the actual document count.
@@ -431,6 +437,7 @@ $$$es-connectors-github-client-sync-rules-advanced-overlapping$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 ::::{note}
 If `GitHub App` is selected as the authentication method, the  "OWNER/" portion of the "OWNER/REPO" repository argument must be provided.

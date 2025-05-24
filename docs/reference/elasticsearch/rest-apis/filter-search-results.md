@@ -41,6 +41,7 @@ PUT /shirts/_doc/1?refresh
   "model": "slim"
 }
 ```
+% TESTSETUP
 
 Imagine a user has specified two filters:
 
@@ -183,6 +184,7 @@ POST /_search
    }
 }
 ```
+% TEST[setup:my_index]
 
 The way the scores are combined can be controlled with the `score_mode`:
 
@@ -241,6 +243,7 @@ POST /_search
    } ]
 }
 ```
+% TEST[setup:my_index]
 
 The first one gets the results of the query then the second one gets the results of the first, etc. The second rescore will "see" the sorting done by the first rescore so it is possible to use a large window on the first rescore to pull documents into a smaller window for the second rescore.
 

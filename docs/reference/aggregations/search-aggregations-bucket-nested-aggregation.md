@@ -55,6 +55,7 @@ PUT /products/_doc/0?refresh
   ]
 }
 ```
+% TEST[continued]
 
 1. We are using a dynamic mapping for the `name` attribute.
 
@@ -85,6 +86,8 @@ GET /products/_search?size=0
   }
 }
 ```
+% TEST[s/size=0/size=0&filter_path=aggregations/]
+% TEST[continued]
 
 As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents. Then one can define any type of aggregation over these nested documents.
 
@@ -103,6 +106,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 You can use a [`filter`](/reference/aggregations/search-aggregations-bucket-filter-aggregation.md) sub-aggregation to return results for a specific reseller.
 
@@ -145,6 +149,8 @@ GET /products/_search?size=0
   }
 }
 ```
+% TEST[s/size=0/size=0&filter_path=aggregations/]
+% TEST[continued]
 
 The search returns:
 
@@ -164,4 +170,5 @@ The search returns:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 

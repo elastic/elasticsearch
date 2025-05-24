@@ -74,6 +74,8 @@ GET /issues/_search
   }
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 As you can see above, the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place in the dsl where the `reverse_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher up in the nested structure.
 
@@ -116,4 +118,5 @@ Possible response snippet:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 

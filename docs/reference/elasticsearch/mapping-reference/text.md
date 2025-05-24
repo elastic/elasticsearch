@@ -152,6 +152,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -164,6 +165,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 If the `text` field sets `store` to `true` then the sub-field is not used and no modifications are applied. For example:
@@ -205,6 +207,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -217,6 +220,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 ## `fielddata` mapping parameter [fielddata-mapping-param]
@@ -275,6 +279,7 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+% TEST[continued]
 
 1. The mapping that you specify for `my_field` should consist of the existing mapping for that field, plus the `fielddata` parameter.
 

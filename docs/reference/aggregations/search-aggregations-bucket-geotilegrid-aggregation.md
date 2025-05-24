@@ -89,6 +89,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## High-precision requests [geotilegrid-high-precision]
@@ -122,6 +123,7 @@ POST /museums/_search?size=0
   }
 }
 ```
+% TEST[continued]
 
 Response:
 
@@ -151,6 +153,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## Requests with additional bounding box filtering [geotilegrid-addtl-bounding-box-filtering]
@@ -176,6 +179,7 @@ POST /museums/_search?size=0
   }
 }
 ```
+% TEST[continued]
 
 Response:
 
@@ -202,6 +206,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ### Aggregating `geo_shape` fields [geotilegrid-aggregating-geo-shape]

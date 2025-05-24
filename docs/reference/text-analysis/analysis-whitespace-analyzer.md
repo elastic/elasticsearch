@@ -58,6 +58,7 @@ PUT /whitespace_example
   }
 }
 ```
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: whitespace_example, first: whitespace, second: rebuilt_whitespace}\nendyaml\n/]
 
 1. You’d add any token filters here.
 

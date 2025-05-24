@@ -23,6 +23,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -51,6 +52,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 1. an upper bound of the error on the document counts for each term, see [below](#terms-agg-doc-count-error)
 2. when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
@@ -122,6 +124,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard does not return a particular term which appears in the results from another shard, it must not have that term in its index. When the aggregation is either sorted by a sub aggregation or in order of ascending document count, the error in the document counts cannot be determined and is given a value of -1 to indicate this.
 
@@ -419,6 +422,7 @@ Which will look like:
   ...
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
 
 This is a little slower because the runtime field has to access two fields instead of one and because there are some optimizations that work on non-runtime `keyword` fields that we have to give up for for runtime `keyword` fields. If you need the speed, you can index the `normalized_genre` field.
 

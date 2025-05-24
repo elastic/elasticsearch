@@ -22,6 +22,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output </absolute/path/to>/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Don’t forget to change the `--output` argument value to the path where you want to save the `config.yml` file on your local system. But keep note of where you wrote this file, as it is required in the `docker run` step below.
 

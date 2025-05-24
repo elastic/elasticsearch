@@ -88,6 +88,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "saturation(doc['my-int'].value, 1)"
 }
 ```
+% NOTCONSOLE
 
 
 #### Sigmoid [script-score-sigmoid]
@@ -99,6 +100,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "sigmoid(doc['my-int'].value, 2, 1)"
 }
 ```
+% NOTCONSOLE
 
 
 #### Random score function [random-score-function]
@@ -112,6 +114,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "randomScore(100, '_seq_no')"
 }
 ```
+% NOTCONSOLE
 
 If the `fieldName` parameter is omitted, the internal Lucene document ids will be used as a source of randomness. This is very efficient, but unfortunately not reproducible since documents might be renumbered by merges.
 
@@ -120,6 +123,7 @@ If the `fieldName` parameter is omitted, the internal Lucene document ids will b
     "source" : "randomScore(100)"
 }
 ```
+% NOTCONSOLE
 
 Note that documents that are within the same shard and have the same value for field will get the same score, so it is usually desirable to use a field that has unique values for all documents across a shard. A good default choice might be to use the `_seq_no` field, whose only drawback is that scores will change if the document is updated since update operations also update the value of the `_seq_no` field.
 
@@ -143,6 +147,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 1. Using `params` allows to compile the script only once, even if params change.
 
@@ -165,6 +170,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 
 #### Decay functions for date fields [decay-functions-date-fields]
@@ -184,6 +190,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 ::::{note}
 Decay functions on dates are limited to dates in the default format and default time zone. Also calculations with `now` are not supported.
@@ -239,6 +246,7 @@ What you used in `script_score` of the Function Score query, you can copy into t
     }
 }
 ```
+% NOTCONSOLE
 
 
 #### `random_score` [random-score]
@@ -258,6 +266,7 @@ Use `randomScore` function as described in [random score function](#random-score
     }
 }
 ```
+% NOTCONSOLE
 
 For checking if a document has a missing value, you can use `doc['field'].size() == 0`. For example, this script will use a value `1` if a document doesn’t have a field `field`:
 
@@ -269,6 +278,7 @@ For checking if a document has a missing value, you can use `doc['field'].size()
     }
 }
 ```
+% NOTCONSOLE
 
 This table lists how `field_value_factor` modifiers can be implemented through a script:
 
@@ -360,6 +370,7 @@ PUT my-index-000001/_doc/2
 
 POST my-index-000001/_refresh
 ```
+% TESTSETUP
 
 #### Cosine similarity [vector-functions-cosine]
 
@@ -542,6 +553,7 @@ You can check if a document has a value for the field `my_vector` with `doc['my_
 ```js
 "source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
 ```
+% NOTCONSOLE
 
 
 #### Accessing vectors directly [vector-functions-accessing-vectors]
@@ -647,6 +659,7 @@ PUT my-index-bit-vectors/_doc/3
 
 POST my-index-bit-vectors/_refresh
 ```
+% TEST[continued]
 
 1. The number of dimensions or bits for the `bit` vector.
 2. This vector represents 5 bytes, or `5 * 8 = 40` bits, which equals the configured dimensions
@@ -670,6 +683,7 @@ GET my-index-bit-vectors/_search
   }
 }
 ```
+% TEST[continued]
 
 1. This vector is 40 bits, and thus will compute a bitwise `&` operation with the stored vectors.
 
@@ -692,6 +706,7 @@ GET my-index-bit-vectors/_search
   }
 }
 ```
+% TEST[continued]
 
 1. This vector is 40 individual dimensions, and thus will sum the floating point values using the stored `bit` vector as a mask.
 
@@ -726,6 +741,7 @@ GET /my-index-000001/_explain/0
   }
 }
 ```
+% TEST[setup:my_index]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.
 

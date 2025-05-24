@@ -62,6 +62,9 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 9/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ## Anonymous filters [anonymous-filters]
 
@@ -85,6 +88,7 @@ GET logs/_search
   }
 }
 ```
+% TEST[continued]
 
 The filtered buckets are returned in the same order as provided in the request. The response for this example would be:
 
@@ -108,6 +112,9 @@ The filtered buckets are returned in the same order as provided in the request. 
   }
 }
 ```
+% TESTRESPONSE[s/"took": 4/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ## `Other` Bucket [other-bucket]
@@ -148,6 +155,7 @@ GET logs/_search
   }
 }
 ```
+% TEST[continued]
 
 The response would be something like the following:
 
@@ -174,6 +182,9 @@ The response would be something like the following:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 3/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ## Non-keyed Response [non-keyed-response]
@@ -217,6 +228,7 @@ POST /sales/_search?size=0&filter_path=aggregations
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 

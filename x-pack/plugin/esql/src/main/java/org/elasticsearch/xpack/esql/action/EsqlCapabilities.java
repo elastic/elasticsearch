@@ -56,6 +56,11 @@ public class EsqlCapabilities {
         SPATIAL_SHAPES,
 
         /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,

@@ -1842,3 +1842,13 @@ emp_no:integer | l1:double | l2:double
 10002          | -7.23     | null     
 10003          | 4.0       | null     
 ;
+
+copySignWithMixedNumericValues
+ROW a = 1.0, b = -2.0
+| EVAL c = COPY_SIGN(a, b)
+| EVAL d = COPY_SIGN(b, a)
+;
+
+a:double | b:double | c:double | d:double
+1.0      | -2.0     | -1.0     | 2.0
+;

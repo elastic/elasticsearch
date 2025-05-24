@@ -11,6 +11,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -728,5 +730,30 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             run(request).close();
         });
         assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
+    }
+
+    public void testProfile() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.profile(true);
+        request.query("TS hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+        try (var resp = run(request)) {
+            EsqlQueryResponse.Profile profile = resp.profile();
+            List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+            int totalTimeSeries = 0;
+            for (DriverProfile p : dataProfiles) {
+                if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
+                    totalTimeSeries++;
+                    assertThat(p.operators(), hasSize(2));
+                    assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
+                } else {
+                    assertThat(p.operators(), hasSize(4));
+                    assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
+                    assertThat(p.operators().get(1).operator(), containsString("EvalOperator[evaluator=DateTruncDatetimeEvaluator"));
+                    assertThat(p.operators().get(2).operator(), containsString("TimeSeriesAggregationOperator"));
+                    assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
+                }
+            }
+            assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 2));
+        }
     }
 }

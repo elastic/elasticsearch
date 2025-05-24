@@ -30,7 +30,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -46,6 +49,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -59,8 +64,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
@@ -202,6 +209,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
         assertThat(supplier.clusterName(), equalTo("dev-cluster"));
         assertThat(supplier.nodeName(), equalTo("node-1"));
+    }
+
+    public void testTimeSeriesSource() throws Exception {
+        MetadataAttribute tsid = new MetadataAttribute(Source.EMPTY, "_tsid", DataType.KEYWORD, false);
+        var timeSeriesSource = new TimeSeriesSourceExec(
+            Source.EMPTY,
+            List.of(tsid),
+            new MatchAllQueryBuilder(),
+            new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER),
+            MappedFieldType.FieldExtractPreference.NONE,
+            Set.of(),
+            Set.of(),
+            List.of(),
+            randomEstimatedRowSize(estimatedRowSizeIsHuge)
+        );
+        var limitExec = new LimitExec(Source.EMPTY, timeSeriesSource, new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER));
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec);
+        assertThat(plan.driverFactories, hasSize(2));
     }
 
     private int randomEstimatedRowSize(boolean huge) {

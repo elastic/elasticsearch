@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -195,6 +196,7 @@ public class LocalExecutionPlanner {
      */
     public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
+            description,
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
@@ -272,9 +274,9 @@ public class LocalExecutionPlanner {
         } else if (node instanceof ShowExec show) {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
-            return planExchangeSource(exchangeSource, context);
+            return planExchangeSource(exchangeSource, exchangeSourceSupplier, context);
         } else if (node instanceof TimeSeriesSourceExec ts) {
-            return planTimeSeriesNode(ts, context);
+            return planTimeSeriesSource(ts, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -332,8 +334,36 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
     }
 
-    private PhysicalOperation planTimeSeriesNode(TimeSeriesSourceExec esQueryExec, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.timeSeriesSourceOperation(esQueryExec, context);
+    private PhysicalOperation planTimeSeriesSource(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+        var exchangeBuffer = new ExchangeBuffer(configuration.pragmas().exchangeBufferSize());
+        // Use a separate driver for the time-series source to split the pipeline to increase parallelism,
+        // since the time-series source must be executed with a single driver at the shard level.
+        {
+            var sourceOperator = physicalOperationProviders.timeSeriesSourceOperation(ts, context);
+            var sinkOperator = sourceOperator.withSink(
+                new ExchangeSinkOperatorFactory(exchangeBuffer::newExchangeSink),
+                sourceOperator.layout
+            );
+            final TimeValue statusInterval = configuration.pragmas().statusInterval();
+            context.addDriverFactory(
+                new DriverFactory(
+                    new DriverSupplier(
+                        context.description,
+                        ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                        Node.NODE_NAME_SETTING.get(settings),
+                        context.bigArrays,
+                        context.blockFactory,
+                        sinkOperator,
+                        statusInterval,
+                        settings
+                    ),
+                    DriverParallelism.SINGLE
+                )
+            );
+            context.driverParallelism.set(DriverParallelism.SINGLE);
+        }
+        var exchangeSource = new ExchangeSourceExec(ts.source(), ts.output(), false);
+        return planExchangeSource(exchangeSource, exchangeBuffer::newExchangeSource, context);
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -410,7 +440,11 @@ public class LocalExecutionPlanner {
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
-    private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planExchangeSource(
+        ExchangeSourceExec exchangeSource,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        LocalExecutionPlannerContext context
+    ) {
         Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
@@ -923,6 +957,7 @@ public class LocalExecutionPlanner {
      * maintains information how many driver instances should be created for a given driver.
      */
     public record LocalExecutionPlannerContext(
+        String description,
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,

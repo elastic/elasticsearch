@@ -68,6 +68,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -147,6 +148,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 @SuppressWarnings("HiddenField")
 public abstract class EngineTestCase extends ESTestCase {
@@ -246,7 +248,8 @@ public abstract class EngineTestCase extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            defaultSettings.getNodeSettings()
+            defaultSettings.getNodeSettings(),
+            mock(NodeEnvironment.class)
         );
 
         store = createStore();

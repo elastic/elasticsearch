@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CL
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.DATE_MATH;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.INDEX_SELECTOR;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.quote;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
@@ -483,20 +484,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
             assertStringAsIndexPattern(".dot", command + " .dot");
-            assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
-            assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
+            expectError("FROM \"cluster:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
+            expectError("FROM *:\"index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo::failures\"");
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo\"::data");
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
@@ -698,16 +696,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
             clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>");
+            expectInvalidIndexNameErrorWithLineNumber(command, "*, index#pattern", lineNumber, "index#pattern", "must not contain '#'");
+            expectInvalidIndexNameErrorWithLineNumber(
+                command,
+                "index*, index#pattern",
+                indexStarLineNumber,
+                "index#pattern",
+                "must not contain '#'"
+            );
             expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logst:ash-{now/D}>\"", commands.get(command), dateMathError);
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-                clustersAndIndices(command, "*", "-index#pattern::data");
-                clustersAndIndices(command, "*", "-index#pattern::data");
-                clustersAndIndices(command, "index*", "-index#pattern::data");
-                clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
-                clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
                 // Throw on invalid date math
                 expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"::data", lineNumber, dateMathError);
                 expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
@@ -3105,6 +3106,85 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.columns(), hasSize(1));
         assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testInvalidPatternsWithIntermittentQuotes() {
+        // There are 3 ways of crafting an invalid index pattern that conforms to the grammar defined through ANTLR.
+        // 1. Quoting the entire pattern.
+        // 2. Quoting the cluster alias - "invalid cluster alias":<rest of the pattern>
+        // 3. Quoting the index name - <cluster alias>:"invalid index"
+        //
+        // Note that in these tests, we unquote a pattern and then quote it immediately.
+        // This is because when randomly generating an index pattern, it may look like: "foo"::data.
+        // To convert it into a quoted string like "foo::data", we need to unquote and then re-quote it.
+
+        // Prohibited char in a quoted cross cluster index pattern should result in an error.
+        {
+            var randomIndex = randomIndexPattern();
+            // Select an invalid char to sneak in.
+            // Note: some chars like '|' and '"' are excluded to generate a proper invalid name.
+            char[] invalidChars = { ' ', '/', '<', '>', '?' };
+            var randomInvalidChar = invalidChars[randomIntBetween(0, invalidChars.length - 1)];
+
+            // Construct the new invalid index pattern.
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
+            var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
+            expectError(query, "must not contain the following characters [' ','\"','*',',','/','<','>','?','\\','|']");
+        }
+
+        // Cluster names with invalid characters, i.e. ':' should result in an error.
+        {
+            var randomIndex = randomIndexPattern();
+
+            // In the form of: "*|cluster alias:random string".
+            var malformedClusterAlias = quote((randomBoolean() ? "*" : randomIdentifier()) + ":" + randomIdentifier());
+
+            // We do not generate a cross cluster pattern or else we'd be getting a different error (which is tested in
+            // the next test).
+            var remoteIndex = quote(unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER))));
+            // Format: FROM <some index>, "<cluster alias: random string>":<remote index>
+            var query = "FROM " + randomIndex + "," + malformedClusterAlias + ":" + remoteIndex;
+            expectError(query, "cluster string [" + unquoteIndexPattern(malformedClusterAlias) + "] must not contain ':'");
+        }
+
+        // If a remote index is quoted and has a remote cluster alias and the pattern is already prefixed with
+        // a cluster alias, we should flag the cluster alias in the pattern.
+        {
+            var randomIndex = randomIndexPattern();
+            var remoteClusterAlias = randomBoolean() ? "*" : randomIdentifier();
+            // In the form of: random string:random string.
+            var malformedRemoteIndex = quote(unquoteIndexPattern(randomIndexPattern(CROSS_CLUSTER)));
+            // Format: FROM <some index>, <cluster alias>:"random string:random string"
+            var query = "FROM " + randomIndex + "," + remoteClusterAlias + ":" + malformedRemoteIndex;
+            expectError(query, "contains a cluster alias despite specifying one");
+        }
+
+        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+            // If a stream in on a remote and the pattern is entirely quoted, we should be able to validate it.
+            // Note: invalid selector syntax is covered in a different test.
+            {
+                var fromPattern = randomIndexPattern();
+                var malformedIndexSelectorPattern = quote(
+                    (randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER)))
+                );
+                // Format: FROM <some index>, "<cluster alias>:<some index>::<data|failures>"
+                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
+                expectError(query, "Selectors are not yet supported on remote cluster patterns");
+            }
+
+            // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
+            // still be able to validate it.
+            // Note: invalid selector syntax is covered in a different test.
+            {
+                var fromPattern = randomIndexPattern();
+                var malformedIndexSelectorPattern = quote(randomIdentifier())
+                    + ":"
+                    + quote(unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER))));
+                // Format: FROM <some index>, "<cluster alias>":"<some index>::<data|failures>"
+                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
+                expectError(query, "Selectors are not yet supported on remote cluster patterns");
+            }
+        }
     }
 
     public void testInvalidJoinPatterns() {

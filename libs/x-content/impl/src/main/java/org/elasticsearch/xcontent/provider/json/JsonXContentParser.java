@@ -18,10 +18,12 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -113,6 +115,20 @@ public class JsonXContentParser extends AbstractXContentParser {
         } catch (JsonParseException e) {
             throw newXContentParseException(e);
         }
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        if (parser instanceof ESUTF8StreamJsonParser esParser) {
+            var bytesRef = esParser.getValueAsText();
+            if (bytesRef != null) {
+                return bytesRef;
+            }
+        }
+        return new Text(text());
     }
 
     private void throwOnNoText() {

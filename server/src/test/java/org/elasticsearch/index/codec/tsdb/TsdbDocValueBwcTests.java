@@ -35,7 +35,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -49,7 +48,7 @@ import java.util.Map;
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec);
     }
@@ -57,7 +56,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     public void testMixedIndex816To900Lucene101() throws Exception {
         var oldCodec = new Elasticsearch816Codec() {
 
-            final DocValuesFormat docValuesFormat = new TestES87TSDBDocValuesFormat();
+            final DocValuesFormat docValuesFormat = new ES87TSDBDocValuesFormat();
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {

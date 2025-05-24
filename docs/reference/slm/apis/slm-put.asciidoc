@@ -89,7 +89,10 @@ Retention rules used to retain and delete snapshots created by the policy.
 (Optional, <<time-units, time units>>)
 Time period after which a snapshot is considered expired and eligible for
 deletion. {slm-init} deletes expired snapshots based on the
-<<slm-retention-schedule,`slm.retention_schedule`>>.
+<<slm-retention-schedule,`slm.retention_schedule`>>. 
+Snapshots with a <<get-snapshot-api-response-state,`state`>> of `PARTIAL` will 
+be removed according to this setting. If not set, `PARTIAL` snapshots are deleted 
+as soon as a newer successful snapshot exists.
 
 `max_count`::
 (Optional, integer)
@@ -101,7 +104,9 @@ only includes snapshots with a <<get-snapshot-api-response-state,`state`>> of
 
 `min_count`::
 (Optional, integer)
-Minimum number of snapshots to retain, even if the snapshots have expired.
+Minimum number of snapshots to retain, even if the snapshots have expired. This limit
+only includes snapshots with a <<get-snapshot-api-response-state,`state`>> of
+`SUCCESS`.  
 ====
 
 `schedule`::

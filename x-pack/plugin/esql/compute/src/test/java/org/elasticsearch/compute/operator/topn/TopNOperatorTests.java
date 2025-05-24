@@ -135,6 +135,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             4,
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
+            List.of(),
             List.of(new TopNOperator.SortOrder(0, true, false)),
             pageSize
         );
@@ -143,7 +144,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
-            "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+            "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], partitions=[], "
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
         );
     }
@@ -151,7 +152,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+            "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], partitions=[], "
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
         );
     }
@@ -216,6 +217,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 topCount,
                 List.of(LONG),
                 List.of(DEFAULT_UNSORTABLE),
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, true, false)),
                 pageSize
             ).get(context)
@@ -554,6 +556,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         elementTypes,
                         encoders,
+                        List.of(),
                         List.of(new TopNOperator.SortOrder(0, false, false)),
                         randomPageSize()
                     )
@@ -643,6 +646,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         elementTypes,
                         encoders,
+                        List.of(),
                         List.of(new TopNOperator.SortOrder(0, false, false)),
                         randomPageSize()
                     )
@@ -677,6 +681,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         limit,
                         elementTypes,
                         encoder,
+                        List.of(),
                         sortOrders,
                         randomPageSize()
                     )
@@ -704,6 +709,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             10,
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
+            List.of(),
             List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
             randomPageSize()
         );
@@ -712,7 +718,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             .collect(Collectors.joining(", "));
         String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[UTF8TopNEncoder, FixedLengthTopNEncoder["
             + fixedLength
-            + "]], sortOrders=["
+            + "]], partitions=[], sortOrders=["
             + sorts
             + "]]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
@@ -946,6 +952,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         List.of(blockType),
                         List.of(encoder),
+                        List.of(),
                         List.of(sortOrders),
                         randomPageSize()
                     )
@@ -1076,6 +1083,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 topCount,
                 elementTypes,
                 encoders,
+                List.of(),
                 uniqueOrders.stream().toList(),
                 rows
             ),
@@ -1119,6 +1127,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
+                            List.of(),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                             randomPageSize()
                         )
@@ -1245,6 +1254,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             ips.size(),
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
+                            List.of(),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
                             randomPageSize()
                         )
@@ -1332,6 +1342,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         2,
                         List.of(BYTES_REF, INT),
                         List.of(TopNEncoder.UTF8, DEFAULT_UNSORTABLE),
+                        List.of(),
                         List.of(
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
@@ -1371,6 +1382,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topCount,
                         List.of(LONG),
                         List.of(DEFAULT_UNSORTABLE),
+                        List.of(),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
                         maxPageSize
                     )
@@ -1406,6 +1418,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 2,
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
                 randomPageSize()
             )
@@ -1429,6 +1442,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 10,
                 types,
                 encoders,
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
                 randomPageSize()
             )

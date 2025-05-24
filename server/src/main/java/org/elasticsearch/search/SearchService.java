@@ -689,7 +689,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 threadPool
             ).delegateFailure((l, orig) -> {
                 // check if we can shortcut the query phase entirely.
-                if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                if (orig.canReturnNullResponseIfMatchNoDocs() && orig.runCanMatchInQueryPhase()) {
                     assert orig.scroll() == null;
                     ShardSearchRequest clone = new ShardSearchRequest(orig);
                     CanMatchContext canMatchContext = new CanMatchContext(

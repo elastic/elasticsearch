@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -207,7 +208,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
-                false
+                mock(SearchService.class)
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

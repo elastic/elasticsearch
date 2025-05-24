@@ -105,6 +105,261 @@ FROM k8s
 ;
 
 
+detect signal step change by env
+required_capability: change_point
+
+FROM signals
+  | CHANGE_POINT signal ON @timestamp BY env
+;
+
+@timestamp:datetime      | env:keyword | region:keyword | signal:long | type:keyword | pvalue:double
+2024-05-10T00:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T01:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T02:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T03:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T04:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T05:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T06:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T07:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T08:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T09:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T10:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T11:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T12:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T13:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T14:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T15:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T16:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T17:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T18:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T19:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T20:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T21:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T22:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T23:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-11T00:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T00:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T01:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T02:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T03:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T04:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T05:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T06:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T07:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T08:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T09:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T10:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T11:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T12:00:00.000Z | qa          | eu             | 100         | step_change  | 0.0          
+2024-05-10T13:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T14:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T15:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T16:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T17:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T18:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T19:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T20:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T21:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T22:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T23:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-11T00:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T00:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T01:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T02:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T03:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T04:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T05:00:00.000Z | staging     | amer           | 1           | null         | null         
+2024-05-10T06:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T07:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T08:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T09:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T10:00:00.000Z | staging     | eu             | 1           | null         | null         
+2024-05-10T11:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T12:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T13:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T14:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T15:00:00.000Z | staging     | eu             | 1           | null         | null         
+2024-05-10T16:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T17:00:00.000Z | staging     | eu             | 100         | spike        | 0.0          
+2024-05-10T18:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T19:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T20:00:00.000Z | staging     | amer           | 1           | null         | null         
+2024-05-10T21:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T22:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T23:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-11T00:00:00.000Z | staging     | amer           | 0           | null         | null
+;
+
+
+detect signal step change by region and env
+required_capability: change_point
+
+FROM signals
+  | CHANGE_POINT signal ON @timestamp BY region,env
+;
+
+warning:Line 2:3: evaluation of [CHANGE_POINT signal ON @timestamp BY region,env] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [12]
+warning:Line 2:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [13]
+
+@timestamp:datetime      | env:keyword | region:keyword | signal:long | type:keyword | pvalue:double
+2024-05-10T01:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T03:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T05:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T07:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T09:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T11:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T13:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T15:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T17:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T19:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T21:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T23:00:00.000Z | prod        | amer           | 0           | null         | null         
+2024-05-10T00:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T02:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T04:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T06:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T08:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T10:00:00.000Z | qa          | amer           | 0           | null         | null         
+2024-05-10T13:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T15:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T17:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T19:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T21:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T23:00:00.000Z | qa          | amer           | 100         | null         | null         
+2024-05-10T01:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T03:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T05:00:00.000Z | staging     | amer           | 1           | null         | null         
+2024-05-10T07:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T09:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T11:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T12:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T14:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T16:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T18:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T20:00:00.000Z | staging     | amer           | 1           | null         | null         
+2024-05-10T22:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-11T00:00:00.000Z | staging     | amer           | 0           | null         | null         
+2024-05-10T00:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T02:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T04:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T06:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T08:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T10:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T12:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T14:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T16:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T18:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T20:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T22:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-11T00:00:00.000Z | prod        | eu             | 0           | null         | null         
+2024-05-10T01:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T03:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T05:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T07:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T09:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T11:00:00.000Z | qa          | eu             | 0           | null         | null         
+2024-05-10T12:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T14:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T16:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T18:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T20:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T22:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-11T00:00:00.000Z | qa          | eu             | 100         | null         | null         
+2024-05-10T00:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T02:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T04:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T06:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T08:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T10:00:00.000Z | staging     | eu             | 1           | null         | null         
+2024-05-10T13:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T15:00:00.000Z | staging     | eu             | 1           | null         | null         
+2024-05-10T17:00:00.000Z | staging     | eu             | 100         | null         | null         
+2024-05-10T19:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T21:00:00.000Z | staging     | eu             | 0           | null         | null         
+2024-05-10T23:00:00.000Z | staging     | eu             | 0           | null         | null  
+;
+
+
+detect step change by cluster
+required_capability: change_point
+
+FROM k8s_by
+  | STATS count=COUNT() BY cluster, @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp BY cluster AS type, pvalue
+;
+
+cluster:keyword | @timestamp:datetime      | count:long | type:keyword | pvalue:double
+prod            | 2024-05-10T00:00:00.000Z | 2          | null         | null                 
+prod            | 2024-05-10T00:01:00.000Z | 2          | null         | null                 
+prod            | 2024-05-10T00:02:00.000Z | 3          | null         | null                 
+prod            | 2024-05-10T00:03:00.000Z | 1          | null         | null                 
+prod            | 2024-05-10T00:04:00.000Z | 1          | null         | null                 
+prod            | 2024-05-10T00:05:00.000Z | 3          | null         | null                 
+prod            | 2024-05-10T00:06:00.000Z | 1          | null         | null                 
+prod            | 2024-05-10T00:08:00.000Z | 4          | null         | null                 
+prod            | 2024-05-10T00:09:00.000Z | 6          | null         | null                 
+prod            | 2024-05-10T00:10:00.000Z | 1          | null         | null                 
+prod            | 2024-05-10T00:11:00.000Z | 101        | step_change  | 7.660675256092382E-30
+prod            | 2024-05-10T00:12:00.000Z | 101        | null         | null                 
+prod            | 2024-05-10T00:13:00.000Z | 104        | null         | null                 
+prod            | 2024-05-10T00:14:00.000Z | 105        | null         | null                 
+prod            | 2024-05-10T00:15:00.000Z | 102        | null         | null                 
+prod            | 2024-05-10T00:16:00.000Z | 103        | null         | null                 
+prod            | 2024-05-10T00:17:00.000Z | 105        | null         | null                 
+prod            | 2024-05-10T00:18:00.000Z | 106        | null         | null                 
+prod            | 2024-05-10T00:19:00.000Z | 103        | null         | null                 
+prod            | 2024-05-10T00:20:00.000Z | 104        | null         | null                 
+prod            | 2024-05-10T00:22:00.000Z | 103        | null         | null                 
+prod            | 2024-05-10T00:23:00.000Z | 101        | null         | null                 
+qa              | 2024-05-10T00:01:00.000Z | 2          | null         | null                 
+qa              | 2024-05-10T00:02:00.000Z | 2          | null         | null                 
+qa              | 2024-05-10T00:03:00.000Z | 3          | null         | null                 
+qa              | 2024-05-10T00:04:00.000Z | 4          | null         | null                 
+qa              | 2024-05-10T00:05:00.000Z | 5          | null         | null                 
+qa              | 2024-05-10T00:06:00.000Z | 5          | null         | null                 
+qa              | 2024-05-10T00:07:00.000Z | 5          | null         | null                 
+qa              | 2024-05-10T00:08:00.000Z | 5          | null         | null                 
+qa              | 2024-05-10T00:09:00.000Z | 6          | null         | null                 
+qa              | 2024-05-10T00:10:00.000Z | 3          | null         | null                 
+qa              | 2024-05-10T00:11:00.000Z | 105        | step_change  | 1.011984481005772E-28
+qa              | 2024-05-10T00:12:00.000Z | 103        | null         | null                 
+qa              | 2024-05-10T00:13:00.000Z | 101        | null         | null                 
+qa              | 2024-05-10T00:14:00.000Z | 102        | null         | null                 
+qa              | 2024-05-10T00:15:00.000Z | 106        | null         | null                 
+qa              | 2024-05-10T00:16:00.000Z | 101        | null         | null                 
+qa              | 2024-05-10T00:17:00.000Z | 109        | null         | null                 
+qa              | 2024-05-10T00:18:00.000Z | 107        | null         | null                 
+qa              | 2024-05-10T00:19:00.000Z | 102        | null         | null                 
+qa              | 2024-05-10T00:20:00.000Z | 102        | null         | null                 
+qa              | 2024-05-10T00:21:00.000Z | 102        | null         | null                 
+qa              | 2024-05-10T00:22:00.000Z | 102        | null         | null                 
+staging         | 2024-05-10T00:00:00.000Z | 2          | null         | null                 
+staging         | 2024-05-10T00:02:00.000Z | 3          | null         | null                 
+staging         | 2024-05-10T00:03:00.000Z | 4          | null         | null                 
+staging         | 2024-05-10T00:06:00.000Z | 4          | null         | null                 
+staging         | 2024-05-10T00:08:00.000Z | 3          | null         | null                 
+staging         | 2024-05-10T00:09:00.000Z | 8          | null         | null                 
+staging         | 2024-05-10T00:10:00.000Z | 1          | null         | null                 
+staging         | 2024-05-10T00:11:00.000Z | 101        | null         | null                 
+staging         | 2024-05-10T00:12:00.000Z | 104        | null         | null                 
+staging         | 2024-05-10T00:13:00.000Z | 104        | null         | null                 
+staging         | 2024-05-10T00:14:00.000Z | 102        | trend_change | 2.002500754105796E-8 
+staging         | 2024-05-10T00:15:00.000Z | 103        | null         | null                 
+staging         | 2024-05-10T00:16:00.000Z | 103        | null         | null                 
+staging         | 2024-05-10T00:17:00.000Z | 101        | null         | null                 
+staging         | 2024-05-10T00:18:00.000Z | 104        | null         | null                 
+staging         | 2024-05-10T00:20:00.000Z | 104        | null         | null                 
+staging         | 2024-05-10T00:21:00.000Z | 102        | null         | null                 
+staging         | 2024-05-10T00:22:00.000Z | 104        | null         | null                 
+staging         | 2024-05-10T00:23:00.000Z | 101        | null         | null                 
+staging         | 2024-05-11T00:01:00.000Z | 101        | null         | null                 
+staging         | 2024-05-11T00:02:00.000Z | 101        | null         | null                 
+staging         | 2024-05-11T00:03:00.000Z | 101        | null         | null
+;
+
+
 detect dip (double)
 required_capability: change_point
 

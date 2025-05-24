@@ -127,6 +127,7 @@ public class ExpressionWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.expressions());
         entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
+        entries.add(Partition.ENTRY);
         entries.add(Order.ENTRY);
         return entries;
     }

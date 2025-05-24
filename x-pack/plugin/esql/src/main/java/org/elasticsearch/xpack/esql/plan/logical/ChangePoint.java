@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.Partition;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -45,15 +46,25 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
 
     private final Attribute value;
     private final Attribute key;
+    private final List<Attribute> partition;
     private final Attribute targetType;
     private final Attribute targetPvalue;
 
     private List<Attribute> output;
 
-    public ChangePoint(Source source, LogicalPlan child, Attribute value, Attribute key, Attribute targetType, Attribute targetPvalue) {
+    public ChangePoint(
+        Source source,
+        LogicalPlan child,
+        Attribute value,
+        Attribute key,
+        List<Attribute> partition,
+        Attribute targetType,
+        Attribute targetPvalue
+    ) {
         super(source, child);
         this.value = value;
         this.key = key;
+        this.partition = partition;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
     }
@@ -70,12 +81,12 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
 
     @Override
     protected NodeInfo<ChangePoint> info() {
-        return NodeInfo.create(this, ChangePoint::new, child(), value, key, targetType, targetPvalue);
+        return NodeInfo.create(this, ChangePoint::new, child(), value, key, partition, targetType, targetPvalue);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new ChangePoint(source(), newChild, value, key, targetType, targetPvalue);
+        return new ChangePoint(source(), newChild, value, key, partition, targetType, targetPvalue);
     }
 
     @Override
@@ -92,6 +103,10 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
 
     public Attribute key() {
         return key;
+    }
+
+    public List<Attribute> partition() {
+        return partition;
     }
 
     public Attribute targetType() {
@@ -114,7 +129,7 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
+        return Objects.hash(super.hashCode(), value, key, partition, targetType, targetPvalue);
     }
 
     @Override
@@ -122,6 +137,7 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
         return super.equals(other)
             && Objects.equals(value, ((ChangePoint) other).value)
             && Objects.equals(key, ((ChangePoint) other).key)
+            && Objects.equals(partition, ((ChangePoint) other).partition)
             && Objects.equals(targetType, ((ChangePoint) other).targetType)
             && Objects.equals(targetPvalue, ((ChangePoint) other).targetPvalue);
     }
@@ -132,16 +148,15 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
 
     @Override
     public LogicalPlan surrogate() {
-        OrderBy orderBy = new OrderBy(source(), child(), List.of(order()));
-        // The first Limit of N+1 data points is necessary to generate a possible warning,
-        Limit limit = new Limit(
+        TopN topN = new TopN(
             source(),
-            new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
-            orderBy
+            child(),
+            partition.stream().map(p -> new Partition(source(), p)).toList(),
+            List.of(order()),
+            // The Limit of N+1 data points is necessary to generate a possible warning
+            new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER)
         );
-        ChangePoint changePoint = new ChangePoint(source(), limit, value, key, targetType, targetPvalue);
-        // The second Limit of N data points is to truncate the output.
-        return new Limit(source(), new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
+        return new ChangePoint(source(), topN, value, key, partition, targetType, targetPvalue);
     }
 
     @Override

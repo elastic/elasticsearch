@@ -104,7 +104,7 @@ public final class CsvAssert {
                     actualSet = actualNames.get(column - 1) + "," + actualName;
                 }
 
-                assertEquals("Different column name [" + column + "]", expectedSet, actualSet);
+                assertEquals("Different column name [" + column + "]: " + actualName, expectedSet, actualSet);
             }
 
             var expectedType = expectedTypes.get(column);
@@ -280,7 +280,7 @@ public final class CsvAssert {
         fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static final int MAX_ROWS = 25;
+    private static final int MAX_ROWS = 250;
 
     private static String pipeTable(
         String description,

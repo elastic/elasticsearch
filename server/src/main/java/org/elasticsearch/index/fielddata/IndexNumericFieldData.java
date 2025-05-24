@@ -16,10 +16,13 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -41,9 +44,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      */
     public enum NumericType {
         BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        BYTE(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        SHORT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        INT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
         LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
@@ -110,27 +113,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-
-        // TODO: enable sort optimization for BYTE, SHORT and INT types
-        // They can use custom comparator logic, similarly to HalfFloatValuesComparatorSource.
-        // The problem comes from the fact that we use SortField.Type.LONG for all these types.
-        // Investigate how to resolve this.
-        switch (getNumericType()) {
-            case DATE_NANOSECONDS:
-            case DATE:
-            case LONG:
-            case DOUBLE:
-            case FLOAT:
-                // longs, doubles and dates use the same type for doc-values and points
-                // floats uses longs for doc-values, but Lucene's FloatComparator::getValueForDoc converts long value to float
-                sortField.setOptimizeSortWithPoints(isIndexed());
-                break;
-
-            default:
-                sortField.setOptimizeSortWithPoints(false);
-                break;
-        }
-
+        sortField.setOptimizeSortWithPoints(isIndexed());
         return sortField;
     }
 
@@ -150,6 +133,40 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+    }
+
+    @Override
+    public SortField sortField(
+        IndexVersion indexCreatedVersion,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        boolean reverse
+    ) {
+        SortField sortField = sortField(missingValue, sortMode, nested, reverse);
+        if (indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE) || getNumericType().sortFieldType != SortField.Type.INT) {
+            return sortField;
+        }
+        if ((sortField instanceof SortedNumericSortField) == false) {
+            return sortField;
+        }
+        // Rewrite INT sort to LONG sort.
+        // Before indices used TYPE.LONG for index sorting on integer field,
+        // and this is stored in their index writer config on disk and can't be modified.
+        // Now sortField() returns TYPE.INT when sorting on integer field,
+        // but to support sorting on old indices, we need to rewrite this sort to TYPE.LONG.
+        SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
+        SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
+            sortField.getField(),
+            SortField.Type.LONG,
+            sortField.getReverse(),
+            numericSortField.getSelector()
+        );
+        XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
+        rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
+        // we don't optimize sorting on int field for old indices
+        rewrittenSortField.setOptimizeSortWithPoints(false);
+        return rewrittenSortField;
     }
 
     /**
@@ -203,6 +220,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             case FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case HALF_FLOAT -> new HalfFloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case BYTE, SHORT, INT -> new IntValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
             case DATE -> dateComparatorSource(missingValue, sortMode, nested);
             case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);
             default -> {

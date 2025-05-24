@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -309,6 +311,66 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var inputList = (List<String>) requestMap.get("inputs");
             assertThat(inputList, contains("abc"));
         }
+    }
+
+    public void testSend_FailsFromInvalidResponseFormat_ForRerankAction() throws IOException {
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "rerank": [
+                        {
+                            "index": 0,
+                            "relevance_score": -0.07996031,
+                            "text": "luke"
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = HuggingFaceRerankModelTests.createModel(getUrl(webServer), "secret", "model", 8, true);
+            var actionCreator = new HuggingFaceActionCreator(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+            );
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs("popular name", List.of("Luke")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
+            );
+        }
+        assertRerankActionCreator(List.of("Luke"), "popular name", 8, true);
+    }
+
+    private void assertRerankActionCreator(List<String> documents, String query, int topN, boolean returnText) throws IOException {
+        assertThat(webServer.requests(), hasSize(1));
+        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertThat(
+            webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+            equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+        );
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+        var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+        assertThat(requestMap.size(), is(4));
+        assertThat(requestMap.get("texts"), is(documents));
+        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("top_n"), is(topN));
+        assertThat(requestMap.get("return_text"), is(returnText));
     }
 
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {

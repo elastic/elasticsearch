@@ -171,6 +171,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
+    static String mockRerankServiceModelConfig() {
+        return """
+            {
+              "service": "test_reranking_service",
+              "service_settings": {
+                 "model_id": "my_model",
+                 "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """;
+    }
+
     static void deleteModel(String modelId) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId);
         var response = client().performRequest(request);
@@ -484,6 +498,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         switch (taskType) {
+            case RERANK -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.RERANK.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
             case SPARSE_EMBEDDING -> {
                 var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
                 assertThat(results, hasSize(expectedNumberOfResults));

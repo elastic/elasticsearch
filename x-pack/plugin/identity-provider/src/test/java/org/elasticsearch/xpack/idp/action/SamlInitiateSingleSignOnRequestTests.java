@@ -9,6 +9,13 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -38,5 +45,38 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), equalTo(2));
         assertThat(validationException.validationErrors().get(0), containsString("entity_id is missing"));
         assertThat(validationException.validationErrors().get(1), containsString("acs is missing"));
+    }
+
+    public void testDuplicateAttributeKeysValidation() {
+        // Create request with valid required fields
+        final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
+        request.setSpEntityId("https://kibana_url");
+        request.setAssertionConsumerService("https://kibana_url/acs");
+
+        // Test with valid attribute keys
+        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
+        Map<String, List<String>> attributeMap = new HashMap<>();
+        attributeMap.put("key1", Collections.singletonList("value1"));
+        attributeMap.put("key2", Arrays.asList("value2A", "value2B"));
+        attributes.setAttributes(attributeMap);
+        request.setAttributes(attributes);
+
+        // Should pass validation
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("Request with valid attribute keys should pass validation", validationException);
+
+        // Test with empty attribute key - should be invalid
+        attributes = new SamlInitiateSingleSignOnAttributes();
+        attributeMap = new HashMap<>();
+        attributeMap.put("", Collections.singletonList("value1"));
+        attributeMap.put("unique_key", Collections.singletonList("value2"));
+        attributes.setAttributes(attributeMap);
+        request.setAttributes(attributes);
+
+        // Should fail validation with appropriate error message
+        validationException = request.validate();
+        assertNotNull("Request with empty attribute key should fail validation", validationException);
+        assertThat(validationException.validationErrors().size(), equalTo(1));
+        assertThat(validationException.validationErrors().get(0), containsString("attribute key cannot be null or empty"));
     }
 }

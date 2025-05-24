@@ -118,6 +118,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -280,6 +282,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
 
     @Override
     protected void doStart() {
@@ -405,6 +408,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchOperationListeners = builder.searchOperationListener;
         this.slowLogFieldProvider = builder.slowLogFieldProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
+        this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -794,7 +798,8 @@ public class IndicesService extends AbstractLifecycleComponent
             slowLogFieldProvider,
             mapperMetrics,
             searchOperationListeners,
-            indexStatsSettings
+            indexStatsSettings,
+            searchStatsSettings
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -892,7 +897,8 @@ public class IndicesService extends AbstractLifecycleComponent
             slowLogFieldProvider,
             mapperMetrics,
             searchOperationListeners,
-            indexStatsSettings
+            indexStatsSettings,
+            searchStatsSettings
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -953,7 +959,18 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+
+        ShardSearchLoadRateProvider shardSearchLoadRateProvider = pluginsService.loadSingletonServiceProvider(
+            ShardSearchLoadRateProvider.class,
+            () -> ShardSearchLoadRateProvider.DEFAULT
+        );
+
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            shardSearchLoadRateProvider
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(
             recoveryState,

@@ -39,9 +39,12 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
+import static java.lang.Math.random;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,7 +134,12 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsPreIndexOptions() throws Exception {
-        DocumentMapper mapper = getDocumentMapperPreviousVersion(fieldMapping(this::minimalMapping));
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            new Random(),
+            NEW_SPARSE_VECTOR_INDEX_VERSION,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+        );
+        DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         checkParsedDocument(mapper);
@@ -242,7 +250,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("prune", "othervalue");
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("[index_options] field [prune] should be true or false"));
+        assertThat(e.getMessage(), containsString("[index_options] failed to parse field [prune]"));
     }
 
     public void testPruningConfigurationIsMap() {
@@ -253,7 +261,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("pruning_config", "this_is_not_a_map");
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("pruning_config should be a map but was of type:"));
+        assertThat(e.getMessage(), containsString("[index_options] pruning_config doesn't support values of type:"));
     }
 
     public void testWithIndexOptionsPruningConfigPruneRequired() throws Exception {
@@ -268,10 +276,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestPruneIsFalse.getMessage(),
-            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
-        );
+        assertThat(eTestPruneIsFalse.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
 
         Exception eTestPruneIsMissing = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -284,7 +289,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestPruneIsMissing.getMessage(),
-            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
+            containsString("Failed to parse mapping: Failed to build [index_options] after last required field arrived")
         );
     }
 
@@ -300,10 +305,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             eTestInteger.getMessage(),
-            containsString(
-                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: "
-                    + "[0:0] [pruning_config] failed to parse field [tokens_freq_ratio_threshold]"
-            )
+            containsString("Failed to parse mapping: [0:0] [index_options] failed to parse field [pruning_config]")
         );
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -315,13 +317,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestRangeLower.getMessage(),
-            containsString(
-                "Failed to parse mapping: java.lang.IllegalArgumentException: "
-                    + "[tokens_freq_ratio_threshold] must be between [1] and [100], got -2.0"
-            )
-        );
+        assertThat(eTestRangeLower.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -332,13 +328,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestRangeHigher.getMessage(),
-            containsString(
-                "Failed to parse mapping: java.lang.IllegalArgumentException: "
-                    + "[tokens_freq_ratio_threshold] must be between [1] and [100], got 101"
-            )
-        );
+        assertThat(eTestRangeHigher.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
     }
 
     public void testTokensWeightThresholdCorrect() {
@@ -351,13 +341,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestDouble.getMessage(),
-            containsString(
-                "Failed to parse mapping: org.elasticsearch.xcontent.XContentParseException: "
-                    + "[0:0] [pruning_config] failed to parse field [tokens_weight_threshold]"
-            )
-        );
+        assertThat(eTestDouble.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
 
         Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -368,10 +352,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestRangeLower.getMessage(),
-            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_weight_threshold] must be between 0 and 1")
-        );
+        assertThat(eTestRangeLower.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
 
         Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "sparse_vector");
@@ -382,10 +363,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         })));
-        assertThat(
-            eTestRangeHigher.getMessage(),
-            containsString("Failed to parse mapping: java.lang.IllegalArgumentException: [tokens_weight_threshold] must be between 0 and 1")
-        );
+        assertThat(eTestRangeHigher.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
     }
 
     public void testStoreIsNotUpdateable() throws IOException {
@@ -541,11 +519,5 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
-    }
-
-    private final IndexVersion PRE_SPARSE_VECTOR_INDEX_OPTIONS_VERSION = IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC;
-
-    private DocumentMapper getDocumentMapperPreviousVersion(XContentBuilder mappings) throws IOException {
-        return createMapperService(PRE_SPARSE_VECTOR_INDEX_OPTIONS_VERSION, mappings).documentMapper();
     }
 }

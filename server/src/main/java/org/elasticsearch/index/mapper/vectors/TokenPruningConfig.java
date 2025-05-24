@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -191,7 +191,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         return new TokenPruningConfig(ratioThreshold, weightThreshold, onlyScorePrunedTokens);
     }
 
-    private static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
         PRUNING_CONFIG_FIELD,
         args -> new TokenPruningConfig(
             args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float) args[0],
@@ -201,9 +201,9 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD, TOKENS_FREQ_RATIO_THRESHOLD);
-        PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_TOKENS_WEIGHT_THRESHOLD, TOKENS_WEIGHT_THRESHOLD);
-        PARSER.declareBooleanOrNull(optionalConstructorArg(), false, ONLY_SCORE_PRUNED_TOKENS_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), TOKENS_FREQ_RATIO_THRESHOLD);
+        PARSER.declareFloat(optionalConstructorArg(), TOKENS_WEIGHT_THRESHOLD);
+        PARSER.declareBoolean(optionalConstructorArg(), ONLY_SCORE_PRUNED_TOKENS_FIELD);
     }
 
     public static TokenPruningConfig parseFromMap(Map<String, Object> pruningConfigMap) {
@@ -220,11 +220,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             );
 
             return PARSER.parse(parser, null);
-        } catch (Exception exc) {
-            if (exc.getCause() != null && exc.getCause().getClass().equals(IllegalArgumentException.class)) {
-                throw new ElasticsearchException(exc.getCause());
-            }
-            throw new ElasticsearchException(exc);
+        } catch (IOException ioEx) {
+            throw new UncheckedIOException(ioEx);
         }
     }
 }

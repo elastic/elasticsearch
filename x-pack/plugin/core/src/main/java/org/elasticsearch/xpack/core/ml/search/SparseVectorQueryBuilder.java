@@ -183,7 +183,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             || out.getTransportVersion().onOrAfter(TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
-            out.writeBoolean(shouldPruneTokens != null && shouldPruneTokens);
+            out.writeBoolean(shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
         }
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);

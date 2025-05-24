@@ -462,8 +462,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else {
+      } else if(base.image != null) {
         baseImages = [base.image]
+      } else {
+        baseImages = []
       }
 
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(

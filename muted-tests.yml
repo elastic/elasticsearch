@@ -480,6 +480,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {semantic_text}
   issue: https://github.com/elastic/elasticsearch/issues/128414
+- class: org.elasticsearch.index.query.MultiMatchQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/128416
 
 # Examples:
 #

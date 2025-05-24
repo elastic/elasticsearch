@@ -455,32 +455,80 @@ public abstract class Engine implements Closeable {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final PauseLock throttlingLock;
-        private final ReleasableLock lockReference;
+        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final Lock pauseIndexingLock = new ReentrantLock();
+        private final Condition pauseCondition = pauseIndexingLock.newCondition();
+        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
+        private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
+        private final boolean pauseWhenThrottled;
+        // private final PauseLock throttlingLock;
+        // private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
-            throttlingLock = new PauseLock(pause ? 0 : 1);
-            lockReference = new ReleasableLock(throttlingLock);
+            pauseWhenThrottled = pause;
+            // throttlingLock = new PauseLock(pause ? 0 : 1);
+            // lockReference = new ReleasableLock(throttlingLock);
         }
 
         public Releasable acquireThrottle() {
-            return lock.acquire();
+            if (lock == pauseLockReference) {
+                pauseLockReference.acquire();
+                try {
+                    while (pauseIndexing.getAcquire()) {
+                        // System.out.println("Waiting on pause indexing lock");
+                        logger.trace("Waiting on pause indexing lock");
+                        pauseCondition.await();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    // System.out.println("Acquired pause indexing lock");
+                    logger.trace("Acquired pause indexing lock");
+                }
+                return pauseLockReference;
+            } else {
+                return lock.acquire();
+            }
+
+            // return lock.acquire();
+
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            throttlingLock.throttle();
-            lock = lockReference;
+            // throttlingLock.throttle();
+            // lock = lockReference;
+            if (pauseWhenThrottled) {
+                pauseIndexing.setRelease(true);
+                lock = pauseLockReference;
+            } else {
+                lock = lockReference;
+            }
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            throttlingLock.unthrottle();
+            // throttlingLock.unthrottle();
+
+            if (lock == pauseLockReference) {
+                logger.trace("Deactivate index throttling pause");
+
+                // Signal the threads that are waiting on pauseCondition
+                pauseLockReference.acquire();
+                try {
+                    // System.out.println("Deactivate pause");
+                    pauseIndexing.setRelease(false);
+                    pauseCondition.signalAll();
+                } finally {
+                    pauseLockReference.close();
+                }
+            }
             lock = NOOP_LOCK;
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";

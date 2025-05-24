@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testThrottleStats
-  issue: https://github.com/elastic/elasticsearch/issues/126359
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009

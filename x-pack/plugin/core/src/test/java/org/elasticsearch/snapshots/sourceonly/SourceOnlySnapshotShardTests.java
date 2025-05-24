@@ -562,6 +562,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final Repository repository = new FsRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

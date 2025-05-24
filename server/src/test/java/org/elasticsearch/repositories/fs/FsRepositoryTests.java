@@ -102,6 +102,7 @@ public class FsRepositoryTests extends ESTestCase {
             int numDocs = indexDocs(directory);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
             FsRepository repository = new FsRepository(
+                randomProjectIdOrDefault(),
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
@@ -228,6 +229,7 @@ public class FsRepositoryTests extends ESTestCase {
             final AtomicBoolean shouldErrorForWriteMetadataBlob = new AtomicBoolean();
             final AtomicBoolean writeBlobErrored = new AtomicBoolean(false);
             final var repository = new FsRepository(
+                randomProjectIdOrDefault(),
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,

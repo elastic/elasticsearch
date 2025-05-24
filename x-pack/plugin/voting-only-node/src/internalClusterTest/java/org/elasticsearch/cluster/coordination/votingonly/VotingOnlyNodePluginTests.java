@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -277,7 +278,15 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",
-                (metadata) -> new AccessVerifyingRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new AccessVerifyingRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
 
@@ -286,6 +295,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             private final ClusterService clusterService;
 
             private AccessVerifyingRepo(
+                ProjectId projectId,
                 RepositoryMetadata metadata,
                 Environment environment,
                 NamedXContentRegistry namedXContentRegistry,
@@ -293,7 +303,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings
             ) {
-                super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+                super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
                 this.clusterService = clusterService;
             }
 

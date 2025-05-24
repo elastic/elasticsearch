@@ -35,6 +35,7 @@ public class URLRepositoryTests extends ESTestCase {
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
         return new URLRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()),

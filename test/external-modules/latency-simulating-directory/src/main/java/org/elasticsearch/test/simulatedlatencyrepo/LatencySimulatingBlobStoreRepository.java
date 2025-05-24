@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.simulatedlatencyrepo;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -30,6 +31,7 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
     private final Runnable simulator;
 
     protected LatencySimulatingBlobStoreRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment env,
         NamedXContentRegistry namedXContentRegistry,
@@ -38,7 +40,7 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
         RecoverySettings recoverySettings,
         Runnable simulator
     ) {
-        super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         this.simulator = simulator;
     }
 

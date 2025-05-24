@@ -153,6 +153,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
         return new S3Repository(
+            randomProjectIdOrDefault(),
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(mock(Environment.class), mock(ResourceWatcherService.class)),

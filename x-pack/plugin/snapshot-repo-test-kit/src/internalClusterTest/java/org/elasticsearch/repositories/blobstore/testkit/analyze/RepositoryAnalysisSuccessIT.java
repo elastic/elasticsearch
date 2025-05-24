@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -187,7 +188,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                metadata -> new AssertingRepository(
+                (projectId, metadata) -> new AssertingRepository(
+                    projectId,
                     metadata,
                     namedXContentRegistry,
                     clusterService,
@@ -217,6 +219,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
         AssertingRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
@@ -224,7 +227,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             BlobPath basePath
         ) {
-            super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         }
 
         void setBlobStore(BlobStore blobStore) {

@@ -593,6 +593,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 );
 
                 final BlobStoreRepository repository = new FsRepository(
+                    randomProjectIdOrDefault(),
                     repositoryMetadata,
                     new Environment(
                         Settings.builder()

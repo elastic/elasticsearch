@@ -17,6 +17,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
@@ -187,12 +188,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return true;
     }
 
-    static int countOperations(Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated)
+    static int countOperations(Engine.Searcher engineSearcher, IndexSettings indexSettings, long fromSeqNo, long toSeqNo)
         throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        return newIndexSearcher(engineSearcher).count(rangeQuery(fromSeqNo, toSeqNo, indexVersionCreated));
+        return newIndexSearcher(engineSearcher).count(rangeQuery(indexSettings, fromSeqNo, toSeqNo));
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

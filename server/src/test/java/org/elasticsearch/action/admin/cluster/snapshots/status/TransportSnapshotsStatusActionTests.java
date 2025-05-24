@@ -14,12 +14,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.CancellableTask;
@@ -196,6 +200,144 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             currentSnapshotEntries,
             nodeSnapshotStatuses,
             cancellableTask,
+            ActionListener.runAfter(listener, () -> listenerInvoked.set(true))
+        );
+        assertTrue("Expected listener to be invoked", listenerInvoked.get());
+    }
+
+    public void testShardSnapshotMissingDataFromNodeWhenNodeHasBeenRestarted() {
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("snapshot", "uuid"));
+        final var indexName = "test-index-name";
+        final var indexUuid = "test-index-uuid";
+        final var shardGeneration = new ShardGeneration("gen");
+        final var shardId2 = new ShardId(indexName, indexUuid, 2);
+        final var nowMsecs = System.currentTimeMillis();
+        final var eightKb = ByteSizeValue.ofKb(8).getBytes();
+
+        final var currentSnapshotEntries = List.of(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                randomBoolean(),
+                randomBoolean(),
+                SnapshotsInProgress.State.STARTED,
+                Map.of(indexName, new IndexId(indexName, indexUuid)),
+                List.of(),
+                List.of(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Map.of(
+                    new ShardId(indexName, indexUuid, 0),
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        "nodeId0",
+                        new ShardSnapshotResult(shardGeneration, ByteSizeValue.ofKb(5), 1)
+                    ),
+                    new ShardId(indexName, indexUuid, 1),
+                    new SnapshotsInProgress.ShardSnapshotStatus("nodeId1", shardGeneration),
+                    shardId2,
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        "nodeId2",
+                        new ShardSnapshotResult(shardGeneration, ByteSizeValue.ofKb(8), 1)
+                    )
+                ),
+                null,
+                Map.of(),
+                IndexVersion.current()
+            )
+        );
+        final var nodeSnapshotStatuses = new TransportNodesSnapshotsStatus.NodesSnapshotStatus(
+            clusterService.getClusterName(),
+            List.of(
+                new TransportNodesSnapshotsStatus.NodeSnapshotStatus(
+                    new DiscoveryNode(
+                        "nodeName0",
+                        "nodeId0",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9000),
+                        Map.of(),
+                        Set.of(),
+                        null
+                    ),
+                    // Here we are missing the snapshot data for the shard on this node.
+                    Map.of()
+                ),
+                new TransportNodesSnapshotsStatus.NodeSnapshotStatus(
+                    new DiscoveryNode(
+                        "nodeName2",
+                        "nodeId2",
+                        new TransportAddress(TransportAddress.META_ADDRESS, 9002),
+                        Map.of(),
+                        Set.of(),
+                        null
+                    ),
+                    Map.of(
+                        snapshot,
+                        Map.of(
+                            shardId2,
+                            new SnapshotIndexShardStatus(
+                                new ShardId(indexName, indexUuid, 2),
+                                SnapshotIndexShardStage.DONE,
+                                new SnapshotStats(nowMsecs, 0, 1, 1, 1, eightKb, eightKb, eightKb),
+                                "nodeId2",
+                                null
+                            )
+                        )
+                    )
+                )
+            ),
+            List.of()
+        );
+
+        final Consumer<SnapshotsStatusResponse> verifyResponse = rsp -> {
+            assertNotNull(rsp);
+            final var snapshotStatuses = rsp.getSnapshots();
+            assertNotNull(snapshotStatuses);
+            assertEquals(
+                "expected 1 snapshot status, got " + snapshotStatuses.size() + ": " + snapshotStatuses,
+                1,
+                snapshotStatuses.size()
+            );
+            final var snapshotStatus = snapshotStatuses.getFirst();
+            assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.getState());
+            final var shardStats = snapshotStatus.getShardsStats();
+            assertNotNull("expected non-null shard stats for SnapshotStatus: " + snapshotStatus, shardStats);
+            assertEquals(new SnapshotShardsStats(0, 1 /* started */, 0, 2 /* done */, 0, 3 /* total */), shardStats);
+            final var totalStats = snapshotStatus.getStats();
+            assertNotNull("expected non-null total stats for SnapshotStatus: " + snapshotStatus, snapshotStatus);
+            assertEquals("expected total file count to be 1 in the stats: " + totalStats, 1, totalStats.getTotalFileCount());
+            assertEquals("expected total size to be " + eightKb + " in the stats: " + totalStats, eightKb, totalStats.getTotalSize());
+            final var snapshotStatusIndices = snapshotStatus.getIndices();
+            assertNotNull("expected a non-null map from getIndices() from SnapshotStatus: " + snapshotStatus, snapshotStatusIndices);
+            final var snapshotIndexStatus = snapshotStatusIndices.get(indexName);
+            assertNotNull(
+                "no entry for indexName [" + indexName + "] found in snapshotStatusIndices: " + snapshotStatusIndices,
+                snapshotIndexStatus
+            );
+            final var shardMap = snapshotIndexStatus.getShards();
+            assertNotNull("expected a non-null shard map for SnapshotIndexStatus: " + snapshotIndexStatus, shardMap);
+            final var shard0Entry = shardMap.get(0);
+            assertNotNull("no entry for shard 0 found in indexName [" + indexName + "] shardMap: " + shardMap, shard0Entry);
+            assertNotNull("expected a description string for shard 0 with missing stats from node0", shard0Entry.getDescription());
+        };
+
+        final var listener = new ActionListener<SnapshotsStatusResponse>() {
+            @Override
+            public void onResponse(SnapshotsStatusResponse rsp) {
+                verifyResponse.accept(rsp);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expected onResponse() instead of onFailure(" + e + ")");
+            }
+        };
+
+        final var listenerInvoked = new AtomicBoolean(false);
+
+        action.buildResponse(
+            SnapshotsInProgress.EMPTY,
+            new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
+            currentSnapshotEntries,
+            nodeSnapshotStatuses,
+            new CancellableTask(randomLong(), "type", "action", "desc", null, Map.of()),
             ActionListener.runAfter(listener, () -> listenerInvoked.set(true))
         );
         assertTrue("Expected listener to be invoked", listenerInvoked.get());

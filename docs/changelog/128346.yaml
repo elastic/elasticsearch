@@ -1,0 +1,5 @@
+pr: 128346
+summary: Include direct memory and non-heap memory in ML memory calculations
+area: Machine Learning
+type: bug
+issues: []

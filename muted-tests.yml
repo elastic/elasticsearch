@@ -300,9 +300,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.xpack.esql.inference.RerankOperatorTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/124337
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
@@ -384,9 +381,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test024InstallPluginFromArchiveUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126936
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {rerank.Reranker before a limit ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/127051
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPlugins
   issue: https://github.com/elastic/elasticsearch/issues/127081
@@ -399,9 +393,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {rerank.Reranker using another sort order ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/127638
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/127096

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,33 +22,35 @@ public final class WeightedTokensUtils {
 
     private WeightedTokensUtils() {}
 
-    public static Query queryBuilderWithAllTokens(
+    public static QueryBuilder queryBuilderWithAllTokens(
         String fieldName,
         List<WeightedToken> tokens,
         MappedFieldType ft,
         SearchExecutionContext context
     ) {
-        var qb = new BooleanQuery.Builder();
+        var boolQuery = new BoolQueryBuilder();
 
         for (var token : tokens) {
-            qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
+            var termQuery = new TermQueryBuilder(fieldName, token.token());
+            boolQuery.should(termQuery.boost(token.weight()));
         }
-        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
+        boolQuery.minimumShouldMatch(1);
+        return boolQuery;
     }
 
-    public static Query queryBuilderWithPrunedTokens(
+    public static QueryBuilder queryBuilderWithPrunedTokens(
         String fieldName,
         TokenPruningConfig tokenPruningConfig,
         List<WeightedToken> tokens,
         MappedFieldType ft,
         SearchExecutionContext context
     ) throws IOException {
-        var qb = new BooleanQuery.Builder();
+        var boolQuery = new BoolQueryBuilder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
         float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(fieldName, context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
-            return new MatchNoDocsQuery("query is against an empty field");
+            return new BoolQueryBuilder().must(new TermQueryBuilder(fieldName, ""));
         }
 
         for (var token : tokens) {
@@ -65,11 +65,13 @@ public final class WeightedTokensUtils {
             );
             keep ^= tokenPruningConfig != null && tokenPruningConfig.isOnlyScorePrunedTokens();
             if (keep) {
-                qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
+                var termQuery = new TermQueryBuilder(fieldName, token.token());
+                boolQuery.should(termQuery.boost(token.weight()));
             }
         }
 
-        return new SparseVectorQueryWrapper(fieldName, qb.setMinimumNumberShouldMatch(1).build());
+        boolQuery.minimumShouldMatch(1);
+        return boolQuery;
     }
 
     /**
@@ -121,5 +123,4 @@ public final class WeightedTokensUtils {
         return tokenFreqRatio < tokenPruningConfig.getTokensFreqRatioThreshold() * averageTokenFreqRatio
             || token.weight() > tokenPruningConfig.getTokensWeightThreshold() * bestWeight;
     }
-
 }

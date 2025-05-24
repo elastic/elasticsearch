@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.TextExpansionQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -415,13 +414,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 TextExpansionQueryBuilder.NAME,
                 TextExpansionQueryBuilder::new,
                 TextExpansionQueryBuilder::fromXContent
-            ),
-            // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
-            // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
-            new SearchPlugin.QuerySpec<QueryBuilder>(
-                WeightedTokensQueryBuilder.NAME,
-                WeightedTokensQueryBuilder::new,
-                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }

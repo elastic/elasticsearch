@@ -1071,8 +1071,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
-        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
-
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());
@@ -1097,7 +1095,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only one selector separator is allowed per expression
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);

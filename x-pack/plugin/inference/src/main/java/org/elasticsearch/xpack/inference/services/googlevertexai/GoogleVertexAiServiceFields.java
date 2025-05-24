@@ -13,6 +13,10 @@ public class GoogleVertexAiServiceFields {
 
     public static final String PROJECT_ID = "project_id";
 
+    public static final String ENDPOINT_ID = "endpoint_id";
+
+    public static final String IS_DEDICATED_ENDPOINT = "is_dedicated_endpoint";
+
     /**
      * In `us-central-1` the max input size is `250`, but in every other region it's `5` according
      * to these docs: https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings/get-text-embeddings.

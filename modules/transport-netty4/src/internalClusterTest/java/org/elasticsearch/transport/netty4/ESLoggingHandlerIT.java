@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
 
@@ -27,7 +28,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
+        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class, ClusterConnectionManager.class);
     }
 
     public void tearDown() throws Exception {
@@ -117,6 +118,26 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
                 ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\], exception:.*"
+            )
+        );
+
+        final String nodeName = internalCluster().startNode();
+        internalCluster().restartNode(nodeName);
+
+        mockLog.assertAllExpectationsMatched();
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.transport.ClusterConnectionManager:WARN",
+        reason = "to ensure we log cluster manager disconnect events on WARN level"
+    )
+    public void testExceptionalDisconnectLoggingInClusterConnectionManager() throws Exception {
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
+                "cluster connection manager exceptional disconnect log",
+                ClusterConnectionManager.class.getCanonicalName(),
+                Level.WARN,
+                "transport connection to \\[.*\\] closed (by remote )?with exception .*"
             )
         );
 

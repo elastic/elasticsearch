@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -49,6 +50,16 @@ public interface ConnectionManager extends Closeable {
     void closeNoBlock();
 
     ConnectionProfile getConnectionProfile();
+
+    /**
+     * Keep the connection history for the nodes listed
+     */
+    void retainConnectionHistory(List<DiscoveryNode> nodes);
+
+    /**
+     * Exposed for tests
+     */
+    int connectionHistorySize();
 
     @FunctionalInterface
     interface ConnectionValidator {

@@ -160,24 +160,45 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final DiscoveryNode remoteClose = nodeFactory.get();
         final DiscoveryNode localClose = nodeFactory.get();
         final DiscoveryNode shutdownClose = nodeFactory.get();
+        final DiscoveryNode localException = nodeFactory.get();
+        final DiscoveryNode remoteException = nodeFactory.get();
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
             final DiscoveryNode discoveryNode = (DiscoveryNode) invocationOnMock.getArguments()[0];
-            listener.onResponse(new TestConnect(discoveryNode));
+            Transport.Connection conn;
+            if (discoveryNode == localException || discoveryNode == remoteException) {
+                conn = new TestConnect(discoveryNode) {
+                    @Override
+                    public void close() {
+                        closeAndFail(new RuntimeException());
+                    }
+                };
+            } else {
+                conn = new TestConnect(discoveryNode);
+            }
+            listener.onResponse(conn);
             return null;
         }).when(transport).openConnection(any(), eq(connectionProfile), anyActionListener());
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
         final AtomicReference<Releasable> toClose = new AtomicReference<>();
+        final AtomicReference<Releasable> localExceptionReleasable = new AtomicReference<>();
 
         safeAwait(l -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, l.map(x -> null)));
         safeAwait(l -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, l.map(x -> null)));
         safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(toClose::getAndSet)));
+        safeAwait(
+            l -> connectionManager.connectToNode(localException, connectionProfile, validator, l.map(localExceptionReleasable::getAndSet))
+        );
+        safeAwait(l -> connectionManager.connectToNode(remoteException, connectionProfile, validator, l.map(x -> null)));
 
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
+
+        final Releasable localExceptionRef = localExceptionReleasable.getAndSet(null);
+        assertThat(localExceptionRef, notNullValue());
 
         try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
             mockLog.addExpectation(
@@ -186,6 +207,14 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "reconnection after regular close",
+                    ClusterConnectionManager.class.getCanonicalName(),
+                    Level.WARN,
+                    "transport connection reopened to node with same ephemeralId \\[.*" + localClose.getEphemeralId() + ".*\\]$"
                 )
             );
             mockLog.addExpectation(
@@ -207,9 +236,64 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "connection manager shut down, closing transport connection to [" + shutdownClose + "]"
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "locally-triggered close message with exception",
+                    ClusterConnectionManager.class.getCanonicalName(),
+                    Level.WARN,
+                    "transport connection to ["
+                        + localException.descriptionWithoutAttributes()
+                        + "] closed with exception [java.lang.RuntimeException]; "
+                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reconnection after exceptional close logs exception",
+                    ClusterConnectionManager.class.getCanonicalName(),
+                    Level.WARN,
+                    "transport connection reopened to node with same ephemeralId ["
+                        + localException.descriptionWithoutAttributes()
+                        + "], close exception:"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "remotely-triggered close message with exception",
+                    ClusterConnectionManager.class.getCanonicalName(),
+                    Level.WARN,
+                    "transport connection to ["
+                        + remoteException.descriptionWithoutAttributes()
+                        + "] closed by remote with exception [java.lang.RuntimeException]; "
+                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "connection history trimmed to size",
+                    ClusterConnectionManager.class.getCanonicalName(),
+                    Level.TRACE,
+                    "Connection history garbage-collected from 2 to 0 entries"
+                )
+            );
 
             Releasables.close(localConnectionRef);
+            assertTrue("localConnection should be listed", connectionManager.connectionHistorySize() == 1);
+            safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(x -> null)));
+            assertTrue("localConnection should be removed on successful reconnect", connectionManager.connectionHistorySize() == 0);
+
+            Releasables.close(localExceptionRef);
+            assertTrue("localException should be listed", connectionManager.connectionHistorySize() == 1);
+            safeAwait(l -> connectionManager.connectToNode(localException, connectionProfile, validator, l.map(x -> null)));
+            assertTrue("localException should be removed", connectionManager.connectionHistorySize() == 0);
+
             connectionManager.disconnectFromNode(remoteClose);
+            connectionManager.disconnectFromNode(remoteException);
+            assertTrue("recent disconnects should be listed", connectionManager.connectionHistorySize() == 2);
+
+            connectionManager.retainConnectionHistory(Collections.emptyList());
+            assertTrue("connection history should be emptied", connectionManager.connectionHistorySize() == 0);
+
             connectionManager.close();
 
             mockLog.assertAllExpectationsMatched();

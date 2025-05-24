@@ -80,6 +80,7 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  runtimeOnly "com.nimbusds:content-type:2.3"
   api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
   if (isEclipse) {
     /*

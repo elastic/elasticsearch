@@ -14,6 +14,17 @@ module org.elasticsearch.plugin.security.authz {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.logging;
+    requires org.apache.httpcomponents.httpclient;
+    requires org.apache.httpcomponents.httpcore;
+    requires com.microsoft.kiota;
+    requires com.microsoft.graph;
+    requires com.azure.identity;
+    requires com.microsoft.graph.core;
+    // FIXME both of these module includes are load bearing, because this project is cursed
+    // we don't need either of these in the plugin, but without the Kotlin include, the plugin fails to compile; without the gson include,
+    // we get a NoClassDefFoundError at runtime
+    requires kotlin.stdlib;
+    requires com.google.gson;
 
     provides org.elasticsearch.xpack.core.security.SecurityExtension with MicrosoftGraphAuthzPlugin;
 }

@@ -1,0 +1,6 @@
+pr: 128298
+summary: Better handling of node ids from shutdown metadata (avoid NPE on already removed nodes)
+area: Infra/Node Lifecycle
+type: bug
+issues:
+ - 100201

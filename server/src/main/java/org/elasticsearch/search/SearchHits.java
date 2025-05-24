@@ -157,16 +157,9 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
-        final boolean hasTotalHits = totalHits != null;
-        out.writeBoolean(hasTotalHits);
-        if (hasTotalHits) {
-            Lucene.writeTotalHits(out, totalHits);
-        }
-        out.writeFloat(maxScore);
+        writeHeader(out);
         out.writeArray(hits);
-        out.writeOptional(Lucene::writeSortFieldArray, sortFields);
-        out.writeOptionalString(collapseField);
-        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+        writeFooter(out);
     }
 
     /**
@@ -258,6 +251,37 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             hits[i].decRef();
             hits[i] = null;
         }
+    }
+
+    public void writeAndRelease(StreamOutput out) throws IOException {
+        boolean released = refCounted.decRef();
+        assert released;
+        writeHeader(out);
+        var hits = this.hits;
+        out.writeVInt(hits.length);
+        for (int i = 0; i < hits.length; i++) {
+            var h = hits[i];
+            hits[i] = null;
+            assert h != null;
+            h.writeTo(out);
+            h.decRef();
+        }
+        writeFooter(out);
+    }
+
+    private void writeFooter(StreamOutput out) throws IOException {
+        out.writeOptional(Lucene::writeSortFieldArray, sortFields);
+        out.writeOptionalString(collapseField);
+        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+    }
+
+    private void writeHeader(StreamOutput out) throws IOException {
+        final boolean hasTotalHits = totalHits != null;
+        out.writeBoolean(hasTotalHits);
+        if (hasTotalHits) {
+            Lucene.writeTotalHits(out, totalHits);
+        }
+        out.writeFloat(maxScore);
     }
 
     @Override

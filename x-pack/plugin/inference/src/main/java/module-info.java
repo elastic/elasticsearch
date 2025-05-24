@@ -46,6 +46,7 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.chunking;
     exports org.elasticsearch.xpack.inference.telemetry;
+    exports org.elasticsearch.xpack.inference.rank.textsimilarity;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

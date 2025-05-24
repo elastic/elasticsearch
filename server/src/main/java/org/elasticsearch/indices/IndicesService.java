@@ -294,10 +294,6 @@ public class IndicesService extends AbstractLifecycleComponent
     IndicesService(IndicesServiceBuilder builder) {
         this.settings = builder.settings;
         this.threadPool = builder.threadPool;
-        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            threadPool,
-            settings
-        );
         this.pluginsService = builder.pluginsService;
         this.nodeEnv = builder.nodeEnv;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
@@ -320,6 +316,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            nodeEnv
+        );
         this.projectResolver = builder.projectResolver;
         this.client = builder.client;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
@@ -367,7 +368,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     indicesFieldDataCache,
                     cacheCleaner,
                     indicesRequestCache,
-                    indicesQueryCache
+                    indicesQueryCache,
+                    threadPoolMergeExecutorService
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

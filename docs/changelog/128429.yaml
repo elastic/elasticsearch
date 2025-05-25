@@ -1,4 +1,4 @@
-pr: 127949
+pr: 128429
 summary: Refactor Greatest and Least functions to use evaluator map
 area: ES|QL
 type: bug

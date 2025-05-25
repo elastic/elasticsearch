@@ -893,13 +893,26 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      *     <li>The repository metadata should be associated to an already registered non-internal repository type and factory pair.</li>
      * </ul>
      *
-     * @param projectId the project that the repository is associated with. May be null if the repository is at cluster level
+     * @param projectId the project that the repository is associated with
      * @param repositoryMetadata the repository metadata
      * @return the started repository
      * @throws RepositoryException if repository type is not registered
      */
-    public Repository createRepository(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        return createRepository(projectId, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+    public Repository createRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        return createRepository(
+            Objects.requireNonNull(projectId),
+            repositoryMetadata,
+            typesRegistry,
+            RepositoriesService::throwRepositoryTypeDoesNotExists
+        );
+    }
+
+    /**
+     * Similar to {@link #createRepository(ProjectId, RepositoryMetadata)}, but repository is not associated with a project, i.e. the
+     * repository is at the cluster level.
+     */
+    public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
+        return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {

@@ -28,7 +28,7 @@ import org.apache.lucene.search.Weight;
 import java.io.IOException;
 import java.util.Objects;
 
-final class SeqnoRangeQuery extends Query {
+public final class SeqnoRangeQuery extends Query {
 
     final long lowerValue;
     final long upperValue;
@@ -36,6 +36,14 @@ final class SeqnoRangeQuery extends Query {
     SeqnoRangeQuery(long lowerValue, long upperValue) {
         this.lowerValue = lowerValue;
         this.upperValue = upperValue;
+    }
+
+    public long getLowerValue() {
+        return lowerValue;
+    }
+
+    public long getUpperValue() {
+        return upperValue;
     }
 
     @Override

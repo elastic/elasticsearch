@@ -13,6 +13,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.SeqnoRangeQuery;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
@@ -75,8 +76,8 @@ public class SoftDeletesPolicyTests extends ESTestCase {
 
             // getting the query has side effects, updating the internal state of the policy
             final Query query = policy.getRetentionQuery();
-            assertThat(query, instanceOf(PointRangeQuery.class));
-            final PointRangeQuery retentionQuery = (PointRangeQuery) query;
+            assertThat(query, instanceOf(SeqnoRangeQuery.class));
+            final SeqnoRangeQuery retentionQuery = (SeqnoRangeQuery) query;
 
             // we only expose the minimum sequence number to the merge policy if the retention lock is not held
             if (locks.isEmpty()) {
@@ -90,9 +91,8 @@ public class SoftDeletesPolicyTests extends ESTestCase {
                 );
                 minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
             }
-            assertThat(retentionQuery.getNumDims(), equalTo(1));
-            assertThat(LongPoint.decodeDimension(retentionQuery.getLowerPoint(), 0), equalTo(minRetainedSeqNo));
-            assertThat(LongPoint.decodeDimension(retentionQuery.getUpperPoint(), 0), equalTo(Long.MAX_VALUE));
+            assertThat(retentionQuery.getLowerValue(), equalTo(minRetainedSeqNo));
+            assertThat(retentionQuery.getUpperValue(), equalTo(Long.MAX_VALUE));
             assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
         }
 

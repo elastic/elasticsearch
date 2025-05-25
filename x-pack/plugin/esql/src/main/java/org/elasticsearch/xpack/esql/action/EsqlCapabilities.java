@@ -1112,7 +1112,12 @@ public class EsqlCapabilities {
         /**
          * The {@code ROUND_TO} function.
          */
-        ROUND_TO;
+        ROUND_TO,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;
 
         private final boolean enabled;
 

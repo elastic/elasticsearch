@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.SeqnoRangeQuery;

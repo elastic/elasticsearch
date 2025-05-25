@@ -70,6 +70,9 @@ public class CsvTestsDataLoader {
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
     ).withSetting("languages_lookup-settings.json");
+    private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
+        "languages_lookup-settings.json"
+    );
     private static final TestDataset ALERTS = new TestDataset("alerts");
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
     private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
@@ -128,6 +131,7 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
         Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
+        Map.entry(LANGUAGES_MIX_NUMERICS.indexName, LANGUAGES_MIX_NUMERICS),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),

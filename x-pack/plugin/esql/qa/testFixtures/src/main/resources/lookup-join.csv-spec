@@ -389,10 +389,10 @@ warning:Line 4:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] 
 warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 emp_no:integer | language_code:integer | language_name:keyword
-10001          | 1                     | English              
-10002          | [-7, 11]              | null                 
-10003          | [12, 14]              | null                 
-10004          | [0, 1, 3, 13]         | null                 
+10001          | 1                     | English
+10002          | [-7, 11]              | null
+10003          | [12, 14]              | null
+10004          | [0, 1, 3, 13]         | null
 10005          | [-2, 13]              | null
 ;
 
@@ -436,10 +436,10 @@ warning:Line 5:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] 
 warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 emp_no:integer | language_code:integer | language_name:keyword
-10001          | 1                     | English              
-10002          | [-7, 11]              | null                 
-10003          | [12, 14]              | null                 
-10004          | [0, 1, 3, 13]         | null                 
+10001          | 1                     | English
+10002          | [-7, 11]              | null
+10003          | [12, 14]              | null
+10004          | [0, 1, 3, 13]         | null
 10005          | [-2, 13]              | null
 ;
 
@@ -1094,7 +1094,7 @@ FROM sample_data
 ;
 ignoreOrder:true
 
-@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword 
+@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success       | 172.21.3.15      | null
 2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error         | 172.21.3.15      | null
 2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error         | 172.21.3.15      | null
@@ -1117,7 +1117,7 @@ FROM sample_data
 ;
 ignoreOrder:true
 
-@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword 
+@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success       | 172.21.3.15      | null
 2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error         | 172.21.3.15      | null
 2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error         | 172.21.3.15      | null
@@ -1591,12 +1591,12 @@ salary_change.long:double|foo:long
 joinMaskingEval
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_eval
-from languag* 
-| eval type = null 
-| rename language_name as message 
-| lookup join message_types_lookup on message 
-| rename type as message 
-| lookup join message_types_lookup on message 
+from languag*, -languages_mixed_numerics
+| eval type = null
+| rename language_name as message
+| lookup join message_types_lookup on message
+| rename type as message
+| lookup join message_types_lookup on message
 | keep `language.name`
 ;
 
@@ -1655,13 +1655,13 @@ dropAgainWithWildcardAfterEval2
 required_capability: join_lookup_v12
 required_capability: drop_again_with_wildcard_after_eval
 from addresses,cartesian_multipolygons,hosts
-| rename city.name as message 
-| lookup join message_types_lookup on message 
-| eval  card = -6013949614291505456, hOntTwnVC = null, PQAF = null, DXkxCFXyw = null, number = -7336429038807752405 
-| eval  dewAwHC = -1186293612, message = null 
-| sort number ASC, street ASC, ip0 DESC, name ASC NULLS FIRST, host ASC 
-| drop number, host_group, *umber, `city.country.continent.name`, dewAwHC, `zip_code`, `message`, city.country.continent.planet.name, `name`, `ip1`, message, zip_code 
-| drop description, *e, id 
+| rename city.name as message
+| lookup join message_types_lookup on message
+| eval  card = -6013949614291505456, hOntTwnVC = null, PQAF = null, DXkxCFXyw = null, number = -7336429038807752405
+| eval  dewAwHC = -1186293612, message = null
+| sort number ASC, street ASC, ip0 DESC, name ASC NULLS FIRST, host ASC
+| drop number, host_group, *umber, `city.country.continent.name`, dewAwHC, `zip_code`, `message`, city.country.continent.planet.name, `name`, `ip1`, message, zip_code
+| drop description, *e, id
 | keep `hOntTwnVC`, city.country.continent.planet.galaxy, street
 | limit 5
 ;
@@ -1680,24 +1680,24 @@ joinMaskingRegex
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
-from books,message_*,ul* 
-| enrich languages_policy on status 
-| drop `language_name`, `bytes_out`, `id`, id 
-| dissect book_no "%{type}" 
-| dissect author.keyword "%{HZicfARaID}" 
-| mv_expand `status` 
-| sort HZicfARaID, year DESC NULLS LAST, publisher DESC NULLS FIRST, description DESC, type NULLS LAST, message ASC NULLS LAST, title NULLS FIRST, status NULLS LAST 
-| enrich languages_policy on book_no 
-| grok message "%{WORD:DiLNyZKNDu}" 
+from books,message_*,ul*
+| enrich languages_policy on status
+| drop `language_name`, `bytes_out`, `id`, id
+| dissect book_no "%{type}"
+| dissect author.keyword "%{HZicfARaID}"
+| mv_expand `status`
+| sort HZicfARaID, year DESC NULLS LAST, publisher DESC NULLS FIRST, description DESC, type NULLS LAST, message ASC NULLS LAST, title NULLS FIRST, status NULLS LAST
+| enrich languages_policy on book_no
+| grok message "%{WORD:DiLNyZKNDu}"
 | limit 7972
-| rename year as language_code 
-| lookup join languages_lookup on language_code 
-| limit 13966 
+| rename year as language_code
+| lookup join languages_lookup on language_code
+| limit 13966
 | stats  rcyIZnSOb = min(language_code), `ratings` = min(@timestamp), dgDxwMeFYrD = count(`@timestamp`), ifyZfXigqVN = count(*), qTXdrzSpY = min(language_code) by author.keyword
-| rename author.keyword as message 
-| lookup join message_types_lookup on message 
-| stats  `ratings` = count(*) by type 
-| stats  `type` = count(type), `ratings` = count(*) 
+| rename author.keyword as message
+| lookup join message_types_lookup on message
+| stats  `ratings` = count(*) by type
+| stats  `type` = count(type), `ratings` = count(*)
 | keep `ratings`, ratings
 ;
 
@@ -1710,7 +1710,7 @@ joinMaskingDissect
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
 from sample_data
-| dissect message "%{type}" 
+| dissect message "%{type}"
 | drop type
 | lookup join message_types_lookup on message
 | stats count = count(*) by type
@@ -1741,4 +1741,2823 @@ max:long
 1232382
 3450233
 8268153
+;
+
+byteJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_short = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:short | language_name:keyword
+-128                      | min_byte
+1                         | English
+2                         | French
+3                         | Spanish
+4                         | German
+127                       | max_byte
+;
+
+byteJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_integer = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:integer | language_name:keyword
+-128                          | min_byte
+1                             | English
+2                             | French
+3                             | Spanish
+4                             | German
+127                           | max_byte
+;
+
+byteJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_long = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:long | language_name:keyword
+-128                    | min_byte
+1                       | English
+2                       | French
+3                       | Spanish
+4                       | German
+127                     | max_byte
+;
+
+byteJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_half_float = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:integer | language_name:keyword
+-128                             | min_byte
+1                                | English
+2                                | French
+3                                | Spanish
+4                                | German
+127                              | max_byte
+;
+
+byteJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_scaled_float = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:integer | language_name:keyword
+-128                               | min_byte
+1                                  | English
+2                                  | French
+3                                  | Spanish
+4                                  | German
+127                                | max_byte
+;
+
+byteJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_float = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:integer | language_name:keyword
+-128                        | min_byte
+1                           | English
+2                           | French
+3                           | Spanish
+4                           | German
+127                         | max_byte
+;
+
+byteJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte is not null
+| EVAL language_code_double = language_code_byte
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:integer | language_name:keyword
+-128                         | min_byte
+1                            | English
+2                            | French
+3                            | Spanish
+4                            | German
+127                          | max_byte
+;
+
+shortJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_byte = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:integer | language_name:keyword
+-32768                     | null
+-129                       | null
+-128                       | min_byte
+1                          | English
+2                          | French
+3                          | Spanish
+4                          | German
+127                        | max_byte
+128                        | null
+32767                      | null
+;
+
+shortJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_integer = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:integer | language_name:keyword
+-32768                        | min_short
+-129                          | min_byte_minus_1
+-128                          | min_byte
+1                             | English
+2                             | French
+3                             | Spanish
+4                             | German
+127                           | max_byte
+128                           | max_byte_plus_1
+32767                         | max_short
+;
+
+shortJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_long = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:long | language_name:keyword
+-32768                        | min_short
+-129                          | min_byte_minus_1
+-128                          | min_byte
+1                             | English
+2                             | French
+3                             | Spanish
+4                             | German
+127                           | max_byte
+128                           | max_byte_plus_1
+32767                         | max_short
+;
+
+shortJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_half_float = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:integer | language_name:keyword
+-32768                           | min_short
+-32768                           | min_short_minus_1
+-129                             | min_byte_minus_1
+-128                             | min_byte
+1                                | English
+2                                | French
+3                                | Spanish
+4                                | German
+127                              | max_byte
+128                              | max_byte_plus_1
+32767                            | max_short
+32767                            | max_short_plus_1
+;
+
+shortJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_scaled_float = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:integer | language_name:keyword
+-32768                             | min_short
+-129                               | min_byte_minus_1
+-128                               | min_byte
+1                                  | English
+2                                  | French
+3                                  | Spanish
+4                                  | German
+127                                | max_byte
+128                                | max_byte_plus_1
+32767                              | max_short
+;
+
+shortJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_float = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:integer | language_name:keyword
+-32768                      | min_short
+-129                        | min_byte_minus_1
+-128                        | min_byte
+1                           | English
+2                           | French
+3                           | Spanish
+4                           | German
+127                         | max_byte
+128                         | max_byte_plus_1
+32767                       | max_short
+;
+
+shortJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short is not null
+| EVAL language_code_double = language_code_short
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:integer | language_name:keyword
+-32768                       | min_short
+-129                         | min_byte_minus_1
+-128                         | min_byte
+1                            | English
+2                            | French
+3                            | Spanish
+4                            | German
+127                          | max_byte
+128                          | max_byte_plus_1
+32767                        | max_short
+;
+
+intJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_byte = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:integer | language_name:keyword
+-2147483648                | null
+-65505                     | null
+-65504                     | null
+-32769                     | null
+-32768                     | null
+-129                       | null
+-128                       | min_byte
+1                          | English
+2                          | French
+3                          | Spanish
+4                          | German
+127                        | max_byte
+128                        | null
+32767                      | null
+32768                      | null
+65504                      | null
+65505                      | null
+2147483646                 | null
+2147483647                 | null
+;
+
+intJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_short = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:integer | language_name:keyword
+-2147483648                 | null
+-65505                      | null
+-65504                      | null
+-32769                      | null
+-32768                      | min_short
+-129                        | min_byte_minus_1
+-128                        | min_byte
+1                           | English
+2                           | French
+3                           | Spanish
+4                           | German
+127                         | max_byte
+128                         | max_byte_plus_1
+32767                       | max_short
+32768                       | null
+65504                       | null
+65505                       | null
+2147483646                  | null
+2147483647                  | null
+;
+
+intJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_long = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:integer | language_name:keyword
+-2147483648                | min_int
+-65505                     | min_half_float_minus_1
+-65504                     | min_half_float
+-32769                     | min_short_minus_1
+-32768                     | min_short
+-129                       | min_byte_minus_1
+-128                       | min_byte
+1                          | English
+2                          | French
+3                          | Spanish
+4                          | German
+127                        | max_byte
+128                        | max_byte_plus_1
+32767                      | max_short
+32768                      | max_short_plus_1
+65504                      | max_half_float
+65505                      | max_half_float_plus_1
+2147483646                 | max_int_minus_1
+2147483647                 | max_int
+;
+
+intJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_half_float = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:integer | language_name:keyword
+-2147483648                      | null
+-65505                           | min_half_float
+-65505                           | min_half_float_minus_1
+-65504                           | min_half_float
+-65504                           | min_half_float_minus_1
+-32769                           | min_short
+-32769                           | min_short_minus_1
+-32768                           | min_short
+-32768                           | min_short_minus_1
+-129                             | min_byte_minus_1
+-128                             | min_byte
+1                                | English
+2                                | French
+3                                | Spanish
+4                                | German
+127                              | max_byte
+128                              | max_byte_plus_1
+32767                            | max_short
+32767                            | max_short_plus_1
+32768                            | max_short
+32768                            | max_short_plus_1
+65504                            | max_half_float
+65504                            | max_half_float_plus_1
+65505                            | max_half_float
+65505                            | max_half_float_plus_1
+2147483646                       | null
+2147483647                       | null
+;
+
+intJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_scaled_float = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:integer | language_name:keyword
+-2147483648                        | min_int
+-65505                             | min_half_float_minus_1
+-65504                             | min_half_float
+-32769                             | min_short_minus_1
+-32768                             | min_short
+-129                               | min_byte_minus_1
+-128                               | min_byte
+1                                  | English
+2                                  | French
+3                                  | Spanish
+4                                  | German
+127                                | max_byte
+128                                | max_byte_plus_1
+32767                              | max_short
+32768                              | max_short_plus_1
+65504                              | max_half_float
+65505                              | max_half_float_plus_1
+2147483646                         | max_int_minus_1
+2147483647                         | max_int
+;
+
+intJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_float = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:integer | language_name:keyword
+-2147483648                 | min_int
+-2147483648                 | min_int_minus_1
+-65505                      | min_half_float_minus_1
+-65504                      | min_half_float
+-32769                      | min_short_minus_1
+-32768                      | min_short
+-129                        | min_byte_minus_1
+-128                        | min_byte
+1                           | English
+2                           | French
+3                           | Spanish
+4                           | German
+127                         | max_byte
+128                         | max_byte_plus_1
+32767                       | max_short
+32768                       | max_short_plus_1
+65504                       | max_half_float
+65505                       | max_half_float_plus_1
+2147483646                  | max_int
+2147483646                  | max_int_minus_1
+2147483646                  | max_int_plus_1
+2147483647                  | max_int
+2147483647                  | max_int_minus_1
+2147483647                  | max_int_plus_1
+;
+
+intJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer is not null
+| EVAL language_code_double = language_code_integer
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:integer | language_name:keyword
+-2147483648                  | min_int
+-65505                       | min_half_float_minus_1
+-65504                       | min_half_float
+-32769                       | min_short_minus_1
+-32768                       | min_short
+-129                         | min_byte_minus_1
+-128                         | min_byte
+1                            | English
+2                            | French
+3                            | Spanish
+4                            | German
+127                          | max_byte
+128                          | max_byte_plus_1
+32767                        | max_short
+32768                        | max_short_plus_1
+65504                        | max_half_float
+65505                        | max_half_float_plus_1
+2147483646                   | max_int_minus_1
+2147483647                   | max_int
+;
+
+longJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_byte = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:long | language_name:keyword
+-9223372036854775808    | null
+-2147483649             | null
+-2147483648             | null
+-65505                  | null
+-65504                  | null
+-32769                  | null
+-32768                  | null
+-129                    | null
+-128                    | min_byte
+1                       | English
+2                       | French
+3                       | Spanish
+4                       | German
+127                     | max_byte
+128                     | null
+32767                   | null
+32768                   | null
+65504                   | null
+65505                   | null
+2147483646              | null
+2147483647              | null
+2147483648              | null
+9223372036854775806     | null
+9223372036854775807     | null
+;
+
+longJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_short = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:long | language_name:keyword
+-9223372036854775808     | null
+-2147483649              | null
+-2147483648              | null
+-65505                   | null
+-65504                   | null
+-32769                   | null
+-32768                   | min_short
+-129                     | min_byte_minus_1
+-128                     | min_byte
+1                        | English
+2                        | French
+3                        | Spanish
+4                        | German
+127                      | max_byte
+128                      | max_byte_plus_1
+32767                    | max_short
+32768                    | null
+65504                    | null
+65505                    | null
+2147483646               | null
+2147483647               | null
+2147483648               | null
+9223372036854775806      | null
+9223372036854775807      | null
+;
+
+longJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_integer = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:long | language_name:keyword
+-9223372036854775808       | null
+-2147483649                | null
+-2147483648                | min_int
+-65505                     | min_half_float_minus_1
+-65504                     | min_half_float
+-32769                     | min_short_minus_1
+-32768                     | min_short
+-129                       | min_byte_minus_1
+-128                       | min_byte
+1                          | English
+2                          | French
+3                          | Spanish
+4                          | German
+127                        | max_byte
+128                        | max_byte_plus_1
+32767                      | max_short
+32768                      | max_short_plus_1
+65504                      | max_half_float
+65505                      | max_half_float_plus_1
+2147483646                 | max_int_minus_1
+2147483647                 | max_int
+2147483648                 | null
+9223372036854775806        | null
+9223372036854775807        | null
+;
+
+longJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_half_float = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:long | language_name:keyword
+-9223372036854775808          | null
+-2147483649                   | null
+-2147483648                   | null
+-65505                        | min_half_float
+-65505                        | min_half_float_minus_1
+-65504                        | min_half_float
+-65504                        | min_half_float_minus_1
+-32769                        | min_short
+-32769                        | min_short_minus_1
+-32768                        | min_short
+-32768                        | min_short_minus_1
+-129                          | min_byte_minus_1
+-128                          | min_byte
+1                             | English
+2                             | French
+3                             | Spanish
+4                             | German
+127                           | max_byte
+128                           | max_byte_plus_1
+32767                         | max_short
+32767                         | max_short_plus_1
+32768                         | max_short
+32768                         | max_short_plus_1
+65504                         | max_half_float
+65504                         | max_half_float_plus_1
+65505                         | max_half_float
+65505                         | max_half_float_plus_1
+2147483646                    | null
+2147483647                    | null
+2147483648                    | null
+9223372036854775806           | null
+9223372036854775807           | null
+;
+
+longJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_scaled_float = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:long | language_name:keyword
+-9223372036854775808            | min_long
+-9223372036854775808            | min_long_minus_1
+-2147483649                     | min_int_minus_1
+-2147483648                     | min_int
+-65505                          | min_half_float_minus_1
+-65504                          | min_half_float
+-32769                          | min_short_minus_1
+-32768                          | min_short
+-129                            | min_byte_minus_1
+-128                            | min_byte
+1                               | English
+2                               | French
+3                               | Spanish
+4                               | German
+127                             | max_byte
+128                             | max_byte_plus_1
+32767                           | max_short
+32768                           | max_short_plus_1
+65504                           | max_half_float
+65505                           | max_half_float_plus_1
+2147483646                      | max_int_minus_1
+2147483647                      | max_int
+2147483648                      | max_int_plus_1
+9223372036854775806             | max_long
+9223372036854775806             | max_long_minus_1
+9223372036854775806             | max_long_plus_1
+9223372036854775807             | max_long
+9223372036854775807             | max_long_minus_1
+9223372036854775807             | max_long_plus_1
+;
+
+longJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_float = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:long | language_name:keyword
+-9223372036854775808     | min_long
+-9223372036854775808     | min_long_minus_1
+-2147483649              | min_int
+-2147483649              | min_int_minus_1
+-2147483648              | min_int
+-2147483648              | min_int_minus_1
+-65505                   | min_half_float_minus_1
+-65504                   | min_half_float
+-32769                   | min_short_minus_1
+-32768                   | min_short
+-129                     | min_byte_minus_1
+-128                     | min_byte
+1                        | English
+2                        | French
+3                        | Spanish
+4                        | German
+127                      | max_byte
+128                      | max_byte_plus_1
+32767                    | max_short
+32768                    | max_short_plus_1
+65504                    | max_half_float
+65505                    | max_half_float_plus_1
+2147483646               | max_int
+2147483646               | max_int_minus_1
+2147483646               | max_int_plus_1
+2147483647               | max_int
+2147483647               | max_int_minus_1
+2147483647               | max_int_plus_1
+2147483648               | max_int
+2147483648               | max_int_minus_1
+2147483648               | max_int_plus_1
+9223372036854775806      | max_long
+9223372036854775806      | max_long_minus_1
+9223372036854775806      | max_long_plus_1
+9223372036854775807      | max_long
+9223372036854775807      | max_long_minus_1
+9223372036854775807      | max_long_plus_1
+;
+
+longJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null
+| EVAL language_code_double = language_code_long
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:long | language_name:keyword
+-9223372036854775808      | min_long
+-9223372036854775808      | min_long_minus_1
+-2147483649               | min_int_minus_1
+-2147483648               | min_int
+-65505                    | min_half_float_minus_1
+-65504                    | min_half_float
+-32769                    | min_short_minus_1
+-32768                    | min_short
+-129                      | min_byte_minus_1
+-128                      | min_byte
+1                         | English
+2                         | French
+3                         | Spanish
+4                         | German
+127                       | max_byte
+128                       | max_byte_plus_1
+32767                     | max_short
+32768                     | max_short_plus_1
+65504                     | max_half_float
+65505                     | max_half_float_plus_1
+2147483646                | max_int_minus_1
+2147483647                | max_int
+2147483648                | max_int_plus_1
+9223372036854775806       | max_long
+9223372036854775806       | max_long_minus_1
+9223372036854775806       | max_long_plus_1
+9223372036854775807       | max_long
+9223372036854775807       | max_long_minus_1
+9223372036854775807       | max_long_plus_1
+;
+
+halfFloatJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_byte = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:double | language_name:keyword
+-65504.0                  | null
+-65504.0                  | null
+-32768.0                  | null
+-32768.0                  | null
+-129.0                    | null
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | null
+32768.0                   | null
+32768.0                   | null
+65504.0                   | null
+65504.0                   | null
+;
+
+halfFloatJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_short = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:double | language_name:keyword
+-65504.0                   | null
+-65504.0                   | null
+-32768.0                   | min_short
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32768.0                    | null
+32768.0                    | null
+65504.0                    | null
+65504.0                    | null
+;
+
+halfFloatJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_integer = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:double | language_name:keyword
+-65504.0                     | min_half_float
+-65504.0                     | min_half_float
+-32768.0                     | min_short
+-32768.0                     | min_short
+-129.0                       | min_byte_minus_1
+-128.0                       | min_byte
+1.0                          | English
+2.0                          | French
+3.0                          | Spanish
+4.0                          | German
+127.0                        | max_byte
+128.0                        | max_byte_plus_1
+32768.0                      | max_short_plus_1
+32768.0                      | max_short_plus_1
+65504.0                      | max_half_float
+65504.0                      | max_half_float
+;
+
+halfFloatJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_long = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:double | language_name:keyword
+-65504.0                  | min_half_float
+-65504.0                  | min_half_float
+-32768.0                  | min_short
+-32768.0                  | min_short
+-129.0                    | min_byte_minus_1
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | max_byte_plus_1
+32768.0                   | max_short_plus_1
+32768.0                   | max_short_plus_1
+65504.0                   | max_half_float
+65504.0                   | max_half_float
+;
+
+halfFloatJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_scaled_float = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:double | language_name:keyword
+-65504.0                          | min_half_float
+-65504.0                          | min_half_float
+-32768.0                          | min_short
+-32768.0                          | min_short
+-129.0                            | min_byte_minus_1
+-128.0                            | min_byte
+1.0                               | English
+2.0                               | French
+3.0                               | Spanish
+4.0                               | German
+127.0                             | max_byte
+128.0                             | max_byte_plus_1
+32768.0                           | max_short_plus_1
+32768.0                           | max_short_plus_1
+65504.0                           | max_half_float
+65504.0                           | max_half_float
+;
+
+halfFloatJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_float = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:double | language_name:keyword
+-65504.0                   | min_half_float
+-65504.0                   | min_half_float
+-32768.0                   | min_short
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32768.0                    | max_short_plus_1
+32768.0                    | max_short_plus_1
+65504.0                    | max_half_float
+65504.0                    | max_half_float
+;
+
+halfFloatJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float is not null
+| EVAL language_code_double = language_code_half_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:double | language_name:keyword
+-65504.0                    | min_half_float
+-65504.0                    | min_half_float
+-32768.0                    | min_short
+-32768.0                    | min_short
+-129.0                      | min_byte_minus_1
+-128.0                      | min_byte
+1.0                         | English
+2.0                         | French
+3.0                         | Spanish
+4.0                         | German
+127.0                       | max_byte
+128.0                       | max_byte_plus_1
+32768.0                     | max_short_plus_1
+32768.0                     | max_short_plus_1
+65504.0                     | max_half_float
+65504.0                     | max_half_float
+;
+
+scaledFloatJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_byte = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:double | language_name:keyword
+-9.223372036854776E16     | null
+-9.223372036854776E16     | null
+-2.147483649E9            | null
+-2.147483648E9            | null
+-65505.0                  | null
+-65504.0                  | null
+-32769.0                  | null
+-32768.0                  | null
+-129.0                    | null
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | null
+32767.0                   | null
+32768.0                   | null
+65504.0                   | null
+65505.0                   | null
+2.147483646E9             | null
+2.147483647E9             | null
+2.147483648E9             | null
+9.223372036854776E16      | null
+9.223372036854776E16      | null
+9.223372036854776E16      | null
+;
+
+scaledFloatJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_short = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:double | language_name:keyword
+-9.223372036854776E16      | null
+-9.223372036854776E16      | null
+-2.147483649E9             | null
+-2.147483648E9             | null
+-65505.0                   | null
+-65504.0                   | null
+-32769.0                   | null
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32767.0                    | max_short
+32768.0                    | null
+65504.0                    | null
+65505.0                    | null
+2.147483646E9              | null
+2.147483647E9              | null
+2.147483648E9              | null
+9.223372036854776E16       | null
+9.223372036854776E16       | null
+9.223372036854776E16       | null
+;
+
+scaledFloatJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_integer = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:double | language_name:keyword
+-9.223372036854776E16        | null
+-9.223372036854776E16        | null
+-2.147483649E9               | null
+-2.147483648E9               | min_int
+-65505.0                     | min_half_float_minus_1
+-65504.0                     | min_half_float
+-32769.0                     | min_short_minus_1
+-32768.0                     | min_short
+-129.0                       | min_byte_minus_1
+-128.0                       | min_byte
+1.0                          | English
+2.0                          | French
+3.0                          | Spanish
+4.0                          | German
+127.0                        | max_byte
+128.0                        | max_byte_plus_1
+32767.0                      | max_short
+32768.0                      | max_short_plus_1
+65504.0                      | max_half_float
+65505.0                      | max_half_float_plus_1
+2.147483646E9                | max_int_minus_1
+2.147483647E9                | max_int
+2.147483648E9                | null
+9.223372036854776E16         | null
+9.223372036854776E16         | null
+9.223372036854776E16         | null
+;
+
+scaledFloatJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_long = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:double | language_name:keyword
+-9.223372036854776E16     | null
+-9.223372036854776E16     | null
+-2.147483649E9            | min_int_minus_1
+-2.147483648E9            | min_int
+-65505.0                  | min_half_float_minus_1
+-65504.0                  | min_half_float
+-32769.0                  | min_short_minus_1
+-32768.0                  | min_short
+-129.0                    | min_byte_minus_1
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | max_byte_plus_1
+32767.0                   | max_short
+32768.0                   | max_short_plus_1
+65504.0                   | max_half_float
+65505.0                   | max_half_float_plus_1
+2.147483646E9             | max_int_minus_1
+2.147483647E9             | max_int
+2.147483648E9             | max_int_plus_1
+9.223372036854776E16      | null
+9.223372036854776E16      | null
+9.223372036854776E16      | null
+;
+
+scaledFloatJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_half_float = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:double | language_name:keyword
+-9.223372036854776E16           | null
+-9.223372036854776E16           | null
+-2.147483649E9                  | null
+-2.147483648E9                  | null
+-65505.0                        | min_half_float
+-65505.0                        | min_half_float_minus_1
+-65504.0                        | min_half_float
+-65504.0                        | min_half_float_minus_1
+-32769.0                        | min_short
+-32769.0                        | min_short_minus_1
+-32768.0                        | min_short
+-32768.0                        | min_short_minus_1
+-129.0                          | min_byte_minus_1
+-128.0                          | min_byte
+1.0                             | English
+2.0                             | French
+3.0                             | Spanish
+4.0                             | German
+127.0                           | max_byte
+128.0                           | max_byte_plus_1
+32767.0                         | max_short
+32767.0                         | max_short_plus_1
+32768.0                         | max_short
+32768.0                         | max_short_plus_1
+65504.0                         | max_half_float
+65504.0                         | max_half_float_plus_1
+65505.0                         | max_half_float
+65505.0                         | max_half_float_plus_1
+2.147483646E9                   | null
+2.147483647E9                   | null
+2.147483648E9                   | null
+9.223372036854776E16            | null
+9.223372036854776E16            | null
+9.223372036854776E16            | null
+;
+
+scaledFloatJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_float = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:double | language_name:keyword
+-9.223372036854776E16      | null
+-9.223372036854776E16      | null
+-2.147483649E9             | min_int
+-2.147483649E9             | min_int_minus_1
+-2.147483648E9             | min_int
+-2.147483648E9             | min_int_minus_1
+-65505.0                   | min_half_float_minus_1
+-65504.0                   | min_half_float
+-32769.0                   | min_short_minus_1
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32767.0                    | max_short
+32768.0                    | max_short_plus_1
+65504.0                    | max_half_float
+65505.0                    | max_half_float_plus_1
+2.147483646E9              | max_int
+2.147483646E9              | max_int_minus_1
+2.147483646E9              | max_int_plus_1
+2.147483647E9              | max_int
+2.147483647E9              | max_int_minus_1
+2.147483647E9              | max_int_plus_1
+2.147483648E9              | max_int
+2.147483648E9              | max_int_minus_1
+2.147483648E9              | max_int_plus_1
+9.223372036854776E16       | null
+9.223372036854776E16       | null
+9.223372036854776E16       | null
+;
+
+scaledFloatJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float is not null
+| EVAL language_code_double = language_code_scaled_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:double | language_name:keyword
+-9.223372036854776E16       | null
+-9.223372036854776E16       | null
+-2.147483649E9              | min_int_minus_1
+-2.147483648E9              | min_int
+-65505.0                    | min_half_float_minus_1
+-65504.0                    | min_half_float
+-32769.0                    | min_short_minus_1
+-32768.0                    | min_short
+-129.0                      | min_byte_minus_1
+-128.0                      | min_byte
+1.0                         | English
+2.0                         | French
+3.0                         | Spanish
+4.0                         | German
+127.0                       | max_byte
+128.0                       | max_byte_plus_1
+32767.0                     | max_short
+32768.0                     | max_short_plus_1
+65504.0                     | max_half_float
+65505.0                     | max_half_float_plus_1
+2.147483646E9               | max_int_minus_1
+2.147483647E9               | max_int
+2.147483648E9               | max_int_plus_1
+9.223372036854776E16        | null
+9.223372036854776E16        | null
+9.223372036854776E16        | null
+;
+
+floatJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_byte = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:double | language_name:keyword
+-3.4028234663852886E38    | null
+-9.223372036854776E18     | null
+-9.223372036854776E18     | null
+-2.147483648E9            | null
+-2.147483648E9            | null
+-65505.0                  | null
+-65504.0                  | null
+-32769.0                  | null
+-32768.0                  | null
+-129.0                    | null
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | null
+32767.0                   | null
+32768.0                   | null
+65504.0                   | null
+65505.0                   | null
+2.147483648E9             | null
+2.147483648E9             | null
+2.147483648E9             | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+3.4028234663852886E38     | null
+;
+
+floatJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_short = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:double | language_name:keyword
+-3.4028234663852886E38     | null
+-9.223372036854776E18      | null
+-9.223372036854776E18      | null
+-2.147483648E9             | null
+-2.147483648E9             | null
+-65505.0                   | null
+-65504.0                   | null
+-32769.0                   | null
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32767.0                    | max_short
+32768.0                    | null
+65504.0                    | null
+65505.0                    | null
+2.147483648E9              | null
+2.147483648E9              | null
+2.147483648E9              | null
+9.223372036854776E18       | null
+9.223372036854776E18       | null
+9.223372036854776E18       | null
+3.4028234663852886E38      | null
+;
+
+floatJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_integer = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:double | language_name:keyword
+-3.4028234663852886E38       | null
+-9.223372036854776E18        | null
+-9.223372036854776E18        | null
+-2.147483648E9               | min_int
+-2.147483648E9               | min_int
+-65505.0                     | min_half_float_minus_1
+-65504.0                     | min_half_float
+-32769.0                     | min_short_minus_1
+-32768.0                     | min_short
+-129.0                       | min_byte_minus_1
+-128.0                       | min_byte
+1.0                          | English
+2.0                          | French
+3.0                          | Spanish
+4.0                          | German
+127.0                        | max_byte
+128.0                        | max_byte_plus_1
+32767.0                      | max_short
+32768.0                      | max_short_plus_1
+65504.0                      | max_half_float
+65505.0                      | max_half_float_plus_1
+2.147483648E9                | null
+2.147483648E9                | null
+2.147483648E9                | null
+9.223372036854776E18         | null
+9.223372036854776E18         | null
+9.223372036854776E18         | null
+3.4028234663852886E38        | null
+;
+
+floatJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_long = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:double | language_name:keyword
+-3.4028234663852886E38    | null
+-9.223372036854776E18     | null
+-9.223372036854776E18     | null
+-2.147483648E9            | min_int
+-2.147483648E9            | min_int
+-65505.0                  | min_half_float_minus_1
+-65504.0                  | min_half_float
+-32769.0                  | min_short_minus_1
+-32768.0                  | min_short
+-129.0                    | min_byte_minus_1
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | max_byte_plus_1
+32767.0                   | max_short
+32768.0                   | max_short_plus_1
+65504.0                   | max_half_float
+65505.0                   | max_half_float_plus_1
+2.147483648E9             | max_int_plus_1
+2.147483648E9             | max_int_plus_1
+2.147483648E9             | max_int_plus_1
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+3.4028234663852886E38     | null
+;
+
+floatJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_half_float = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:double | language_name:keyword
+-3.4028234663852886E38          | null
+-9.223372036854776E18           | null
+-9.223372036854776E18           | null
+-2.147483648E9                  | null
+-2.147483648E9                  | null
+-65505.0                        | min_half_float
+-65505.0                        | min_half_float_minus_1
+-65504.0                        | min_half_float
+-65504.0                        | min_half_float_minus_1
+-32769.0                        | min_short
+-32769.0                        | min_short_minus_1
+-32768.0                        | min_short
+-32768.0                        | min_short_minus_1
+-129.0                          | min_byte_minus_1
+-128.0                          | min_byte
+1.0                             | English
+2.0                             | French
+3.0                             | Spanish
+4.0                             | German
+127.0                           | max_byte
+128.0                           | max_byte_plus_1
+32767.0                         | max_short
+32767.0                         | max_short_plus_1
+32768.0                         | max_short
+32768.0                         | max_short_plus_1
+65504.0                         | max_half_float
+65504.0                         | max_half_float_plus_1
+65505.0                         | max_half_float
+65505.0                         | max_half_float_plus_1
+2.147483648E9                   | null
+2.147483648E9                   | null
+2.147483648E9                   | null
+9.223372036854776E18            | null
+9.223372036854776E18            | null
+9.223372036854776E18            | null
+3.4028234663852886E38           | null
+;
+
+floatJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_scaled_float = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:double | language_name:keyword
+-3.4028234663852886E38            | min_long
+-3.4028234663852886E38            | min_long_minus_1
+-9.223372036854776E18             | min_long
+-9.223372036854776E18             | min_long
+-9.223372036854776E18             | min_long_minus_1
+-9.223372036854776E18             | min_long_minus_1
+-2.147483648E9                    | min_int
+-2.147483648E9                    | min_int
+-65505.0                          | min_half_float_minus_1
+-65504.0                          | min_half_float
+-32769.0                          | min_short_minus_1
+-32768.0                          | min_short
+-129.0                            | min_byte_minus_1
+-128.0                            | min_byte
+1.0                               | English
+2.0                               | French
+3.0                               | Spanish
+4.0                               | German
+127.0                             | max_byte
+128.0                             | max_byte_plus_1
+32767.0                           | max_short
+32768.0                           | max_short_plus_1
+65504.0                           | max_half_float
+65505.0                           | max_half_float_plus_1
+2.147483648E9                     | max_int_plus_1
+2.147483648E9                     | max_int_plus_1
+2.147483648E9                     | max_int_plus_1
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_plus_1
+9.223372036854776E18              | max_long_plus_1
+9.223372036854776E18              | max_long_plus_1
+3.4028234663852886E38             | max_long
+3.4028234663852886E38             | max_long_minus_1
+3.4028234663852886E38             | max_long_plus_1
+;
+
+floatJoinDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float is not null
+| EVAL language_code_double = language_code_float
+| LOOKUP JOIN languages_mixed_numerics ON language_code_double
+| SORT language_code_double, language_name
+| KEEP language_code_double, language_name
+;
+
+language_code_double:double | language_name:keyword
+-3.4028234663852886E38      | min_float
+-9.223372036854776E18       | min_long
+-9.223372036854776E18       | min_long
+-9.223372036854776E18       | min_long_minus_1
+-9.223372036854776E18       | min_long_minus_1
+-2.147483648E9              | min_int
+-2.147483648E9              | min_int
+-65505.0                    | min_half_float_minus_1
+-65504.0                    | min_half_float
+-32769.0                    | min_short_minus_1
+-32768.0                    | min_short
+-129.0                      | min_byte_minus_1
+-128.0                      | min_byte
+1.0                         | English
+2.0                         | French
+3.0                         | Spanish
+4.0                         | German
+127.0                       | max_byte
+128.0                       | max_byte_plus_1
+32767.0                     | max_short
+32768.0                     | max_short_plus_1
+65504.0                     | max_half_float
+65505.0                     | max_half_float_plus_1
+2.147483648E9               | max_int_plus_1
+2.147483648E9               | max_int_plus_1
+2.147483648E9               | max_int_plus_1
+9.223372036854776E18        | max_long
+9.223372036854776E18        | max_long
+9.223372036854776E18        | max_long
+9.223372036854776E18        | max_long_minus_1
+9.223372036854776E18        | max_long_minus_1
+9.223372036854776E18        | max_long_minus_1
+9.223372036854776E18        | max_long_plus_1
+9.223372036854776E18        | max_long_plus_1
+9.223372036854776E18        | max_long_plus_1
+3.4028234663852886E38       | max_float
+;
+
+doubleJoinByte
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_byte = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_byte
+| SORT language_code_byte, language_name
+| KEEP language_code_byte, language_name
+;
+
+language_code_byte:double | language_name:keyword
+-3.4028234663852886E38    | null
+-9.223372036854776E18     | null
+-9.223372036854776E18     | null
+-2.147483649E9            | null
+-2.147483648E9            | null
+-65505.0                  | null
+-65504.0                  | null
+-32769.0                  | null
+-32768.0                  | null
+-129.0                    | null
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | null
+32767.0                   | null
+32768.0                   | null
+65504.0                   | null
+65505.0                   | null
+2.147483646E9             | null
+2.147483647E9             | null
+2.147483648E9             | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+3.4028234663852886E38     | null
+3.4028234663852886E39      | null
+;
+
+doubleJoinShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_short = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_short
+| SORT language_code_short, language_name
+| KEEP language_code_short, language_name
+;
+
+language_code_short:double | language_name:keyword
+-3.4028234663852886E38     | null
+-9.223372036854776E18      | null
+-9.223372036854776E18      | null
+-2.147483649E9             | null
+-2.147483648E9             | null
+-65505.0                   | null
+-65504.0                   | null
+-32769.0                   | null
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32767.0                    | max_short
+32768.0                    | null
+65504.0                    | null
+65505.0                    | null
+2.147483646E9              | null
+2.147483647E9              | null
+2.147483648E9              | null
+9.223372036854776E18       | null
+9.223372036854776E18       | null
+9.223372036854776E18       | null
+3.4028234663852886E38      | null
+3.4028234663852886E39      | null
+;
+
+doubleJoinInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_integer = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_integer
+| SORT language_code_integer, language_name
+| KEEP language_code_integer, language_name
+;
+
+language_code_integer:double | language_name:keyword
+-3.4028234663852886E38       | null
+-9.223372036854776E18        | null
+-9.223372036854776E18        | null
+-2.147483649E9               | null
+-2.147483648E9               | min_int
+-65505.0                     | min_half_float_minus_1
+-65504.0                     | min_half_float
+-32769.0                     | min_short_minus_1
+-32768.0                     | min_short
+-129.0                       | min_byte_minus_1
+-128.0                       | min_byte
+1.0                          | English
+2.0                          | French
+3.0                          | Spanish
+4.0                          | German
+127.0                        | max_byte
+128.0                        | max_byte_plus_1
+32767.0                      | max_short
+32768.0                      | max_short_plus_1
+65504.0                      | max_half_float
+65505.0                      | max_half_float_plus_1
+2.147483646E9                | max_int_minus_1
+2.147483647E9                | max_int
+2.147483648E9                | null
+9.223372036854776E18         | null
+9.223372036854776E18         | null
+9.223372036854776E18         | null
+3.4028234663852886E38        | null
+3.4028234663852886E39        | null
+;
+
+doubleJoinLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_long = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_long
+| SORT language_code_long, language_name
+| KEEP language_code_long, language_name
+;
+
+language_code_long:double | language_name:keyword
+-3.4028234663852886E38    | null
+-9.223372036854776E18     | null
+-9.223372036854776E18     | null
+-2.147483649E9            | min_int_minus_1
+-2.147483648E9            | min_int
+-65505.0                  | min_half_float_minus_1
+-65504.0                  | min_half_float
+-32769.0                  | min_short_minus_1
+-32768.0                  | min_short
+-129.0                    | min_byte_minus_1
+-128.0                    | min_byte
+1.0                       | English
+2.0                       | French
+3.0                       | Spanish
+4.0                       | German
+127.0                     | max_byte
+128.0                     | max_byte_plus_1
+32767.0                   | max_short
+32768.0                   | max_short_plus_1
+65504.0                   | max_half_float
+65505.0                   | max_half_float_plus_1
+2.147483646E9             | max_int_minus_1
+2.147483647E9             | max_int
+2.147483648E9             | max_int_plus_1
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+9.223372036854776E18      | null
+3.4028234663852886E38     | null
+3.4028234663852886E39     | null
+;
+
+doubleJoinHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_half_float = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_half_float
+| SORT language_code_half_float, language_name
+| KEEP language_code_half_float, language_name
+;
+
+language_code_half_float:double | language_name:keyword
+-3.4028234663852886E38          | null
+-9.223372036854776E18           | null
+-9.223372036854776E18           | null
+-2.147483649E9                  | null
+-2.147483648E9                  | null
+-65505.0                        | min_half_float
+-65505.0                        | min_half_float_minus_1
+-65504.0                        | min_half_float
+-65504.0                        | min_half_float_minus_1
+-32769.0                        | min_short
+-32769.0                        | min_short_minus_1
+-32768.0                        | min_short
+-32768.0                        | min_short_minus_1
+-129.0                          | min_byte_minus_1
+-128.0                          | min_byte
+1.0                             | English
+2.0                             | French
+3.0                             | Spanish
+4.0                             | German
+127.0                           | max_byte
+128.0                           | max_byte_plus_1
+32767.0                         | max_short
+32767.0                         | max_short_plus_1
+32768.0                         | max_short
+32768.0                         | max_short_plus_1
+65504.0                         | max_half_float
+65504.0                         | max_half_float_plus_1
+65505.0                         | max_half_float
+65505.0                         | max_half_float_plus_1
+2.147483646E9                   | null
+2.147483647E9                   | null
+2.147483648E9                   | null
+9.223372036854776E18            | null
+9.223372036854776E18            | null
+9.223372036854776E18            | null
+3.4028234663852886E38           | null
+3.4028234663852886E39           | null
+;
+
+doubleJoinScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_scaled_float = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_scaled_float
+| SORT language_code_scaled_float, language_name
+| KEEP language_code_scaled_float, language_name
+;
+
+language_code_scaled_float:double | language_name:keyword
+-3.4028234663852886E38            | min_long
+-3.4028234663852886E38            | min_long_minus_1
+-9.223372036854776E18             | min_long
+-9.223372036854776E18             | min_long
+-9.223372036854776E18             | min_long_minus_1
+-9.223372036854776E18             | min_long_minus_1
+-2.147483649E9                    | min_int_minus_1
+-2.147483648E9                    | min_int
+-65505.0                          | min_half_float_minus_1
+-65504.0                          | min_half_float
+-32769.0                          | min_short_minus_1
+-32768.0                          | min_short
+-129.0                            | min_byte_minus_1
+-128.0                            | min_byte
+1.0                               | English
+2.0                               | French
+3.0                               | Spanish
+4.0                               | German
+127.0                             | max_byte
+128.0                             | max_byte_plus_1
+32767.0                           | max_short
+32768.0                           | max_short_plus_1
+65504.0                           | max_half_float
+65505.0                           | max_half_float_plus_1
+2.147483646E9                     | max_int_minus_1
+2.147483647E9                     | max_int
+2.147483648E9                     | max_int_plus_1
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_minus_1
+9.223372036854776E18              | max_long_plus_1
+9.223372036854776E18              | max_long_plus_1
+9.223372036854776E18              | max_long_plus_1
+3.4028234663852886E38             | max_long
+3.4028234663852886E38             | max_long_minus_1
+3.4028234663852886E38             | max_long_plus_1
+3.4028234663852886E39             | max_long
+3.4028234663852886E39             | max_long_minus_1
+3.4028234663852886E39             | max_long_plus_1
+;
+
+doubleJoinFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_double is not null
+| EVAL language_code_float = language_code_double
+| LOOKUP JOIN languages_mixed_numerics ON language_code_float
+| SORT language_code_float, language_name
+| KEEP language_code_float, language_name
+;
+
+language_code_float:double | language_name:keyword
+-3.4028234663852886E38     | min_float
+-9.223372036854776E18      | min_long
+-9.223372036854776E18      | min_long
+-9.223372036854776E18      | min_long_minus_1
+-9.223372036854776E18      | min_long_minus_1
+-2.147483649E9             | min_int
+-2.147483649E9             | min_int_minus_1
+-2.147483648E9             | min_int
+-2.147483648E9             | min_int_minus_1
+-65505.0                   | min_half_float_minus_1
+-65504.0                   | min_half_float
+-32769.0                   | min_short_minus_1
+-32768.0                   | min_short
+-129.0                     | min_byte_minus_1
+-128.0                     | min_byte
+1.0                        | English
+2.0                        | French
+3.0                        | Spanish
+4.0                        | German
+127.0                      | max_byte
+128.0                      | max_byte_plus_1
+32767.0                    | max_short
+32768.0                    | max_short_plus_1
+65504.0                    | max_half_float
+65505.0                    | max_half_float_plus_1
+2.147483646E9              | max_int
+2.147483646E9              | max_int_minus_1
+2.147483646E9              | max_int_plus_1
+2.147483647E9              | max_int
+2.147483647E9              | max_int_minus_1
+2.147483647E9              | max_int_plus_1
+2.147483648E9              | max_int
+2.147483648E9              | max_int_minus_1
+2.147483648E9              | max_int_plus_1
+9.223372036854776E18       | max_long
+9.223372036854776E18       | max_long
+9.223372036854776E18       | max_long
+9.223372036854776E18       | max_long_minus_1
+9.223372036854776E18       | max_long_minus_1
+9.223372036854776E18       | max_long_minus_1
+9.223372036854776E18       | max_long_plus_1
+9.223372036854776E18       | max_long_plus_1
+9.223372036854776E18       | max_long_plus_1
+3.4028234663852886E38      | max_float
+3.4028234663852886E39      | null
+;
+
+byteEqualsShort
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_short
+| SORT language_code_byte, language_code_short, language_name
+| KEEP language_code_byte, language_code_short, language_name
+;
+
+language_code_byte:byte | language_code_short:short | language_name:keyword
+-128                    | -128                      | min_byte
+1                       | 1                         | English
+2                       | 2                         | French
+3                       | 3                         | Spanish
+4                       | 4                         | German
+127                     | 127                       | max_byte
+;
+
+byteEqualsInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_integer
+| SORT language_code_byte, language_code_integer, language_name
+| KEEP language_code_byte, language_code_integer, language_name
+;
+
+language_code_byte:byte | language_code_integer:integer | language_name:keyword
+-128                    | -128                          | min_byte
+1                       | 1                             | English
+2                       | 2                             | French
+3                       | 3                             | Spanish
+4                       | 4                             | German
+127                     | 127                           | max_byte
+;
+
+byteEqualsLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_long
+| SORT language_code_byte, language_code_long, language_name
+| KEEP language_code_byte, language_code_long, language_name
+;
+
+language_code_byte:byte | language_code_long:long | language_name:keyword
+-128                    | -128                    | min_byte
+1                       | 1                       | English
+2                       | 2                       | French
+3                       | 3                       | Spanish
+4                       | 4                       | German
+127                     | 127                     | max_byte
+;
+
+byteEqualsHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_half_float
+| SORT language_code_byte, language_code_half_float, language_name
+| KEEP language_code_byte, language_code_half_float, language_name
+;
+
+language_code_byte:byte | language_code_half_float:double | language_name:keyword
+-128                    | -128                            | min_byte
+1                       | 1                               | English
+2                       | 2                               | French
+3                       | 3                               | Spanish
+4                       | 4                               | German
+127                     | 127                             | max_byte
+;
+
+byteEqualsScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_scaled_float
+| SORT language_code_byte, language_code_scaled_float, language_name
+| KEEP language_code_byte, language_code_scaled_float, language_name
+;
+
+language_code_byte:byte | language_code_scaled_float:double | language_name:keyword
+-128                    | -128                              | min_byte
+1                       | 1                                 | English
+2                       | 2                                 | French
+3                       | 3                                 | Spanish
+4                       | 4                                 | German
+127                     | 127                               | max_byte
+;
+
+byteEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_float
+| SORT language_code_byte, language_code_float, language_name
+| KEEP language_code_byte, language_code_float, language_name
+;
+
+language_code_byte:byte | language_code_float:double | language_name:keyword
+-128                    | -128                      | min_byte
+1                       | 1                         | English
+2                       | 2                         | French
+3                       | 3                         | Spanish
+4                       | 4                         | German
+127                     | 127                       | max_byte
+;
+
+byteEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_byte == language_code_double
+| SORT language_code_byte, language_code_double, language_name
+| KEEP language_code_byte, language_code_double, language_name
+;
+
+language_code_byte:byte | language_code_double:double | language_name:keyword
+-128                    | -128                        | min_byte
+1                       | 1                           | English
+2                       | 2                           | French
+3                       | 3                           | Spanish
+4                       | 4                           | German
+127                     | 127                         | max_byte
+;
+
+shortEqualsInt
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_integer
+| SORT language_code_short, language_code_integer, language_name
+| KEEP language_code_short, language_code_integer, language_name
+;
+
+language_code_short:short | language_code_integer:integer | language_name:keyword
+-32768                    | -32768                        | min_short
+-129                      | -129                          | min_byte_minus_1
+-128                      | -128                          | min_byte
+1                         | 1                             | English
+2                         | 2                             | French
+3                         | 3                             | Spanish
+4                         | 4                             | German
+127                       | 127                           | max_byte
+128                       | 128                           | max_byte_plus_1
+32767                     | 32767                         | max_short
+;
+
+shortEqualsLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_long
+| SORT language_code_short, language_code_long, language_name
+| KEEP language_code_short, language_code_long, language_name
+;
+
+language_code_short:short | language_code_long:long | language_name:keyword
+-32768                    | -32768                  | min_short
+-129                      | -129                    | min_byte_minus_1
+-128                      | -128                    | min_byte
+1                         | 1                       | English
+2                         | 2                       | French
+3                         | 3                       | Spanish
+4                         | 4                       | German
+127                       | 127                     | max_byte
+128                       | 128                     | max_byte_plus_1
+32767                     | 32767                   | max_short
+;
+
+shortEqualsHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_half_float
+| SORT language_code_short, language_code_half_float, language_name
+| KEEP language_code_short, language_code_half_float, language_name
+;
+
+language_code_short:short | language_code_half_float:double | language_name:keyword
+-32768                    | -32768                          | min_short
+-129                      | -129                            | min_byte_minus_1
+-128                      | -128                            | min_byte
+1                         | 1                               | English
+2                         | 2                               | French
+3                         | 3                               | Spanish
+4                         | 4                               | German
+127                       | 127                             | max_byte
+128                       | 128                             | max_byte_plus_1
+;
+
+shortEqualsScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_scaled_float
+| SORT language_code_short, language_code_scaled_float, language_name
+| KEEP language_code_short, language_code_scaled_float, language_name
+;
+
+language_code_short:short | language_code_scaled_float:double | language_name:keyword
+-32768                    | -32768                            | min_short
+-129                      | -129                              | min_byte_minus_1
+-128                      | -128                              | min_byte
+1                         | 1                                 | English
+2                         | 2                                 | French
+3                         | 3                                 | Spanish
+4                         | 4                                 | German
+127                       | 127                               | max_byte
+128                       | 128                               | max_byte_plus_1
+32767                       | 32767.0                         | max_short
+;
+
+shortEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_float
+| SORT language_code_short, language_code_float, language_name
+| KEEP language_code_short, language_code_float, language_name
+;
+
+language_code_short:short | language_code_float:double | language_name:keyword
+-32768                    | -32768                     | min_short
+-129                      | -129                       | min_byte_minus_1
+-128                      | -128                       | min_byte
+1                         | 1                          | English
+2                         | 2                          | French
+3                         | 3                          | Spanish
+4                         | 4                          | German
+127                       | 127                        | max_byte
+128                       | 128                        | max_byte_plus_1
+32767                     | 32767                      | max_short
+;
+
+shortEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_short == language_code_double
+| SORT language_code_short, language_code_double, language_name
+| KEEP language_code_short, language_code_double, language_name
+;
+
+language_code_short:short | language_code_double:double | language_name:keyword
+-32768                    | -32768                      | min_short
+-129                      | -129                        | min_byte_minus_1
+-128                      | -128                        | min_byte
+1                         | 1                           | English
+2                         | 2                           | French
+3                         | 3                           | Spanish
+4                         | 4                           | German
+127                       | 127                         | max_byte
+128                       | 128                         | max_byte_plus_1
+32767                     | 32767                       | max_short
+;
+
+intEqualsLong
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer == language_code_long
+| SORT language_code_integer, language_code_long, language_name
+| KEEP language_code_integer, language_code_long, language_name
+;
+
+language_code_integer:integer | language_code_long:long | language_name:keyword
+-2147483648                   | -2147483648             | min_int
+-65505                        | -65505                  | min_half_float_minus_1
+-65504                        | -65504                  | min_half_float
+-32769                        | -32769                  | min_short_minus_1
+-32768                        | -32768                  | min_short
+-129                          | -129                    | min_byte_minus_1
+-128                          | -128                    | min_byte
+1                             | 1                       | English
+2                             | 2                       | French
+3                             | 3                       | Spanish
+4                             | 4                       | German
+127                           | 127                     | max_byte
+128                           | 128                     | max_byte_plus_1
+32767                         | 32767                   | max_short
+32768                         | 32768                   | max_short_plus_1
+65504                         | 65504                   | max_half_float
+65505                         | 65505                   | max_half_float_plus_1
+2147483646                    | 2147483646              | max_int_minus_1
+2147483647                    | 2147483647              | max_int
+;
+
+intEqualsHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer == language_code_half_float
+| SORT language_code_integer, language_code_half_float, language_name
+| KEEP language_code_integer, language_code_half_float, language_name
+;
+
+language_code_integer:integer | language_code_half_float:double | language_name:keyword
+-65504                        | -65504.0                        | min_half_float
+-32768                        | -32768.0                        | min_short
+-129                          | -129.0                          | min_byte_minus_1
+-128                          | -128.0                          | min_byte
+1                             | 1.0                             | English
+2                             | 2.0                             | French
+3                             | 3.0                             | Spanish
+4                             | 4.0                             | German
+127                           | 127.0                           | max_byte
+128                           | 128.0                           | max_byte_plus_1
+32768                         | 32768.0                         | max_short_plus_1
+65504                         | 65504.0                         | max_half_float
+;
+
+intEqualsScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer == language_code_scaled_float
+| SORT language_code_integer, language_code_scaled_float, language_name
+| KEEP language_code_integer, language_code_scaled_float, language_name
+;
+
+language_code_integer:integer | language_code_scaled_float:double | language_name:keyword
+-2147483648                   | -2.147483648E9                    | min_int
+-65505                        | -65505.0                          | min_half_float_minus_1
+-65504                        | -65504.0                          | min_half_float
+-32769                        | -32769.0                          | min_short_minus_1
+-32768                        | -32768.0                          | min_short
+-129                          | -129.0                            | min_byte_minus_1
+-128                          | -128.0                            | min_byte
+1                             | 1.0                               | English
+2                             | 2.0                               | French
+3                             | 3.0                               | Spanish
+4                             | 4.0                               | German
+127                           | 127.0                             | max_byte
+128                           | 128.0                             | max_byte_plus_1
+32767                         | 32767.0                           | max_short
+32768                         | 32768.0                           | max_short_plus_1
+65504                         | 65504.0                           | max_half_float
+65505                         | 65505.0                           | max_half_float_plus_1
+2147483646                    | 2.147483646E9                     | max_int_minus_1
+2147483647                    | 2.147483647E9                     | max_int
+;
+
+intEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer == language_code_float
+| SORT language_code_integer, language_code_float, language_name
+| KEEP language_code_integer, language_code_float, language_name
+;
+
+language_code_integer:integer | language_code_float:double | language_name:keyword
+-2147483648                   | -2.147483648E9             | min_int
+-65505                        | -65505.0                   | min_half_float_minus_1
+-65504                        | -65504.0                   | min_half_float
+-32769                        | -32769.0                   | min_short_minus_1
+-32768                        | -32768.0                   | min_short
+-129                          | -129.0                     | min_byte_minus_1
+-128                          | -128.0                     | min_byte
+1                             | 1.0                        | English
+2                             | 2.0                        | French
+3                             | 3.0                        | Spanish
+4                             | 4.0                        | German
+127                           | 127.0                      | max_byte
+128                           | 128.0                      | max_byte_plus_1
+32767                         | 32767.0                    | max_short
+32768                         | 32768.0                    | max_short_plus_1
+65504                         | 65504.0                    | max_half_float
+65505                         | 65505.0                    | max_half_float_plus_1
+;
+
+intEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_integer == language_code_double
+| SORT language_code_integer, language_code_double, language_name
+| KEEP language_code_integer, language_code_double, language_name
+;
+
+language_code_integer:integer | language_code_double:double | language_name:keyword
+-2147483648                   | -2.147483648E9              | min_int
+-65505                        | -65505.0                    | min_half_float_minus_1
+-65504                        | -65504.0                    | min_half_float
+-32769                        | -32769.0                    | min_short_minus_1
+-32768                        | -32768.0                    | min_short
+-129                          | -129.0                      | min_byte_minus_1
+-128                          | -128.0                      | min_byte
+1                             | 1.0                         | English
+2                             | 2.0                         | French
+3                             | 3.0                         | Spanish
+4                             | 4.0                         | German
+127                           | 127.0                       | max_byte
+128                           | 128.0                       | max_byte_plus_1
+32767                         | 32767.0                     | max_short
+32768                         | 32768.0                     | max_short_plus_1
+65504                         | 65504.0                     | max_half_float
+65505                         | 65505.0                     | max_half_float_plus_1
+2147483646                    | 2.147483646E9               | max_int_minus_1
+2147483647                    | 2.147483647E9               | max_int
+;
+
+longEqualsHalfFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long is not null AND language_code_long == language_code_half_float
+| SORT language_code_long, language_code_half_float, language_name
+| KEEP language_code_long, language_code_half_float, language_name
+;
+
+language_code_long:long | language_code_half_float:double | language_name:keyword
+-65504                  | -65504.0                        | min_half_float
+-32768                  | -32768.0                        | min_short
+-129                    | -129.0                          | min_byte_minus_1
+-128                    | -128.0                          | min_byte
+1                       | 1.0                             | English
+2                       | 2.0                             | French
+3                       | 3.0                             | Spanish
+4                       | 4.0                             | German
+127                     | 127.0                           | max_byte
+128                     | 128.0                           | max_byte_plus_1
+32768                   | 32768.0                         | max_short_plus_1
+65504                   | 65504.0                         | max_half_float
+;
+
+longEqualsScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long == language_code_scaled_float
+| SORT language_code_long, language_code_scaled_float, language_name
+| KEEP language_code_long, language_code_scaled_float, language_name
+;
+
+language_code_long:long | language_code_scaled_float:double | language_name:keyword
+-2147483649             | -2.147483649E9                    | min_int_minus_1
+-2147483648             | -2.147483648E9                    | min_int
+-65505                  | -65505.0                          | min_half_float_minus_1
+-65504                  | -65504.0                          | min_half_float
+-32769                  | -32769.0                          | min_short_minus_1
+-32768                  | -32768.0                          | min_short
+-129                    | -129.0                            | min_byte_minus_1
+-128                    | -128.0                            | min_byte
+1                       | 1.0                               | English
+2                       | 2.0                               | French
+3                       | 3.0                               | Spanish
+4                       | 4.0                               | German
+127                     | 127.0                             | max_byte
+128                     | 128.0                             | max_byte_plus_1
+32767                   | 32767.0                           | max_short
+32768                   | 32768.0                           | max_short_plus_1
+65504                   | 65504.0                           | max_half_float
+65505                   | 65505.0                           | max_half_float_plus_1
+2147483646              | 2.147483646E9                     | max_int_minus_1
+2147483647              | 2.147483647E9                     | max_int
+2147483648              | 2.147483648E9                     | max_int_plus_1
+;
+
+longEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long == language_code_float
+| SORT language_code_long, language_code_float, language_name
+| KEEP language_code_long, language_code_float, language_name
+;
+
+language_code_long:long | language_code_float:double | language_name:keyword
+-9223372036854775808    | -9.223372036854776E18      | min_long
+-2147483648             | -2.147483648E9             | min_int
+-65505                  | -65505.0                   | min_half_float_minus_1
+-65504                  | -65504.0                   | min_half_float
+-32769                  | -32769.0                   | min_short_minus_1
+-32768                  | -32768.0                   | min_short
+-129                    | -129.0                     | min_byte_minus_1
+-128                    | -128.0                     | min_byte
+1                       | 1.0                        | English
+2                       | 2.0                        | French
+3                       | 3.0                        | Spanish
+4                       | 4.0                        | German
+127                     | 127.0                      | max_byte
+128                     | 128.0                      | max_byte_plus_1
+32767                   | 32767.0                    | max_short
+32768                   | 32768.0                    | max_short_plus_1
+65504                   | 65504.0                    | max_half_float
+65505                   | 65505.0                    | max_half_float_plus_1
+2147483648              | 2.147483648E9              | max_int_plus_1
+9223372036854775806     | 9.223372036854776E18       | max_long_minus_1
+9223372036854775807     | 9.223372036854776E18       | max_long
+;
+
+longEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_long == language_code_double
+| SORT language_code_long, language_code_double, language_name
+| KEEP language_code_long, language_code_double, language_name
+;
+
+language_code_long:long | language_code_double:double | language_name:keyword
+-9223372036854775808    | -9.223372036854776E18       | min_long
+-2147483649             | -2.147483649E9              | min_int_minus_1
+-2147483648             | -2.147483648E9              | min_int
+-65505                  | -65505.0                    | min_half_float_minus_1
+-65504                  | -65504.0                    | min_half_float
+-32769                  | -32769.0                    | min_short_minus_1
+-32768                  | -32768.0                    | min_short
+-129                    | -129.0                      | min_byte_minus_1
+-128                    | -128.0                      | min_byte
+1                       | 1.0                         | English
+2                       | 2.0                         | French
+3                       | 3.0                         | Spanish
+4                       | 4.0                         | German
+127                     | 127.0                       | max_byte
+128                     | 128.0                       | max_byte_plus_1
+32767                   | 32767.0                     | max_short
+32768                   | 32768.0                     | max_short_plus_1
+65504                   | 65504.0                     | max_half_float
+65505                   | 65505.0                     | max_half_float_plus_1
+2147483646              | 2.147483646E9               | max_int_minus_1
+2147483647              | 2.147483647E9               | max_int
+2147483648              | 2.147483648E9               | max_int_plus_1
+9223372036854775806     | 9.223372036854776E18        | max_long_minus_1
+9223372036854775807     | 9.223372036854776E18        | max_long
+;
+
+halfFloatEqualsScaledFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float == language_code_scaled_float
+| SORT language_code_half_float, language_code_scaled_float, language_name
+| KEEP language_code_half_float, language_code_scaled_float, language_name
+;
+
+language_code_half_float:double | language_code_scaled_float:double | language_name:keyword
+-65504.0                        | -65504.0                          | min_half_float
+-32768.0                        | -32768.0                          | min_short
+-129.0                          | -129.0                            | min_byte_minus_1
+-128.0                          | -128.0                            | min_byte
+1.0                             | 1.0                               | English
+2.0                             | 2.0                               | French
+3.0                             | 3.0                               | Spanish
+4.0                             | 4.0                               | German
+127.0                           | 127.0                             | max_byte
+128.0                           | 128.0                             | max_byte_plus_1
+32768.0                         | 32768.0                           | max_short_plus_1
+65504.0                         | 65504.0                           | max_half_float
+;
+
+halfFloatEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float == language_code_float
+| SORT language_code_half_float, language_code_float, language_name
+| KEEP language_code_half_float, language_code_float, language_name
+;
+
+language_code_half_float:double | language_code_float:double | language_name:keyword
+-65504.0                        | -65504.0                   | min_half_float
+-32768.0                        | -32768.0                   | min_short
+-129.0                          | -129.0                     | min_byte_minus_1
+-128.0                          | -128.0                     | min_byte
+1.0                             | 1.0                        | English
+2.0                             | 2.0                        | French
+3.0                             | 3.0                        | Spanish
+4.0                             | 4.0                        | German
+127.0                           | 127.0                      | max_byte
+128.0                           | 128.0                      | max_byte_plus_1
+32768.0                         | 32768.0                    | max_short_plus_1
+65504.0                         | 65504.0                    | max_half_float
+;
+
+
+halfFloatEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_half_float == language_code_double
+| SORT language_code_half_float, language_code_double, language_name
+| KEEP language_code_half_float, language_code_double, language_name
+;
+
+language_code_half_float:double | language_code_double:double | language_name:keyword
+-65504.0                        | -65504.0                    | min_half_float
+-32768.0                        | -32768.0                    | min_short
+-129.0                          | -129.0                      | min_byte_minus_1
+-128.0                          | -128.0                      | min_byte
+1.0                             | 1.0                         | English
+2.0                             | 2.0                         | French
+3.0                             | 3.0                         | Spanish
+4.0                             | 4.0                         | German
+127.0                           | 127.0                       | max_byte
+128.0                           | 128.0                       | max_byte_plus_1
+32768.0                         | 32768.0                     | max_short_plus_1
+65504.0                         | 65504.0                     | max_half_float
+;
+
+scaledFloatEqualsFloat
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float == language_code_float
+| SORT language_code_scaled_float, language_code_float, language_name
+| KEEP language_code_scaled_float, language_code_float, language_name
+;
+
+language_code_scaled_float:double | language_code_float:double | language_name:keyword
+-2.147483648E9                    | -2.147483648E9             | min_int
+-65505.0                          | -65505.0                   | min_half_float_minus_1
+-65504.0                          | -65504.0                   | min_half_float
+-32769.0                          | -32769.0                   | min_short_minus_1
+-32768.0                          | -32768.0                   | min_short
+-129.0                            | -129.0                     | min_byte_minus_1
+-128.0                            | -128.0                     | min_byte
+1.0                               | 1.0                        | English
+2.0                               | 2.0                        | French
+3.0                               | 3.0                        | Spanish
+4.0                               | 4.0                        | German
+127.0                             | 127.0                      | max_byte
+128.0                             | 128.0                      | max_byte_plus_1
+32767.0                           | 32767.0                    | max_short
+32768.0                           | 32768.0                    | max_short_plus_1
+65504.0                           | 65504.0                    | max_half_float
+65505.0                           | 65505.0                    | max_half_float_plus_1
+2.147483648E9                     | 2.147483648E9              | max_int_plus_1
+;
+
+
+scaledFloatEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_scaled_float == language_code_double
+| SORT language_code_scaled_float, language_code_double, language_name
+| KEEP language_code_scaled_float, language_code_double, language_name
+;
+
+language_code_scaled_float:double | language_code_double:double | language_name:keyword
+-2.147483649E9                    | -2.147483649E9              | min_int_minus_1
+-2.147483648E9                    | -2.147483648E9              | min_int
+-65505.0                          | -65505.0                    | min_half_float_minus_1
+-65504.0                          | -65504.0                    | min_half_float
+-32769.0                          | -32769.0                    | min_short_minus_1
+-32768.0                          | -32768.0                    | min_short
+-129.0                            | -129.0                      | min_byte_minus_1
+-128.0                            | -128.0                      | min_byte
+1.0                               | 1.0                         | English
+2.0                               | 2.0                         | French
+3.0                               | 3.0                         | Spanish
+4.0                               | 4.0                         | German
+127.0                             | 127.0                       | max_byte
+128.0                             | 128.0                       | max_byte_plus_1
+32767.0                           | 32767.0                     | max_short
+32768.0                           | 32768.0                     | max_short_plus_1
+65504.0                           | 65504.0                     | max_half_float
+65505.0                           | 65505.0                     | max_half_float_plus_1
+2.147483646E9                     | 2.147483646E9               | max_int_minus_1
+2.147483647E9                     | 2.147483647E9               | max_int
+2.147483648E9                     | 2.147483648E9               | max_int_plus_1
+;
+
+floatEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE language_code_float == language_code_double
+| SORT language_code_float, language_code_double, language_name
+| KEEP language_code_float, language_code_double, language_name
+;
+
+language_code_float:double | language_code_double:double | language_name:keyword
+-3.4028234663852886E38     | -3.4028234663852886E38      | min_float
+-9.223372036854776E18      | -9.223372036854776E18       | min_long
+-9.223372036854776E18      | -9.223372036854776E18       | min_long_minus_1
+-2.147483648E9             | -2.147483648E9              | min_int
+-65505.0                   | -65505.0                    | min_half_float_minus_1
+-65504.0                   | -65504.0                    | min_half_float
+-32769.0                   | -32769.0                    | min_short_minus_1
+-32768.0                   | -32768.0                    | min_short
+-129.0                     | -129.0                      | min_byte_minus_1
+-128.0                     | -128.0                      | min_byte
+1.0                        | 1.0                         | English
+2.0                        | 2.0                         | French
+3.0                        | 3.0                         | Spanish
+4.0                        | 4.0                         | German
+127.0                      | 127.0                       | max_byte
+128.0                      | 128.0                       | max_byte_plus_1
+32767.0                    | 32767.0                     | max_short
+32768.0                    | 32768.0                     | max_short_plus_1
+65504.0                    | 65504.0                     | max_half_float
+65505.0                    | 65505.0                     | max_half_float_plus_1
+2.147483648E9              | 2.147483648E9               | max_int_plus_1
+9.223372036854776E18       | 9.223372036854776E18        | max_long
+9.223372036854776E18       | 9.223372036854776E18        | max_long_minus_1
+9.223372036854776E18       | 9.223372036854776E18        | max_long_plus_1
+3.4028234663852886E38      | 3.4028234663852886E38       | max_float
+;
+
+floatNotEqualsDouble
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM languages_mixed_numerics
+| WHERE NOT language_code_float == language_code_double
+| SORT language_code_float, language_code_double, language_name
+| KEEP language_code_float, language_code_double, language_name
+;
+
+language_code_float:double | language_code_double:double | language_name:keyword
+-2.147483648E9             | -2.147483649E9              | min_int_minus_1
+2.147483648E9              | 2.147483646E9               | max_int_minus_1
+2.147483648E9              | 2.147483647E9               | max_int
 ;

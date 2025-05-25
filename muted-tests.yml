@@ -492,6 +492,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ForkIT
   method: testProfile
   issue: https://github.com/elastic/elasticsearch/issues/128377
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
 
 # Examples:
 #

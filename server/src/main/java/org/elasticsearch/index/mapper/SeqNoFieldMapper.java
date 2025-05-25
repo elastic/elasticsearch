@@ -245,4 +245,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    /**
+     * Create a range query that matches all documents whose seq_no is between {@code lowerValue} and {@code upperValue} included.
+     */
+    public static Query rangeQueryForSeqNo(long lowerValue, long upperValue) {
+        return new SeqnoRangeQuery(lowerValue, upperValue);
+    }
+
 }

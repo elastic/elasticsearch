@@ -428,7 +428,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testTrimId() throws Exception {
+    public void testTrimIdAndSeqNoPoints() throws Exception {
         String dataStreamName = "k8s";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
@@ -496,6 +496,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
+        logger.error("response: {}", map);
         assertMap(
             map,
             matchesMap().extraOk()
@@ -506,6 +507,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                             "fields",
                             matchesMap().extraOk()
                                 .entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", greaterThanOrEqualTo(1)))
+                        )
+                )
+        );
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk()
+                                .entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", greaterThanOrEqualTo(1)))
                         )
                 )
         );
@@ -547,6 +561,18 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                         .entry(
                             "fields",
                             matchesMap().extraOk().entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", equalTo(0)))
+                        )
+                )
+        );
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk().entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", equalTo(0)))
                         )
                 )
         );

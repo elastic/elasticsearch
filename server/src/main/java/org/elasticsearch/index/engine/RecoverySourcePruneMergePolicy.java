@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -31,6 +33,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -42,6 +45,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         @Nullable String pruneStoredFieldName,
         String pruneNumericDVFieldName,
         boolean pruneIdField,
+        boolean pruneSeqnoPoints,
         Supplier<Query> retainSourceQuerySupplier,
         MergePolicy in
     ) {
@@ -49,7 +53,14 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(pruneStoredFieldName, pruneNumericDVFieldName, pruneIdField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(
+                    pruneStoredFieldName,
+                    pruneNumericDVFieldName,
+                    pruneIdField,
+                    pruneSeqnoPoints,
+                    wrapped,
+                    retainSourceQuerySupplier
+                );
             }
         });
     }
@@ -58,6 +69,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String pruneStoredFieldName,
         String pruneNumericDVFieldName,
         boolean pruneIdField,
+        boolean pruneSeqnoPoints,
         CodecReader reader,
         Supplier<Query> retainSourceQuerySupplier
     ) throws IOException {
@@ -67,7 +79,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         }
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
-        Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        Query retainSourceQuery = retainSourceQuerySupplier.get();
+        Weight weight = s.createWeight(s.rewrite(retainSourceQuery), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         Scorer scorer = weight.scorer(reader.getContext());
         if (scorer != null) {
             BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());
@@ -80,11 +93,19 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 pruneStoredFieldName,
                 pruneNumericDVFieldName,
                 pruneIdField,
+                pruneSeqnoPoints,
                 reader,
-                recoverySourceToKeep
+                recoverySourceToKeep.cardinality() == 0 ? null : recoverySourceToKeep
             );
         } else {
-            return new SourcePruningFilterCodecReader(pruneStoredFieldName, pruneNumericDVFieldName, pruneIdField, reader, null);
+            return new SourcePruningFilterCodecReader(
+                pruneStoredFieldName,
+                pruneNumericDVFieldName,
+                pruneIdField,
+                pruneSeqnoPoints,
+                reader,
+                null
+            );
         }
     }
 
@@ -93,11 +114,13 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         private final String pruneStoredFieldName;
         private final String pruneNumericDVFieldName;
         private final boolean pruneIdField;
+        private final boolean pruneSeqnoPoints;
 
         SourcePruningFilterCodecReader(
             @Nullable String pruneStoredFieldName,
             String pruneNumericDVFieldName,
             boolean pruneIdField,
+            boolean pruneSeqnoPoints,
             CodecReader reader,
             BitSet recoverySourceToKeep
         ) {
@@ -106,6 +129,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             this.recoverySourceToKeep = recoverySourceToKeep;
             this.pruneNumericDVFieldName = pruneNumericDVFieldName;
             this.pruneIdField = pruneIdField;
+            this.pruneSeqnoPoints = pruneSeqnoPoints;
         }
 
         @Override
@@ -147,6 +171,35 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                     return numeric;
                 }
             };
+        }
+
+        @Override
+        public PointsReader getPointsReader() {
+            var pointsReader = super.getPointsReader();
+            if (pruneSeqnoPoints && recoverySourceToKeep == null) {
+                return new PointsReader() {
+                    @Override
+                    public void checkIntegrity() throws IOException {
+                        pointsReader.checkIntegrity();
+                    }
+
+                    @Override
+                    public PointValues getValues(String field) throws IOException {
+                        if (SeqNoFieldMapper.NAME.equals(field)) {
+                            return null;
+                        } else {
+                            return pointsReader.getValues(field);
+                        }
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        pointsReader.close();
+                    }
+                };
+            } else {
+                return pointsReader;
+            }
         }
 
         @Override

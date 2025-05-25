@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -35,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -45,6 +47,8 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
@@ -57,6 +61,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         syntheticRecoverySource ? null : "extra_source",
                         syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         pruneIdField,
+                        true,
                         MatchNoDocsQuery::new,
                         newLogMergePolicy()
                     );
@@ -69,6 +74,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             Document doc = new Document();
                             doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                             doc.add(new StoredField("source", "hello world"));
+                            doc.add(new LongPoint(SeqNoFieldMapper.NAME, 3L));
                             if (syntheticRecoverySource) {
                                 doc.add(new NumericDocValuesField("extra_source_size", randomIntBetween(10, 10000)));
                             } else {
@@ -95,6 +101,9 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
                             assertEquals(1, reader.leaves().size());
                             LeafReader leafReader = reader.leaves().get(0).reader();
+
+                            var pointValues = leafReader.getPointValues(SeqNoFieldMapper.NAME);
+                            assertThat(pointValues, nullValue());
 
                             NumericDocValues extra_source = leafReader.getNumericDocValues(
                                 syntheticRecoverySource ? "extra_source_size" : "extra_source"
@@ -148,6 +157,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             syntheticRecoverySource ? null : "extra_source",
                             syntheticRecoverySource ? "extra_source_size" : "extra_source",
                             pruneIdField,
+                            false,
                             () -> new TermQuery(new Term("even", "true")),
                             iwc.getMergePolicy()
                         )
@@ -161,6 +171,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                             doc.add(new StringField("even", Boolean.toString(i % 2 == 0), Field.Store.YES));
                             doc.add(new StoredField("source", "hello world"));
+                            doc.add(new LongPoint(SeqNoFieldMapper.NAME, 3L));
                             if (syntheticRecoverySource) {
                                 doc.add(new NumericDocValuesField("extra_source_size", randomIntBetween(10, 10000)));
                             } else {
@@ -207,6 +218,11 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             if (extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
                             }
+
+                            // Can only prune points for entire segment:
+                            var pointValues = reader.leaves().get(0).reader().getPointValues(SeqNoFieldMapper.NAME);
+                            assertThat(pointValues, notNullValue());
+                            assertThat(pointValues.getDocCount(), equalTo(20));
                         }
                     }
                 }
@@ -223,6 +239,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         syntheticRecoverySource ? null : "extra_source",
                         syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         false,
+                        false,
                         MatchAllDocsQuery::new,
                         iwc.getMergePolicy()
                     )
@@ -234,6 +251,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         }
                         Document doc = new Document();
                         doc.add(new StoredField("source", "hello world"));
+                        doc.add(new LongPoint(SeqNoFieldMapper.NAME, 3L));
                         if (syntheticRecoverySource) {
                             doc.add(new NumericDocValuesField("extra_source_size", randomIntBetween(10, 10000)));
                         } else {
@@ -258,6 +276,10 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             assertEquals(i, extra_source.nextDoc());
                         }
                         assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
+
+                        var pointValues = reader.leaves().get(0).reader().getPointValues(SeqNoFieldMapper.NAME);
+                        assertThat(pointValues, notNullValue());
+                        assertThat(pointValues.getDocCount(), equalTo(20));
                     }
                 }
             }

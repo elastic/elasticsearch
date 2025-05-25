@@ -1789,6 +1789,78 @@ count:long
 12
 ;
 
+airportsDistanceLessThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceLessThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 

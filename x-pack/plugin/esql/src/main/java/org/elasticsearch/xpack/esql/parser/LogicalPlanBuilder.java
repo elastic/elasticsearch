@@ -479,6 +479,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        List<Alias> partition = visitFields(ctx.partition);
         Attribute targetType = new ReferenceAttribute(
             src,
             ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
@@ -489,7 +490,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
             DataType.DOUBLE
         );
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+        return child -> new ChangePoint(
+            src,
+            child,
+            value,
+            key,
+            partition.stream().map(p -> (Attribute) p.child()).toList(),
+            targetType,
+            targetPvalue
+        );
     }
 
     private static Tuple<Mode, String> parsePolicyName(Token policyToken) {

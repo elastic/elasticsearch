@@ -266,7 +266,7 @@ inlinestatsCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (BY partition=fields)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
 insistCommand

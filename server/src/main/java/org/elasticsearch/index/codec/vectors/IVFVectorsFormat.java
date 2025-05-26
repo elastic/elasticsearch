@@ -18,7 +18,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -46,7 +45,6 @@ import java.io.IOException;
  */
 public class IVFVectorsFormat extends KnnVectorsFormat {
 
-    static final FeatureFlag IVF_FORMAT_FEATURE_FLAG = new FeatureFlag("ivf_format");
     public static final String IVF_VECTOR_COMPONENT = "IVF";
     public static final String NAME = "IVFVectorsFormat";
     // centroid ordinals -> centroid values, offsets
@@ -69,8 +67,8 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
 
     public IVFVectorsFormat(int vectorPerCluster) {
         super(NAME);
-        if (IVF_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException("IVF format is not enabled");
+        if (vectorPerCluster <= 0) {
+            throw new IllegalArgumentException("vectorPerCluster must be > 0");
         }
         this.vectorPerCluster = vectorPerCluster;
     }
@@ -78,9 +76,6 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public IVFVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER);
-        if (IVF_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException("IVF format is not enabled");
-        }
     }
 
     @Override

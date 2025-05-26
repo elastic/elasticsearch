@@ -171,7 +171,7 @@ public class InternalEngine extends Engine {
     private final CombinedDeletionPolicy combinedDeletionPolicy;
 
     // How many callers are currently requesting index throttling. Currently there are only two situations where we do this: when merges
-    // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
+    // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttle
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
@@ -260,7 +260,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getThreadPoolMergeExecutorService()
             );
             scheduler = mergeScheduler.getMergeScheduler();
-            throttle = new IndexThrottle();
+            throttle = new IndexThrottle(pauseIndexingOnThrottle);
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
                 translog = openTranslog(

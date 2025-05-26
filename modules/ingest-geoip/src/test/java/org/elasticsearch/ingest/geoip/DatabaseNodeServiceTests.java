@@ -378,8 +378,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return createClusterState(Metadata.DEFAULT_PROJECT_ID, tasksCustomMetadata, noStartedShards);
     }
 
-    static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata,
-                                           boolean noStartedShards) {
+    static ClusterState createClusterState(
+        ProjectId projectId,
+        PersistentTasksCustomMetadata tasksCustomMetadata,
+        boolean noStartedShards
+    ) {
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
@@ -411,7 +414,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(index)
                             .addIndexShard(IndexShardRoutingTable.builder(new ShardId(index, 0)).addShard(shardRouting))
-                    ).build()
+                    )
+                    .build()
             )
             .build();
     }

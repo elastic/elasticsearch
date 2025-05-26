@@ -148,8 +148,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 );
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(projectId, ClusterBlockLevel.WRITE,
-                geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(projectId, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 logger.debug(
                     "Not updating geoip database because there is a write block on the " + geoipIndex.getWriteIndex().getName() + " index",

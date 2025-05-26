@@ -596,7 +596,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
          * Here we make sure that we bail out before making an httpClient request if there is write block on the .geoip_databases index
          */
         ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().getProject(projectId).getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex()
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(GeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
             .getName();
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))

@@ -1,0 +1,7 @@
+pr: 128260
+summary: Fix validation NPE in Enrich and add extra @Nullable annotations
+area: ES|QL
+type: bug
+issues:
+ - 126297
+ - 126253

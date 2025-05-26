@@ -103,6 +103,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             authenticationContextSerializer,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
+            mock(),
             apiKeyAuthenticator,
             realmsAuthenticator
         );

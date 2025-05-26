@@ -61,6 +61,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
@@ -71,6 +72,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
@@ -891,10 +894,15 @@ public final class Authentication implements ToXContentObject {
 
     private void checkConsistencyForApiKeyAuthenticationType() {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
-        if (false == authenticatingRealm.isApiKeyRealm() && false == authenticatingRealm.isCrossClusterAccessRealm()) {
+        if (false == authenticatingRealm.isApiKeyRealm()
+            && false == authenticatingRealm.isCrossClusterAccessRealm()
+            && false == authenticatingRealm.isCloudApiKeyRealm()) {
             throw new IllegalArgumentException(
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
+        }
+        if (authenticatingRealm.isCloudApiKeyRealm()) {
+            return;
         }
         checkConsistencyForApiKeyAuthenticatingSubject("API key");
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
@@ -1183,6 +1191,10 @@ public final class Authentication implements ToXContentObject {
             return ANONYMOUS_REALM_NAME.equals(name) && ANONYMOUS_REALM_TYPE.equals(type);
         }
 
+        private boolean isCloudApiKeyRealm() {
+            return CLOUD_API_KEY_REALM_NAME.equals(name) && CLOUD_API_KEY_REALM_TYPE.equals(type);
+        }
+
         private boolean isApiKeyRealm() {
             return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
         }
@@ -1210,6 +1222,11 @@ public final class Authentication implements ToXContentObject {
         static RealmRef newServiceAccountRealmRef(String nodeName) {
             // no domain for service account tokens
             return new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newCloudApiKeyRealmRef(String nodeName) {
+            // no domain for cloud API key tokens
+            return new RealmRef(CLOUD_API_KEY_REALM_NAME, CLOUD_API_KEY_REALM_TYPE, nodeName, null);
         }
 
         static RealmRef newApiKeyRealmRef(String nodeName) {
@@ -1291,6 +1308,16 @@ public final class Authentication implements ToXContentObject {
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
         return authentication;
+    }
+
+    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        assert authResult.isAuthenticated() : "cloud API Key authn result must be successful";
+        final User apiKeyUser = authResult.getValue();
+        final Authentication.RealmRef authenticatedBy = newCloudApiKeyRealmRef(nodeName);
+        return new Authentication(
+            new Subject(apiKeyUser, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
+            AuthenticationType.API_KEY
+        );
     }
 
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {

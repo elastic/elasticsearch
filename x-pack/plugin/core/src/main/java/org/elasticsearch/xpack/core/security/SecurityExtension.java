@@ -15,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.CloudApiKeyService;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
@@ -125,6 +126,10 @@ public interface SecurityExtension {
      * @param components Access to components that can be used to authenticate service account tokens
      */
     default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+        return null;
+    }
+
+    default CloudApiKeyService getCloudApiKeyService(SecurityComponents components) {
         return null;
     }
 

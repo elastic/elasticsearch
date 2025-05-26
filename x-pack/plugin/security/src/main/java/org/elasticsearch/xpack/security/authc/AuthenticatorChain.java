@@ -54,6 +54,7 @@ class AuthenticatorChain {
         AuthenticationContextSerializer authenticationSerializer,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
+        CloudApiKeyAuthenticator cloudApiKeyAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
         RealmsAuthenticator realmsAuthenticator
     ) {
@@ -64,7 +65,13 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+        this.allAuthenticators = List.of(
+            serviceAccountAuthenticator,
+            oAuth2TokenAuthenticator,
+            cloudApiKeyAuthenticator,
+            apiKeyAuthenticator,
+            realmsAuthenticator
+        );
     }
 
     void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {

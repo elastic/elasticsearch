@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -482,7 +483,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
+        return new NodeIndicesStats(
+            commonStats,
+            statsByIndex(this, flags),
+            statsByShard(this, flags),
+            projectsByIndex(),
+            includeShardsStats
+        );
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -562,6 +569,15 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.searchIdleTime()
                 ) }
         );
+    }
+
+    private Map<Index, ProjectId> projectsByIndex() {
+        Map<Index, ProjectId> map = new HashMap<>(indices.size());
+        for (IndexService indexShards : indices.values()) {
+            Index index = indexShards.index();
+            clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));
+        }
+        return map;
     }
 
     /**
@@ -1023,6 +1039,12 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
+    private QueryBuilder parseFilter(BytesReference bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(parserConfig, bytes)) {
+            return parseTopLevelQuery(parser);
+        }
+    }
+
     static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
@@ -1058,19 +1080,25 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
      * but does not deal with in-memory structures. For those call {@link #removeIndex}
+     *
+     * @param reason the reason why this index should be deleted
+     * @param oldIndexMetadata the index metadata of the index that should be deleted
+     * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
+     *                       anymore - can be null in case the whole project got deleted while there were still indices in it
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject) {
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().getProject().hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().getProject().index(index);
+                if (currentProject != null && currentProject.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = currentProject.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
-                            + "] - it's still part "
-                            + "of the cluster state ["
+                            + "] - it's still part of project ["
+                            + currentProject.id()
+                            + "] with UUIDs ["
                             + currentMetadata.getIndexUUID()
                             + "] ["
                             + oldIndexMetadata.getIndexUUID()
@@ -1743,13 +1771,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ProjectState project, String index, Set<ResolvedExpression> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
-            try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
-            ) {
-                return parseTopLevelQuery(parser);
-            }
-        };
 
         final ProjectMetadata metadata = project.metadata();
         String[] aliases = indexNameExpressionResolver.filteringAliases(metadata, index, resolvedExpressions);
@@ -1759,43 +1780,36 @@ public class IndicesService extends AbstractLifecycleComponent
 
         IndexAbstraction ia = metadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
+        final QueryBuilder filter;
         if (dataStream != null) {
+            var dsAliases = metadata.dataStreamAliases();
             String dataStreamName = dataStream.getName();
-            List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
-                .map(dataStreamAlias -> {
-                    try {
-                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                })
-                .toList();
-            if (filters.isEmpty()) {
-                return AliasFilter.of(null, aliases);
-            } else {
-                if (filters.size() == 1) {
-                    return AliasFilter.of(filters.get(0), aliases);
-                } else {
-                    BoolQueryBuilder bool = new BoolQueryBuilder();
-                    for (QueryBuilder filter : filters) {
-                        bool.should(filter);
-                    }
-                    return AliasFilter.of(bool, aliases);
+            List<QueryBuilder> filters = Arrays.stream(aliases).map(key -> {
+                var f = dsAliases.get(key).getFilter(dataStreamName);
+                if (f == null) {
+                    return null;
                 }
+                try {
+                    return parseFilter(f.compressedReference());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).filter(Objects::nonNull).toList();
+            if (filters.isEmpty()) {
+                filter = null;
+            } else if (filters.size() == 1) {
+                filter = filters.getFirst();
+            } else {
+                BoolQueryBuilder bool = new BoolQueryBuilder();
+                for (QueryBuilder f : filters) {
+                    bool.should(f);
+                }
+                filter = bool;
             }
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
-            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            filter = ShardSearchRequest.parseAliasFilter(this::parseFilter, metadata.index(index), aliases);
         }
-    }
-
-    /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
-     */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+        return AliasFilter.of(filter, aliases);
     }
 
     /**

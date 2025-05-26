@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -45,6 +46,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
         // This will require updating should we choose to have non-unary execution plans in the future.
         return plan.transformDown(currentPlanNode -> {
+            if (currentPlanNode instanceof MergeExec) {
+                keepTraversing.set(FALSE);
+            }
+
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }

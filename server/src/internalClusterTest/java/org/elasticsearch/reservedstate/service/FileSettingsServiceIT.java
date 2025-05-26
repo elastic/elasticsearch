@@ -25,6 +25,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -37,7 +39,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
@@ -134,6 +138,11 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+        writeJSONFile(node, json, logger, version, fileSettingsService.watchedFile());
+    }
+
+    public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
@@ -147,8 +156,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         do {
             try {
                 // this can fail on Windows because of timing
-                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-                logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
+                Files.move(tempFilePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+                logger.info("--> after writing JSON config to node {} with path {}", node, targetPath);
                 return;
             } catch (IOException e) {
                 logger.info("--> retrying writing a settings file [{}]", retryCount);
@@ -496,6 +505,111 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         writeJSONFile(internalCluster().getMasterName(), testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+    }
+
+    public void testSymlinkUpdateTriggerReload() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path baseDir = masterFileSettingsService.watchedFileDir();
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        {
+            var savedClusterState = setupClusterStateListener(masterNode);
+            // Create the settings.json as a symlink to simulate k8 setup
+            // settings.json -> ..data/settings.json
+            // ..data -> ..TIMESTAMP_TEMP_FOLDER_1
+            var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_1"));
+            writeJSONFile(masterNode, testJSON, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+            var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
+            Files.createSymbolicLink(baseDir.resolve("settings.json"), dataDir.getFileName().resolve("settings.json"));
+            assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+        }
+        {
+            var savedClusterState = setupClusterStateListener(masterNode);
+            // Update ..data symlink to ..data -> ..TIMESTAMP_TEMP_FOLDER_2 to simulate kubernetes secret update
+            var fileDir = Files.createDirectories(baseDir.resolve("..TIMESTAMP_TEMP_FOLDER_2"));
+            writeJSONFile(masterNode, testJSON43mb, logger, versionCounter.incrementAndGet(), fileDir.resolve("settings.json"));
+            Files.deleteIfExists(baseDir.resolve("..data"));
+            Files.createSymbolicLink(baseDir.resolve("..data"), fileDir.getFileName());
+            assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
+        }
+    }
+
+    public void testHealthIndicatorWithSingleNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start the node");
+        String nodeName = internalCluster().startNode();
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, nodeName);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        ensureStableCluster(1);
+
+        testHealthIndicatorOnError(nodeName, nodeName);
+    }
+
+    public void testHealthIndicatorWithSeparateHealthNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start a data node to act as the health node");
+        String healthNode = internalCluster().startNode(
+            Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s")
+        );
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        ensureStableCluster(2);
+
+        testHealthIndicatorOnError(masterNode, healthNode);
+    }
+
+    /**
+     * {@code masterNode} and {@code healthNode} can be the same node.
+     */
+    private void testHealthIndicatorOnError(String masterNode, String healthNode) throws Exception {
+        logger.info("--> ensure all is well before the error");
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(0, healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak());
+        });
+
+        logger.info("--> induce an error and wait for it to be processed");
+        var savedClusterState = setupClusterStateListenerForError(masterNode);
+        writeJSONFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        logger.info("--> ensure the health node also reports it");
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            assertEquals(
+                "Cached info on health node should report one failure",
+                1,
+                healthNodeResponse.getHealthInfo().fileSettingsHealthInfo().failureStreak()
+            );
+
+            for (var node : Stream.of(masterNode, healthNode).distinct().toList()) {
+                GetHealthAction.Response getHealthResponse = client(node).execute(
+                    GetHealthAction.INSTANCE,
+                    new GetHealthAction.Request(false, 123)
+                ).get();
+                assertEquals(
+                    "Health should be yellow on node " + node,
+                    YELLOW,
+                    getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
+                );
+            }
+        });
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

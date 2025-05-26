@@ -169,7 +169,7 @@ setup:
   - match: {values.0.1: 40}
 
 ---
-"Basic ESQL query":
+basic:
   - do:
       esql.query:
         body:
@@ -181,12 +181,66 @@ setup:
   - match: {values.0: [1, 1]}
 
 ---
-"Test From Eval Sort Limit":
+basic with documents_found:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [documents_found_and_values_loaded]
+      reason: "checks for documents_found and values_loaded"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | keep data | sort data | limit 2'
+          columnar: true
+
+  - gte:   {documents_found: 2}   # we might early terminate, so the most we can assume is >=2
+  - gte:   {values_loaded: 2}     # same as above
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [1, 1]}
+
+---
+FROM EVAL SORT LIMIT:
   - do:
       esql.query:
         body:
           query: 'from test | eval x = count + 7 | sort x | limit 1'
 
+  - match: {columns.0.name: "color"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.6.name: "x"}
+  - match: {values.0.6: 47}
+  - length: {values: 1}
+
+---
+FROM EVAL SORT LIMIT with documents_found:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [documents_found_and_values_loaded]
+      reason: "checks for documents_found and values_loaded"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = count + 7 | sort x | limit 1'
+
+  - match: {documents_found: 40}
+  # We can't be sure quite how many values we'll load. It's at least
+  # one per document in the index. And one per top document. But we
+  # might load more values because we run in more threads.
+  - gte: {values_loaded: 45}
   - match: {columns.0.name: "color"}
   - match: {columns.1.name: "count"}
   - match: {columns.2.name: "count_d"}

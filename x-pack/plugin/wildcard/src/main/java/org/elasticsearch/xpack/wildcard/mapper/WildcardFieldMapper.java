@@ -407,6 +407,9 @@ public class WildcardFieldMapper extends FieldMapper {
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
+                case REGEXP_CHAR_CLASS:
+                    result = createCharacterClassQuery(r);
+                    break;
                 case REGEXP_UNION:
                     result = createUnionQuery(r);
                     break;
@@ -426,7 +429,6 @@ public class WildcardFieldMapper extends FieldMapper {
                     // Repeat is zero or more times so zero matches = match all
                     result = new MatchAllDocsQuery();
                     break;
-
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
                     if (r.min > 0) {
@@ -458,7 +460,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
                 case REGEXP_AUTOMATON:
-                case REGEXP_PRE_CLASS:
+                    // case REGEXP_PRE_CLASS:
                     result = new MatchAllDocsQuery();
                     break;
             }
@@ -496,11 +498,35 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
+        private static Query createCharacterClassQuery(RegExp r) {
+            // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
+            List<Query> queries = new ArrayList<>();
+            if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                return new MatchAllDocsQuery();
+            }
+            for (int i = 0; i < r.from.length; i++) {
+                // only handle character classes for now not ranges
+                if (r.from[i] == r.to[i]) {
+                    String cs = Character.toString(r.from[i]);
+                    String normalizedChar = toLowerCase(cs);
+                    queries.add(new TermQuery(new Term("", normalizedChar)));
+                } else {
+                    // immediately exit because we can't currently optimize a combination of range and classes
+                    return new MatchAllDocsQuery();
+                }
+            }
+            return formQuery(queries);
+        }
+
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
-            ArrayList<Query> queries = new ArrayList<>();
+            List<Query> queries = new ArrayList<>();
             findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
             findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            return formQuery(queries);
+        }
+
+        private static Query formQuery(List<Query> queries) {
             BooleanQuery.Builder bOr = new BooleanQuery.Builder();
             HashSet<Query> uniqueClauses = new HashSet<>();
             for (Query query : queries) {

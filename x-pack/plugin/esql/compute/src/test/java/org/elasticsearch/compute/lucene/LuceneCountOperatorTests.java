@@ -51,7 +51,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneCountOperator.Factory simple() {
+    protected LuceneCountOperator.Factory simple(SimpleOptions options) {
         return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
@@ -100,7 +100,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), limit = 100]");
+        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), limit = 100]");
     }
 
     // TODO tests for the other data partitioning configurations

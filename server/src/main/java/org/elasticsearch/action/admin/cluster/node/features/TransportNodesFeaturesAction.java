@@ -21,13 +21,14 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
 
-@UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // this can be removed in v10. It may be called by v8 nodes to v9 nodes.
+@UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
+// this can be removed in v10. It may be called by v8 nodes to v9 nodes.
 public class TransportNodesFeaturesAction extends TransportNodesAction<
     NodesFeaturesRequest,
     NodesFeaturesResponse,
@@ -82,7 +83,7 @@ public class TransportNodesFeaturesAction extends TransportNodesAction<
         return new NodeFeatures(featureService.getNodeFeatures().keySet(), transportService.getLocalNode());
     }
 
-    public static class NodeFeaturesRequest extends TransportRequest {
+    public static class NodeFeaturesRequest extends AbstractTransportRequest {
         public NodeFeaturesRequest(StreamInput in) throws IOException {
             super(in);
         }

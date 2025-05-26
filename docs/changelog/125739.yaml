@@ -1,0 +1,5 @@
+pr: 125739
+summary: Heuristics to pick efficient partitioning
+area: ES|QL
+type: enhancement
+issues: []

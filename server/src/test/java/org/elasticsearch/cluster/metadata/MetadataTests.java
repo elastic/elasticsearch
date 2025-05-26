@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -61,7 +59,6 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1690,38 +1687,6 @@ public class MetadataTests extends ESTestCase {
                 assertThat(fromStreamProject.dataStreams().get(name), equalTo(value));
             });
         }
-    }
-
-    public void testMetadataSerializationPreMultiProject() throws IOException {
-        final Metadata orig = randomMetadata();
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        orig.writeTo(out);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-        assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
-    }
-
-    public void testDiffSerializationPreMultiProject() throws IOException {
-        final Metadata meta1 = randomMetadata(1);
-        final Metadata meta2 = randomMetadata(2);
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final Diff<Metadata> diff = meta2.diff(meta1);
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        diff.writeTo(out);
-
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-
-        final Metadata applied = read.apply(meta1);
-        assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
     }
 
     public void testGetNonExistingProjectThrows() {

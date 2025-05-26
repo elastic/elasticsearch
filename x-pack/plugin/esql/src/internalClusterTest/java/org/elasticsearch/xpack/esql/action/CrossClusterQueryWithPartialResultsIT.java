@@ -161,6 +161,34 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         }
     }
 
+    public void testLocalIndexMissing() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok-local,no_such_index | LIMIT 1");
+        request.includeCCSMetadata(randomBoolean());
+        for (boolean allowPartial : Set.of(true, false)) {
+            request.allowPartialResults(allowPartial);
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+            assertThat(error.getMessage(), containsString("no such index"));
+            assertThat(error.getMessage(), containsString("[no_such_index]"));
+        }
+    }
+
+    public void testRemoteIndexMissing() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM cluster-a:ok-cluster1,cluster-a:no_such_index | LIMIT 1");
+        request.includeCCSMetadata(randomBoolean());
+        for (boolean allowPartial : Set.of(true, false)) {
+            request.allowPartialResults(allowPartial);
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+            assertThat(error.getMessage(), containsString("no such index"));
+            assertThat(error.getMessage(), containsString("[no_such_index]"));
+        }
+    }
+
     public void testFailToReceiveClusterResponse() throws Exception {
         populateIndices();
         Exception simulatedFailure = randomFailure();

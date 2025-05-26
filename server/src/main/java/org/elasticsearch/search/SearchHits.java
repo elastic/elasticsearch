@@ -140,9 +140,9 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
                 isPooled = isPooled || hit.isPooled();
             }
         }
-        var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        var sortFields = in.readOptional(Lucene::readSortFieldArray);
         var collapseField = in.readOptionalString();
-        var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        var collapseValues = in.readOptional(Lucene::readSortValues);
         if (isPooled) {
             return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         } else {
@@ -164,7 +164,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         }
         out.writeFloat(maxScore);
         out.writeArray(hits);
-        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptional(Lucene::writeSortFieldArray, sortFields);
         out.writeOptionalString(collapseField);
         out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
     }

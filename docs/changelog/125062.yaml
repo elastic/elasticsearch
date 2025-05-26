@@ -1,0 +1,5 @@
+pr: 125062
+summary: "Add initial version (behind snapshot) of `multi_match` function #121525"
+area: Search
+type: feature
+issues: [121525]

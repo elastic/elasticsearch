@@ -1,6 +1,0 @@
-pr: 126411
-summary: Fix usage of already released null block in `ValueSourceReaderOperator`
-area: ES|QL
-type: bug
-issues:
- - 125850

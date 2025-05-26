@@ -25,9 +25,8 @@ The connector service has the following known issues:
             ::::{dropdown} RAM sizing guidelines
             The following table shows the estimated RAM usage for loading IDs into memory.
 
-            |     |     |
-            | --- | --- |
             | **Number of IDs** | **Memory Usage in MB (2X buffer)** |
+            | --- | --- |
             | 1,000,000 | ≈ 45.78 MB |
             | 10,000,000 | ≈ 457.76 MB |
             | 50,000,000 | ≈ 2288.82 MB (≈ 2.29 GB) |

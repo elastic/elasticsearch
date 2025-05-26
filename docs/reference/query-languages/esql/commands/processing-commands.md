@@ -1,7 +1,7 @@
 ---
 navigation_title: "Processing commands"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/commands/processing-commands.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-commands.html
 ---
 
 # {{esql}} processing commands [esql-processing-commands]
@@ -15,6 +15,9 @@ mapped_pages:
 {{esql}} supports these processing commands:
 
 :::{include} ../_snippets/lists/processing-commands.md
+:::
+
+:::{include} ../_snippets/commands/layout/change_point.md
 :::
 
 :::{include} ../_snippets/commands/layout/dissect.md

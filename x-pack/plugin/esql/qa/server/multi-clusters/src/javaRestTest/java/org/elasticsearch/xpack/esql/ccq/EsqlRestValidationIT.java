@@ -83,6 +83,6 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
 
     @Before
     public void skipTestOnOldVersions() {
-        assumeTrue("skip on old versions", Clusters.localClusterVersion().equals(Version.V_8_16_0));
+        assumeTrue("skip on old versions", Clusters.localClusterVersion().equals(Version.V_8_19_0));
     }
 }

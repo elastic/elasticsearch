@@ -461,16 +461,16 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list());
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list()) ? Translatable.YES : Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return translate(handler);
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return translate(pushdownPredicates, handler);
     }
 
-    private Query translate(TranslatorHandler handler) {
+    private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
@@ -478,12 +478,12 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         List<Query> queries = new ArrayList<>();
 
         for (Expression rhs : list()) {
-            if (DataType.isNull(rhs.dataType()) == false) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(new Equals(source(), value(), rhs));
+                    Query query = handler.asQuery(pushdownPredicates, new Equals(source(), value(), rhs));
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());

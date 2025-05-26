@@ -114,6 +114,73 @@ book_no:keyword | title:text                                                    
 6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
 ;
 
+testMultiMatchWithScore
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Mark", author, title, {"fuzziness": 1})
+| keep book_no, title, author, _score;
+ignoreOrder:true
+
+book_no:keyword | title:text                                            | author:text      | _score:double
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 1.9662091732025146
+;
+
+testMultiMatchWithScore1
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Hobbit", description, title, {"type": "best_fields"})
+| sort book_no
+| eval _score = round(_score)
+| keep book_no, _score;
+ignoreOrder:true
+
+book_no:keyword | _score:double
+1463            | 2.0          
+2301            | 2.0          
+2675            | 2.0          
+2714            | 2.0          
+2936            | 1.0          
+4023            | 2.0          
+4289            | 3.0          
+5335            | 2.0          
+5996            | 2.0          
+6405            | 2.0          
+6760            | 2.0          
+7350            | 2.0          
+7480            | 3.0  
+;
+
+testMultiMatchWithScore2
+required_capability: multi_match_function
+required_capability: metadata_score
+
+from books metadata _score
+| where multi_match("Hobbit", description, title, {"type": "most_fields"})
+| sort book_no
+| eval _score = round(_score)
+| keep book_no, _score;
+ignoreOrder:true
+
+book_no:keyword | _score:double
+1463            | 2.0          
+2301            | 2.0          
+2675            | 2.0          
+2714            | 2.0          
+2936            | 1.0          
+4023            | 2.0          
+4289            | 6.0          
+5335            | 2.0          
+5996            | 2.0          
+6405            | 2.0          
+6760            | 2.0          
+7350            | 2.0          
+7480            | 3.0 
+;
+
 multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
@@ -454,7 +521,6 @@ book_no:keyword |  _score:double
 8678            | 0.0
 ;
 
-
 disjunctionScoresMultipleClauses
 
 required_capability: metadata_score
@@ -476,4 +542,19 @@ book_no:keyword |  _score:double
 7140            | 1.746896743774414 
 4023            | 1.5062403678894043
 2924            | 1.2732219696044922
+;
+
+statsScores
+
+required_capability: metadata_score
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books metadata _score 
+| where match(title, "Lord Rings", {"operator": "AND"})
+| stats avg_score = avg(_score), max_score = max(_score), min_score = min(_score)
+;
+
+avg_score:double   | max_score:double   | min_score:double
+3.869828939437866  | 5.123856544494629  | 3.0124807357788086
 ;

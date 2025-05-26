@@ -1,3 +1,0 @@
-redirects:
-  'reference/query-languages/esql/esql-functions-operators.md': '!reference/query-languages/esql/functions-operators/aggregation-functions.md'
-  'reference/query-languages/esql/esql-commands.md': '!reference/query-languages/esql/commands/processing-commands.md'

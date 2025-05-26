@@ -5274,7 +5274,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         refreshStarted.countDown();
                         safeAwait(getFromTranslogStarted);
 
-                        // A this stage, getThread is blocked on the refresh held by the current thread
+                        // A this stage, getThread is blocked on the refresh lock held by the current thread
                         assertBusy(() -> assertThat(engineResetLock.getReadLockCount(), greaterThanOrEqualTo(2)));
                         assertThat(getFromTranslogResult.isDone(), equalTo(false));
 

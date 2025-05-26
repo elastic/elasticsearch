@@ -1480,6 +1480,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentRestoreDeleteAndClone() throws Exception {
+        internalCluster().startNode();
         final String repository = "test-repo";
         createRepository(logger, repository, "fs");
 
@@ -2137,7 +2138,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteIndexWithOutOfOrderFinalization() {
-
+        internalCluster().startNode();
         final var indexToDelete = "index-to-delete";
         final var indexNames = List.of(indexToDelete, "index-0", "index-1", "index-2");
 

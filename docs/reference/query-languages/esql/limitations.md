@@ -6,8 +6,6 @@ mapped_pages:
 
 # {{esql}} limitations [esql-limitations]
 
-
-
 ## Result set size limit [esql-max-rows]
 
 By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/commands/processing-commands.md#esql-limit) command.

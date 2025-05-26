@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -77,14 +78,18 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             if (aggregate.groupings().isEmpty()) {
                                 p = new LocalRelation(
                                     aggregate.source(),
-                                    List.of(new EmptyAttribute(aggregate.source())),
+                                    List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
                                     LocalSupplier.of(
                                         new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
                                     )
                                 );
                             } else {
                                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
-                                remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
+                                Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
+                                NamedExpression firstAggregate = aggregate.aggregates().getFirst();
+                                remaining = List.of(
+                                    new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id())
+                                );
                                 p = aggregate.with(aggregate.groupings(), remaining);
                             }
                         } else {

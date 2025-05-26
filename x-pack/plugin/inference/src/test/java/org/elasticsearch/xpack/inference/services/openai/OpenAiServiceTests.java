@@ -1590,6 +1590,15 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
+                                "url": {
+                                    "description": "The absolute URL of the external service to send requests to.",
+                                    "label": "URL",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                },
                                 "dimensions": {
                                     "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-dimensions.",
                                     "label": "Dimensions",

@@ -179,7 +179,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Before
     // before methods from the superclass are run before this, which means that the current cluster is ready to go
     public void assertXPackIsInstalled() {
-        doAssertXPackIsInstalled();
+        if (cluster().size() > 0) {
+            doAssertXPackIsInstalled();
+        }
     }
 
     protected void doAssertXPackIsInstalled() {

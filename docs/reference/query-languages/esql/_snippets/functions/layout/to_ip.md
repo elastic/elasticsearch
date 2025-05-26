@@ -19,5 +19,8 @@
 :::{include} ../types/to_ip.md
 :::
 
+:::{include} ../functionNamedParams/to_ip.md
+:::
+
 :::{include} ../examples/to_ip.md
 :::

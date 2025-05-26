@@ -365,9 +365,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         Boolean shouldQueryPruneTokens = shouldPruneTokens;
         TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
 
-        if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType
-            && asSVFieldType.getIndexOptions() != null
-        ) {
+        if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType && asSVFieldType.getIndexOptions() != null) {
             shouldQueryPruneTokens = shouldQueryPruneTokens == null ? asSVFieldType.getIndexOptions().getPrune() : shouldQueryPruneTokens;
             pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
         }
@@ -383,7 +381,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
                 TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
                 false
-            ) : pruningConfigToUse;
+            )
+            : pruningConfigToUse;
 
         return pruningConfigToUse;
     }

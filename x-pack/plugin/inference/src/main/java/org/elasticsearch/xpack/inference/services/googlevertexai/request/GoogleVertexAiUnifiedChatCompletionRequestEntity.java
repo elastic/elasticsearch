@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -60,6 +61,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String MODEL_ROLE = "model";
     private static final String ASSISTANT_ROLE = "assistant";
     private static final String SYSTEM_ROLE = "system";
+    private static final String TOOL_ROLE = "tool";
     private static final String STOP_SEQUENCES = "stopSequences";
 
     private static final String SYSTEM_INSTRUCTION = "systemInstruction";
@@ -75,6 +77,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             return USER_ROLE;
         } else if (messageRole.equals(ASSISTANT_ROLE)) {
             // Gemini VertexAI API does not use "assistant". Instead, it uses "model"
+            return MODEL_ROLE;
+        } else if (messageRole.equals(TOOL_ROLE)) {
+            // Gemini VertexAI does not have the tool role, so we map it to "model"
             return MODEL_ROLE;
         }
 

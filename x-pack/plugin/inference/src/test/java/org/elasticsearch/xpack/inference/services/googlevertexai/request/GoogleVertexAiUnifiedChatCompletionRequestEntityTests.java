@@ -447,46 +447,53 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     public void testParseAllFields() throws IOException {
         String requestJson = """
             {
-                "contents": [
+              "contents": [
+                {
+                  "role": "user",
+                  "parts": [
                     {
-                        "role": "user",
-                        "parts": [
-                            { "text": "some text" },
-                            { "functionCall" : {
-                                "name": "get_delivery_date",
-                                "args": {
-                                    "order_id" : "order_12345"
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                ],
-                "generationConfig": {
-                    "stopSequences": ["stop"],
-                    "temperature": 0.1,
-                    "maxOutputTokens": 100,
-                    "topP": 0.2
-                },
-                "tools": [
+                      "text": "some text"
+                    },
                     {
-                        "functionDeclarations": [
-                            {
-                                "name": "get_current_weather",
-                                "description": "Get the current weather in a given location",
-                                "parameters": {
-                                    "type": "object"
-                                }
-                            }
-                        ]
+                      "functionCall": {
+                        "name": "get_delivery_date",
+                        "args": {
+                          "order_id": "order_12345"
+                        }
+                      }
                     }
-                ],
-                "toolConfig": {
-                    "functionCallingConfig" : {
-                        "mode": "ANY",
-                        "allowedFunctionNames": [ "some function" ]
-                    }
+                  ]
                 }
+              ],
+              "generationConfig": {
+                "stopSequences": [
+                  "stop"
+                ],
+                "temperature": 0.1,
+                "maxOutputTokens": 100,
+                "topP": 0.2
+              },
+              "tools": [
+                {
+                  "functionDeclarations": [
+                    {
+                      "name": "get_current_weather",
+                      "description": "Get the current weather in a given location",
+                      "parameters": {
+                        "type": "object"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "toolConfig": {
+                "functionCallingConfig": {
+                  "mode": "ANY",
+                  "allowedFunctionNames": [
+                    "some function"
+                  ]
+                }
+              }
             }
             """;
 
@@ -561,7 +568,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             List.of(
                 new UnifiedCompletionRequest.Message(
                     null,
-                    "assistant",
+                    "tool",
                     "100",
                     List.of(
                         new UnifiedCompletionRequest.ToolCall(

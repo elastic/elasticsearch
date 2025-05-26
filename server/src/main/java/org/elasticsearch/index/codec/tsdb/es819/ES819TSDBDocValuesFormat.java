@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -94,9 +93,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final String OPTIMIZED_MERGE_ENABLED_NAME = ES819TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
 
     static {
-        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(
-            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString())
-        );
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 
     final int skipIndexIntervalSize;

@@ -260,8 +260,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
         Layout.Builder layout = new Layout.Builder();
         layout.append(ts.output());
-        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 

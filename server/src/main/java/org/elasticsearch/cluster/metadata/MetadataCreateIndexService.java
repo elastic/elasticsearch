@@ -1282,10 +1282,23 @@ public class MetadataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetadata sourceMetadata) {
+        final int routingNumShards = getIndexNumberOfRoutingShards(
+            indexSettings,
+            sourceMetadata == null ? 1 : sourceMetadata.getNumberOfShards(),
+            sourceMetadata == null ? 0 : sourceMetadata.getRoutingNumShards()
+        );
+        return routingNumShards;
+    }
+
+    /**
+     * Calculates the number of routing shards based on the configured value in indexSettings or if recovering from another index
+     * it will return the value configured for that index.
+     */
+    static int getIndexNumberOfRoutingShards(Settings indexSettings, final int sourceNumShards, final int sourceRoutingNumShards) {
         final int numTargetShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
         final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         final int routingNumShards;
-        if (sourceMetadata == null || sourceMetadata.getNumberOfShards() == 1) {
+        if (sourceNumShards == 1) {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
@@ -1299,7 +1312,7 @@ public class MetadataCreateIndexService {
         } else {
             assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
                 : "index.number_of_routing_shards should not be present on the target index on resize";
-            routingNumShards = sourceMetadata.getRoutingNumShards();
+            routingNumShards = sourceRoutingNumShards;
         }
         return routingNumShards;
     }

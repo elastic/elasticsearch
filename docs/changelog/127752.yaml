@@ -1,0 +1,6 @@
+pr: 127752
+summary: Downsampling does not consider passthrough fields as dimensions
+area: Downsampling
+type: bug
+issues:
+ - 125156

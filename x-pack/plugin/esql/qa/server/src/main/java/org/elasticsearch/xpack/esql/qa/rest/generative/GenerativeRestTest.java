@@ -51,9 +51,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
-        "No matches found for pattern", // https://github.com/elastic/elasticsearch/issues/126418
-        "Unknown column", // https://github.com/elastic/elasticsearch/issues/127467
-        "only supports KEYWORD or TEXT values", // https://github.com/elastic/elasticsearch/issues/127468
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 

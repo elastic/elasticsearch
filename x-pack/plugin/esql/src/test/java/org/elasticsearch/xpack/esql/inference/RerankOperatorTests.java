@@ -30,6 +30,7 @@ import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,7 +89,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         InferenceRunner inferenceRunner = mockedSimpleInferenceRunner();
         return new RerankOperator.Factory(inferenceRunner, SIMPLE_INFERENCE_ID, SIMPLE_QUERY, rowEncoderFactory, scoreChannel);
     }
@@ -97,16 +98,23 @@ public class RerankOperatorTests extends OperatorTestCase {
         InferenceRunner inferenceRunner = mock(InferenceRunner.class);
         when(inferenceRunner.getThreadContext()).thenReturn(threadPool.getThreadContext());
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) invocation.getArgument(
-                1,
-                ActionListener.class
-            );
-            InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
-            when(inferenceResponse.getResults()).thenReturn(
-                mockedRankedDocResults(invocation.getArgument(0, InferenceAction.Request.class))
-            );
-            listener.onResponse(inferenceResponse);
+            Runnable sendResponse = () -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) invocation.getArgument(
+                    1,
+                    ActionListener.class
+                );
+                InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
+                when(inferenceResponse.getResults()).thenReturn(
+                    mockedRankedDocResults(invocation.getArgument(0, InferenceAction.Request.class))
+                );
+                listener.onResponse(inferenceResponse);
+            };
+            if (randomBoolean()) {
+                sendResponse.run();
+            } else {
+                threadPool.schedule(sendResponse, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor(ESQL_TEST_EXECUTOR));
+            }
             return null;
         }).when(inferenceRunner).doInference(any(), any());
 
@@ -137,7 +145,8 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        final int minPageSize = Math.max(1, size / 100);
+        return new AbstractBlockSourceOperator(blockFactory, between(minPageSize, size)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;

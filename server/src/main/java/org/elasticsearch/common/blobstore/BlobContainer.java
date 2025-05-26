@@ -24,7 +24,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.

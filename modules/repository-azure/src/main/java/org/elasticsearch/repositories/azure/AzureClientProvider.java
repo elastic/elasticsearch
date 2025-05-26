@@ -109,6 +109,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final LoopResources nioLoopResources;
+    private final int multipartUploadMaxConcurrency;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -116,8 +117,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         String reactorExecutorName,
         EventLoopGroup eventLoopGroup,
         ConnectionProvider connectionProvider,
-        ByteBufAllocator byteBufAllocator
-    ) {
+        ByteBufAllocator byteBufAllocator,
+        int multipartUploadMaxConcurrency) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
@@ -127,6 +128,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // hence we need to use the same instance across all the client instances
         // to avoid creating multiple connection pools.
         this.nioLoopResources = useNative -> eventLoopGroup;
+        this.multipartUploadMaxConcurrency = multipartUploadMaxConcurrency;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -152,7 +154,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
+        return new AzureClientProvider(
+            threadPool,
+            REPOSITORY_THREAD_POOL_NAME,
+            eventLoopGroup,
+            provider,
+            NettyAllocator.getAllocator(),
+            threadPool.info(REPOSITORY_THREAD_POOL_NAME).getMax()
+        );
     }
 
     AzureBlobServiceClient createClient(
@@ -249,6 +258,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {}
+
+    public int getMultipartUploadMaxConcurrency() {
+        return multipartUploadMaxConcurrency;
+    }
 
     // visible for testing
     ConnectionProvider getConnectionProvider() {

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
-// TODO javadoc
 public interface CloudApiKeyService {
     @Nullable
     CloudApiKey parseAsCloudApiKey(@Nullable SecureString apiKeyString);

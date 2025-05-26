@@ -14,6 +14,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * Tests that index sorting works correctly after a rolling upgrade.
  */
@@ -23,6 +26,7 @@ public class IndexSortUpgradeIT extends AbstractRollingUpgradeTestCase {
         super(upgradedNodes);
     }
 
+    @SuppressWarnings("unchecked")
     public void testIndexSortForNumericTypes() throws Exception {
         record IndexConfig(String indexName, String fieldName, String fieldType) {}
         var configs = new IndexConfig[] {
@@ -82,6 +86,15 @@ public class IndexSortUpgradeIT extends AbstractRollingUpgradeTestCase {
                 """.formatted(config.fieldName()));
             var searchResponse = client().performRequest(searchRequest);
             assertOK(searchResponse);
+            var responseBody = entityAsMap(searchResponse);
+            var hits = (List<Map<String, Object>>) ((Map<String, Object>) responseBody.get("hits")).get("hits");
+            int previousValue = ((Number) ((List<Object>) hits.get(0).get("sort")).get(0)).intValue();
+            ;
+            for (int i = 1; i < hits.size(); i++) {
+                int currentValue = ((Number) ((List<Object>) hits.get(i).get("sort")).get(0)).intValue();
+                assertTrue("Sort values are not in desc order ", previousValue >= currentValue);
+                previousValue = currentValue;
+            }
         }
     }
 }

@@ -57,6 +57,11 @@ public class EsqlCapabilities {
         SPATIAL_SHAPES,
 
         /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -1109,6 +1114,11 @@ public class EsqlCapabilities {
          * The {@code ROUND_TO} function.
          */
         ROUND_TO,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
 
         /**
          * Dense vector field type support

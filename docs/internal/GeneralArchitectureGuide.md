@@ -36,7 +36,7 @@ for a particular action. [prepareRequest][BaseRestHandler#prepareRequest] proces
 [RestChannelConsumer] that is ready to execute the action and return the response on a [RestChannel].
 4. [BaseRestHandler] validates that the handler consumed all the request parameters, throwing an exception if any
 were left unconsumed.
-5. [BaseRestHandler] then supplies the channel to the channel handler to begin executing the action. Some handlers, such as the
+5. [BaseRestHandler] then supplies the channel to the [RestChannelConsumer] to begin executing the action. Some handlers, such as the
 [RestBulkAction], consume the request as a stream of chunks to allow incremental processing of large requests.
 
 ### HTTP server infrastructure

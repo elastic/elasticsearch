@@ -1,6 +1,5 @@
 pr: 128241
 summary: Adding VoyageAI's v3.5 models
-  problems
-area: Data streams
-type: bug
+area: Machine Learning
+type: enhancement
 issues: []

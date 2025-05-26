@@ -220,6 +220,7 @@ public class AuthenticatorChainTests extends ESTestCase {
                 new ApiKeyCredentials(randomAlphaOfLength(20), apiKeySecret, randomFrom(ApiKey.Type.values()))
             );
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(cloudApiKeyAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         }
         doAnswer(invocationOnMock -> {
@@ -262,6 +263,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(cloudApiKeyAuthenticator).authenticate(eq(context), anyActionListener());
         }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

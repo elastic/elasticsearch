@@ -4,7 +4,6 @@
 Rounds down to one of a list of fixed points.
 
 ```esql
-required_capability: round_to
 FROM employees
 | STATS COUNT(*) BY birth_window=ROUND_TO(
     birth_date,

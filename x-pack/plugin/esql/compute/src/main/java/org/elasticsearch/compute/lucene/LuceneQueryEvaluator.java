@@ -184,6 +184,8 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         private final List<SegmentState> perSegmentState;
 
         ShardState(ShardConfig config) throws IOException {
+            // At this point, only the QueryBuilder has been rewritten into the query, but not the query itself.
+            // The query needs to be rewritten before creating the Weight so it can be transformed into the final Query to execute.
             Query rewritten = config.searcher.rewrite(config.query);
             weight = config.searcher.createWeight(rewritten, scoreMode(), 1.0f);
             searcher = config.searcher;

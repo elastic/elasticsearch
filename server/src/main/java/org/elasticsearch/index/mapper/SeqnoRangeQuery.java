@@ -93,7 +93,7 @@ public final class SeqnoRangeQuery extends Query {
         final Query indexQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, lowerValue, upperValue);
         final Query dvQuery = NumericDocValuesField.newSlowRangeQuery(SeqNoFieldMapper.NAME, lowerValue, upperValue);
 
-        // Most of this logic originates from Lucene's IndexOrDocValueQuery:
+        // Some of this logic originates from Lucene's IndexOrDocValueQuery:
         final Weight indexWeight = indexQuery.createWeight(searcher, scoreMode, boost);
         final Weight dvWeight = dvQuery.createWeight(searcher, scoreMode, boost);
         return new Weight(this) {
@@ -111,11 +111,7 @@ public final class SeqnoRangeQuery extends Query {
             public int count(LeafReaderContext context) throws IOException {
                 PointValues pointValues = context.reader().getPointValues(SeqNoFieldMapper.NAME);
                 if (pointValues != null) {
-                    final int count = indexWeight.count(context);
-                    if (count != -1) {
-                        return count;
-                    }
-                    return dvWeight.count(context);
+                    return indexWeight.count(context);
                 } else {
                     return dvWeight.count(context);
                 }

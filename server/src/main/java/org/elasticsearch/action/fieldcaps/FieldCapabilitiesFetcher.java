@@ -229,7 +229,7 @@ class FieldCapabilitiesFetcher {
         boolean includeParentObjects,
         Map<String, IndexFieldCapabilities> responseMap
     ) {
-        if (fieldNameFilter.test(fieldName) == false) {
+        if (fieldNameFilter.test(fieldName) == false || fieldType == null) {
             return;
         }
 

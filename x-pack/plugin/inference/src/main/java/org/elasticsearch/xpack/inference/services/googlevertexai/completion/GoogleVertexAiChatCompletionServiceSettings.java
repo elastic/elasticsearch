@@ -118,7 +118,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED_8_19;
+        return TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
     }
 
     @Override

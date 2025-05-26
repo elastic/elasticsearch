@@ -39,17 +39,6 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        when:
-        def result = gradleRunner('generateTestBuildInfo').build()
-        def task = result.task(":generateTestBuildInfo")
-
-
-        then:
-        task.outcome == TaskOutcome.SUCCESS
-
-        def output = file("build/generated-build-info/plugin-test-build-info.json")
-        output.exists() == true
-
         def location = Map.of(
             "module", "com.example",
             "representative_class", "com/example/Example.class"
@@ -58,6 +47,16 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
             "component", "example-component",
             "locations", List.of(location)
         )
+
+        def output = file("build/generated-build-info/plugin-test-build-info.json")
+
+        when:
+        def result = gradleRunner('generateTestBuildInfo').build()
+        def task = result.task(":generateTestBuildInfo")
+
+        then:
+        task.outcome == TaskOutcome.SUCCESS
+        output.exists() == true
         new ObjectMapper().readValue(output, Map.class) == expectedOutput
     }
 
@@ -87,16 +86,7 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        when:
-        def result = gradleRunner('generateTestBuildInfo').build()
-        def task = result.task(":generateTestBuildInfo")
-
-
-        then:
-        task.outcome == TaskOutcome.SUCCESS
-
         def output = file("build/generated-build-info/plugin-test-build-info.json")
-        output.exists() == true
 
         def locationFromModuleInfo = Map.of(
             "module", "org.objectweb.asm",
@@ -115,7 +105,13 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
             "locations", List.of(locationFromModuleInfo, locationFromManifest, locationFromJarFileName)
         )
 
-        def value = new ObjectMapper().readValue(output, Map.class)
-        value == expectedOutput
+        when:
+        def result = gradleRunner('generateTestBuildInfo').build()
+        def task = result.task(":generateTestBuildInfo")
+
+        then:
+        task.outcome == TaskOutcome.SUCCESS
+        output.exists() == true
+        new ObjectMapper().readValue(output, Map.class) == expectedOutput
     }
 }

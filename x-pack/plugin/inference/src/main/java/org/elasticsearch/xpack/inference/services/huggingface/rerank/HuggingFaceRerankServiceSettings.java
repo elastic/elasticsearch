@@ -115,7 +115,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19;
     }
 
     @Override

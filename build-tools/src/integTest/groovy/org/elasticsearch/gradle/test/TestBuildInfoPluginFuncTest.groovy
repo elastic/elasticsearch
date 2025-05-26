@@ -52,10 +52,9 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = gradleRunner('generateTestBuildInfo').build()
-        def task = result.task(":generateTestBuildInfo")
 
         then:
-        task.outcome == TaskOutcome.SUCCESS
+        result.task(":generateTestBuildInfo").outcome == TaskOutcome.SUCCESS
         output.exists() == true
         new ObjectMapper().readValue(output, Map.class) == expectedOutput
     }
@@ -107,10 +106,9 @@ class TestBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = gradleRunner('generateTestBuildInfo').build()
-        def task = result.task(":generateTestBuildInfo")
 
         then:
-        task.outcome == TaskOutcome.SUCCESS
+        result.task(":generateTestBuildInfo").outcome == TaskOutcome.SUCCESS
         output.exists() == true
         new ObjectMapper().readValue(output, Map.class) == expectedOutput
     }

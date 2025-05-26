@@ -474,9 +474,18 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128369
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestIT
+  method: testPipelineIngestWithModelAliases
+  issue: https://github.com/elastic/elasticsearch/issues/128417
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/128418
+- class: org.elasticsearch.xpack.esql.action.ForkIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/128377
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
 
 # Examples:
 #

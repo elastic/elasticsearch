@@ -132,12 +132,13 @@ setup:
         }
 
   # Check value
+  - length: {aggregations.value_terms.buckets: 2}
   - match: {aggregations.value_terms.buckets.0.key: 1}
   - match: {aggregations.value_terms.buckets.0.doc_count: 11}
   - match: {aggregations.value_terms.buckets.1.key: 2}
   - match: {aggregations.value_terms.buckets.1.doc_count: 5}
-
   # Check value_keyword
+  - length: {aggregations.value_keyword_terms.buckets: 2}
   - match: {aggregations.value_keyword_terms.buckets.0.key: "1"}
   - match: {aggregations.value_keyword_terms.buckets.0.doc_count: 11}
   - match: {aggregations.value_keyword_terms.buckets.1.key: "2"}
@@ -146,12 +147,13 @@ setup:
   # Nested
   - match: {aggregations.nested.doc_count: 16}
   # Check nested value
+  - length: {aggregations.nested.nested_value_terms.buckets: 2}
   - match: {aggregations.nested.nested_value_terms.buckets.0.key: 1}
   - match: {aggregations.nested.nested_value_terms.buckets.0.doc_count: 11}
   - match: {aggregations.nested.nested_value_terms.buckets.1.key: 2}
   - match: {aggregations.nested.nested_value_terms.buckets.1.doc_count: 5}
-
   # Check nested value_keyword
+  - length: {aggregations.nested.nested_value_keyword_terms.buckets: 2}
   - match: {aggregations.nested.nested_value_keyword_terms.buckets.0.key: "1"}
   - match: {aggregations.nested.nested_value_keyword_terms.buckets.0.doc_count: 11}
   - match: {aggregations.nested.nested_value_keyword_terms.buckets.1.key: "2"}
@@ -160,12 +162,13 @@ setup:
   # Nested>nested
   - match: {aggregations.nested.nested.doc_count: 16}
   # Check nested value
+  - length: {aggregations.nested.nested.nested_value_terms.buckets: 2}
   - match: {aggregations.nested.nested.nested_value_terms.buckets.0.key: 1}
   - match: {aggregations.nested.nested.nested_value_terms.buckets.0.doc_count: 11}
   - match: {aggregations.nested.nested.nested_value_terms.buckets.1.key: 2}
   - match: {aggregations.nested.nested.nested_value_terms.buckets.1.doc_count: 5}
-
   # Check nested value_keyword
+  - length: {aggregations.nested.nested.nested_value_keyword_terms.buckets: 2}
   - match: {aggregations.nested.nested.nested_value_keyword_terms.buckets.0.key: "1"}
   - match: {aggregations.nested.nested.nested_value_keyword_terms.buckets.0.doc_count: 11}
   - match: {aggregations.nested.nested.nested_value_keyword_terms.buckets.1.key: "2"}

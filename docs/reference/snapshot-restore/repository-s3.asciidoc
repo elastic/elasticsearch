@@ -126,16 +126,16 @@ settings belong in the `elasticsearch.yml` file.
 
 `endpoint`::
 
-    The S3 service endpoint to connect to. This defaults to the regional endpoint corresponding to the configured `region`,
-    but the https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS documentation] lists alternative S3
-    endpoints. If you are using an <<repository-s3-compatible-services,S3-compatible service>> then you should set this
-    to the service’s endpoint. The endpoint should specify the protocol and host name,
-    e.g. `https://s3.ap-southeast-4.amazonaws.com`, `http://minio.local:9000`.
+The S3 service endpoint to connect to. This defaults to the regional endpoint corresponding to the configured `region`,
+but the https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS documentation] lists alternative S3
+endpoints. If you are using an <<repository-s3-compatible-services,S3-compatible service>> then you should set this
+to the service’s endpoint. The endpoint should specify the protocol and host name,
+e.g. `https://s3.ap-southeast-4.amazonaws.com`, `http://minio.local:9000`.
 +
-    When using HTTPS, this repository type validates the repository’s certificate chain using the JVM-wide truststore.
-    Ensure that the root certificate authority is in this truststore using the JVM’s `keytool` tool. If you have a custom
-    certificate authority for your S3 repository and you use the {es} <<jvm-version,bundled JDK>>, then you will need to
-    reinstall your CA certificate every time you upgrade {es}.
+When using HTTPS, this repository type validates the repository’s certificate chain using the JVM-wide truststore.
+Ensure that the root certificate authority is in this truststore using the JVM’s `keytool` tool. If you have a custom
+certificate authority for your S3 repository and you use the {es} <<jvm-version,bundled JDK>>, then you will need to
+reinstall your CA certificate every time you upgrade {es}.
 
 
 `protocol`::

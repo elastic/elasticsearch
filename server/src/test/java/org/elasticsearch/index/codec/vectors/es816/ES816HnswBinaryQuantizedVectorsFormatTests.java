@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
@@ -39,6 +38,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
@@ -60,14 +60,11 @@ public class ES816HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816HnswBinaryQuantizedRWVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES816HnswBinaryQuantizedRWVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     public void testToString() {

@@ -478,37 +478,37 @@ public class AzureBlobStore implements BlobStore {
         final boolean failIfAlreadyExists
     ) throws IOException {
         try {
-            final List<MultiPart> multiparts;
+            final List<MultiPart> multiParts;
             if (blobSize <= getLargeBlobThresholdInBytes()) {
-                multiparts = null;
+                multiParts = null;
             } else {
-                multiparts = computeMultiparts(blobSize, getUploadBlockSize());
+                multiParts = computeMultiParts(blobSize, getUploadBlockSize());
             }
-            if (multiparts == null || multiparts.size() == 1) {
+            if (multiParts == null || multiParts.size() == 1) {
                 logger.debug("{}: uploading blob of size [{}] as single upload", blobName, blobSize);
                 try (var stream = provider.apply(0L, blobSize)) {
                     var flux = convertStreamToByteBuffer(stream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
                     executeSingleUpload(purpose, blobName, flux, blobSize, failIfAlreadyExists);
                 }
             } else {
-                logger.debug("{}: uploading blob of size [{}] using [{}] parts", blobName, blobSize, multiparts.size());
-                assert blobSize == ((multiparts.size() - 1) * getUploadBlockSize()) + multiparts.getLast().blockSize();
-                assert multiparts.size() > 1;
+                logger.debug("{}: uploading blob of size [{}] using [{}] parts", blobName, blobSize, multiParts.size());
+                assert blobSize == ((multiParts.size() - 1) * getUploadBlockSize()) + multiParts.getLast().blockSize();
+                assert multiParts.size() > 1;
 
                 final var asyncClient = asyncClient(purpose).getBlobContainerAsyncClient(container)
                     .getBlobAsyncClient(blobName)
                     .getBlockBlobAsyncClient();
 
-                Flux.fromIterable(multiparts)
+                Flux.fromIterable(multiParts)
                     .flatMapSequential(multipart -> stageBlock(asyncClient, blobName, multipart, provider), multipartUploadMaxConcurrency)
                     .collect(Collectors.toList())
                     .flatMap(blockIds -> {
-                        logger.debug("{}: all {} parts uploaded, now committing", blobName, multiparts.size());
+                        logger.debug("{}: all {} parts uploaded, now committing", blobName, multiParts.size());
                         var response = asyncClient.commitBlockList(
-                            multiparts.stream().map(MultiPart::blockId).toList(),
+                            multiParts.stream().map(MultiPart::blockId).toList(),
                             failIfAlreadyExists == false
                         );
-                        logger.debug("{}: all {} parts committed", blobName, multiparts.size());
+                        logger.debug("{}: all {} parts committed", blobName, multiParts.size());
                         return response;
                     })
                     .block();
@@ -527,7 +527,7 @@ public class AzureBlobStore implements BlobStore {
 
     private record MultiPart(int part, String blockId, long blockOffset, long blockSize, boolean isLast) {}
 
-    private static List<MultiPart> computeMultiparts(long totalSize, long partSize) {
+    private static List<MultiPart> computeMultiParts(long totalSize, long partSize) {
         if (partSize <= 0) {
             throw new IllegalArgumentException("Part size must be greater than zero");
         }
@@ -552,50 +552,50 @@ public class AzureBlobStore implements BlobStore {
     private static Mono<String> stageBlock(
         BlockBlobAsyncClient asyncClient,
         String blobName,
-        MultiPart multipart,
+        MultiPart multiPart,
         CheckedBiFunction<Long, Long, InputStream, IOException> provider
     ) {
         logger.debug(
             "{}: staging part [{}] of size [{}] from offset [{}]",
             blobName,
-            multipart.part(),
-            multipart.blockSize(),
-            multipart.blockOffset()
+            multiPart.part(),
+            multiPart.blockSize(),
+            multiPart.blockOffset()
         );
         try {
-            var stream = toSynchronizedInputStream(blobName, provider.apply(multipart.blockOffset(), multipart.blockSize()), multipart);
+            var stream = toSynchronizedInputStream(blobName, provider.apply(multiPart.blockOffset(), multiPart.blockSize()), multiPart);
             boolean success = false;
             try {
                 var stageBlock = asyncClient.stageBlock(
-                    multipart.blockId(),
-                    toFlux(stream, multipart.blockSize(), DEFAULT_UPLOAD_BUFFERS_SIZE),
-                    multipart.blockSize()
+                    multiPart.blockId(),
+                    toFlux(stream, multiPart.blockSize(), DEFAULT_UPLOAD_BUFFERS_SIZE),
+                    multiPart.blockSize()
                 ).doOnSuccess(unused -> {
-                    logger.debug(() -> format("%s: part [%s] of size [%s] uploaded", blobName, multipart.part(), multipart.blockSize()));
+                    logger.debug(() -> format("%s: part [%s] of size [%s] uploaded", blobName, multiPart.part(), multiPart.blockSize()));
                     IOUtils.closeWhileHandlingException(stream);
                 }).doOnCancel(() -> {
-                    logger.warn(() -> format("%s: part [%s] of size [%s] cancelled", blobName, multipart.part(), multipart.blockSize()));
+                    logger.warn(() -> format("%s: part [%s] of size [%s] cancelled", blobName, multiPart.part(), multiPart.blockSize()));
                     IOUtils.closeWhileHandlingException(stream);
                 }).doOnError(t -> {
-                    logger.error(() -> format("%s: part [%s] of size [%s] failed", blobName, multipart.part(), multipart.blockSize()), t);
+                    logger.error(() -> format("%s: part [%s] of size [%s] failed", blobName, multiPart.part(), multiPart.blockSize()), t);
                     IOUtils.closeWhileHandlingException(stream);
                 });
                 logger.debug(
                     "{}: part [{}] of size [{}] from offset [{}] staged",
                     blobName,
-                    multipart.part(),
-                    multipart.blockSize(),
-                    multipart.blockOffset()
+                    multiPart.part(),
+                    multiPart.blockSize(),
+                    multiPart.blockOffset()
                 );
                 success = true;
-                return stageBlock.map(unused -> multipart.blockId());
+                return stageBlock.map(unused -> multiPart.blockId());
             } finally {
                 if (success != true) {
                     IOUtils.close(stream);
                 }
             }
         } catch (IOException e) {
-            logger.error(() -> format("%s: failed to stage part [%s] of size [%s]", blobName, multipart.part(), multipart.blockSize()), e);
+            logger.error(() -> format("%s: failed to stage part [%s] of size [%s]", blobName, multiPart.part(), multiPart.blockSize()), e);
             return FluxUtil.monoError(new ClientLogger(AzureBlobStore.class), new UncheckedIOException(e));
         }
     }
@@ -765,6 +765,7 @@ public class AzureBlobStore implements BlobStore {
         assert delegate.markSupported() : "An InputStream with mark support was expected";
         // We need to introduce a read barrier in order to provide visibility for the underlying
         // input stream state as the input stream can be read from different threads.
+        // TODO See if this is still needed
         return new FilterInputStream(delegate) {
 
             private final boolean isTraceEnabled = logger.isTraceEnabled();
@@ -822,14 +823,14 @@ public class AzureBlobStore implements BlobStore {
         assert stream.markSupported() : "An InputStream with mark support was expected";
         // We need to mark the InputStream as it's possible that we need to retry for the same chunk
         stream.mark(Integer.MAX_VALUE);
-        final var bytesRead = new AtomicLong(0L);
         return Flux.defer(() -> {
-            // Code in this Flux.defer() can be concurrently executed by multiple threads
+            // TODO Code in this Flux.defer() can be concurrently executed by multiple threads?
             try {
                 stream.reset();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            final var bytesRead = new AtomicLong(0L);
             // This flux is subscribed by a downstream operator that finally queues the
             // buffers into netty output queue. Sadly we are not able to get a signal once
             // the buffer has been flushed, so we have to allocate those and let the GC to

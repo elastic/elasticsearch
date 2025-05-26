@@ -489,7 +489,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
         private final PriorityQueue<E> enqueuedByBudget;
-        private final IdentityHashMap<E, Long> unreleasedBudgetPerElement;
+        private final IdentityHashMap<Wrap<E>, Long> unreleasedBudgetPerElement;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
         private long availableBudget;
@@ -540,7 +540,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             try {
                 this.availableBudget = availableBudget;
                 // update the per-element budget (these are all the elements that are using any budget)
-                unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
+                unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e.element()));
                 // available budget is decreased by the used per-element budget (for all dequeued elements that are still in use)
                 this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
                 elementAvailable.signalAll();
@@ -558,13 +558,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
 
         class ElementWithReleasableBudget implements Releasable {
-            private final E element;
+            private final Wrap<E> wrappedElement;
 
             private ElementWithReleasableBudget(E element, long budget) {
-                this.element = element;
+                this.wrappedElement = new Wrap<>(element);
                 assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
                 // the taken element holds up some budget
-                var prev = unreleasedBudgetPerElement.put(element, budget);
+                var prev = unreleasedBudgetPerElement.put(wrappedElement, budget);
                 assert prev == null;
                 availableBudget -= budget;
                 assert availableBudget >= 0L;
@@ -575,9 +575,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
                 lock.lock();
                 try {
-                    assert unreleasedBudgetPerElement.containsKey(element);
+                    assert unreleasedBudgetPerElement.containsKey(wrappedElement);
                     // when the taken element is not used anymore, the budget it hold is released
-                    availableBudget += unreleasedBudgetPerElement.remove(element);
+                    availableBudget += unreleasedBudgetPerElement.remove(wrappedElement);
                     elementAvailable.signalAll();
                 } finally {
                     lock.unlock();
@@ -585,9 +585,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
 
             E element() {
-                return element;
+                return wrappedElement.element();
             }
         }
+
+        private record Wrap<E>(E element) {}
     }
 
     @Override

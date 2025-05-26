@@ -59,7 +59,6 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
-import static org.elasticsearch.transport.InboundDecoder.ChannelType.SERVER;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX;
@@ -80,6 +79,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final SslConfiguration remoteClusterClientSslConfiguration;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService;
+    private final int maxHeaderSize;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -120,6 +120,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             this.remoteClusterClientSslConfiguration = null;
         }
         this.remoteClusterClientBootstrapOptions = RemoteClusterClientBootstrapOptions.fromSettings(settings);
+        this.maxHeaderSize = Math.toIntExact(RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings).getBytes());
     }
 
     @Override
@@ -167,7 +168,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             return new InboundPipeline(
                 getStatsTracker(),
                 threadPool.relativeTimeInMillisSupplier(),
-                new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
+                new InboundDecoder(recycler, maxHeaderSize, true),
                 new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
                 this::inboundMessage
             ) {

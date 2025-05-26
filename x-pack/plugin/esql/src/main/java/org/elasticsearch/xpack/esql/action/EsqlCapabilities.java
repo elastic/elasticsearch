@@ -1083,6 +1083,11 @@ public class EsqlCapabilities {
         FIRST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support sum_over_time aggregation that gets evaluated per time-series
+         */
+        SUM_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,

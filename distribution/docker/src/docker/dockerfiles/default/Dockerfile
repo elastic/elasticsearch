@@ -13,7 +13,6 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
-
 ################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
@@ -21,6 +20,7 @@
 
 FROM ${base_image} AS builder
 
+# Install required packages to extract the Elasticsearch distribution
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
@@ -72,9 +72,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-# The distribution includes a `config` directory, no need to create it
-COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
-
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -87,13 +84,16 @@ FROM ${base_image}
 
 # Change default shell to bash, then install required packages with retries.
 RUN yes no | dpkg-reconfigure dash && \\
-      export DEBIAN_FRONTEND=noninteractive && \\
-      apt-get update && \\
-      apt-get upgrade -y && \\
-      apt-get install -y --no-install-recommends \\
-        ca-certificates curl netcat p11-kit unzip zip  && \\
-      apt-get clean && \\
-      rm -rf /var/lib/apt/lists/*
+<%= retry.loop(
+package_manager,
+  "export DEBIAN_FRONTEND=noninteractive && \n" +
+  "      ${package_manager} update && \n" +
+  "      ${package_manager} upgrade -y && \n" +
+  "      ${package_manager} install -y --no-install-recommends \n" +
+  "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+  "      ${package_manager} clean && \n" +
+  "      rm -rf /var/lib/apt/lists/*"
+) %>
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
@@ -102,28 +102,36 @@ RUN groupadd -g 1000 elasticsearch && \\
 
 ENV ELASTIC_CONTAINER=true
 
-COPY --from=builder /bin/tini /bin/tini
-
 WORKDIR /usr/share/elasticsearch
 
-COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
-
-# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
-# stays up-to-date with changes to Ubuntu's store)
-COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
-RUN /etc/ca-certificates/update.d/docker-openjdk
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
 ENV SHELL=/bin/bash
+COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-COPY --chmod=0555 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-
+# 1. Sync the user and group permissions of /etc/passwd
+# 2. Set correct permissions of the entrypoint
+# 3. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+#    We've already run this in previous layers so it ought to be a no-op.
+# 4. Replace OpenJDK's built-in CA certificate keystore with the one from the OS
+#    vendor. The latter is superior in several ways.
+#    REF: https://github.com/elastic/elasticsearch-docker/issues/171
+# 5. Tighten up permissions on the ES home dir (the permissions of the contents are handled earlier)
+# 6. You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+#    dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+#    config directory.
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
 
 EXPOSE 9200 9300
 
@@ -146,16 +154,6 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-
-LABEL name="Elasticsearch" \\
-  maintainer="infra@elastic.co" \\
-  vendor="Elastic" \\
-  version="${version}" \\
-  release="1" \\
-  summary="Elasticsearch" \\
-  description="You know, for search."
-
-RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

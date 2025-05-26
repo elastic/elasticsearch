@@ -207,14 +207,10 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join instanceof InlineJoin) {
-                return new FragmentExec(bp);
-            }
-
             PhysicalPlan left = map(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
@@ -228,7 +224,7 @@ public class Mapper {
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof FragmentExec fragment

@@ -12,11 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -24,13 +20,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-/**
- * Replaces binary case-sensitive operations - like some comparisons and regex matches - involving a case-changing function (a subclass of
- * {@link ChangeCase}) and a string literal (be it an immediate value or a pattern) with an equivalent case-insensitive operation.
- */
-public class ReplaceStringCasingWithInsensitiveEquivalent extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
+public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
 
-    public ReplaceStringCasingWithInsensitiveEquivalent() {
+    public ReplaceStringCasingWithInsensitiveEquals() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -41,8 +33,6 @@ public class ReplaceStringCasingWithInsensitiveEquivalent extends OptimizerRules
             e = rewriteBinaryComparison(ctx, sf, bc, false);
         } else if (sf instanceof Not not && not.field() instanceof BinaryComparison bc) {
             e = rewriteBinaryComparison(ctx, sf, bc, true);
-        } else if (sf instanceof RegexMatch<? extends StringPattern> regexMatch) {
-            e = rewriteRegexMatch(regexMatch);
         }
         return e;
     }
@@ -76,29 +66,7 @@ public class ReplaceStringCasingWithInsensitiveEquivalent extends OptimizerRules
         return e;
     }
 
-    private static Expression rewriteRegexMatch(RegexMatch<? extends StringPattern> regexMatch) {
-        Expression e = regexMatch;
-        if (regexMatch.field() instanceof ChangeCase changeCase) {
-            var pattern = regexMatch.pattern().pattern();
-            e = changeCase.caseType().matchesCase(pattern) ? insensitiveRegexMatch(regexMatch) : Literal.of(regexMatch, Boolean.FALSE);
-        }
-        return e;
-    }
-
-    private static Expression insensitiveRegexMatch(RegexMatch<? extends StringPattern> regexMatch) {
-        return switch (regexMatch) {
-            case RLike rlike -> new RLike(rlike.source(), unwrapCase(rlike.field()), rlike.pattern(), true);
-            case WildcardLike wildcardLike -> new WildcardLike(
-                wildcardLike.source(),
-                unwrapCase(wildcardLike.field()),
-                wildcardLike.pattern(),
-                true
-            );
-            default -> regexMatch;
-        };
-    }
-
-    private static Expression unwrapCase(Expression e) {
+    static Expression unwrapCase(Expression e) {
         for (; e instanceof ChangeCase cc; e = cc.field()) {
         }
         return e;

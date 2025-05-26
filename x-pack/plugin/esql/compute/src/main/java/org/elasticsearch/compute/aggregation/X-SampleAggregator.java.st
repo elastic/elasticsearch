@@ -96,9 +96,8 @@ class Sample$Type$Aggregator {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
         try (
-            block;
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
             $Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())
         ) {
             BytesRef scratch = new BytesRef();

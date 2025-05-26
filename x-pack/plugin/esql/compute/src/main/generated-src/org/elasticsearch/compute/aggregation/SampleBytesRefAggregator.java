@@ -96,9 +96,8 @@ class SampleBytesRefAggregator {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
         try (
-            block;
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
             BytesRefBlock.Builder BytesRefBlock = driverContext.blockFactory().newBytesRefBlockBuilder(bytesRefBlock.getPositionCount())
         ) {
             BytesRef scratch = new BytesRef();

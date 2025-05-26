@@ -35,6 +35,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
@@ -322,6 +323,22 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CentroidQueryScorer centroidQueryScorer,
         int nProbe
     ) throws IOException;
+
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        var raw = rawVectorsReader.getOffHeapByteSize(fieldInfo);
+        FieldEntry fe = fields.get(fieldInfo.number);
+        if (fe == null) {
+            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
+            return raw;
+        }
+        return raw;  // for now just return the size of raw
+
+        // TODO: determine desired off off-heap requirements
+        // var centroids = Map.of(EXTENSION, fe.xxxLength());
+        // var clusters = Map.of(EXTENSION, fe.yyyLength());
+        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+    }
 
     @Override
     public void close() throws IOException {

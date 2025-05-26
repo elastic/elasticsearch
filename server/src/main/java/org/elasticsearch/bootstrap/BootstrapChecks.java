@@ -12,6 +12,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
@@ -172,7 +173,8 @@ final class BootstrapChecks {
     }
 
     /**
-     * Tests if the checks should be enforced.
+     * Tests if the checks should be enforced. \
+     * Bootstrap checks are enforced (in production builds) if a non-loopback address is configured and a non-snapshot build is used.
      *
      * @param boundTransportAddress the node network bindings
      * @param discoveryType the discovery type
@@ -182,7 +184,7 @@ final class BootstrapChecks {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound = (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
             && isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
-        return bound && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
+        return bound && Build.current().isSnapshot() == false && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
     }
 
     // the list of checks to execute

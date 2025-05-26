@@ -50,10 +50,8 @@ public class PerFieldFormatSupplier {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
-        // TODO: temporarily disable feature flag for a few days to see effect in benchmarks
-        boolean useDefaultLucenePostingsFormat = USE_DEFAULT_LUCENE_POSTINGS_FORMAT.isEnabled() && false;
         if (mapperService != null
-            && useDefaultLucenePostingsFormat
+            && USE_DEFAULT_LUCENE_POSTINGS_FORMAT.isEnabled()
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
             && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
             defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;

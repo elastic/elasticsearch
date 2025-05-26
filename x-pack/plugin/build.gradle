@@ -116,6 +116,8 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+  task.skipTest("service_accounts/10_basic/Test service account tokens", "Enterprise Search service account removed, invalidating the current tests")
   task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")

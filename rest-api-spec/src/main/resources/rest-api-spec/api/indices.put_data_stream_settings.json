@@ -27,6 +27,11 @@
       ]
     },
     "params":{
+      "dry_run":{
+        "type":"boolean",
+        "description":"Perform a dry run but do not actually change any settings",
+        "default":false
+      },
       "timeout":{
         "type":"time",
         "description":"Specify timeout for acknowledging the cluster state update"

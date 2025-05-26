@@ -42,42 +42,6 @@ final class ElasticServiceAccounts {
         )
     );
 
-    private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
-        "enterprise-search-server",
-        new RoleDescriptor(
-            NAMESPACE + "/enterprise-search-server",
-            new String[] { "manage", "manage_security", "read_connector_secrets", "write_connector_secrets" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "search-*",
-                        ".search-acl-filter-*",
-                        ".elastic-analytics-collections",
-                        ".ent-search-*",
-                        ".monitoring-ent-search-*",
-                        "metricbeat-ent-search-*",
-                        "enterprise-search-*",
-                        "logs-app_search.analytics-default",
-                        "logs-elastic_analytics.events-*",
-                        "logs-enterprise_search.api-default",
-                        "logs-enterprise_search.audit-default",
-                        "logs-app_search.search_relevance_suggestions-default",
-                        "logs-crawler-default",
-                        "logs-elastic_crawler-default",
-                        "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default",
-                        ".elastic-connectors*"
-                    )
-                    .privileges("manage", "read", "write")
-                    .build() },
-            null,
-            null,
-            null,
-            null,
-            null
-        )
-    );
-
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
         new RoleDescriptor(
@@ -210,7 +174,6 @@ final class ElasticServiceAccounts {
 
     static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
         AUTO_OPS_ACCOUNT,
-        ENTERPRISE_SEARCH_ACCOUNT,
         FLEET_ACCOUNT,
         FLEET_REMOTE_ACCOUNT,
         KIBANA_SYSTEM_ACCOUNT

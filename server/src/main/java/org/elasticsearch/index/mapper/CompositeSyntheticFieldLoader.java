@@ -91,7 +91,10 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        var totalCount = parts.stream().mapToLong(Layer::valueCount).sum();
+        long totalCount = 0;
+        for (Layer part : parts) {
+            totalCount += part.valueCount();
+        }
 
         if (totalCount == 0) {
             return;

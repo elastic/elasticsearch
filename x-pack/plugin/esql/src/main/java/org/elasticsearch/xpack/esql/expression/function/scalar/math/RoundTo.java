@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -50,8 +52,13 @@ public class RoundTo extends EsqlScalarFunction {
 
     private DataType resultType;
 
-    @FunctionInfo(returnType = { "double", "integer", "long", "date", "date_nanos" }, description = """
-        Rounds down to one of a list of fixed points.""", examples = @Example(file = "math", tag = "round_to"))
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "date", "date_nanos" },
+        description = """
+            Rounds down to one of a list of fixed points.""",
+        examples = @Example(file = "math", tag = "round_to"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "8.19.0/9.1.0") }
+    )
     public RoundTo(
         Source source,
         @Param(

@@ -854,8 +854,8 @@ ROW v = "2025-02-02T01:00:00.543123456Z"::DATE_NANOS
 ;
 
 roundToBirthWindow
-// tag::round_to[]
 required_capability: round_to
+// tag::round_to[]
 FROM employees
 | STATS COUNT(*) BY birth_window=ROUND_TO(
     birth_date,

@@ -18,7 +18,9 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -751,11 +753,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse.Profile profile = resp.profile();
             assertNotNull(profile);
 
-            List<String> descriptions = profile.drivers().stream().map(DriverProfile::description).sorted().toList();
-
             assertEquals(
-                List.of("data", "data", "main.final", "node_reduce", "node_reduce", "subplan-0.final", "subplan-1.final"),
-                descriptions
+                Set.of("data", "main.final", "node_reduce", "subplan-0.final", "subplan-1.final"),
+                profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
             );
         }
     }

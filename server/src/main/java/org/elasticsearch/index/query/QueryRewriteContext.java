@@ -446,4 +446,7 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    public Map<String, MappedFieldType> getRuntimeMappings() {
+        return runtimeMappings;
+    }
 }

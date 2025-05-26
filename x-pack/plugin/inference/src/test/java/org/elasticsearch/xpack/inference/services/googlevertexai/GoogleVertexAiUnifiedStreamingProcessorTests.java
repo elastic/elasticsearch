@@ -81,7 +81,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    public void testJsonLiteral_optionalTopLevelFieldsMissing() {
+    public void testJsonLiteral_usageMetadataTokenCountMissing() {
         String json = """
                 {
                   "candidates" : [ {
@@ -90,7 +90,12 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
                       "parts" : [ { "text" : "Hello" } ]
                     },
                     "finishReason": "STOP"
-                  } ]
+                  } ],
+                  "usageMetadata" : {
+                    "trafficType" : "ON_DEMAND"
+                  },
+                  "modelVersion": "gemini-2.0-flash-001",
+                  "responseId": "responseId"
                 }
             """;
 
@@ -101,12 +106,11 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
             var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser);
 
-            assertNull(chunk.id());
+            assertEquals("responseId", chunk.id());
             assertEquals(1, chunk.choices().size());
             var choice = chunk.choices().getFirst();
             assertEquals("Hello", choice.delta().content());
             assertEquals("model", choice.delta().role());
-            assertNull(chunk.model());
             assertEquals("STOP", choice.finishReason());
             assertEquals(0, choice.index());
             assertNull(choice.delta().toolCalls());
@@ -131,7 +135,14 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
                       ]
                     }
                   } ],
-                  "responseId" : "resId789"
+                  "responseId" : "resId789",
+                  "modelVersion": "gemini-2.0-flash-00",
+                  "usageMetadata" : {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 20,
+                    "totalTokenCount": 30,
+                    "trafficType" : "ON_DEMAND"
+                  }
                 }
             """;
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
@@ -171,7 +182,14 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
                     },
                     "finishReason": "STOP"
                   } ],
-                  "responseId" : "multiTextId"
+                  "responseId" : "multiTextId",
+                  "usageMetadata" : {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 20,
+                    "totalTokenCount": 30,
+                    "trafficType" : "ON_DEMAND"
+                  },
+                  "modelVersion": "gemini-2.0-flash-001"
                 }
             """;
 
@@ -192,8 +210,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("STOP", choice.finishReason());
             assertEquals(0, choice.index());
             assertNull(choice.delta().toolCalls());
-            assertNull(chunk.model());
-            assertNull(chunk.usage());
+            assertEquals("gemini-2.0-flash-001", chunk.model());
         } catch (IOException e) {
             fail("IOException during test: " + e.getMessage());
         }

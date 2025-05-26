@@ -192,17 +192,17 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
         static {
             PARSER.declareObjectArray(
-                ConstructingObjectParser.optionalConstructorArg(),
+                ConstructingObjectParser.constructorArg(),
                 (p, c) -> CandidateParser.parse(p),
                 new ParseField(CANDIDATES_FIELD)
             );
             PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
+                ConstructingObjectParser.constructorArg(),
                 (p, c) -> UsageMetadataParser.parse(p),
                 new ParseField(USAGE_METADATA_FIELD)
             );
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MODEL_VERSION_FIELD));
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(RESPONSE_ID_FIELD));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(MODEL_VERSION_FIELD));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(RESPONSE_ID_FIELD));
         }
 
         public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk parse(XContentParser parser) throws IOException {
@@ -224,7 +224,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
         static {
             PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
+                ConstructingObjectParser.constructorArg(),
                 (p, c) -> ContentParser.parse(p),
                 new ParseField(CONTENT_FIELD)
             );
@@ -248,9 +248,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(ROLE_FIELD));
             PARSER.declareObjectArray(
-                ConstructingObjectParser.optionalConstructorArg(),
+                ConstructingObjectParser.constructorArg(),
                 (p, c) -> PartParser.parse(p),
                 new ParseField(PARTS_FIELD)
             );

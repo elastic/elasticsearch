@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -44,23 +43,7 @@ public class JvmInfo implements ReportingService.Info {
         long nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
         long nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getMax();
         long directMemoryMax = 0;
-        try {
-            Class<?> vmClass = Class.forName("sun.misc.VM");
-            directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
-        } catch (Exception t) {
-            try {
-                for (String arg : runtimeMXBean.getInputArguments()) {
-                    String prefix = "-XX:MaxDirectMemorySize=";
-                    if (arg.startsWith(prefix)) {
-                        directMemoryMax = SizeValue.parseSizeValue(arg.substring(prefix.length())).singles();
-                    }
-                }
-            } catch (Exception ignore) {
-                // ignore
-            }
-        }
         String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
-        Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
         try {
@@ -141,6 +124,11 @@ public class JvmInfo implements ReportingService.Info {
             } catch (Exception ignored) {}
 
             try {
+                Object maxDirectMemorySizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxDirectMemorySize");
+                directMemoryMax = Long.parseLong((String) valueMethod.invoke(maxDirectMemorySizeVmOptionObject));
+            } catch (Exception ignored) {}
+
+            try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
             } catch (Exception ignored) {}
@@ -148,6 +136,8 @@ public class JvmInfo implements ReportingService.Info {
         } catch (Exception ignored) {
 
         }
+
+        Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         INSTANCE = new JvmInfo(
             ProcessHandle.current().pid(),

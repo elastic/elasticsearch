@@ -80,8 +80,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
     static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
-    public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION =
-        IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
+
+    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION = IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 
     public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
@@ -98,13 +98,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
             () -> null,
             (n, c, o) -> parseIndexOptions(c, o),
             m -> toType(m).fieldType().indexOptions,
-            (b, n, v) -> {
-                if (v != null) {
-                    b.field(n, v);
-                }
-            },
+            XContentBuilder::field,
             Objects::toString
-        );;
+        ).acceptsNull();
 
         public Builder(String name) {
             super(name);

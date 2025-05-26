@@ -17,6 +17,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
@@ -235,23 +236,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        Boolean pruneTokensToUse = shouldPruneTokens;
-        TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
+        TokenPruningConfig pruningConfig = getTokenPruningConfigForQuery(ft, context);
 
-        // if the query options for pruning are not set, we need to check the index options for this field
-        // and use those if set - however, only if the index was created after we added this support.
-        if (ft.getClass().equals(SparseVectorFieldMapper.SparseVectorFieldType.class)
-            && context.indexVersionCreated().onOrAfter(SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
-            SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType = (SparseVectorFieldMapper.SparseVectorFieldType) ft;
-
-            if (asSVFieldType.getIndexOptions() != null) {
-                pruneTokensToUse = pruneTokensToUse == null ? asSVFieldType.getIndexOptions().getPrune() : pruneTokensToUse;
-                pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
-            }
-        }
-
-        return (pruneTokensToUse != null && pruneTokensToUse)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningConfigToUse, queryVectors, ft, context)
+        return pruningConfig != null
+            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, pruningConfig, queryVectors, ft, context)
             : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
     }
 
@@ -360,6 +348,52 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_15_0;
+    }
+
+    private TokenPruningConfig getTokenPruningConfigForQuery(MappedFieldType ft, SearchExecutionContext context) {
+        TokenPruningConfig queryPruningConfig = (shouldPruneTokens != null && shouldPruneTokens) ? tokenPruningConfig : null;
+
+        // query values should always override any index options
+        if (shouldPruneTokens != null) {
+            return queryPruningConfig;
+        }
+
+        // if we are not on a supported index version, do not prune by default
+        // nor do we check the index options
+        if (context.indexVersionCreated().onOrAfter(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT) == false
+            && context.indexVersionCreated()
+                .between(
+                    IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                ) == false) {
+            return null;
+        }
+
+        if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType asSVFieldType) {
+            Boolean pruneTokensToUse = shouldPruneTokens;
+            TokenPruningConfig pruningConfigToUse = tokenPruningConfig;
+
+            if (asSVFieldType.getIndexOptions() != null) {
+                pruneTokensToUse = asSVFieldType.getIndexOptions().getPrune();
+                pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
+            }
+
+            // if we're still null, use defaults
+            pruneTokensToUse = pruneTokensToUse == null ? true : pruneTokensToUse;
+            pruningConfigToUse = pruningConfigToUse == null
+                ? new TokenPruningConfig(
+                    TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD,
+                    TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD,
+                    false
+                )
+                : pruningConfigToUse;
+
+            return pruneTokensToUse ? pruningConfigToUse : null;
+        }
+
+        // should never happen that we're not operating on a SparseVectorFieldType
+        // but just in case, return null and do not prune
+        return null;
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

@@ -43,6 +43,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -103,7 +104,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
         assertEquals(
-            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType),
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType, () -> false),
             SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
         );
     }
@@ -124,9 +125,25 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
         assertEquals(
-            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType),
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType, () -> false),
             SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
         );
+    }
+
+    public void testDoNotEnforceLimitsWhenSnapshotBuild() {
+        final List<TransportAddress> transportAddresses = new ArrayList<>();
+
+        for (int i = 0; i < randomIntBetween(1, 8); i++) {
+            final TransportAddress randomTransportAddress = buildNewFakeTransportAddress();
+            transportAddresses.add(randomTransportAddress);
+        }
+
+        final TransportAddress publishAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
+        final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
+        when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
+        when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
+
+        assertThat(BootstrapChecks.enforceLimits(boundTransportAddress, MULTI_NODE_DISCOVERY_TYPE, () -> true), is(false));
     }
 
     public void testExceptionAggregation() {

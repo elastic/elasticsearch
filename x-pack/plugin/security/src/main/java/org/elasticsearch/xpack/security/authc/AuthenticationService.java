@@ -93,8 +93,8 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        MeterRegistry meterRegistry,
-        CloudApiKeyService cloudApiKeyService
+        CloudApiKeyService cloudApiKeyService,
+        MeterRegistry meterRegistry
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;

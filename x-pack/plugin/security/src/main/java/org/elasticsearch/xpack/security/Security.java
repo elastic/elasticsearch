@@ -1127,8 +1127,8 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                telemetryProvider.getMeterRegistry(),
-                cloudApiKeyService.get()
+                cloudApiKeyService.get(),
+                telemetryProvider.getMeterRegistry()
             )
         );
         components.add(authcService.get());

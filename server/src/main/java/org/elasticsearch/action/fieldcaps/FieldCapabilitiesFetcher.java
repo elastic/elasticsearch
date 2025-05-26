@@ -194,7 +194,9 @@ class FieldCapabilitiesFetcher {
 
         // populate runtime fields
         Collection<RuntimeField> runtimeFields = rootObjectMapper.runtimeFields();
-        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields);
+        Map<String, MappedFieldType> runtimeFieldTypes =
+            new HashMap<>(RuntimeField.collectFieldTypes(runtimeFields));
+        runtimeFieldTypes.putAll(context.getRuntimeMappings());
 
         for (Map.Entry<String, MappedFieldType> entry : runtimeFieldTypes.entrySet()) {
             addFieldToFieldCaps(

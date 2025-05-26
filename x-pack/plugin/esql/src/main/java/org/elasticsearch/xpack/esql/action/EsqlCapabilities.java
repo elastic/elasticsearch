@@ -1058,6 +1058,11 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * score function
+         */
+        SCORE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the SAMPLE command
          */
         SAMPLE(Build.current().isSnapshot()),

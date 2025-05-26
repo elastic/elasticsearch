@@ -56,6 +56,11 @@ public class EsqlCapabilities {
         SPATIAL_SHAPES,
 
         /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
+
+        /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
          */
         ST_CENTROID_AGG,
@@ -1102,7 +1107,17 @@ public class EsqlCapabilities {
          * Avid GROK and DISSECT attributes being removed when resolving fields.
          * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
          */
-        KEEP_REGEX_EXTRACT_ATTRIBUTES;
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * The {@code ROUND_TO} function.
+         */
+        ROUND_TO,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;
 
         private final boolean enabled;
 

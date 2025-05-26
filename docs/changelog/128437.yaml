@@ -1,0 +1,5 @@
+pr: 128437
+summary: ES|QL full text functions (MATCH, QSTR, KQL) are GA
+area: ES|QL
+type: feature
+issues: []

@@ -287,7 +287,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, SourceProvider.fromStoredFields());
+        return mockContext(
+            allowExpensiveQueries,
+            mappedFieldType,
+            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+        );
     }
 
     protected static SearchExecutionContext mockContext(

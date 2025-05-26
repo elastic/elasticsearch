@@ -12,6 +12,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -93,6 +95,8 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
+                .or(instanceOf(IndexOrDocValuesQuery.class))
+                .or(instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery termQuery) {

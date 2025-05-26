@@ -157,7 +157,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
@@ -176,7 +177,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        protected @Nullable MappedFieldType fieldType(String name) {
+        public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName())
                 ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
@@ -259,8 +260,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
         Layout.Builder layout = new Layout.Builder();
         layout.append(ts.output());
-        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
@@ -379,7 +379,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(false);
+            return ctx.newSourceLoader(null, false);
         }
 
         @Override
@@ -458,7 +458,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
-        protected @Nullable MappedFieldType fieldType(String name) {
+        @Override
+        public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
         }
 

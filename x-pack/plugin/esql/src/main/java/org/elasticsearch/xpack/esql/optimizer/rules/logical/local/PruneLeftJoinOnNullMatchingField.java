@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * The rule checks if the join's performed on a field which is aliased to null (in type or value); if that's the case, it prunes the join,
  * replacing it with an Eval - returning aliases to null for all the fields added in by the right side of the Join - plus a Project on top
  * of it. The rule can apply on the coordinator already, but it's more likely to be effective on the data nodes, where null aliasing is
- * inserted due to locally missing fields. This rule relies on that behavior -- see {@link ReplaceMissingFieldWithNull}.
+ * inserted due to locally missing fields. This rule relies on that behavior -- see {@link ReplaceFieldWithConstantOrNull}.
  */
 public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.ParameterizedOptimizerRule<Join, LogicalOptimizerContext> {
 
@@ -38,7 +38,7 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
     protected LogicalPlan rule(Join join, LogicalOptimizerContext ctx) {
         LogicalPlan plan = join;
         if (join.config().type() == LEFT) { // other types will have different replacement logic
-            AttributeMap<Expression> attributeMap = PropagateEvalFoldables.foldableReferences(join, ctx);
+            AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
 
             for (var attr : AttributeSet.of(join.config().matchFields())) {
                 var resolved = attributeMap.resolve(attr);
@@ -57,7 +57,7 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
         if (joinRightOutput.isEmpty()) {
             return join.left();
         }
-        var aliasedNulls = ReplaceMissingFieldWithNull.aliasedNulls(joinRightOutput, a -> true);
+        var aliasedNulls = RuleUtils.aliasedNulls(joinRightOutput, a -> true);
         var eval = new Eval(join.source(), join.left(), aliasedNulls.v1());
         return new Project(join.source(), eval, join.computeOutput(join.left().output(), Expressions.asAttributes(aliasedNulls.v2())));
     }

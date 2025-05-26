@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -26,7 +25,7 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        AttributeMap<Expression> collectRefs = foldableReferences(plan, ctx);
+        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(plan, ctx);
         if (collectRefs.isEmpty()) {
             return plan;
         }
@@ -42,25 +41,5 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
         });
 
         return plan;
-    }
-
-    public static AttributeMap<Expression> foldableReferences(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
-
-        // collect aliases bottom-up
-        plan.forEachExpressionUp(Alias.class, a -> {
-            var c = a.child();
-            boolean shouldCollect = c.foldable();
-            // try to resolve the expression based on an existing foldables
-            if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
-                shouldCollect = c.foldable();
-            }
-            if (shouldCollect) {
-                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
-            }
-        });
-
-        return collectRefsBuilder.build();
     }
 }

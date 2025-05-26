@@ -196,6 +196,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
             return new ThreadPoolMergeExecutorService(threadPool, clusterSettings, nodeEnvironment);
         } else {
+            // register no-op settings consumer so that settings validations works properly,
+            // i.e. to reject watermark and max headroom updates if the thread pool merge scheduler is disabled
+            clusterSettings.addSettingsUpdateConsumer(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING, (ignored) -> {});
+            clusterSettings.addSettingsUpdateConsumer(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING, (ignored) -> {});
+            clusterSettings.addSettingsUpdateConsumer(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING, (ignored) -> {});
             return null;
         }
     }

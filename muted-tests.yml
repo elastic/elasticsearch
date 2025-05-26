@@ -470,3 +470,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_byte_quantized/Test index configured rescore vector score consistency}
   issue: https://github.com/elastic/elasticsearch/issues/128353
+- class: org.elasticsearch.index.query.MultiMatchQueryBuilderTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/128416

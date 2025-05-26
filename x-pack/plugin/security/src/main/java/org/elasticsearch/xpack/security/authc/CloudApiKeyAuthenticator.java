@@ -11,7 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.CloudApiKeyService;
+import org.elasticsearch.xpack.core.security.authc.cloud.CloudApiKey;
+import org.elasticsearch.xpack.core.security.authc.cloud.CloudApiKeyService;
 
 public class CloudApiKeyAuthenticator implements Authenticator {
     private final String nodeName;
@@ -24,31 +25,31 @@ public class CloudApiKeyAuthenticator implements Authenticator {
 
     @Override
     public String name() {
-        return "cloud api key";
+        return "cloud API key";
     }
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return cloudApiKeyService.extractCloudApiKey(context.getThreadContext());
+        return cloudApiKeyService.parseAsCloudApiKey(context.getApiKeyString());
     }
 
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        if (false == authenticationToken instanceof CloudApiKeyService.CloudApiKey) {
+        if (false == authenticationToken instanceof CloudApiKey) {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
 
-        final CloudApiKeyService.CloudApiKey cloudApiKey = (CloudApiKeyService.CloudApiKey) authenticationToken;
+        final CloudApiKey cloudApiKey = (CloudApiKey) authenticationToken;
 
-        cloudApiKeyService.authenticate(cloudApiKey, listener.delegateFailureAndWrap((l, authenticationResult) -> {
-            if (authenticationResult.isAuthenticated()) {
-                l.onResponse(AuthenticationResult.success(Authentication.newCloudApiKeyAuthentication(authenticationResult, nodeName)));
-                // TODO handle termination etc.
-            } else {
-                l.onResponse(AuthenticationResult.notHandled());
-            }
-        }));
+        cloudApiKeyService.authenticate(
+            cloudApiKey,
+            nodeName,
+            ActionListener.wrap(
+                authentication -> listener.onResponse(AuthenticationResult.success(authentication)),
+                e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, cloudApiKey))
+            )
+        );
     }
 }

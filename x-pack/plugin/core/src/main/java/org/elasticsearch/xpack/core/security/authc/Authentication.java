@@ -531,6 +531,10 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
+    public boolean isCloudApiKey() {
+        return effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY;
+    }
+
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -775,6 +779,7 @@ public final class Authentication implements ToXContentObject {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
             }
         }
+        // TODO cloud API key fields such as managed_by
     }
 
     public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {
@@ -902,6 +907,7 @@ public final class Authentication implements ToXContentObject {
             );
         }
         if (authenticatingRealm.isCloudApiKeyRealm()) {
+            // TODO consistency check for cloud API keys
             return;
         }
         checkConsistencyForApiKeyAuthenticatingSubject("API key");

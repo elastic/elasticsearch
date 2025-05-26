@@ -24,6 +24,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
 public class DirectIOIT extends ESIntegTestCase {
 
@@ -33,30 +36,31 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     private void indexVectors() {
-        internalCluster().startNode();
-        prepareCreate("vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
-            .setMapping("""
-                {
-                  "properties": {
-                    "vector": {
-                      "type": "dense_vector",
-                      "dims": 64,
-                      "element_type": "float",
-                      "index": true,
-                      "similarity": "l2_norm",
-                      "index_options": {
-                        "type": "bbq_flat"
+        assertAcked(
+            prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
+                .setMapping("""
+                    {
+                      "properties": {
+                        "fooVector": {
+                          "type": "dense_vector",
+                          "dims": 64,
+                          "element_type": "float",
+                          "index": true,
+                          "similarity": "l2_norm",
+                          "index_options": {
+                            "type": "bbq_flat"
+                          }
+                        }
                       }
                     }
-                  }
-                }
-                """)
-            .get();
-        ensureGreen("vectors");
+                    """)
+        );
+        ensureGreen("foo-vectors");
 
         for (int i = 0; i < 1000; i++) {
-            indexDoc("vectors", Integer.toString(i), "vector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
+            indexDoc("foo-vectors", Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
+        refresh();
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
@@ -75,11 +79,14 @@ public class DirectIOIT extends ESIntegTestCase {
             indexVectors();
 
             // do a search
-            prepareSearch("vectors").setKnnSearch(
-                List.of(new KnnSearchBuilder("vector", new VectorData(null, new byte[64]), 10, 20, null, null))
-            ).get();
-
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, null, null));
+            assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    @Override
+    protected boolean addMockFSIndexStore() {
+        return false; // we require to always use the "real" hybrid directory
     }
 }

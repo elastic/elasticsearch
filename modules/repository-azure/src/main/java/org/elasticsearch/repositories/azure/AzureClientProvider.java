@@ -118,7 +118,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         EventLoopGroup eventLoopGroup,
         ConnectionProvider connectionProvider,
         ByteBufAllocator byteBufAllocator,
-        int multipartUploadMaxConcurrency) {
+        int multipartUploadMaxConcurrency
+    ) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;

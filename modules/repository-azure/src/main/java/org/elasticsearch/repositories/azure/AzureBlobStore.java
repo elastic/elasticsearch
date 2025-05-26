@@ -542,7 +542,7 @@ public class AzureBlobStore implements BlobStore {
         var list = new ArrayList<MultiPart>(parts);
         for (int p = 0; p < parts; p++) {
             boolean isLast = (p == parts - 1);
-            var multipart = new MultiPart(p, makeMultipartBlockId(), blockOffset,  isLast ? lastPartSize : partSize, isLast);
+            var multipart = new MultiPart(p, makeMultipartBlockId(), blockOffset, isLast ? lastPartSize : partSize, isLast);
             blockOffset += multipart.blockSize();
             list.add(multipart);
         }
@@ -868,7 +868,7 @@ public class AzureBlobStore implements BlobStore {
                     );
                 }
             });
-        // We need to subscribe on a different scheduler to avoid blocking the io threads when we read the input stream
+            // We need to subscribe on a different scheduler to avoid blocking the io threads when we read the input stream
         }).subscribeOn(Schedulers.elastic());
 
     }

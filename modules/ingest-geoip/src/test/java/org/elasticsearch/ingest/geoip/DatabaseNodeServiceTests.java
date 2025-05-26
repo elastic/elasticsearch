@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -365,10 +367,19 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     }
 
     static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
-        return createClusterState(tasksCustomMetadata, false);
+        return createClusterState(Metadata.DEFAULT_PROJECT_ID, tasksCustomMetadata, false);
+    }
+
+    static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata) {
+        return createClusterState(projectId, tasksCustomMetadata, false);
     }
 
     static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata, boolean noStartedShards) {
+        return createClusterState(Metadata.DEFAULT_PROJECT_ID, tasksCustomMetadata, noStartedShards);
+    }
+
+    static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata,
+                                           boolean noStartedShards) {
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
@@ -392,14 +403,15 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
         return ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(idxMeta).putCustom(TYPE, tasksCustomMetadata))
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
-            .routingTable(
+            .putRoutingTable(
+                projectId,
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(index)
                             .addIndexShard(IndexShardRoutingTable.builder(new ShardId(index, 0)).addShard(shardRouting))
-                    )
+                    ).build()
             )
             .build();
     }

@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/127368
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/127365
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
@@ -468,6 +465,27 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test080ConfigurePasswordThroughEnvironmentVariableFile
   issue: https://github.com/elastic/elasticsearch/issues/128075
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testInvalidTimestamp
+  issue: https://github.com/elastic/elasticsearch/issues/128284
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test120DockerLogsIncludeElasticsearchLogs
+  issue: https://github.com/elastic/elasticsearch/issues/128117
+- class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
+  method: test21AcceptsCustomPathInDocker
+  issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestIT
+  method: testPipelineIngestWithModelAliases
+  issue: https://github.com/elastic/elasticsearch/issues/128417
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/128418
+- class: org.elasticsearch.xpack.esql.action.ForkIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/128377
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
+  method: testTimestampFilterFromQuery
+  issue: https://github.com/elastic/elasticsearch/issues/127332
 
 # Examples:
 #

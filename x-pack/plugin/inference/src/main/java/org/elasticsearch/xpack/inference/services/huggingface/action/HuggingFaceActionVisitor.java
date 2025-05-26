@@ -11,8 +11,11 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 
 public interface HuggingFaceActionVisitor {
+    ExecutableAction create(HuggingFaceRerankModel model);
+
     ExecutableAction create(HuggingFaceEmbeddingsModel model);
 
     ExecutableAction create(HuggingFaceElserModel model);

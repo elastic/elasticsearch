@@ -97,7 +97,10 @@ class Sample$Type$Aggregator {
             return block;
         }
         BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try ($Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            block;
+            $Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +122,6 @@ class Sample$Type$Aggregator {
                     }
                 }
             }
-            block.close();
             return $type$Block.build();
         }
     }

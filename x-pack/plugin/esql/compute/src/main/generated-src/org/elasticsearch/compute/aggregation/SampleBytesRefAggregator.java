@@ -97,7 +97,10 @@ class SampleBytesRefAggregator {
             return block;
         }
         BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (BytesRefBlock.Builder BytesRefBlock = driverContext.blockFactory().newBytesRefBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            block;
+            BytesRefBlock.Builder BytesRefBlock = driverContext.blockFactory().newBytesRefBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +122,6 @@ class SampleBytesRefAggregator {
                     }
                 }
             }
-            block.close();
             return BytesRefBlock.build();
         }
     }

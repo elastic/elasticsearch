@@ -97,7 +97,10 @@ class SampleDoubleAggregator {
             return block;
         }
         BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (DoubleBlock.Builder doubleBlock = driverContext.blockFactory().newDoubleBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            block;
+            DoubleBlock.Builder doubleBlock = driverContext.blockFactory().newDoubleBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +122,6 @@ class SampleDoubleAggregator {
                     }
                 }
             }
-            block.close();
             return doubleBlock.build();
         }
     }

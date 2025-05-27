@@ -692,6 +692,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        shouldBeSupported.remove(DataType.DENSE_VECTOR);
         if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

@@ -65,6 +65,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -1153,14 +1154,14 @@ public class OpenAiServiceTests extends ESTestCase {
                         });
                         var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
 
-                        assertThat(json, is("""
+                        assertThat(json, is(String.format(Locale.ROOT, """
                             {\
                             "error":{\
                             "code":"model_not_found",\
-                            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+                            "message":"Resource not found at [%s] for request from inference entity id [id] status \
                             [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
                             "type":"invalid_request_error"\
-                            }}"""));
+                            }}""", getUrl(webServer))));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
                     }

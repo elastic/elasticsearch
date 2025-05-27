@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
  * This class encapsulates the model ID and rate limit settings for the Mistral chat completion service.
  */
 public class MistralChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
-    public static final String NAME = "mistral_embeddings_service_settings";
+    public static final String NAME = "mistral_completions_service_settings";
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;

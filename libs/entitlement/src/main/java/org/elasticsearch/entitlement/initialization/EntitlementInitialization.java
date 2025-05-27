@@ -98,7 +98,10 @@ public class EntitlementInitialization {
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyChecker policyChecker = createPolicyChecker();
 
-        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class, Runtime.version().feature());
+        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
+            ElasticsearchEntitlementChecker.class,
+            Runtime.version().feature()
+        );
 
         Constructor<?> constructor;
         try {

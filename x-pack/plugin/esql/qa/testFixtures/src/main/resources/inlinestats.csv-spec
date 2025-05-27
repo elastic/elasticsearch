@@ -765,8 +765,8 @@ required_capability: inlinestats_v8
 FROM employees
 | KEEP emp_no, languages, gender, first_name
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(first_name,1)
-| LIMIT 10
 | SORT emp_no
+| LIMIT 10
 ;
 
 emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       
@@ -789,6 +789,7 @@ required_capability: inlinestats_v8
 FROM employees
 | KEEP emp_no, languages, gender, first_name
 | INLINESTATS max_lang = MAX(languages) BY f1 = left(first_name, 1), y = gender, f2 = left(first_name, 1), l = languages
+| SORT emp_no
 | LIMIT 10
 ;
 
@@ -813,8 +814,8 @@ FROM employees
 | KEEP emp_no, languages, gender, first_name
 | RENAME first_name as f
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, first_name = left(f, 1)
-| LIMIT 10
 | SORT emp_no
+| LIMIT 10
 ;
 
 emp_no:integer | languages:integer | gender:keyword|    f:keyword     |max_lang:integer|  y:keyword    |   l:integer   |first_name:keyword       
@@ -838,8 +839,8 @@ FROM employees
 | KEEP emp_no, languages, gender, first_name
 | RENAME first_name as f
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(f, 1)
-| LIMIT 10
 | SORT emp_no
+| LIMIT 10
 ;
 
 emp_no:integer | languages:integer | gender:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       
@@ -941,6 +942,7 @@ FROM employees
 | KEEP emp_no, languages, gender, first_name
 | EVAL x = "ABC"
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = to_lower(x)
+| SORT emp_no
 | LIMIT 10
 ;
 

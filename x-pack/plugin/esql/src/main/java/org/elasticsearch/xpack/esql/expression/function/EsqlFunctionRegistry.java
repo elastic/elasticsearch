@@ -1037,7 +1037,7 @@ public class EsqlFunctionRegistry {
     }
 
     protected interface BinaryVariadicWithOptionsBuilder<T> {
-        T build(Source source, Expression exp, List<Expression> variadic, Expression options);
+        T build(Source source, List<Expression> variadic, Expression exp, Expression options);
     };
 
     protected static <T extends Function> FunctionDefinition def(
@@ -1054,10 +1054,10 @@ public class EsqlFunctionRegistry {
             }
             Expression options = children.getLast();
             if (options instanceof MapExpression) {
-                return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), options);
+                return ctorRef.build(source, children.subList(0, children.size() - 2), children.get(children.size() - 2), options);
             }
 
-            return ctorRef.build(source, children.get(0), children.subList(1, children.size()), null);
+            return ctorRef.build(source, children.subList(0, children.size() - 1), children.getLast(), null);
         };
         return def(function, builder, names);
     }

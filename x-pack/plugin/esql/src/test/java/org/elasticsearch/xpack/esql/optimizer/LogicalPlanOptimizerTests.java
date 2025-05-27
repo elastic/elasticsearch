@@ -7447,7 +7447,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testFunctionNamedParamsAsFunctionArgument1() {
         var query = """
             from test
-            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
+            | WHERE MULTI_MATCH(first_name, last_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
         var plan = optimizedPlan(query);
         Limit limit = as(plan, Limit.class);

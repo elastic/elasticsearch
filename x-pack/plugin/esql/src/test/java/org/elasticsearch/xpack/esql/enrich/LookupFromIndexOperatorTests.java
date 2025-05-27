@@ -143,6 +143,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             this::lookupService,
             inputDataType,
             lookupIndex,
+            lookupIndex,
             matchField,
             loadFields,
             Source.EMPTY

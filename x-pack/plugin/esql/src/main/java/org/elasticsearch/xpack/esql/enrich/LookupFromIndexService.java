@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,8 +36,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import static java.lang.System.in;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -70,6 +69,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         return new TransportRequest(
             request.sessionId,
             shardId,
+            request.indexPattern,
             request.inputDataType,
             request.inputPage,
             null,
@@ -109,13 +109,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Request(
             String sessionId,
             String index,
+            String indexPattern,
             DataType inputDataType,
             String matchField,
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, source);
             this.matchField = matchField;
         }
     }
@@ -126,6 +127,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportRequest(
             String sessionId,
             ShardId shardId,
+            String indexPattern,
             DataType inputDataType,
             Page inputPage,
             Page toRelease,
@@ -133,7 +135,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             String matchField,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, source);
             this.matchField = matchField;
         }
 
@@ -141,6 +143,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
+
+            String indexPattern;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+                indexPattern = in.readString();
+            } else {
+                indexPattern = shardId.getIndexName();
+            }
+
             DataType inputDataType = DataType.fromTypeName(in.readString());
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
@@ -162,6 +172,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
+                indexPattern,
                 inputDataType,
                 inputPage,
                 inputPage,
@@ -178,6 +189,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
+
+            if (indexPattern.equals(shardId.getIndexName()) == false
+                && out.getTransportVersion().before(TransportVersions.JOIN_ON_ALIASES)) {
+                // TODO can we throw exceptions here?
+                throw new VerificationException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+            }
+            out.writeString(indexPattern);
+
             out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);

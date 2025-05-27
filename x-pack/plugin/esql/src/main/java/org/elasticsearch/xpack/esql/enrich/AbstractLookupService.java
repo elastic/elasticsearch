@@ -464,6 +464,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     abstract static class Request {
         final String sessionId;
         final String index;
+        final String indexPattern;
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
@@ -472,6 +473,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Request(
             String sessionId,
             String index,
+            String indexPattern,
             DataType inputDataType,
             Page inputPage,
             List<NamedExpression> extractFields,
@@ -479,6 +481,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         ) {
             this.sessionId = sessionId;
             this.index = index;
+            this.indexPattern = indexPattern;
             this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.extractFields = extractFields;
@@ -489,6 +492,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     abstract static class TransportRequest extends AbstractTransportRequest implements IndicesRequest {
         final String sessionId;
         final ShardId shardId;
+        final String indexPattern;
         /**
          * For mixed clusters with nodes &lt;8.14, this will be null.
          */
@@ -504,6 +508,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         TransportRequest(
             String sessionId,
             ShardId shardId,
+            String indexPattern,
             DataType inputDataType,
             Page inputPage,
             Page toRelease,
@@ -512,6 +517,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
+            this.indexPattern = indexPattern;
             this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.toRelease = toRelease;
@@ -521,7 +527,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         @Override
         public final String[] indices() {
-            return new String[] { shardId.getIndexName() };
+            return new String[] { indexPattern };
         }
 
         @Override

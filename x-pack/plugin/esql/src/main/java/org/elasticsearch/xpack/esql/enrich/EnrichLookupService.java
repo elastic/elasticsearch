@@ -170,7 +170,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -191,7 +191,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }

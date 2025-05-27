@@ -59,7 +59,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class PolicyCheckerImpl implements PolicyChecker {
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
-    protected final Set<Class<?>> mutedClasses;
+    protected final Set<Package> suppressFailureLogPackages;
     /**
      * Frames originating from this module are ignored in the permission logic.
      */
@@ -70,12 +70,12 @@ public class PolicyCheckerImpl implements PolicyChecker {
     private final PathLookup pathLookup;
 
     public PolicyCheckerImpl(
-        Set<Class<?>> suppressFailureLogClasses,
+        Set<Package> suppressFailureLogPackages,
         Module entitlementsModule,
         PolicyManager policyManager,
         PathLookup pathLookup
     ) {
-        this.mutedClasses = suppressFailureLogClasses;
+        this.suppressFailureLogPackages = suppressFailureLogPackages;
         this.entitlementsModule = entitlementsModule;
         this.policyManager = policyManager;
         this.pathLookup = pathLookup;
@@ -469,8 +469,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private void notEntitled(String message, Class<?> callerClass, ModuleEntitlements entitlements) {
         var exception = new NotEntitledException(message);
-        // Don't emit a log for muted classes, e.g. classes containing self tests
-        if (mutedClasses.contains(callerClass) == false) {
+        // Don't emit a log for suppressed packages, e.g. packages containing self tests
+        if (suppressFailureLogPackages.contains(callerClass.getPackage()) == false) {
             entitlements.logger().warn("Not entitled: {}", message, exception);
         }
         throw exception;

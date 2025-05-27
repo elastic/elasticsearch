@@ -129,7 +129,7 @@ public class EntitlementInitialization {
             pathLookup
         );
         return new PolicyCheckerImpl(
-            bootstrapArgs.suppressFailureLogClasses(),
+            bootstrapArgs.suppressFailureLogPackages(),
             ENTITLEMENTS_MODULE,
             policyManager,
             bootstrapArgs.pathLookup()

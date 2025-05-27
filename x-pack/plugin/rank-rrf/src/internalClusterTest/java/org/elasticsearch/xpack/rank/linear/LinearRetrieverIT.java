@@ -986,13 +986,6 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
             assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
 
-            // Debugging: Print the actual hits and scores
-            System.out.println("--- DEBUG HITS ---");
-            for (org.elasticsearch.search.SearchHit hit : resp.getHits().getHits()) {
-                System.out.println("Hit: " + hit.getId() + ", Score: " + hit.getScore());
-            }
-            System.out.println("------------------");
-
             // Calculated scores >= 1.5f should only be doc_2(2.0)
             assertThat(resp.getHits().getHits().length, equalTo(1));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));

@@ -995,11 +995,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         List<?> vector = (List<?>) value;
                         floatBuilder.beginPositionEntry();
                         for (Object v : vector) {
-                            switch (v) {
-                                // XContentParser may retrieve Double values - we convert them to Float if needed
-                                case Double d -> floatBuilder.appendFloat(d.floatValue());
-                                case Float f -> floatBuilder.appendFloat(f);
-                                default -> fail("Unexpected dense_vector value type: " + v.getClass());
+                            // XContentParser may retrieve Double values - we convert them to Float if needed
+                            if (v instanceof Double d) {
+                                floatBuilder.appendFloat(d.floatValue());
+                            } else if (v instanceof Float f) {
+                                floatBuilder.appendFloat(f);
+                            } else {
+                                fail("Unexpected dense_vector value type: " + v.getClass());
                             }
                         }
                         floatBuilder.endPositionEntry();

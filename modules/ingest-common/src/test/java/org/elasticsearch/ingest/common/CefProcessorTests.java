@@ -970,10 +970,12 @@ public class CefProcessorTests extends ESTestCase {
         });
     }
 
-    public void testInvalidMacAddressSeparator() {
+    public void testInvalidMacAddresses() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.toMACAddress("00|0D|60|AF|1B|61"));
-        assertThat(e.getMessage(), equalTo("Invalid MAC address format"));
+        for (String invalid : List.of("00|0D|60|AF|1B|61", "00:0D:60:AF:1B:61 foo", "0000:0D:60:AF:1B:61")) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.toMACAddress(invalid));
+            assertThat(e.getMessage(), equalTo("Invalid MAC address format"));
+        }
     }
 
     public void testEUI48ToMacAddressWithOutSeparators() {

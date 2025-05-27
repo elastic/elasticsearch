@@ -1,8 +1,8 @@
 {
-  "indices.put_data_stream_mappings":{
+  "indices.get_data_stream_mappings":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Updates a data stream's mappings"
+      "description":"Gets a data stream's mappings"
     },
     "stability":"stable",
     "visibility": "feature_flag",
@@ -15,7 +15,7 @@
         {
           "path":"/_data_stream/{name}/_mappings",
           "methods":[
-            "PUT"
+            "GET"
           ],
           "parts":{
             "name":{
@@ -27,23 +27,10 @@
       ]
     },
     "params":{
-      "dry_run":{
-        "type":"boolean",
-        "description":"Whether this request should only be a dry run rather than actually applying mappings",
-        "default":false
-      },
-      "timeout":{
-        "type":"time",
-        "description":"Period to wait for a response"
-      },
       "master_timeout":{
         "type":"time",
         "description":"Period to wait for a connection to the master node"
       }
-    },
-    "body":{
-      "description":"The data stream mappings to be updated",
-      "required":true
     }
   }
 }

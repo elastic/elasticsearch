@@ -139,16 +139,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Test integer types
-        var integerTypes = List.of(BYTE, SHORT, INTEGER);
+        var integerTypes = List.of(BYTE, SHORT, INTEGER, LONG);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("integers", TestConfigs::new);
             for (DataType mainType : integerTypes) {
                 for (DataType lookupType : integerTypes) {
                     configs.addPasses(mainType, lookupType);
                 }
-                // Long is currently treated differently in the validation, but we could consider changing that
-                configs.addFails(mainType, LONG);
-                configs.addFails(LONG, mainType);
             }
         }
 
@@ -168,9 +165,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             TestConfigs configs = testConfigurations.computeIfAbsent("mixed-numerical", TestConfigs::new);
             for (DataType mainType : integerTypes) {
                 for (DataType lookupType : floatTypes) {
-                    // TODO: We should probably allow this, but we need to change the validation code in Join.java
-                    configs.addFails(mainType, lookupType);
-                    configs.addFails(lookupType, mainType);
+                    configs.addPasses(mainType, lookupType);
+                    configs.addPasses(lookupType, mainType);
                 }
             }
         }
@@ -372,9 +368,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static String sampleDataTextFor(DataType type) {
-        var value = sampleDataFor(type);
+        return sampleDataForValue(sampleDataFor(type));
+    }
+
+    private static String sampleDataForValue(Object value) {
         if (value instanceof String) {
             return "\"" + value + "\"";
+        } else if (value instanceof List<?> list) {
+            return "[" + list.stream().map(LookupJoinTypesIT::sampleDataForValue).collect(Collectors.joining(", ")) + "]";
         }
         return String.valueOf(value);
     }
@@ -393,6 +394,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
+            case DENSE_VECTOR -> List.of(0.2672612f, 0.5345224f, 0.8017837f);
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }

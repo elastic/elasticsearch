@@ -7,23 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xcontent;
+package org.elasticsearch.bootstrap;
 
-import java.nio.ByteBuffer;
+import java.util.List;
 
-public interface XContentString {
-    /**
-     * Returns a {@link String} view of the data.
-     */
-    String string();
-
-    /**
-     * Returns a UTF8-encoded {@link ByteBuffer} view of the data.
-     */
-    ByteBuffer bytes();
-
-    /**
-     * Returns the number of characters in the represented string.
-     */
-    int stringLength();
-}
+record TestBuildInfo(String component, List<TestBuildInfoLocation> locations) {}

@@ -39,7 +39,15 @@ were left unconsumed.
 5. [BaseRestHandler] then supplies the channel to the [RestChannelConsumer] to begin executing the action. Some handlers, such as the
 [RestBulkAction], consume the request as a stream of chunks to allow incremental processing of large requests.
 
+### Request interceptor
+
+The [RestController] allows the configuration of an interceptor that determines which [RestRequest]s are allowed to be processed. A single
+[RestServerActionPlugin] can provide a [RestInterceptor] implementation, through which all requests are passed. The
+[Security][Security#getRestHandlerInterceptor] plugin uses this capability to authorize access to endpoints that require operator privileges
+and do secondary authentication.
+
 ### HTTP server infrastructure
+
 HTTP traffic is handled by an implementation of a [HttpServerTransport]. The [HttpServerTransport] is responsible for binding to a
 port, handling REST client connections, parsing received requests into [RestRequest] instances and dispatching those
 requests to a [HttpServerTransport.Dispatcher]. The [RestController] is an implementation of [HttpServerTransport.Dispatcher].
@@ -70,6 +78,9 @@ additional configuration to implement features such as IP filtering or TLS.
 [HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/http/HttpServerTransport.java
 [Netty4HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java
 [Security#getHttpTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L1959
+[Security#getRestHandlerInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L2140
+[RestServerActionPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/interceptor/RestServerActionPlugin.java
+[RestInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestInterceptor.java
 
 ## Transport Layer
 
@@ -86,8 +97,8 @@ are coordinated.
 
 ### Action registration
 Elasticsearch contains many built-in [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can
-contribute additional actions via the [getActions][ActionPlugin#getActions] method. [TransportAction]s define the request and response types used to invoke the
-action and the logic for performing the action.
+contribute additional actions via the [getActions][ActionPlugin#getActions] method. [TransportAction]s define the request and response
+types used to invoke the action and the logic for performing the action.
 
 [TransportAction]s that are registered in [ActionModule#setupActions] (including those supplied by plugins) are locally bound to their
 [ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeLocally].
@@ -111,15 +122,23 @@ There is more information about task management in the [Distributed architecture
 
 There are a few common patterns for [TransportAction] execution that are present in the codebase. Some prominent examples include...
 
-- [TransportMasterNodeAction]: Executes an action on the master node. Typically used to perform cluster state updates, as these can only be performed on the master. The base class contains logic for locating the master node and delegating to it to execute the specified logic.
+- [TransportMasterNodeAction]: Executes an action on the master node. Typically used to perform cluster state updates, as these can only
+be performed on the master. The base class contains logic for locating the master node and delegating to it to execute the specified logic.
 - [TransportNodesAction]: Executes an action on many nodes then collates the responses.
-- [TransportLocalClusterStateAction]: Waits for a cluster state that optionally meets some criteria and performs a read action on it on the coordinating node.
-- [TransportReplicationAction]: Execute an action on a primary shard followed by all replicas that exist for that shard. The base class implements logic for locating the primary and replica shards in the cluster and delegating to the relevant nodes. Often used for index updates in stateful Elasticsearch.
-- [TransportSingleShardAction]: Executes a read operation on a specific shard, the base class contains logic for locating an available copy of the nominated shard and delegating to the relevant node to execute the action. On a failure, the action is retried on a different copy.
+- [TransportLocalClusterStateAction]: Waits for a cluster state that optionally meets some criteria and performs a read action on it on the
+coordinating node.
+- [TransportReplicationAction]: Execute an action on a primary shard followed by all replicas that exist for that shard. The base class
+implements logic for locating the primary and replica shards in the cluster and delegating to the relevant nodes. Often used for index
+updates in stateful Elasticsearch.
+- [TransportSingleShardAction]: Executes a read operation on a specific shard, the base class contains logic for locating an available copy
+of the nominated shard and delegating to the relevant node to execute the action. On a failure, the action is retried on a different copy.
 
 ### Action interceptors
 
-The transport action infrastructure allows the configuration of interceptors which can implement cross-cutting concerns like security around action invocations. Implementations of [TransportInterceptor] interface are able to intercept action requests by wrapping [TransportRequestHandler]s, or by intercepting requests before they are sent. Plugins that implement the [NetworkPlugin] interface are able to register interceptors by implementing the [getTransportInterceptors][NetworkPlugin#getTransportInterceptors] method.
+The transport action infrastructure allows the configuration of interceptors which can implement cross-cutting concerns like security around
+action invocations. Implementations of [TransportInterceptor] interface are able to intercept action requests by wrapping
+[TransportRequestHandler]s, or by intercepting requests before they are sent. Plugins that implement the [NetworkPlugin] interface are able
+to register interceptors by implementing the [getTransportInterceptors][NetworkPlugin#getTransportInterceptors] method.
 
 [ActionRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionRequest.java
 [NetworkPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java

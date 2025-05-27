@@ -2008,7 +2008,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
-            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithNoProjection() {
@@ -2051,7 +2051,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (STATS x = count(*), y=min(z))
             | LOOKUP JOIN my_lookup_index ON xyz
             | WHERE x > y OR _fork == "fork1"
-            """, Set.of("a", "c", "abc", "b", "def", "z", "xyz", "def.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkWithStatsInAllBranches() {
@@ -2065,7 +2065,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("a", "a.*", "c", "c.*", "z", "z.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkWithStatsAndWhere() {

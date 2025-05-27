@@ -584,6 +584,11 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
+        // TODO: Improve field resolution for FORK - right now we request all fields
+        if (parsed.anyMatch(p -> p instanceof Fork)) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+
         Holder<Boolean> projectAll = new Holder<>(false);
         parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
             if (projectAll.get()) {
@@ -595,9 +600,6 @@ public class EsqlSession {
         if (projectAll.get()) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
-
-        boolean hasFork = parsed.anyMatch(p -> p instanceof Fork);
-        Holder<Boolean> seenFork = new Holder<>(false);
 
         var referencesBuilder = AttributeSet.builder();
         // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
@@ -617,33 +619,6 @@ public class EsqlSession {
         PreAnalysisResult initialResult = result;
         projectAll.set(false);
         parsed.forEachDown(p -> {// go over each plan top-down
-            if (hasFork && seenFork.get() == false && p instanceof Fork == false) {
-                return;
-            }
-
-            if (projectAll.get()) {
-                return;
-            }
-
-            if (p instanceof Fork fork) {
-                seenFork.set(true);
-
-                Set<String> names = new HashSet<>();
-                for (var subPlan : fork.children()) {
-                    PreAnalysisResult subPlanResult = fieldNames(subPlan, enrichPolicyMatchFields, initialResult);
-
-                    if (subPlanResult.fieldNames.equals(IndexResolver.ALL_FIELDS)) {
-                        projectAll.set(true);
-                        return;
-                    }
-                    names.addAll(subPlanResult.fieldNames);
-                }
-
-                for (var attrName : names) {
-                    referencesBuilder.add(new UnresolvedAttribute(fork.source(), attrName));
-                }
-            }
-
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.addAll(re.input().references());

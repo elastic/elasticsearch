@@ -9,9 +9,9 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;

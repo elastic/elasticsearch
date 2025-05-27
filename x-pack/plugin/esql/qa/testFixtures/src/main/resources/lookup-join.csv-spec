@@ -4561,3 +4561,22 @@ language_code_float:double | language_code_double:double | language_name:keyword
 2.147483648E9              | 2.147483646E9               | max_int_minus_1
 2.147483648E9              | 2.147483647E9               | max_int
 ;
+
+nullifiedJoinKeyToPurgeTheJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| RENAME languages AS language_code
+| SORT emp_no, language_code
+| LIMIT 4
+| EVAL language_code = TO_INTEGER(NULL)
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          |null           |null
+10002          |null           |null
+10003          |null           |null
+10004          |null           |null
+;

@@ -354,9 +354,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static String sampleDataTextFor(DataType type) {
-        var value = sampleDataFor(type);
+        return sampleDataForValue(sampleDataFor(type));
+    }
+
+    private static String sampleDataForValue(Object value) {
         if (value instanceof String) {
             return "\"" + value + "\"";
+        } else if (value instanceof List<?> list) {
+            return "[" + list.stream().map(LookupJoinTypesIT::sampleDataForValue).collect(Collectors.joining(", ")) + "]";
         }
         return String.valueOf(value);
     }
@@ -375,6 +380,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
+            case DENSE_VECTOR -> List.of(0.2672612f, 0.5345224f, 0.8017837f);
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }

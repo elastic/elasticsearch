@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.List;

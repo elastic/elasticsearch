@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -29,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,42 +88,18 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             // \_Eval[field1 = null, field3 = null]
             // \_EsRelation[field1, field2, field3]
             List<Attribute> relationOutput = relation.output();
-            Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
-            List<NamedExpression> newProjections = new ArrayList<>(relationOutput.size());
-            for (int i = 0, size = relationOutput.size(); i < size; i++) {
-                Attribute attr = relationOutput.get(i);
-                NamedExpression projection;
-                if (attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false) {
-                    DataType dt = f.dataType();
-                    Alias nullAlias = nullLiterals.get(dt);
-                    // save the first field as null (per datatype)
-                    if (nullAlias == null) {
-                        // Keep the same id so downstream query plans don't need updating
-                        // NOTE: THIS IS BRITTLE AND CAN LEAD TO BUGS.
-                        // In case some optimizer rule or so inserts a plan node that requires the field BEFORE the Eval that we're adding
-                        // on top of the EsRelation, this can trigger a field extraction in the physical optimizer phase, causing wrong
-                        // layouts due to a duplicate name id.
-                        // If someone reaches here AGAIN when debugging e.g. ClassCastExceptions NPEs from wrong layouts, we should probably
-                        // give up on this approach and instead insert EvalExecs in InsertFieldExtraction.
-                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
-                        nullLiterals.put(dt, alias);
-                        projection = alias.toAttribute();
-                    }
-                    // otherwise point to it since this avoids creating field copies
-                    else {
-                        projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
-                    }
-                } else {
-                    projection = attr;
-                }
-                newProjections.add(projection);
-            }
+            var aliasedNulls = RuleUtils.aliasedNulls(
+                relationOutput,
+                attr -> attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false
+            );
+            var nullLiterals = aliasedNulls.v1();
+            var newProjections = aliasedNulls.v2();
 
             if (nullLiterals.size() == 0) {
                 return plan;
             }
 
-            Eval eval = new Eval(plan.source(), relation, new ArrayList<>(nullLiterals.values()));
+            Eval eval = new Eval(plan.source(), relation, nullLiterals);
             // This projection is redundant if there's another projection downstream (and no commands depend on the order until we hit it).
             return new Project(plan.source(), eval, newProjections);
         }

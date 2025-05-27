@@ -96,8 +96,10 @@ class SampleLongAggregator {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (LongBlock.Builder longBlock = driverContext.blockFactory().newLongBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            LongBlock.Builder longBlock = driverContext.blockFactory().newLongBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +121,6 @@ class SampleLongAggregator {
                     }
                 }
             }
-            block.close();
             return longBlock.build();
         }
     }

@@ -713,6 +713,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.FloatBuilder denseVectors(int expectedVectorsCount, int dimensions) {
+            return factory.newFloatBlockBuilder(expectedVectorsCount * dimensions);
+        }
+
+        @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
             return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }

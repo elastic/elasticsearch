@@ -413,6 +413,41 @@ FROM EVAL SORT LIMIT with documents_found:
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
 
 ---
+"Test Unnamed Input Params Also For Limit":
+  - requires:
+        test_runner_features: [ capabilities ]
+        capabilities:
+          - method: POST
+            path: /_query
+            parameters: [ ]
+            capabilities: [ parameter_for_limit ]
+        reason: "named or positional parameters"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          params: ["1", 2.0, null, true, 123, 1674835275193, 3]
+
+  - length: {columns: 6}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "null"}
+  - match: {columns.3.name: "t"}
+  - match: {columns.3.type: "boolean"}
+  - match: {columns.4.name: "u"}
+  - match: {columns.4.type: "integer"}
+  - match: {columns.5.name: "v"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: ["1",2.0,null,true,123,1674835275193]}
+  - match: {values.1: ["1",2.0,null,true,123,1674835275193]}
+  - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
+
+
+---
 "Test Named Input Params":
   - requires:
       test_runner_features: [ capabilities ]
@@ -420,14 +455,14 @@ FROM EVAL SORT LIMIT with documents_found:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ named_positional_parameter ]
+          capabilities: [ parameter_for_limit ]
       reason: "named or positional parameters"
 
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit 3'
-          params: [{"n1" : "1"}, {"n2" : 2.0}, {"n3" : null}, {"n4" : true}, {"n5" : 123}, {"n6": 1674835275193}]
+          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          params: [{"n1" : "1"}, {"n2" : 2.0}, {"n3" : null}, {"n4" : true}, {"n5" : 123}, {"n6": 1674835275193}, {"l": 3}]
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}
@@ -484,14 +519,14 @@ FROM EVAL SORT LIMIT with documents_found:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ named_parameter_for_field_and_function_names_simplified_syntax ]
+          capabilities: [ parameter_for_limit ]
       reason: "named or positional parameters for field names"
 
   - do:
       esql.query:
         body:
-          query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit 3'
-          params: [{"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}]
+          query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit ?l'
+          params: [{"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}, {"l": 3}]
 
   - length: {columns: 3}
   - match: {columns.0.name: "color"}
@@ -504,6 +539,27 @@ FROM EVAL SORT LIMIT with documents_found:
   - match: {values.0: ["blue",10,420]}
   - match: {values.1: ["green",10,440]}
   - match: {values.2: ["red",20,860]}
+
+
+---
+"Test wrong LIMIT parameter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ parameter_for_limit ]
+      reason: "named or positional parameters for field names"
+
+  - do:
+      catch: "/Invalid value for LIMIT \\[foo: String\\], expecting a non negative integer/"
+      esql.query:
+        body:
+          query: 'from test | limit ?l'
+          params: [{"l": "foo"}]
+
+
 
 ---
 version is not allowed:

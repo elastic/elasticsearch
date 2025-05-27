@@ -493,7 +493,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     // manage privilege required by the index alias
                     .indices("security_solution-*.vulnerability_latest", "security_solution-*.misconfiguration_latest")
-                    .privileges("manage", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
+                    .privileges("manage", "read", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
                     .build(),
                 // For destination indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform

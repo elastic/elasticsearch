@@ -253,8 +253,8 @@ Like most design decisions, this is the basis of a trade-off in which we have ch
 The JLH score can be used as a significance score by adding the parameter
 
 ```js
-	 "jlh": {
-	 }
+   "jlh": {
+   }
 ```
 
 The scores are derived from the doc frequencies in *foreground* and *background* sets. The *absolute* change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the *relative* change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
@@ -265,9 +265,9 @@ The scores are derived from the doc frequencies in *foreground* and *background*
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
 
 ```js
-	 "mutual_information": {
-	      "include_negatives": true
-	 }
+   "mutual_information": {
+        "include_negatives": true
+   }
 ```
 
 Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`.
@@ -284,8 +284,8 @@ Per default, the assumption is that the documents in the bucket are also contain
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
 
 ```js
-	 "chi_square": {
-	 }
+   "chi_square": {
+   }
 ```
 
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
@@ -296,8 +296,8 @@ Chi square behaves like mutual information and can be configured with the same p
 Google normalized distance as described in ["The Google Similarity Distance", Cilibrasi and Vitanyi, 2007](https://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 
 ```js
-	 "gnd": {
-	 }
+   "gnd": {
+   }
 ```
 
 `gnd` also accepts the `background_is_superset` parameter.
@@ -394,8 +394,8 @@ The benefit of this heuristic is that the scoring logic is simple to explain to 
 It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under their belt would be impossible to beat. Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
 
 ```js
-	 "percentage": {
-	 }
+   "percentage": {
+   }
 ```
 
 
@@ -413,11 +413,11 @@ If none of the above measures suits your usecase than another option is to imple
 Customized scores can be implemented via a script:
 
 ```js
-	    "script_heuristic": {
+      "script_heuristic": {
               "script": {
-	        "lang": "painless",
-	        "source": "params._subset_freq/(params._superset_freq - params._subset_freq + 1)"
-	      }
+          "lang": "painless",
+          "source": "params._subset_freq/(params._superset_freq - params._subset_freq + 1)"
+        }
             }
 ```
 

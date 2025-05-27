@@ -948,7 +948,7 @@ public class CefProcessorTests extends ESTestCase {
     public void testToTimestampWithInvalidDate() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String invalidDate = "invalid date";
-        assertThrows(IllegalArgumentException.class, () -> parser.toTimestamp(invalidDate));
+        expectThrows(IllegalArgumentException.class, () -> parser.toTimestamp(invalidDate));
     }
 
     public void testToMacAddressWithSeparators() {
@@ -1004,7 +1004,7 @@ public class CefProcessorTests extends ESTestCase {
 
     public void testToIPInvalidIPAddress() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), true);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> parser.toIP("invalid_ip"));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> parser.toIP("invalid_ip"));
         assertEquals("Invalid IP address format", exception.getMessage());
     }
 

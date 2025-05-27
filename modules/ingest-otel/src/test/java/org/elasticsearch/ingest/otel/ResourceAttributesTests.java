@@ -16,7 +16,6 @@ import org.junit.Ignore;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * <b>DISABLED BY DEFAULT!</b><br><br>
@@ -29,17 +28,9 @@ import java.util.function.Supplier;
 @Ignore
 public class ResourceAttributesTests extends ESTestCase {
 
-    public void testResourceAttributes_webCrawler() {
-        testCrawler(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);
-    }
-
-    public void testResourceAttributes_localDiskCrawler() {
-        testCrawler(OTelSemConvLocalDiskCrawler::collectOTelSemConvResourceAttributes);
-    }
-
     @SuppressForbidden(reason = "Used specifically for the output. Only meant to be run manually, not through CI.")
-    private static void testCrawler(Supplier<Set<String>> otelResourceAttributesSupplier) {
-        Set<String> resourceAttributes = otelResourceAttributesSupplier.get();
+    public void testCrawler() {
+        Set<String> resourceAttributes = OTelSemConvCrawler.collectOTelSemConvResourceAttributes();
         System.out.println("Resource Attributes: " + resourceAttributes.size());
         for (String attribute : resourceAttributes) {
             System.out.println(attribute);
@@ -55,17 +46,9 @@ public class ResourceAttributesTests extends ESTestCase {
         }
     }
 
-    public void testAttributesSetUpToDate_localDiskCrawler() {
-        testAttributesSetUpToDate(OTelSemConvLocalDiskCrawler::collectOTelSemConvResourceAttributes);
-    }
-
-    public void testAttributesSetUpToDate_webCrawler() {
-        testAttributesSetUpToDate(OTelSemConvWebCrawler::collectOTelSemConvResourceAttributes);
-    }
-
-    private static void testAttributesSetUpToDate(Supplier<Set<String>> otelResourceAttributesSupplier) {
+    public void testAttributesSetUpToDate() {
         Map<String, String> ecsToOTelAttributeNames = EcsFieldsDiscoverer.getInstance().getEcsToOTelAttributeNames();
-        Set<String> otelResourceAttributes = otelResourceAttributesSupplier.get();
+        Set<String> otelResourceAttributes = OTelSemConvCrawler.collectOTelSemConvResourceAttributes();
         Set<String> latestEcsOTelResourceAttributes = new HashSet<>();
         ecsToOTelAttributeNames.forEach((ecsAttributeName, otelAttributeName) -> {
             if (otelResourceAttributes.contains(otelAttributeName)) {
@@ -76,8 +59,10 @@ public class ResourceAttributesTests extends ESTestCase {
         boolean upToDate = latestEcsOTelResourceAttributes.equals(EcsOTelResourceAttributes.LATEST);
         if (upToDate == false) {
             printComparisonResults(latestEcsOTelResourceAttributes);
+        } else {
+            System.out.println("Latest ECS-to-OTel resource attributes set in EcsOTelResourceAttributes is up to date.");
         }
-        assertTrue("ECS-to-OTel resource attributes set is not up to date.", upToDate);
+        assertTrue("Latest ECS-to-OTel resource attributes set in EcsOTelResourceAttributes is not up to date.", upToDate);
     }
 
     @SuppressForbidden(

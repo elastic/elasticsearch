@@ -35,12 +35,18 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-public class OTelSemConvLocalDiskCrawler {
+/**
+ * This class is responsible for crawling and extracting OpenTelemetry semantic convention
+ * resource attributes from the OpenTelemetry GitHub repository. It handles downloading,
+ * unzipping, and processing YAML files to extract specific referenced resource attribute names.
+ * It eventually deletes the downloaded zip file and extracted repository directory.
+ */
+public class OTelSemConvCrawler {
 
     public static final String SEM_CONV_GITHUB_REPO_ZIP_URL =
         "https://github.com/open-telemetry/semantic-conventions/archive/refs/heads/main.zip";
 
-    private static final Logger logger = LogManager.getLogger(OTelSemConvLocalDiskCrawler.class);
+    private static final Logger logger = LogManager.getLogger(OTelSemConvCrawler.class);
 
     @SuppressForbidden(reason = "writing the GitHub repo zip file to the test's runtime temp directory and deleting on exit")
     static Set<String> collectOTelSemConvResourceAttributes() {

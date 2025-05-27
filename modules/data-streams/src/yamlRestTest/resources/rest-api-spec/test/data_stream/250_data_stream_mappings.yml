@@ -80,13 +80,11 @@ setup:
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
   - match: { data_streams.0.effective_mappings: null }
-
-  - do:
-      indices.get_data_stream:
-        name: my-data-stream-1
-  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
 
   - do:
       indices.get_mapping:
         index: my-data-stream-1
-  - match: { .$idx0name.mappings.properties.name.type: "keyword" }
+  - match: { .$oldIndexName.mappings.properties.name: null }
+  - match: { .$newIndexName.mappings.properties.name.type: "keyword" }

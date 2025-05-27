@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,12 +49,12 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
         return new LogsdbLoader();
     }
 
-    Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
+    Leaf leaf(SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits DocValueLeaf, StoredLeaf {
+    sealed interface Leaf permits DocValueLeaf, SourceLeaf, StoredLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -73,7 +74,8 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
             this.indexRouting = indexRouting;
         }
 
-        public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public IdLoader.Leaf leaf(
+            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             IndexRouting.ExtractFromSource.Builder[] builders = null;
             if (indexRouting != null) {
                 builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
@@ -132,10 +134,20 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
     }
 
     final class LogsdbLoader implements IdLoader {
-        public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public IdLoader.Leaf leaf(
+            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf
+        ) throws IOException {
+            try {
+                SortedDocValues idDocValues = DocValues.getSorted(reader, IdFieldMapper.NAME);
+                return loadDocValues(idDocValues, docIdsInLeaf);
+            } catch (IllegalStateException e) {
+                // if loaded from source-only snapshot, doc values will not be present. Need to load from _source
+                return new SourceLeaf(loader, leafSourceLoader);
+            }
+        }
+
+        private DocValueLeaf loadDocValues(SortedDocValues idDocValues, int[] docIdsInLeaf) throws IOException {
             String[] ids = new String[docIdsInLeaf.length];
-            // Each document always has exactly one tsid and one timestamp:
-            SortedDocValues idDocValues = DocValues.getSorted(reader, LogsdbIdFieldMapper.NAME);
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
                 boolean found = idDocValues.advanceExact(docId);
@@ -152,7 +164,8 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
         public StoredIdLoader() {}
 
         @Override
-        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public Leaf leaf(
+            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             return new StoredLeaf(loader);
         }
     }
@@ -191,6 +204,27 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
         @Override
         public String getId(int subDocId) {
             return loader.id();
+        }
+    }
+
+    final class SourceLeaf implements Leaf {
+
+        private final LeafStoredFieldLoader storedFieldLoader;
+        private final SourceLoader.Leaf sourceLoader;
+
+        SourceLeaf(LeafStoredFieldLoader storedFieldLoader, SourceLoader.Leaf sourceLoader) {
+            this.storedFieldLoader = storedFieldLoader;
+            this.sourceLoader = sourceLoader;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                Source source = sourceLoader.source(storedFieldLoader, subDocId);
+                return (String) source.extractValue(IdFieldMapper.NAME, null);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

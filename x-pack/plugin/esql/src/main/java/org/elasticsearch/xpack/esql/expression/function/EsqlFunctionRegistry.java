@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -455,6 +457,8 @@ public class EsqlFunctionRegistry {
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(DistinctOverTime.class, uni(DistinctOverTime::new), "distinct_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),

@@ -295,3 +295,41 @@ sum_cost:double | cluster:keyword | time_bucket:datetime
 
 ;
 
+count_over_time
+required_capability: metrics_command
+required_capability: count_over_time
+
+TS k8s | STATS count=count(count_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT count DESC, time_bucket DESC, cluster | LIMIT 10;
+
+count:long | cluster:keyword | time_bucket:datetime
+3          | staging         | 2024-05-10T00:22:00.000Z
+3          | prod            | 2024-05-10T00:20:00.000Z
+3          | prod            | 2024-05-10T00:19:00.000Z
+3          | prod            | 2024-05-10T00:18:00.000Z
+3          | qa              | 2024-05-10T00:18:00.000Z
+3          | staging         | 2024-05-10T00:18:00.000Z
+3          | prod            | 2024-05-10T00:17:00.000Z
+3          | qa              | 2024-05-10T00:17:00.000Z
+3          | qa              | 2024-05-10T00:15:00.000Z
+3          | staging         | 2024-05-10T00:15:00.000Z
+
+;
+distinct_over_time
+required_capability: metrics_command
+required_capability: distinct_over_time
+
+TS k8s | STATS distincts=count_distinct(distinct_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT distincts DESC, time_bucket DESC, cluster | LIMIT 10;
+
+distincts:long | cluster:keyword | time_bucket:datetime
+3              | qa              | 2024-05-10T00:17:00.000Z
+3              | qa              | 2024-05-10T00:15:00.000Z
+3              | prod            | 2024-05-10T00:09:00.000Z
+3              | qa              | 2024-05-10T00:09:00.000Z
+2              | prod            | 2024-05-10T00:22:00.000Z
+2              | staging         | 2024-05-10T00:22:00.000Z
+2              | prod            | 2024-05-10T00:20:00.000Z
+2              | prod            | 2024-05-10T00:18:00.000Z
+2              | qa              | 2024-05-10T00:18:00.000Z
+2              | staging         | 2024-05-10T00:18:00.000Z
+
+;

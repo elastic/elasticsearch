@@ -483,6 +483,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
   method: testTimestampFilterFromQuery
   issue: https://github.com/elastic/elasticsearch/issues/127332
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
+  method: testSearchWhileRelocating
+  issue: https://github.com/elastic/elasticsearch/issues/128500
 
 # Examples:
 #

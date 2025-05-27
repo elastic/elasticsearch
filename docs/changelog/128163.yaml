@@ -2,16 +2,16 @@ pr: 128163
 summary: Make `skip_unavailable` catch all errors
 area: ES|QL
 type: breaking
-issues: []
+issues: [ ]
 breaking:
   title: Cluster setting "skip_unavailable" catches all runtime errors
   area: ES|QL
   details: "If `skip_unavailable` is set to `true`, the runtime errors from this cluster\
     \ do not lead to a failure of the query. Instead, the cluster is set to `skipped`\
-    \ or `partial status, and the query execution continues. This is a breaking change\
+    \ or `partial` status, and the query execution continues. This is a breaking change\
     \ from previous versions, where `skip_unavailable` only applied to errors related\
-    \ to cluster being unavailable."
+    \ to a cluster being unavailable."
   impact: "The errors on remote clusters, e.g. missing indices, will not lead to a\
-    \ failure of the query. Instead, the cluster is set to `skipped` or `partial status\
+    \ failure of the query. Instead, the cluster is set to `skipped` or `partial` status\
     \ in the response metadata."
   notable: false

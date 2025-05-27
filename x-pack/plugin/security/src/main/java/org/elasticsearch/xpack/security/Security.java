@@ -1102,18 +1102,9 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        // TODO ensure internal extensions only
-        SetOnce<CloudApiKeyService> cloudApiKeyService = new SetOnce<>();
-        for (var extension : securityExtensions) {
-            CloudApiKeyService inner = extension.getCloudApiKeyService(extensionComponents);
-            if (inner != null) {
-                cloudApiKeyService.set(inner);
-            }
-        }
-        if (cloudApiKeyService.get() == null) {
-            cloudApiKeyService.set(new CloudApiKeyService.Noop());
-        }
-        components.add(cloudApiKeyService.get());
+        final CloudApiKeyService cloudApiKeyService = createCloudApiKeyService(extensionComponents);
+
+        components.add(cloudApiKeyService);
 
         authcService.set(
             new AuthenticationService(
@@ -1127,7 +1118,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                cloudApiKeyService.get(),
+                cloudApiKeyService,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1261,6 +1252,37 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CloudApiKeyService createCloudApiKeyService(SecurityExtension.SecurityComponents extensionComponents) {
+        final SetOnce<CloudApiKeyService> cloudApiKeyServiceSetOnce = new SetOnce<>();
+        for (var extension : securityExtensions) {
+            final CloudApiKeyService cloudApiKeyService = extension.getCloudApiKeyService(extensionComponents);
+            if (cloudApiKeyService != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom CloudApiKeyService. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                boolean success = cloudApiKeyServiceSetOnce.trySet(cloudApiKeyService);
+                if (false == success) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom CloudApiKeyService, but one has already been installed."
+                    );
+                } else {
+                    logger.debug("CloudApiKeyService provided by extension [{}]", extension.extensionName());
+                }
+            }
+        }
+        if (cloudApiKeyServiceSetOnce.get() == null) {
+            cloudApiKeyServiceSetOnce.set(new CloudApiKeyService.Noop());
+        }
+        return cloudApiKeyServiceSetOnce.get();
     }
 
     private ServiceAccountService createServiceAccountService(

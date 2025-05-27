@@ -71,13 +71,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.FlatIndexOptions(),
             new DenseVectorFieldMapper.Int8FlatIndexOptions(
@@ -91,7 +93,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQHnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.BBQFlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
         );
@@ -107,13 +110,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                rescoreVector
+                rescoreVector,
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
-                rescoreVector
+                rescoreVector,
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
         );
@@ -558,13 +563,17 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         if (elementType == BYTE) {
-            ESKnnByteVectorQuery esKnnQuery = (ESKnnByteVectorQuery) knnQuery;
-            assertThat(esKnnQuery.getK(), is(100));
-            assertThat(esKnnQuery.kParam(), is(10));
+            KnnByteVectorQuery knnByteVectorQuery = (KnnByteVectorQuery) knnQuery;
+            assertThat(knnByteVectorQuery.getK(), is(100));
+            if (knnByteVectorQuery instanceof ESKnnByteVectorQuery esKnnByteVectorQuery) {
+                assertThat(esKnnByteVectorQuery.kParam(), is(10));
+            }
         } else {
-            ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) knnQuery;
-            assertThat(esKnnQuery.getK(), is(100));
-            assertThat(esKnnQuery.kParam(), is(10));
+            KnnFloatVectorQuery knnFloatVectorQuery = (KnnFloatVectorQuery) knnQuery;
+            assertThat(knnFloatVectorQuery.getK(), is(100));
+            if (knnFloatVectorQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
+                assertThat(esKnnFloatVectorQuery.kParam(), is(10));
+            }
         }
     }
 
@@ -610,7 +619,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
-        assertTrue(query instanceof ESKnnFloatVectorQuery);
+        assertTrue(query instanceof KnnFloatVectorQuery);
 
         // verify we can override a `0` to a positive number
         fieldType = new DenseVectorFieldType(
@@ -635,8 +644,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         assertTrue(query instanceof RescoreKnnVectorQuery);
         assertThat(((RescoreKnnVectorQuery) query).k(), equalTo(10));
-        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(esKnnQuery.kParam(), equalTo(20));
+        KnnFloatVectorQuery esKnnQuery = (KnnFloatVectorQuery) ((RescoreKnnVectorQuery) query).innerQuery();
+        if (esKnnQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
+            assertThat(esKnnFloatVectorQuery.kParam(), equalTo(20));
+        }
 
     }
 
@@ -709,9 +720,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) rescoreQuery.innerQuery();
+        KnnFloatVectorQuery knnQuery = (KnnFloatVectorQuery) rescoreQuery.innerQuery();
         assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
-        assertThat("Unexpected k parameter", esKnnQuery.kParam(), equalTo(expectedK));
-        assertThat("Unexpected candidates", esKnnQuery.getK(), equalTo(expectedCandidates));
+        assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
+        if (knnQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
+            assertThat("Unexpected k parameter", esKnnFloatVectorQuery.kParam(), equalTo(expectedK));
+        }
     }
 }

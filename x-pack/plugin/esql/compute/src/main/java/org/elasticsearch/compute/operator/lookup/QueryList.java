@@ -11,10 +11,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -37,9 +39,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntFunction;
+import java.util.function.LongSupplier;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -212,14 +219,14 @@ public abstract class QueryList {
      * {@code date_nanos} field values.
      */
     public static QueryList dateNanosTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
-        return new TermQueryList(
+        return new DateNanosQueryList(
             field,
             searchExecutionContext,
             block,
             null,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
                 ? offset -> rangeFieldType.dateTimeFormatter().formatNanos(block.getLong(offset))
-                : i -> block.getLong(i) / 1000_000
+                : block::getLong
         );
     }
 
@@ -231,7 +238,7 @@ public abstract class QueryList {
     }
 
     private static class TermQueryList extends QueryList {
-        private final IntFunction<Object> blockValueReader;
+        protected final IntFunction<Object> blockValueReader;
 
         private TermQueryList(
             MappedFieldType field,
@@ -259,7 +266,7 @@ public abstract class QueryList {
         Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
-                case 1 -> field.termQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
+                case 1 -> termQuery(blockValueReader.apply(firstValueIndex));
                 default -> {
                     final List<Object> terms = new ArrayList<>(valueCount);
                     for (int i = 0; i < valueCount; i++) {
@@ -269,6 +276,70 @@ public abstract class QueryList {
                     yield field.termsQuery(terms, searchExecutionContext);
                 }
             };
+        }
+
+        protected Query termQuery(Object value) {
+            return field.termQuery(value, searchExecutionContext);
+        }
+    }
+
+    private static class DateNanosQueryList extends QueryList implements DateMathParser {
+        protected final IntFunction<Object> blockValueReader;
+
+        private DateNanosQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            Block block,
+            OnlySingleValueParams onlySingleValueParams,
+            IntFunction<Object> blockValueReader
+        ) {
+            super(field, searchExecutionContext, block, onlySingleValueParams);
+            this.blockValueReader = blockValueReader;
+        }
+
+        @Override
+        public DateNanosQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
+            return new DateNanosQueryList(
+                field,
+                searchExecutionContext,
+                block,
+                new OnlySingleValueParams(warnings, multiValueWarningMessage),
+                blockValueReader
+            );
+        }
+
+        @Override
+        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+            return switch (valueCount) {
+                case 0 -> null;
+                case 1 -> termQuery(blockValueReader.apply(firstValueIndex));
+                default -> {
+                    final Set<Object> terms = new HashSet<>(valueCount);
+                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    for (int i = 0; i < valueCount; i++) {
+                        final Object value = blockValueReader.apply(firstValueIndex + i);
+                        if (terms.contains(value)) {
+                            continue; // Skip duplicates
+                        }
+                        terms.add(value);
+                        builder.add(termQuery(value), BooleanClause.Occur.SHOULD);
+                    }
+                    yield new ConstantScoreQuery(builder.build());
+                }
+            };
+        }
+
+        private Query termQuery(Object value) {
+            return field.rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, this, searchExecutionContext);
+        }
+
+        @Override
+        public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId tz) {
+            // TODO: It is awkward that we convert the Long to a String to an Instant and then back to a Long.
+            // See DateFieldMapper.parseToLong, line 822. Too much unnecessary conversion going on.
+            // This might make sense in the QueryDSL where the value could come from any query, but here it comes from an ES|QL LongBlock
+            long nanos = Long.parseLong(text);
+            return Instant.ofEpochSecond(nanos / 1_000_000_000, nanos % 1_000_000_000);
         }
     }
 

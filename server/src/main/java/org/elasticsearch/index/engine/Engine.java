@@ -461,14 +461,10 @@ public abstract class Engine implements Closeable {
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
         private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
         private final boolean pauseWhenThrottled;
-        // private final PauseLock throttlingLock;
-        // private final ReleasableLock lockReference;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
             pauseWhenThrottled = pause;
-            // throttlingLock = new PauseLock(pause ? 0 : 1);
-            // lockReference = new ReleasableLock(throttlingLock);
         }
 
         public Releasable acquireThrottle() {
@@ -491,17 +487,12 @@ public abstract class Engine implements Closeable {
             } else {
                 return lock.acquire();
             }
-
-            // return lock.acquire();
-
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            // throttlingLock.throttle();
-            // lock = lockReference;
             if (pauseWhenThrottled) {
                 pauseIndexing.setRelease(true);
                 lock = pauseLockReference;

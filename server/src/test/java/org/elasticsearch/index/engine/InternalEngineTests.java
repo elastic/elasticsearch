@@ -130,6 +130,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -169,6 +170,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
@@ -7013,6 +7015,50 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexWithoutThrottlingCheck);
         verify(indexWithThrottlingCheck, atLeastOnce()).startTime();
         verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
+    }
+
+    /* Test that indexing is paused during throttling using the PAUSE_INDEXING_ON_THROTTLE setting is on.
+     * The test tries to index a document into a shard for which indexing is throttled. It is unable to
+     * do so until throttling is disabled.
+     * Indexing proceeds as usual once the shard throttle is deactivated.
+     */
+    public void testIndexThrottlingWithPause() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))
+        ) {
+            final List<DocIdSeqNoAndSource> prevDocs;
+            final Engine.Index indexWithThrottlingCheck = indexForDoc(createParsedDoc("1", null));
+            final Engine.Index indexWithoutThrottlingCheck = indexForDoc(createParsedDoc("2", null));
+            prevDocs = getDocIds(engine, true);
+            assertThat(prevDocs.size(), equalTo(0));
+            Thread indexWithThrottle = new Thread(() -> {
+                try {
+                    engine.index(indexWithThrottlingCheck);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            // Activate throttling (this will pause indexing)
+            engine.activateThrottling();
+            assertTrue(engine.isThrottled());
+            indexWithThrottle.start();
+            // Wait for the thread to complete, it will not complete because of the pause
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(500));
+            assertThat(getDocIds(engine, true).size(), equalTo(0));
+            // Deactivate to allow the indexing thread to proceed
+            engine.deactivateThrottling();
+            indexWithThrottle.join();
+            assertThat(getDocIds(engine, true).size(), equalTo(1));
+            engine.index(indexWithoutThrottlingCheck);
+            assertThat(getDocIds(engine, true).size(), equalTo(2));
+        }
     }
 
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {

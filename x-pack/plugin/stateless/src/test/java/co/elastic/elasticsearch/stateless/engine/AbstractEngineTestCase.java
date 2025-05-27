@@ -529,7 +529,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
         document.add(version);
-        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
         seqID.addFields(document);
 
         final BytesReference source;

@@ -762,8 +762,9 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 0.01,
                 2048
             );
-
-            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 1024);
+            // Allow difference of a file block size for knn vectors
+            // we get knn data usage from getOffHeapByteSize but when written on disk it can be rounded to the next block size
+            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 4096);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();

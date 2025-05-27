@@ -610,6 +610,7 @@ public class Constants {
         "indices:data/write/update",
         "indices:data/write/update/byquery",
         "indices:monitor/data_stream/settings/get",
+        "indices:monitor/data_stream/settings/update",
         "indices:monitor/data_stream/stats",
         "indices:monitor/field_usage_stats",
         "indices:monitor/fleet/global_checkpoints[s]",

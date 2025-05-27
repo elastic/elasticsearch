@@ -1,14 +1,24 @@
 pr: 126623
 summary: Enable synthetic source on normalized keyword mappings
 area: Mapping
-type: "breaking, enhancement"
+type: "breaking"
 issues:
  - 124369
  - 121358
 breaking:
   title: Enable synthetic source on normalized keyword mappings
   area: Mapping
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: This changes the default behavior for Synthetic Source on
+     keyword fields using normalizers. Prior to this change, normalized
+     keywords were always stored to allow returning the non-normalized
+     values. Under this change, such field will NOT be stored (i.e
+     they will be synthesized from the index when returning source,
+     like all other synthetic source fields).  This should result in
+     considerable space improvement for this use case.
+
+     Users can opt out of this behavior on a per-field basis by setting
+     `synthetic_source_keep: all` on the field.
+
+  impact: By default, normalized keyword fields in synthetic source
+     indices will no longer return the non-normalized value in the source.
   notable: false

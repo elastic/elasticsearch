@@ -1132,14 +1132,14 @@ public class EsqlCapabilities {
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
 
         /**
-         * Dense vector field type support
-         */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
-
-        /**
          * Support parameters for LiMIT command.
          */
-        PARAMETER_FOR_LIMIT;
+        PARAMETER_FOR_LIMIT,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

@@ -267,7 +267,17 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX, ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS)
-                    .privileges("create_index", "manage", "read", "write")
+                    .privileges(
+                        "create_index",
+                        "read",
+                        "write",
+                        "view_index_metadata",
+                        RolloverAction.NAME,
+                        TransportIndicesAliasesAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
                     .build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.

@@ -138,11 +138,13 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_BY = new TestDataset("k8s_by", "k8s-mappings.json", "k8s_by.csv").withSetting("k8s-settings.json");
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
+    private static final TestDataset SIGNALS = new TestDataset("signals");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -197,12 +199,14 @@ public class CsvTestsDataLoader {
         Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_BY.indexName, K8S_BY),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
-        Map.entry(MV_TEXT.indexName, MV_TEXT)
+        Map.entry(MV_TEXT.indexName, MV_TEXT),
+        Map.entry(SIGNALS.indexName, SIGNALS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

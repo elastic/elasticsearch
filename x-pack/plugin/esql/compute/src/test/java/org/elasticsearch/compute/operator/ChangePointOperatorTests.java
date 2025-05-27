@@ -71,16 +71,16 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new ChangePointOperator.Factory(0, null, 0, 0);
+        return new ChangePointOperator.Factory(0, List.of(), null, 0, 0);
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("ChangePointOperator[channel=0]");
+        return equalTo("ChangePointOperator[metricChannel=0, partitionChannels=[]]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("ChangePointOperator[channel=0]");
+        return equalTo("ChangePointOperator[metricChannel=0, partitionChannels=[]]");
     }
 }

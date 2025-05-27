@@ -1,5 +1,5 @@
 pr: 128509
-summary: Remove `use_default_lucene_postings_format` feature flag
+summary: Use default Lucene postings format when index mode is standard.
 area: Codec
 type: enhancement
 issues: []

@@ -37,8 +37,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
-        return new TsIdLoader(indexRouting, routingPaths);
+    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths, boolean useLongTsid) {
+        return new TsIdLoader(indexRouting, routingPaths, useLongTsid);
     }
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
@@ -60,10 +60,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
         private final IndexRouting.ExtractFromSource indexRouting;
         private final List<String> routingPaths;
+        private final boolean useLongTsid;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths, boolean useLongTsid) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
+            this.useLongTsid = useLongTsid;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
@@ -92,18 +94,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
             String[] ids = new String[docIdsInLeaf.length];
             // Each document always has exactly one tsid and one timestamp:
-            SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
+            TimeSeriesIdFieldMapper.Loader tsidLoader = TimeSeriesIdFieldMapper.getLoader(reader, useLongTsid);
             SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
             SortedDocValues routingHashDocValues = builders == null
                 ? DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME)
                 : null;
+
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
-
-                boolean found = tsIdDocValues.advanceExact(docId);
-                assert found;
-                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-                found = timestampDocValues.advanceExact(docId);
+                BytesRef tsid = tsidLoader.getValue(docId);
+                boolean found = timestampDocValues.advanceExact(docId);
                 assert found;
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();

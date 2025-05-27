@@ -970,7 +970,11 @@ final class DefaultSearchContext extends SearchContext {
                     }
                 }
             }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
+            return IdLoader.createTsIdLoader(
+                indexRouting,
+                routingPaths,
+                indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_LONG)
+            );
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

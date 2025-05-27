@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -19,11 +18,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -54,10 +53,11 @@ public class TimeSeriesIndexSearcher {
     private final List<Runnable> cancellations;
     private final boolean tsidReverse;
     private final boolean timestampReverse;
+    private final boolean useLongTsid;
 
     private Float minimumScore = null;
 
-    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, IndexSettings settings, List<Runnable> cancellations) {
         try {
             this.searcher = new ContextIndexSearcher(
                 searcher.getIndexReader(),
@@ -78,6 +78,7 @@ public class TimeSeriesIndexSearcher {
         assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        this.useLongTsid = settings == null || settings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_LONG);
     }
 
     public void setMinimumScore(Float minimumScore) {
@@ -106,7 +107,7 @@ public class TimeSeriesIndexSearcher {
                 if (minimumScore != null) {
                     scorer = new MinScoreScorer(scorer, minimumScore);
                 }
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0], useLongTsid);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -159,7 +160,7 @@ public class TimeSeriesIndexSearcher {
 
     // Re-populate the queue with walkers on the same TSID.
     private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
-        BytesRef currentTsid = null;
+        long currentTsid = 0;
         assert queue.size() == 0;
         Iterator<LeafWalker> it = leafWalkers.iterator();
         while (it.hasNext()) {
@@ -170,14 +171,13 @@ public class TimeSeriesIndexSearcher {
                 it.remove();
                 continue;
             }
-            BytesRef tsid = leafWalker.getTsid();
-            if (currentTsid == null) {
+            long tsid = leafWalker.getTsid();
+            if (currentTsid == 0) {
                 currentTsid = tsid;
             }
-            int comp = tsid.compareTo(currentTsid);
-            if (comp == 0) {
+            if (tsid == currentTsid) {
                 queue.add(leafWalker);
-            } else if ((tsidReverse && comp > 0) || (false == tsidReverse && comp < 0)) {
+            } else if ((tsidReverse && tsid > currentTsid) || (false == tsidReverse && tsid < currentTsid)) {
                 // We've found a walker on a lower TSID, so we remove all walkers
                 // collected so far from the queue and reset our comparison TSID
                 // to be the lower value
@@ -192,10 +192,10 @@ public class TimeSeriesIndexSearcher {
         return queue.size() > 0;
     }
 
-    private static boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
+    private static boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, long tsid) throws IOException {
         for (LeafWalker leafWalker : queue) {
-            BytesRef walkerId = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
-            assert walkerId.equals(tsid) : tsid.utf8ToString() + " != " + walkerId.utf8ToString();
+            long walkerId = leafWalker.getTsid();
+            assert walkerId == tsid : tsid + " != " + walkerId;
         }
         return true;
     }
@@ -210,22 +210,27 @@ public class TimeSeriesIndexSearcher {
         private final LeafBucketCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
-        private final SortedDocValues tsids;
+        private final SortedNumericDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
-        private final BytesRefBuilder scratch = new BytesRefBuilder();
 
         int docId = -1;
-        int tsidOrd;
+        long lastTsid = 0;
         long timestamp;
+        boolean changedTsid = false;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
-            throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
+        LeafWalker(
+            LeafReaderContext context,
+            Scorer scorer,
+            BucketCollector bucketCollector,
+            IntSupplier tsidOrdSupplier,
+            boolean useLongTsid
+        ) throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, () -> lastTsid, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
-            tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
+            tsids = DocValues.getSortedNumeric(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
         }
 
@@ -244,14 +249,15 @@ public class TimeSeriesIndexSearcher {
             } while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
             if (docId != DocIdSetIterator.NO_MORE_DOCS) {
                 timestamp = timestamps.nextValue();
+                long next = tsids.nextValue();
+                changedTsid = next != lastTsid;
+                lastTsid = next;
             }
             return docId;
         }
 
-        BytesRef getTsid() throws IOException {
-            tsidOrd = tsids.ordValue();
-            scratch.copyBytes(tsids.lookupOrd(tsidOrd));
-            return scratch.get();
+        long getTsid() throws IOException {
+            return lastTsid;
         }
 
         // invalid if the doc is deleted or if it doesn't have a tsid or timestamp entry
@@ -263,7 +269,7 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            return tsidOrd != tsids.ordValue();
+            return changedTsid;
         }
     }
 }

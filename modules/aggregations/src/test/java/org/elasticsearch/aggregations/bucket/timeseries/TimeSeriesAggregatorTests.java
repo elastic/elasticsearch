@@ -147,7 +147,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         },
             new AggTestConfig(
                 aggregationBuilder,
-                TimeSeriesIdFieldMapper.FIELD_TYPE,
+                TimeSeriesIdFieldMapper.FIELD_TYPE_BYTEREF,
                 new DateFieldMapper.DateFieldType("@timestamp"),
                 new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
@@ -269,7 +269,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         MappedFieldType[] newFieldTypes = new MappedFieldType[fieldTypes.length + 2];
-        newFieldTypes[0] = TimeSeriesIdFieldMapper.FIELD_TYPE;
+        newFieldTypes[0] = TimeSeriesIdFieldMapper.FIELD_TYPE_BYTEREF;
         newFieldTypes[1] = new DateFieldMapper.DateFieldType("@timestamp");
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 

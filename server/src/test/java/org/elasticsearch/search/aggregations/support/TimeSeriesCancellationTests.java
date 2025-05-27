@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -50,7 +48,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexSort(
             new Sort(
-                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
+                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.LONG),
                 new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)
             )
         );
@@ -64,9 +62,8 @@ public class TimeSeriesCancellationTests extends ESTestCase {
     private static void indexRandomDocuments(RandomIndexWriter w, int numDocs) throws IOException {
         for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
-            String tsid = "tsid" + randomIntBetween(0, 30);
             long time = randomNonNegativeLong();
-            doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+            doc.add(new NumericDocValuesField(TimeSeriesIdFieldMapper.NAME, randomIntBetween(1, 30)));
             doc.add(new NumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, time));
             w.addDocument(doc);
         }
@@ -87,7 +84,7 @@ public class TimeSeriesCancellationTests extends ESTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true
         );
-        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
+        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, null, List.of(() -> {
             throw new TaskCancelledException("Cancel");
         }));
         CountingBucketCollector bc = new CountingBucketCollector();

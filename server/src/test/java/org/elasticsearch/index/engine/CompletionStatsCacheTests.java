@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -43,7 +44,8 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(new Completion101PostingsFormat()));
+        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 

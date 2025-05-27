@@ -28,7 +28,7 @@ import java.io.IOException;
 
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
-    final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
 
     @Override
     protected Codec getCodec() {

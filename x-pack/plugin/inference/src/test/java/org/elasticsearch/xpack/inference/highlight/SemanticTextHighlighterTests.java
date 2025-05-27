@@ -232,7 +232,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 assertThat(topDocs.totalHits.value(), equalTo(1L));
                 int docID = topDocs.scoreDocs[0].doc;
                 SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
-                var execContext = createSearchExecutionContext(mapperService);
+                var execContext = createSearchExecutionContext(mapperService, searcher);
                 var luceneQuery = execContext.toQuery(request.source().query()).query();
                 FetchContext fetchContext = mock(FetchContext.class);
                 Mockito.when(fetchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));

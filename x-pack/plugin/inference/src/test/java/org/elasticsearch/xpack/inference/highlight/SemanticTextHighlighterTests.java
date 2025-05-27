@@ -138,7 +138,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             tokens,
             null,
             null,
-            null,
+            false,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), sparseQuery, ScoreMode.Max);

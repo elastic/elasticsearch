@@ -35,6 +35,7 @@ import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
 import static org.elasticsearch.common.Strings.trimLeadingCharacter;
+import static org.elasticsearch.common.Strings.trimTrailingCharacter;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -119,6 +120,14 @@ public class StringsTests extends ESTestCase {
         assertThat(trimLeadingCharacter("abcdef", 'g'), equalTo("abcdef"));
         assertThat(trimLeadingCharacter("aaabcdef", 'a'), equalTo("bcdef"));
         assertThat(trimLeadingCharacter("aaa", 'a'), equalTo(""));
+    }
+
+    public void testTrimTrailingCharacter() {
+        assertThat(trimTrailingCharacter(null, 'g'), equalTo(null));
+        assertThat(trimTrailingCharacter("", 'g'), equalTo(""));
+        assertThat(trimTrailingCharacter("abcdef", 'g'), equalTo("abcdef"));
+        assertThat(trimTrailingCharacter("abcdefggg", 'g'), equalTo("abcdef"));
+        assertThat(trimTrailingCharacter("aaa", 'a'), equalTo(""));
     }
 
     public void testToStringToXContent() {

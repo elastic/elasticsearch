@@ -191,10 +191,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             asInstanceOf(AzureBlobStore.class, repo.blobStore()).getLargeBlobThresholdInBytes(),
             equalTo(ByteSizeUnit.MB.toBytes(1L))
         );
-        assertThat(
-            asInstanceOf(AzureBlobStore.class, repo.blobStore()).getUploadBlockSize(),
-            lessThan(ByteSizeUnit.MB.toBytes(1L))
-        );
+        assertThat(asInstanceOf(AzureBlobStore.class, repo.blobStore()).getUploadBlockSize(), lessThan(ByteSizeUnit.MB.toBytes(1L)));
 
         // The configured threshold for this test suite is 1mb
         final long blobSize = randomLongBetween(ByteSizeUnit.MB.toBytes(2), ByteSizeUnit.MB.toBytes(4));

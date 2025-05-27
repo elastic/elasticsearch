@@ -1274,9 +1274,8 @@ public class Security extends Plugin
                             + extension.getClass().getName()
                             + "] extension tried to install a custom CloudApiKeyService, but one has already been installed."
                     );
-                } else {
-                    logger.debug("CloudApiKeyService provided by extension [{}]", extension.extensionName());
                 }
+                logger.debug("CloudApiKeyService provided by extension [{}]", extension.extensionName());
             }
         }
         if (cloudApiKeyServiceSetOnce.get() == null) {

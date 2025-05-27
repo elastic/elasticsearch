@@ -15,7 +15,6 @@ import java.util.Map;
 
 public class MockRerankInferenceServiceIT extends InferenceBaseRestTest {
 
-    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockRerankServiceModelConfig(), TaskType.RERANK);
@@ -30,8 +29,7 @@ public class MockRerankInferenceServiceIT extends InferenceBaseRestTest {
         List<String> input = List.of(randomAlphaOfLength(10));
         var inference = infer(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.RERANK);
-        // TODO: investigate score calculation inconsistency affecting this assertion. Uncomment when fixed
-        // assertEquals(inference, infer(inferenceEntityId, input));
+        assertEquals(inference, infer(inferenceEntityId, input));
         assertNotEquals(inference, infer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10)))));
     }
 

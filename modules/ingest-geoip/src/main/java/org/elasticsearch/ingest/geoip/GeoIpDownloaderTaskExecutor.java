@@ -426,7 +426,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     // stops GeoIP downloader task for a single project
     private void stopTask(Runnable onFailure) {
-        assert projectResolver.getProjectId() != null: "projectId must be set before stopping geoIp download task";
+        assert projectResolver.getProjectId() != null : "projectId must be set before stopping geoIp download task";
         ProjectId projectId = projectResolver.getProjectId();
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),

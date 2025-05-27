@@ -9,7 +9,10 @@ setup:
           settings:
             number_of_shards: "1"
           mappings:
+            dynamic: "strict"
             properties:
+              type:
+                type: keyword
               value:
                 type: integer
               value_keyword:

@@ -448,7 +448,7 @@ public class FakeStatelessNode implements Closeable {
                 document.add(new KeywordField("field0", "term", Field.Store.YES));
                 indexWriter.addDocument(document.getFields());
                 if (includeDeletions && ESTestCase.randomBoolean()) {
-                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(deleteId);
+                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
                     LuceneDocument delete = tombstone.docs().get(0);
                     NumericDocValuesField field = Lucene.newSoftDeletesField();
                     delete.add(field);

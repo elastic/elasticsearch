@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -17,6 +16,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -45,12 +45,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final PostingsFormat postingsFormat = new Completion101PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene101Codec() {
-            @Override
-            public PostingsFormat getPostingsFormatForField(String field) {
-                return postingsFormat; // all fields are suggest fields
-            }
-        });
+        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 

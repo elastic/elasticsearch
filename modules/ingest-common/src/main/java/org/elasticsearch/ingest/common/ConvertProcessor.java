@@ -102,6 +102,14 @@ public final class ConvertProcessor extends AbstractProcessor {
         STRING {
             @Override
             public Object convert(Object value) {
+                if (isExactIntegerDouble(value)) {
+                    Long l = Long.valueOf((long) ((Double) value).doubleValue());
+                    return l.toString();
+                }
+                if (isExactIntegerFloat(value)) {
+                    Long l = Long.valueOf((long) ((Float) value).floatValue());
+                    return l.toString();
+                }
                 return value.toString();
             }
         },
@@ -148,6 +156,24 @@ public final class ConvertProcessor extends AbstractProcessor {
                     "type [" + type + "] not supported, cannot convert field."
                 );
             }
+        }
+
+        private static boolean isExactIntegerFloat(Object value) {
+            final float ABS_MAX_EXACT_FLOAT = (float) 0x1p24 - 1;
+            if (value instanceof Float == false) {
+                return false;
+            }
+            float v = ((Float) value).floatValue();
+            return v == (long) v && -ABS_MAX_EXACT_FLOAT <= v && v <= ABS_MAX_EXACT_FLOAT;
+        }
+
+        private static boolean isExactIntegerDouble(Object value) {
+            final double ABS_MAX_EXACT_DOUBLE = 0x1p53 - 1;
+            if (value instanceof Double == false) {
+                return false;
+            }
+            double v = ((Double) value).doubleValue();
+            return v == (long) v && -ABS_MAX_EXACT_DOUBLE <= v && v <= ABS_MAX_EXACT_DOUBLE;
         }
     }
 

@@ -22,7 +22,6 @@ dependencies {
   clusterModules project(':test:external-modules:test-multi-project')
   restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
-  restTestConfig project(path: ':modules:ingest-geoip', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
 }
 

@@ -62,7 +62,10 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        // In VertexAI rate limiting is scoped to the project and the model. URI already has this information so we are using that
+        // In VertexAI rate limiting is scoped to the project, region and model. URI already has this information so we are using that.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
         return Objects.hash(uri);
     }
 

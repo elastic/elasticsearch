@@ -143,6 +143,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns an exchange sink handler for the given id or creates a new one if it doesn't exist.
+     */
+    public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
+        return sinks.computeIfAbsent(
+            exchangeId,
+            key -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
+        );
+    }
+
+    /**
      * Removes the exchange sink handler associated with the given exchange id.
      * W will abort the sink handler if the given failure is not null.
      */
@@ -232,7 +242,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private class OpenExchangeRequestHandler implements TransportRequestHandler<OpenExchangeRequest> {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
-            // createSinkHandler(request.sessionId, request.exchangeBuffer);
+            createSinkHandler(request.sessionId, request.exchangeBuffer);
             channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }

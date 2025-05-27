@@ -416,8 +416,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             var parentListener = computeListener.acquireAvoid();
             try {
                 // run compute with target shards
-                // var externalSink = exchangeService.getSinkHandler(externalId);
-                var externalSink = exchangeService.createSinkHandler(externalId, request.pragmas().exchangeBufferSize());
+
+                // if coordinating node is before TransportVersions.REMOVE_OPEN_EXCHANGE then externalSink exists already
+                // and data might be already polled from it. Create a new one otherwise.
+                var externalSink = exchangeService.getOrCreateSinkHandler(externalId, request.pragmas().exchangeBufferSize());
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));

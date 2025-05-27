@@ -487,9 +487,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         final CustomProjectMetadata custom1 = new CustomProjectMetadata("custom1");
         final CustomProjectMetadata custom2 = new CustomProjectMetadata("custom2");
         final ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId())
-            .putCustom(custom1.getWriteableName(), custom1).build();
+            .putCustom(custom1.getWriteableName(), custom1)
+            .build();
         final ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId())
-            .putCustom(custom2.getWriteableName(), custom2).build();
+            .putCustom(custom2.getWriteableName(), custom2)
+            .build();
 
         final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
             .metadata(Metadata.builder().put(project1).build())
@@ -536,7 +538,8 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         // remove project
         {
-            ClusterState oldState = ClusterState.builder(originalState).putProjectMetadata(ProjectMetadata.builder(project2).build())
+            ClusterState oldState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project2).build())
                 .build();
             // project2 is removed
             ClusterState newState = originalState;
@@ -548,7 +551,8 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         // add custom to project1 + remove project2
         {
-            ClusterState oldState = ClusterState.builder(originalState).putProjectMetadata(ProjectMetadata.builder(project2).build())
+            ClusterState oldState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project2).build())
                 .build();
             ClusterState newState = ClusterState.builder(originalState)
                 .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(custom2.getWriteableName(), custom2).build())

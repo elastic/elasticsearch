@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
@@ -16,102 +17,109 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BulkInferenceExecutor {
-    private static final String TASK_RUNNER_NAME = "bulk_inference_operation";
-    private static final int INFERENCE_RESPONSE_TIMEOUT = 30; // TODO: should be in the config.
     private final ThrottledInferenceRunner throttledInferenceRunner;
-    private final ExecutorService executorService;
 
     public BulkInferenceExecutor(InferenceRunner inferenceRunner, ThreadPool threadPool, BulkInferenceExecutionConfig bulkExecutionConfig) {
-        executorService = executorService(threadPool);
-        throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, executorService, bulkExecutionConfig);
+        throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, executorService(threadPool), bulkExecutionConfig);
     }
 
     public void execute(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) throws Exception {
-        final ResponseHandler responseHandler = new ResponseHandler();
-        runInferenceRequests(requests, listener.delegateFailureAndWrap(responseHandler::handleResponses));
-    }
+        if (requests.hasNext() == false) {
+            listener.onResponse(List.of());
+            return;
+        }
 
-    private void runInferenceRequests(BulkInferenceRequestIterator requests, ActionListener<BulkInferenceExecutionState> listener) {
         final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
-        try {
-            executorService.execute(() -> {
-                while (bulkExecutionState.finished() == false && requests.hasNext()) {
-                    InferenceAction.Request request = requests.next();
-                    long seqNo = bulkExecutionState.generateSeqNo();
-                    throttledInferenceRunner.doInference(
-                        request,
-                        ActionListener.wrap(
-                            r -> bulkExecutionState.onInferenceResponse(seqNo, r),
-                            e -> bulkExecutionState.onInferenceException(seqNo, e)
-                        )
-                    );
-                }
+        final ResponseHandler responseHandler = new ResponseHandler(bulkExecutionState, listener, requests.estimatedSize());
+
+        while (bulkExecutionState.finished() == false && requests.hasNext()) {
+            InferenceAction.Request request = requests.next();
+            long seqNo = bulkExecutionState.generateSeqNo();
+
+            if (requests.hasNext() == false) {
                 bulkExecutionState.finish();
-            });
-        } catch (RejectedExecutionException e) {
-            bulkExecutionState.addFailure(new IllegalStateException("Unable to enqueue inference requests", e));
-            bulkExecutionState.finish();
-        } finally {
-            listener.onResponse(bulkExecutionState);
+            }
+
+            throttledInferenceRunner.doInference(
+                request,
+                ActionListener.runAfter(
+                    ActionListener.wrap(
+                        r -> bulkExecutionState.onInferenceResponse(seqNo, r),
+                        e -> bulkExecutionState.onInferenceException(seqNo, e)
+                    ),
+                    responseHandler::persistsInferenceResponses
+                )
+            );
         }
     }
 
     private static class ResponseHandler {
-        private final List<InferenceAction.Response> responses = new ArrayList<>();
+        private final List<InferenceAction.Response> responses;
+        private final ActionListener<List<InferenceAction.Response>> listener;
+        private final BulkInferenceExecutionState bulkExecutionState;
+        private final AtomicBoolean responseSent = new AtomicBoolean(false);
 
-        private void handleResponses(ActionListener<List<InferenceAction.Response>> listener, BulkInferenceExecutionState bulkExecutionState) {
-
-            try {
-                persistsInferenceResponses(bulkExecutionState);
-            } catch (InterruptedException | TimeoutException e) {
-                bulkExecutionState.addFailure(e);
-                bulkExecutionState.finish();
-            }
-
-            if (bulkExecutionState.hasFailure() == false) {
-                try {
-                    listener.onResponse(responses);
-                    return;
-                } catch (Exception e) {
-                    bulkExecutionState.addFailure(e);
-                }
-            }
-
-            listener.onFailure(bulkExecutionState.getFailure());
+        private ResponseHandler(
+            BulkInferenceExecutionState bulkExecutionState,
+            ActionListener<List<InferenceAction.Response>> listener,
+            int estimatedSize
+        ) {
+            this.listener = listener;
+            this.bulkExecutionState = bulkExecutionState;
+            this.responses = new ArrayList<>(estimatedSize);
         }
 
-        private void persistsInferenceResponses(BulkInferenceExecutionState bulkExecutionState) throws TimeoutException,
-            InterruptedException {
-            while (bulkExecutionState.finished() == false && bulkExecutionState.fetchProcessedSeqNo(INFERENCE_RESPONSE_TIMEOUT) >= 0) {
-                long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
+        public synchronized void persistsInferenceResponses() {
+            long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
 
-                while (persistedSeqNo < bulkExecutionState.getProcessedCheckpoint()) {
-                    persistedSeqNo++;
-                    InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
-                    assert response != null || bulkExecutionState.hasFailure();
-                    if (bulkExecutionState.hasFailure() == false) {
-                        try {
-                            responses.add(response);
-                        } catch (Exception e) {
-                            bulkExecutionState.addFailure(e);
-                        }
+            while (persistedSeqNo < bulkExecutionState.getProcessedCheckpoint()) {
+                persistedSeqNo++;
+                InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
+                assert response != null || bulkExecutionState.hasFailure();
+                if (bulkExecutionState.hasFailure() == false) {
+                    try {
+                        responses.add(response);
+                    } catch (Exception e) {
+                        bulkExecutionState.addFailure(e);
                     }
-                    bulkExecutionState.markSeqNoAsPersisted(persistedSeqNo);
                 }
+                bulkExecutionState.markSeqNoAsPersisted(persistedSeqNo);
+            }
+
+            sendResponseOnCompletion();
+        }
+
+        private void sendResponseOnCompletion() {
+            if (bulkExecutionState.finished() && responseSent.compareAndSet(false, true)) {
+                if (bulkExecutionState.hasFailure() == false) {
+                    try {
+                        listener.onResponse(responses);
+                        return;
+                    } catch (Exception e) {
+                        bulkExecutionState.addFailure(e);
+                    }
+                }
+
+                listener.onFailure(bulkExecutionState.getFailure());
             }
         }
     }
 
-    private static class ThrottledInferenceRunner extends ThrottledTaskRunner {
+    private static class ThrottledInferenceRunner {
         private final InferenceRunner inferenceRunner;
+        private final ExecutorService executorService;
+        private final BlockingQueue<AbstractRunnable> pendingRequests = ConcurrentCollections.newBlockingQueue();
+        private final Semaphore permits;
 
         private ThrottledInferenceRunner(InferenceRunner inferenceRunner, ExecutorService executorService, int maxRunningTasks) {
-            super(TASK_RUNNER_NAME, maxRunningTasks, executorService);
+            this.executorService = executorService;
+            this.permits = new Semaphore(maxRunningTasks);
             this.inferenceRunner = inferenceRunner;
         }
 
@@ -120,13 +128,58 @@ public class BulkInferenceExecutor {
             ExecutorService executorService,
             BulkInferenceExecutionConfig bulkExecutionConfig
         ) {
-            return new ThrottledInferenceRunner(inferenceRunner, executorService, bulkExecutionConfig.workers());
+            return new ThrottledInferenceRunner(inferenceRunner, executorService, bulkExecutionConfig.maxOutstandingRequests());
         }
 
         public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-            this.enqueueTask(listener.delegateFailureAndWrap((l, releasable) -> {
-                inferenceRunner.doInference(request, ActionListener.releaseAfter(l, releasable));
-            }));
+            enqueueTask(request, listener);
+            executePendingRequests();
+        }
+
+        private void executePendingRequests() {
+            while (permits.tryAcquire()) {
+                AbstractRunnable task = pendingRequests.poll();
+
+                if (task == null) {
+                    permits.release();
+                    return;
+                }
+
+                try {
+                    executorService.execute(task);
+                } catch (Exception e){
+                    task.onFailure(e);
+                    permits.release();
+                }
+            }
+        }
+
+        private void enqueueTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+            try {
+                pendingRequests.add(createTask(request, listener));
+                executePendingRequests();
+            } catch (Exception e) {
+                listener.onFailure(new IllegalStateException("An error occurred while adding the inference request to the queue", e));
+            }
+        }
+
+        private AbstractRunnable createTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+            final ActionListener<InferenceAction.Response> completionListener = ActionListener.runAfter(listener, () -> {
+                permits.release();
+                executePendingRequests();
+            });
+
+            return new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    inferenceRunner.doInference(request, completionListener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionListener.onFailure(e);
+                }
+            };
         }
     }
 

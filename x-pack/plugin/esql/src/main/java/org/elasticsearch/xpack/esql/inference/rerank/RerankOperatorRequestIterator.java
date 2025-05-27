@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
@@ -26,9 +26,8 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
     private final int batchSize;
     private int remainingPositions;
 
-    public RerankOperatorRequestIterator(Page inputPage, String inferenceId, String queryText, int batchSize) {
-        assert inputPage.getBlockCount() > 0;
-        this.inputBlock = inputPage.getBlock(inputPage.getBlockCount() - 1);
+    public RerankOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, String queryText, int batchSize) {
+        this.inputBlock = inputBlock;
         this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.batchSize = batchSize;
@@ -65,7 +64,18 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
         return inferenceRequest(inputs);
     }
 
+    @Override
+    public int estimatedSize() {
+        return inputBlock.getPositionCount();
+    }
+
     private InferenceAction.Request inferenceRequest(List<String> inputs) {
         return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(inputs).setQuery(queryText).build();
+    }
+
+    @Override
+    public void close() {
+        inputBlock.allowPassingToDifferentDriver();
+        Releasables.close(inputBlock);
     }
 }

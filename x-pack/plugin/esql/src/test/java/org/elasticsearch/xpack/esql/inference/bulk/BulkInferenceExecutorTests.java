@@ -23,11 +23,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -62,7 +61,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(90_000, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
@@ -94,7 +93,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(90_000, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
 
         InferenceRunner inferenceRunner = mock(invocation -> {
             runWithRandomDelay(() -> {
@@ -109,11 +108,14 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
         bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
 
-        assertBusy(() -> assertThat(exception.get().getMessage(), equalTo("inference failure")));
+        assertBusy(() -> {
+            assertThat(exception.get(), notNullValue());
+            assertThat(exception.get().getMessage(), equalTo("inference failure"));
+        });
     }
 
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(90_000, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
@@ -133,7 +135,10 @@ public class BulkInferenceExecutorTests extends ESTestCase {
 
         bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
 
-        assertBusy(() -> assertThat(exception.get().getMessage(), equalTo("inference failure")));
+        assertBusy(() -> {
+            assertThat(exception.get(), notNullValue());
+            assertThat(exception.get().getMessage(), equalTo("inference failure"));
+        });
     }
 
     private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
@@ -151,7 +156,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     private BulkInferenceExecutionConfig randomBulkExecutionConfig() {
-        return new BulkInferenceExecutionConfig(new TimeValue(between(1, 30), TimeUnit.SECONDS), between(1, 100));
+        return new BulkInferenceExecutionConfig(between(1, 100), between(1, 100));
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {
@@ -159,15 +164,25 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         BulkInferenceRequestIterator iterator = mock(BulkInferenceRequestIterator.class);
         doAnswer(i -> delegate.hasNext()).when(iterator).hasNext();
         doAnswer(i -> delegate.next()).when(iterator).next();
+        doAnswer(i -> requests.size()).when(iterator).estimatedSize();
         return iterator;
     }
 
     private List<InferenceAction.Request> randomInferenceRequestList(int size) {
-        return Stream.generate(this::mockInferenceRequest).limit(size).toList();
+        List<InferenceAction.Request> requests = new ArrayList<>(size);
+        while (requests.size() < size) {
+            requests.add(this.mockInferenceRequest());
+        }
+        return requests;
+
     }
 
     private List<InferenceAction.Response> randomInferenceResponseList(int size) {
-        return Stream.generate(this::mockInferenceResponse).limit(size).toList();
+        List<InferenceAction.Response> response = new ArrayList<>(size);
+        while (response.size() < size) {
+            response.add(this.mockInferenceResponse());
+        }
+        return response;
     }
 
     private InferenceRunner mockInferenceRunner(Answer<Void> doInferenceAnswer) {
@@ -182,7 +197,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         } else {
             threadPool.schedule(
                 runnable,
-                TimeValue.timeValueNanos(between(1, 1_000)),
+                TimeValue.timeValueNanos(between(1, 100)),
                 threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
             );
         }

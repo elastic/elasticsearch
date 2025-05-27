@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -79,8 +78,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        final int minPageSize = Math.max(1, size / 100);
-        return new AbstractBlockSourceOperator(blockFactory, between(minPageSize, size)) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
             @Override
             protected int remaining() {
                 return size - currentPosition;
@@ -90,7 +88,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             protected Page createPage(int positionOffset, int length) {
                 try (var builder = blockFactory.newBytesRefVectorBuilder(length)) {
                     for (int i = 0; i < length; i++) {
-                        builder.appendBytesRef(new BytesRef(randomIdentifier()));
+                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                     }
                     currentPosition += length;
                     return new Page(builder.build().asBlock());
@@ -100,7 +98,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
-    public void testOperatorStatus() throws IOException {
+    public void testOperatorStatus() {
         DriverContext driverContext = driverContext();
         try (var operator = simple().get(driverContext)) {
             AsyncOperator.Status status = asInstanceOf(AsyncOperator.Status.class, operator.status());
@@ -121,7 +119,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 ActionListener<InferenceAction.Response> listener = i.getArgument(1, ActionListener.class);
                 InferenceAction.Request request = i.getArgument(0, InferenceAction.Request.class);
                 InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
-                when(inferenceResponse.getResults()).thenReturn(mockInferenceResult(request));
+                doAnswer(invocation -> mockInferenceResult(request)).when(inferenceResponse).getResults();
+
                 listener.onResponse(inferenceResponse);
             };
 
@@ -130,7 +129,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             } else {
                 threadPool.schedule(
                     sendResponse,
-                    TimeValue.timeValueNanos(between(1, 1_000)),
+                    TimeValue.timeValueNanos(between(1, 100)),
                     threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
                 );
             }

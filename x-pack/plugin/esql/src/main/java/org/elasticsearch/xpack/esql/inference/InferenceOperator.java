@@ -25,12 +25,8 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInference> {
-
-    // Move to a setting.
-    private static final int MAX_INFERENCE_WORKER = 10;
     private final String inferenceId;
     private final BlockFactory blockFactory;
-    private final BulkInferenceExecutionConfig bulkExecutionConfig;
     private final BulkInferenceExecutor bulkInferenceExecutor;
 
     public InferenceOperator(
@@ -40,9 +36,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         ThreadPool threadPool,
         String inferenceId
     ) {
-        super(driverContext, threadPool.getThreadContext(), MAX_INFERENCE_WORKER);
+        super(driverContext, threadPool.getThreadContext(), bulkExecutionConfig.workers());
         this.blockFactory = driverContext.blockFactory();
-        this.bulkExecutionConfig = bulkExecutionConfig;
         this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig);
         this.inferenceId = inferenceId;
     }
@@ -61,6 +56,17 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     }
 
     @Override
+    protected void performAsync(Page input, ActionListener<OngoingInference> listener) {
+        try {
+            BulkInferenceRequestIterator requests = requests(input);
+            listener = ActionListener.releaseAfter(listener, requests);
+            bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInference(input, responses)));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
     public Page getOutput() {
         OngoingInference ongoingInference = fetchFromBuffer();
         if (ongoingInference == null) {
@@ -73,19 +79,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         } finally {
             releaseFetchedOnAnyThread(ongoingInference);
         }
-    }
-
-    @Override
-    protected void performAsync(Page input, ActionListener<OngoingInference> listener) {
-        try {
-            bulkInferenceExecutor.execute(requests(input), listener.map(responses -> new OngoingInference(input, responses)));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    protected BulkInferenceExecutionConfig bulkExecutionConfig() {
-        return bulkExecutionConfig;
     }
 
     protected abstract BulkInferenceRequestIterator requests(Page input);

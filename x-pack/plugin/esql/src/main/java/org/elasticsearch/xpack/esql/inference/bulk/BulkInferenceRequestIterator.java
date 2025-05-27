@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.inference.bulk;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.Iterator;
 
-public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request> {
+public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request>, Releasable {
+    int estimatedSize();
 
 }

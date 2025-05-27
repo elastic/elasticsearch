@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.esql.inference.bulk;
 
-import org.elasticsearch.core.TimeValue;
+public record BulkInferenceExecutionConfig(int workers, int maxOutstandingRequests) {
+    public static final int DEFAULT_WORKERS = 2;
+    public static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 50;
 
-import java.util.concurrent.TimeUnit;
-
-public record BulkInferenceExecutionConfig(TimeValue inferenceTimeout, int workers) {
-    public static final TimeValue DEFAULT_INFERENCE_TIMEOUT = new TimeValue(10, TimeUnit.SECONDS);
-    public static final int DEFAULT_WORKERS = 10;
-
-    public static final BulkInferenceExecutionConfig DEFAULT = new BulkInferenceExecutionConfig(DEFAULT_INFERENCE_TIMEOUT, DEFAULT_WORKERS);
+    public static final BulkInferenceExecutionConfig DEFAULT = new BulkInferenceExecutionConfig(DEFAULT_WORKERS, DEFAULT_MAX_OUTSTANDING_REQUESTS);
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -19,26 +20,6 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 public class CompletionOperator extends InferenceOperator {
-
-    public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
-        implements
-            OperatorFactory {
-        @Override
-        public String describe() {
-            return "CompletionOperator[inference_id=[" + inferenceId + "]]";
-        }
-
-        @Override
-        public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(
-                driverContext,
-                inferenceRunner,
-                inferenceRunner.threadPool(),
-                inferenceId,
-                promptEvaluatorFactory.get(driverContext)
-            );
-        }
-    }
 
     private final ExpressionEvaluator promptEvaluator;
 
@@ -54,16 +35,6 @@ public class CompletionOperator extends InferenceOperator {
     }
 
     @Override
-    public void addInput(Page input) {
-        try {
-            super.addInput(input.appendBlock(promptEvaluator.eval(input)));
-        } catch (Exception e) {
-            releasePageOnAnyThread(input);
-            throw e;
-        }
-    }
-
-    @Override
     protected void doClose() {
         Releasables.close(promptEvaluator);
     }
@@ -75,11 +46,31 @@ public class CompletionOperator extends InferenceOperator {
 
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new CompletionOperatorRequestIterator(inputPage, inferenceId());
+        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
         return new CompletionOperatorOutputBuilder(blockFactory().newBytesRefBlockBuilder(input.getPositionCount()), input);
+    }
+
+    public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
+        implements
+        OperatorFactory {
+        @Override
+        public String describe() {
+            return "CompletionOperator[inference_id=[" + inferenceId + "]]";
+        }
+
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new CompletionOperator(
+                driverContext,
+                inferenceRunner,
+                inferenceRunner.threadPool(),
+                inferenceId,
+                promptEvaluatorFactory.get(driverContext)
+            );
+        }
     }
 }

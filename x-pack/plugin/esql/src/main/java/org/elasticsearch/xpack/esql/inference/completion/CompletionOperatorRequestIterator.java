@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.inference.completion;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
@@ -24,9 +25,7 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
     private final int size;
     private int currentPos = 0;
 
-    public CompletionOperatorRequestIterator(Page inputPage, String inferenceId) {
-        assert inputPage.getBlockCount() > 0;
-        BytesRefBlock promptBlock = inputPage.getBlock(inputPage.getBlockCount() - 1);
+    public CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
         this.promptReader = new PromptReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
@@ -49,7 +48,17 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
         return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
     }
 
-    private static class PromptReader {
+    @Override
+    public int estimatedSize() {
+        return promptReader.estimatedSize();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(promptReader);
+    }
+
+    private static class PromptReader implements Releasable {
         private final BytesRefBlock promptBlock;
         private final StringBuilder strBuilder = new StringBuilder();
         private BytesRef readBuffer = new BytesRef();
@@ -74,6 +83,16 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
             }
 
             return strBuilder.toString();
+        }
+
+        public int estimatedSize() {
+            return promptBlock.getPositionCount();
+        }
+
+        @Override
+        public void close() {
+            promptBlock.allowPassingToDifferentDriver();
+            Releasables.close(promptBlock);
         }
     }
 }

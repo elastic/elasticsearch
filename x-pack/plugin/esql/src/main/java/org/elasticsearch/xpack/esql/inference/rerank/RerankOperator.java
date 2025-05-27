@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -18,6 +19,49 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 
 public class RerankOperator extends InferenceOperator {
+    private static final int DEFAULT_BATCH_SIZE = 20;
+    private final String queryText;
+    private final ExpressionEvaluator rowEncoder;
+    private final int scoreChannel;
+
+    // TODO: make it configurable either in the command or as query pragmas
+    private final int batchSize = DEFAULT_BATCH_SIZE;
+
+    public RerankOperator(
+        DriverContext driverContext,
+        InferenceRunner inferenceRunner,
+        ThreadPool threadPool,
+        String inferenceId,
+        String queryText,
+        ExpressionEvaluator rowEncoder,
+        int scoreChannel
+    ) {
+        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
+        this.queryText = queryText;
+        this.rowEncoder = rowEncoder;
+        this.scoreChannel = scoreChannel;
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(rowEncoder);
+    }
+
+    @Override
+    public String toString() {
+        return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
+    }
+
+    @Override
+    protected RerankOperatorRequestIterator requests(Page inputPage) {
+        return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
+    }
+
+    @Override
+    protected RerankOperatorOutputBuilder outputBuilder(Page input) {
+        return new RerankOperatorOutputBuilder(blockFactory().newDoubleBlockBuilder(input.getPositionCount()), input, scoreChannel);
+    }
+
     public record Factory(
         InferenceRunner inferenceRunner,
         String inferenceId,
@@ -43,58 +87,5 @@ public class RerankOperator extends InferenceOperator {
                 scoreChannel
             );
         }
-    }
-
-    private static final int DEFAULT_BATCH_SIZE = 20;
-    private final String queryText;
-    private final ExpressionEvaluator rowEncoder;
-    private final int scoreChannel;
-
-    // TODO: make it configurable either in the command or as query pragmas
-    private final int batchSize = DEFAULT_BATCH_SIZE;
-
-    public RerankOperator(
-        DriverContext driverContext,
-        InferenceRunner inferenceRunner,
-        ThreadPool threadPool,
-        String inferenceId,
-        String queryText,
-        ExpressionEvaluator rowEncoder,
-        int scoreChannel
-    ) {
-        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
-        this.queryText = queryText;
-        this.rowEncoder = rowEncoder;
-        this.scoreChannel = scoreChannel;
-    }
-
-    @Override
-    public void addInput(Page input) {
-        try {
-            super.addInput(input.appendBlock(rowEncoder.eval(input)));
-        } catch (Exception e) {
-            releasePageOnAnyThread(input);
-            throw e;
-        }
-    }
-
-    @Override
-    protected void doClose() {
-        Releasables.close(rowEncoder);
-    }
-
-    @Override
-    public String toString() {
-        return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
-    }
-
-    @Override
-    protected RerankOperatorRequestIterator requests(Page inputPage) {
-        return new RerankOperatorRequestIterator(inputPage, inferenceId(), queryText, batchSize);
-    }
-
-    @Override
-    protected RerankOperatorOutputBuilder outputBuilder(Page input) {
-        return new RerankOperatorOutputBuilder(blockFactory().newDoubleBlockBuilder(input.getPositionCount()), input, scoreChannel);
     }
 }

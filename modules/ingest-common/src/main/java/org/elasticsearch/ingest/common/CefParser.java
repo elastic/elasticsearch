@@ -71,11 +71,11 @@ final class CefParser {
     private static final Pattern MAC_ADDRESS_PATTERN = Pattern.compile(
         Stream.of(
             // Combined colon and hyphen separated 6-group patterns
-            "(([0-9A-Fa-f]{2}[:|-]){5}[0-9A-Fa-f]{2})",
+            "(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2})",
             // Dot-separated 6-group pattern
             "([0-9A-Fa-f]{4}\\.){2}[0-9A-Fa-f]{4}",
             // Combined colon and hyphen separated 8-group patterns
-            "([0-9A-Fa-f]{2}[:|-]){7}[0-9A-Fa-f]{2}",
+            "([0-9A-Fa-f]{2}[:-]){7}[0-9A-Fa-f]{2}",
             // Dot-separated EUI-64
             "([0-9A-Fa-f]{4}\\.){3}[0-9A-Fa-f]{4}"
         ).collect(Collectors.joining("|", "^(", ")$"))

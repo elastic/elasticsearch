@@ -78,12 +78,12 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             var bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-            return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
         }
 
         @Override

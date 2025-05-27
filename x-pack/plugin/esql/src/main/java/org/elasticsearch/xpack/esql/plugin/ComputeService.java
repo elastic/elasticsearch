@@ -249,7 +249,7 @@ public class ComputeService {
                     var childSessionId = newChildSession(sessionId);
                     ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
                     // funnel sub plan pages into the main plan exchange source
-                    mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                    mainExchangeSource.addAndStartRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                     var subPlanListener = localListener.acquireCompute();
 
                     executePlan(

@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -176,30 +177,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
+                            var s = exchangeSource.addRemoteSink(
+                                exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection),
                                 configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
                             );
-                            final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
-                            var dataNodeRequest = new DataNodeRequest(
-                                childSessionId,
-                                configuration,
-                                clusterAlias,
-                                shardIds,
-                                aliasFilters,
-                                dataNodePlan,
-                                originalIndices.indices(),
-                                originalIndices.indicesOptions(),
-                                sameNode == false && queryPragmas.nodeLevelReduction()
-                            );
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
-                                dataNodeRequest,
+                                new DataNodeRequest(
+                                    childSessionId,
+                                    configuration,
+                                    clusterAlias,
+                                    shardIds,
+                                    aliasFilters,
+                                    dataNodePlan,
+                                    originalIndices.indices(),
+                                    originalIndices.indicesOptions(),
+                                    Objects.equals(transportService.getLocalNode().getId(), connection.getNode().getId()) == false
+                                        && queryPragmas.nodeLevelReduction()
+                                ),
                                 groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
@@ -207,6 +206,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
                             );
+                            s.run();
                         }
                     })
                 );
@@ -416,7 +416,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             var parentListener = computeListener.acquireAvoid();
             try {
                 // run compute with target shards
-                var externalSink = exchangeService.getSinkHandler(externalId);
+                // var externalSink = exchangeService.getSinkHandler(externalId);
+                var externalSink = exchangeService.createSinkHandler(externalId, request.pragmas().exchangeBufferSize());
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
@@ -434,7 +435,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
                 var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                exchangeSource.addAndStartRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
                     task,

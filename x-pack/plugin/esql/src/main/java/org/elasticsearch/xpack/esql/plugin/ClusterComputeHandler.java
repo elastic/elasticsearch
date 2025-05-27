@@ -123,7 +123,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     return completionInfo;
                 }))) {
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
-                    exchangeSource.addRemoteSink(
+                    exchangeSource.addAndStartRemoteSink(
                         remoteSink,
                         failFast,
                         () -> pagesFetched.set(true),

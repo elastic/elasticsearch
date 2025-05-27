@@ -24,10 +24,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
  * and feeds them to its {@link ExchangeSource}, which are created using the {@link #createExchangeSource()}) method.
- * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}) method.
+ * {@link RemoteSink}s are added using the {@link #addAndStartRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}) method.
  *
  * @see #createExchangeSource()
- * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
+ * @see #addAndStartRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
 
@@ -245,7 +245,17 @@ public final class ExchangeSourceHandler {
      *                      this listener.
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
-    public void addRemoteSink(
+    public void addAndStartRemoteSink(
+        RemoteSink remoteSink,
+        boolean failFast,
+        Runnable onPageFetched,
+        int instances,
+        ActionListener<Void> listener
+    ) {
+        addRemoteSink(remoteSink, failFast, onPageFetched, instances, listener).run();
+    }
+
+    public Runnable addRemoteSink(
         RemoteSink remoteSink,
         boolean failFast,
         Runnable onPageFetched,
@@ -258,7 +268,7 @@ public final class ExchangeSourceHandler {
             ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
         );
         final Releasable emptySink = addEmptySink();
-        fetchExecutor.execute(new AbstractRunnable() {
+        return () -> fetchExecutor.execute(new AbstractRunnable() {
             @Override
             public void onAfter() {
                 emptySink.close();
@@ -277,8 +287,7 @@ public final class ExchangeSourceHandler {
             protected void doRun() {
                 try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
                     for (int i = 0; i < instances; i++) {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, refs.acquire());
-                        fetcher.fetchPage();
+                        new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, refs.acquire()).fetchPage();
                     }
                 }
             }

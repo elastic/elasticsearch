@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -53,7 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
  * To connect exchange sources to exchange sinks,
- * use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
+ * use {@link ExchangeSourceHandler#addAndStartRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
@@ -166,13 +167,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
-        transportService.sendRequest(
-            connection,
-            OPEN_EXCHANGE_ACTION_NAME,
-            new OpenExchangeRequest(sessionId, exchangeBuffer),
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
-        );
+        if (connection.getTransportVersion().onOrAfter(TransportVersions.REMOVE_OPEN_EXCHANGE)) {
+            listener.onResponse(null);
+        } else {
+            transportService.sendRequest(
+                connection,
+                OPEN_EXCHANGE_ACTION_NAME,
+                new OpenExchangeRequest(sessionId, exchangeBuffer),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
+            );
+        }
     }
 
     /**
@@ -227,7 +232,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private class OpenExchangeRequestHandler implements TransportRequestHandler<OpenExchangeRequest> {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
-            createSinkHandler(request.sessionId, request.exchangeBuffer);
+            // createSinkHandler(request.sessionId, request.exchangeBuffer);
             channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }

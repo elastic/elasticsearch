@@ -474,12 +474,6 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testEqualityAndOther {semantic_text}
-  issue: https://github.com/elastic/elasticsearch/issues/128414
-- class: org.elasticsearch.index.query.MultiMatchQueryBuilderTests
-  method: testToQuery
-  issue: https://github.com/elastic/elasticsearch/issues/128416
 - class: org.elasticsearch.xpack.ml.integration.InferenceIngestIT
   method: testPipelineIngestWithModelAliases
   issue: https://github.com/elastic/elasticsearch/issues/128417

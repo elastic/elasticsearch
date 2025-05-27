@@ -133,19 +133,23 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("sparse_vector_1");
         List<WeightedToken> tokens = readSparseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_ELSER);
+
+        Boolean doNotPruneTokens = randomBoolean() ? false : null;
+
         SparseVectorQueryBuilder sparseQuery = new SparseVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
             tokens,
             null,
             null,
-            false,
+            doNotPruneTokens,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), sparseQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
         var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
 
-        String[] expectedScorePassages = ((List<String>) queryMap.get("expected_by_score")).toArray(String[]::new);
+        String expectedScoringDocsKey = doNotPruneTokens == null ? "expected_by_score_with_pruning" : "expected_by_score";
+        String[] expectedScorePassages = ((List<String>) queryMap.get(expectedScoringDocsKey)).toArray(String[]::new);
         for (int i = 0; i < expectedScorePassages.length; i++) {
             assertHighlightOneDoc(
                 mapperService,
@@ -158,7 +162,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             );
         }
 
-        String[] expectedOffsetPassages = ((List<String>) queryMap.get("expected_by_offset")).toArray(String[]::new);
+        String expectedOffsetDocsKey = doNotPruneTokens == null ? "expected_by_offset_with_pruning" : "expected_by_offset";
+        String[] expectedOffsetPassages = ((List<String>) queryMap.get(expectedOffsetDocsKey)).toArray(String[]::new);
         assertHighlightOneDoc(
             mapperService,
             shardRequest,

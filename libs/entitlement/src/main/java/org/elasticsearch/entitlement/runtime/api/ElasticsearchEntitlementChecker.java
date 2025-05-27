@@ -42,6 +42,7 @@ import java.net.JarURLConnection;
 import java.net.MalformedURLException;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.net.ProtocolFamily;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
@@ -1293,6 +1294,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, ProtocolFamily family) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
     public void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local) {
         policyManager.checkOutboundNetworkAccess(callerClass);
     }
@@ -1379,6 +1395,36 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that) {
         policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, ProtocolFamily family) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkInboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, ProtocolFamily family) {
+        policyManager.checkInboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, ProtocolFamily family) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
     @Override

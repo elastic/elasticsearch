@@ -608,6 +608,12 @@ public interface EntitlementChecker {
 
     void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
 
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, java.net.ProtocolFamily family);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote);
+
     void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
 
     // connect
@@ -654,6 +660,18 @@ public interface EntitlementChecker {
 
     // provider methods (dynamic)
     void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
 
     /// /////////////////
     //

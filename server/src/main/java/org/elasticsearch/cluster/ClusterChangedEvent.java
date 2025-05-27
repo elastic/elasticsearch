@@ -174,8 +174,10 @@ public class ClusterChangedEvent {
         ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
         if (previousProject != null && project != null) {
             result.addAll(changedCustoms(project.customs(), previousProject.customs()));
-        } else if (previousProject != null || project != null) {
+        } else if (previousProject != null) {
             result.addAll(previousProject.customs().keySet());
+        } else if (project != null) {
+            result.addAll(project.customs().keySet());
         }
         return result;
     }

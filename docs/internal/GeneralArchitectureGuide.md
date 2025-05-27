@@ -22,9 +22,10 @@ There are many built-in REST endpoints configured statically in [ActionModule][A
 endpoints can be contributed by [ActionPlugin]s by implementing the [getRestHandlers] method.
 
 Typically, REST actions follow the class naming convention `Rest*Action`, which makes them easier to find, but not always; the
-[#routes()][RestHandler#routes] definition can also be helpful in finding a REST action. [RestController#dispatchRequest] eventually
-calls [#handleRequest][RestHandler#handleRequest] on a [RestHandler] implementation. [BaseRestHandler] is a common base class extended
-by most `Rest*Action` implementations.
+[#routes()][RestHandler#routes] definition can also be helpful in finding a REST action.
+
+When a [RestRequest] is received, [RestController#dispatchRequest] uses the request path to identify the destination handler and calls
+[#handleRequest][RestHandler#handleRequest] on it. [BaseRestHandler] is a common base class extended by most `Rest*Action` implementations.
 
 ### Handler invocation
 

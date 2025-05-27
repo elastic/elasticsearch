@@ -472,7 +472,6 @@ public abstract class Engine implements Closeable {
                 pauseLockReference.acquire();
                 try {
                     while (pauseIndexing.getAcquire()) {
-                        // System.out.println("Waiting on pause indexing lock");
                         logger.trace("Waiting on pause indexing lock");
                         pauseCondition.await();
                     }
@@ -480,7 +479,6 @@ public abstract class Engine implements Closeable {
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
                 } finally {
-                    // System.out.println("Acquired pause indexing lock");
                     logger.trace("Acquired pause indexing lock");
                 }
                 return pauseLockReference;
@@ -505,15 +503,12 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            // throttlingLock.unthrottle();
-
             if (lock == pauseLockReference) {
                 logger.trace("Deactivate index throttling pause");
 
                 // Signal the threads that are waiting on pauseCondition
                 pauseLockReference.acquire();
                 try {
-                    // System.out.println("Deactivate pause");
                     pauseIndexing.setRelease(false);
                     pauseCondition.signalAll();
                 } finally {

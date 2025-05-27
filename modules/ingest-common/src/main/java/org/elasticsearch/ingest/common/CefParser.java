@@ -34,6 +34,7 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
@@ -290,7 +291,7 @@ final class CefParser {
      * List of allowed timestamp formats for CEF spec v27, see: Appendix A: Date Formats
      * <a href="https://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
      */
-    private static final List<String> TIME_LAYOUTS = List.of(
+    private static final List<DateTimeFormatter> TIME_FORMATS = Stream.of(
         "MMM dd HH:mm:ss.SSS zzz",
         "MMM dd HH:mm:ss.SSS",
         "MMM dd HH:mm:ss zzz",
@@ -299,7 +300,7 @@ final class CefParser {
         "MMM dd yyyy HH:mm:ss.SSS",
         "MMM dd yyyy HH:mm:ss zzz",
         "MMM dd yyyy HH:mm:ss"
-    );
+    ).map(p -> DateTimeFormatter.ofPattern(p, Locale.ROOT)).toList();
 
     private static final List<ChronoField> CHRONO_FIELDS = List.of(
         NANO_OF_SECOND,
@@ -492,9 +493,8 @@ final class CefParser {
             // Not a millisecond timestamp, continue to format parsing
         }
         // Try parsing with different layouts
-        for (String layout : TIME_LAYOUTS) {
+        for (DateTimeFormatter formatter : TIME_FORMATS) {
             try {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(layout, Locale.ROOT);
                 TemporalAccessor accessor = formatter.parse(value);
                 // if there is no year nor year-of-era, we fall back to the current one and
                 // fill the rest of the date up with the parsed date

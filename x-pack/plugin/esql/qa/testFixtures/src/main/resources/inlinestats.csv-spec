@@ -766,6 +766,7 @@ FROM employees
 | KEEP emp_no, languages, gender, first_name
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(first_name,1)
 | LIMIT 10
+| SORT emp_no
 ;
 
 emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       
@@ -813,6 +814,7 @@ FROM employees
 | RENAME first_name as f
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, first_name = left(f, 1)
 | LIMIT 10
+| SORT emp_no
 ;
 
 emp_no:integer | languages:integer | gender:keyword|    f:keyword     |max_lang:integer|  y:keyword    |   l:integer   |first_name:keyword       
@@ -837,6 +839,7 @@ FROM employees
 | RENAME first_name as f
 | INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(f, 1)
 | LIMIT 10
+| SORT emp_no
 ;
 
 emp_no:integer | languages:integer | gender:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       

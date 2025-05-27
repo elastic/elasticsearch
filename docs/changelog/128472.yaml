@@ -3,4 +3,5 @@ summary: "Aggs: Fix significant terms not finding background docuemnts for neste
   \ fields"
 area: Aggregations
 type: bug
-issues: []
+issues:
+ - 101163

@@ -199,7 +199,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Map<String, String> headers
     ) {
         ProjectId projectId = projectResolver.getProjectId();
-        AtomicBoolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.get(projectId);
         return new GeoIpDownloader(
             client,
             httpClient,
@@ -214,7 +213,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoipProcessor != null && atLeastOneGeoipProcessor.get(),
+            () -> atLeastOneGeoipProcessorByProject.get(projectId) != null && atLeastOneGeoipProcessorByProject.get(projectId).get(),
             projectId
         );
     }

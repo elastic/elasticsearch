@@ -20,9 +20,6 @@ module org.elasticsearch.plugin.security.authz {
     requires com.microsoft.graph;
     requires com.azure.identity;
     requires com.microsoft.graph.core;
-    // FIXME both of these module includes are load bearing, because this project is cursed
-    // we don't need either of these in the plugin, but without the Kotlin include, the plugin fails to compile; without the gson include,
-    // we get a NoClassDefFoundError at runtime
     requires kotlin.stdlib;
     requires com.google.gson;
 

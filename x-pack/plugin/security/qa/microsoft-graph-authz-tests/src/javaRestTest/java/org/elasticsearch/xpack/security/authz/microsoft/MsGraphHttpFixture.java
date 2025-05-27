@@ -32,6 +32,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,17 +51,30 @@ public class MsGraphHttpFixture extends ExternalResource {
     private final String principal;
     private final String displayName;
     private final String email;
+    private final String[] firstGroupsPage;
+    private final String[] secondGroupsPage;
     private final String jwt;
 
     private HttpsServer server;
 
-    public MsGraphHttpFixture(String tenantId, String clientId, String clientSecret, String principal, String displayName, String email) {
+    public MsGraphHttpFixture(
+        String tenantId,
+        String clientId,
+        String clientSecret,
+        String principal,
+        String displayName,
+        String email,
+        String[] firstGroupsPage,
+        String[] secondGroupsPage
+    ) {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.principal = principal;
         this.displayName = displayName;
         this.email = email;
+        this.firstGroupsPage = firstGroupsPage;
+        this.secondGroupsPage = secondGroupsPage;
 
         this.jwt = "test jwt";
     }
@@ -211,13 +225,14 @@ public class MsGraphHttpFixture extends ExternalResource {
             }
 
             var nextLink = getBaseUrl() + exchange.getRequestURI().toString() + "&$skiptoken=" + skipToken;
-            // TODO should really pass this through the constructor or something rather than hard-coding it
-            var groups = new Object[] { Map.of("id", "group-id-1"), Map.of("id", "group-id-2") };
+            Object[] groups;
 
             // return multiple pages of results, to ensure client correctly supports paging
             if (exchange.getRequestURI().getQuery().contains("$skiptoken")) {
-                groups = new Object[] { Map.of("id", "group-id-3") };
+                groups = Arrays.stream(secondGroupsPage).map(id -> Map.of("id", id)).toArray();
                 nextLink = null;
+            } else {
+                groups = Arrays.stream(firstGroupsPage).map(id -> Map.of("id", id)).toArray();
             }
 
             final var groupMembership = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -248,9 +263,10 @@ public class MsGraphHttpFixture extends ExternalResource {
         errorResponse.endObject();
         errorResponse.endObject();
 
-        final var responseBytes = message.getBytes();
-        exchange.sendResponseHeaders(statusCode.getStatus(), responseBytes.length);
-        exchange.getResponseBody().write(responseBytes);
+        final var responseBytes = BytesReference.bytes(errorResponse);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(statusCode.getStatus(), responseBytes.length());
+        responseBytes.writeTo(exchange.getResponseBody());
 
         exchange.close();
     }

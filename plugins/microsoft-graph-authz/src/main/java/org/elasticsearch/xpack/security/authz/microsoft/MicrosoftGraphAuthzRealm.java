@@ -24,8 +24,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -42,16 +46,27 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
     private static final Logger logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
 
+    private static final boolean DISABLE_INSTANCE_DISCOVERY = System.getProperty(
+        "tests.azure.credentials.disable_instance_discovery",
+        "false"
+    ).equals("true");
+
+    private static final LicensedFeature.Momentary MICROSOFT_GRAPH_FEATURE = LicensedFeature.momentary(
+        "security-realms",
+        "microsoft_graph",
+        License.OperationMode.PLATINUM
+    );
+
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
-    private final SecureString clientSecret;
+    private final GraphServiceClient client;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
         super(config);
 
         this.config = config;
         this.roleMapper = roleMapper;
-        this.clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
+        var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         require(MicrosoftGraphAuthzRealmSettings.CLIENT_ID);
         require(MicrosoftGraphAuthzRealmSettings.TENANT_ID);
@@ -64,7 +79,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             );
         }
 
-        // TODO license check
+        client = buildClient(clientSecret);
     }
 
     private void require(Setting.AffixSetting<String> setting) {
@@ -91,9 +106,12 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
     @Override
     public void lookupUser(String principal, ActionListener<User> listener) {
+        if (MICROSOFT_GRAPH_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(MICROSOFT_GRAPH_FEATURE.getName()));
+            return;
+        }
+
         try {
-            // TODO probably want to do this once rather than every time
-            final var client = buildClient();
             final var userProperties = sdkFetchUserProperties(client, principal);
             final var groups = sdkFetchGroupMembership(client, principal);
 
@@ -113,22 +131,24 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                 l.onResponse(user);
             }));
         } catch (Exception e) {
-            // TODO logging etc
+            logger.error("failed to authenticate with realm", e);
             listener.onFailure(e);
         }
     }
 
-    private GraphServiceClient buildClient() {
+    private GraphServiceClient buildClient(SecureString clientSecret) {
         logger.trace("building client");
-        final var credentialProvider = new ClientSecretCredentialBuilder().clientId(
+        final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
         )
             .clientSecret(clientSecret.toString())
             .tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID))
-            .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST))
-            // TODO this is necessary for tests, but we probably want this enabled in prod
-            .disableInstanceDiscovery()
-            .build();
+            .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST));
+
+        if (DISABLE_INSTANCE_DISCOVERY) {
+            credentialProviderBuilder.disableInstanceDiscovery();
+        }
+        final var credentialProvider = credentialProviderBuilder.build();
 
         return new GraphServiceClient(
             new BaseGraphRequestAdapter(

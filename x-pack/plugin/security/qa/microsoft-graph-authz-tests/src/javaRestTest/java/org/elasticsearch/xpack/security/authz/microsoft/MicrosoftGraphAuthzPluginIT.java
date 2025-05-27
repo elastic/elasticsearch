@@ -49,6 +49,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     private static final String CLIENT_ID = "client_id";
     private static final String CLIENT_SECRET = "client_secret";
     private static final String USERNAME = "Thor";
+    private static final String EXPECTED_GROUP = "test_group";
 
     private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(
         TENANT_ID,
@@ -56,7 +57,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         CLIENT_SECRET,
         USERNAME,
         "Thor Odinson",
-        "thor@oldap.test.elasticsearch.com"
+        "thor@oldap.test.elasticsearch.com",
+        new String[] { "unmapped-group-1", "unmapped-group-2", "unmapped-group-3" },
+        new String[] { EXPECTED_GROUP }
     );
 
     public static ElasticsearchCluster cluster = initTestCluster();
@@ -99,6 +102,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
             .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
             .systemProperty("javax.net.ssl.trustStoreType", "jks")
+            .systemProperty("tests.azure.credentials.disable_instance_discovery", "true")
             .build();
     }
 
@@ -135,7 +139,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
                     .endObject()
                     .startObject()
                     .startObject("field")
-                    .field("groups", "group-id-3")
+                    .field("groups", EXPECTED_GROUP)
                     .endObject()
                     .endObject()
                     .endArray() // "all"

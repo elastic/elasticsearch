@@ -83,4 +83,6 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
     public void testGroupMembershipPagination() {
         fail();
     }
+
+    public void testLicenseCheck() { fail(); }
 }

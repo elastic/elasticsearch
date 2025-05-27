@@ -14,8 +14,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -237,5 +239,19 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 );
             }
         }
+    }
+
+    @Override
+    public List<Mapper> getSourceFields() {
+        List<Mapper> fields = new ArrayList<>();
+        fields.add(this);
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                fields.add(fieldMapper);
+            } else if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                fields.addAll(passThroughObjectMapper.getSourceFields());
+            }
+        }
+        return fields;
     }
 }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -148,7 +147,7 @@ final class SoftDeletesPolicy {
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
     Query getRetentionQuery() {
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);
+        return SeqNoFieldMapper.rangeQueryForSeqNo(getMinRetainedSeqNo(), Long.MAX_VALUE);
     }
 
 }

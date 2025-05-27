@@ -127,6 +127,21 @@ public final class RoutingPathFields implements RoutingFields {
         return new BytesArray(hash, 0, index);
     }
 
+    /**
+     * Simplified 64-bit hash over the routing fields, using the routing field names and values as input.
+     */
+    public long buildLongHash() {
+        Murmur3Hasher hasher = new Murmur3Hasher(SEED);
+        for (final BytesRef name : routingValues.keySet()) {
+            hasher.update(name.bytes);
+            for (var value : routingValues.get(name)) {
+                hasher.update(value.toBytesRef().bytes);
+            }
+        }
+        MurmurHash3.Hash128 hash = hasher.digestHash();
+        return hash.h1;
+    }
+
     private static int hashLen(int numberOfFields) {
         return 16 + 16 + 4 * numberOfFields;
     }

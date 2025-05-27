@@ -183,7 +183,11 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
+        Sort sort = buildIndexSort(
+            indexSettings,
+            TimeSeriesIdFieldMapper.FIELD_TYPE_BYTEREF,
+            new DateFieldMapper.DateFieldType("@timestamp")
+        );
         assertThat(sort.getSort(), arrayWithSize(2));
         assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
         assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
@@ -198,7 +202,10 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE_BYTEREF)
+        );
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 

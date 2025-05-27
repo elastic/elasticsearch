@@ -41,6 +41,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -69,7 +70,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -927,6 +928,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
+        byte[] tsidBytes = new byte[8];
+        ByteUtils.writeLongLE(-4564432387253946629L, tsidBytes, 0);
+
         DownsampleShardIndexer indexer = new DownsampleShardIndexer(
             task,
             client(),
@@ -938,32 +942,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
-            new DownsampleShardPersistentTaskState(
-                DownsampleShardIndexerStatus.STARTED,
-                new BytesRef(
-                    new byte[] {
-                        0x01,
-                        0x0C,
-                        0x64,
-                        0x69,
-                        0x6d,
-                        0x65,
-                        0x6E,
-                        0x73,
-                        0x69,
-                        0x6F,
-                        0x6E,
-                        0x5F,
-                        0x6B,
-                        0x77,
-                        0x73,
-                        0x04,
-                        0x64,
-                        0x69,
-                        0x6D,
-                        0x31 }
-                )
-            )
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, new BytesRef(tsidBytes))
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
@@ -1003,6 +982,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         task.testInit(mock(PersistentTasksService.class), mock(TaskManager.class), randomAlphaOfLength(5), randomIntBetween(1, 5));
 
+        // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
+        byte[] tsidBytes = new byte[8];
+        ByteUtils.writeLongLE(7363894371545909085L, tsidBytes, 0);
+
         DownsampleShardIndexer indexer = new DownsampleShardIndexer(
             task,
             client(),
@@ -1014,50 +997,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1 },
-            new DownsampleShardPersistentTaskState(
-                DownsampleShardIndexerStatus.STARTED,
-                // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
-                new BytesRef(
-                    new byte[] {
-                        0x24,
-                        0x42,
-                        (byte) 0xe4,
-                        (byte) 0x9f,
-                        (byte) 0xe2,
-                        (byte) 0xde,
-                        (byte) 0xbb,
-                        (byte) 0xf8,
-                        (byte) 0xfc,
-                        0x7d,
-                        0x1a,
-                        (byte) 0xb1,
-                        0x27,
-                        (byte) 0x85,
-                        (byte) 0xc2,
-                        (byte) 0x8e,
-                        0x3a,
-                        (byte) 0xae,
-                        0x38,
-                        0x6c,
-                        (byte) 0xf6,
-                        (byte) 0xae,
-                        0x0f,
-                        0x4f,
-                        0x44,
-                        (byte) 0xf1,
-                        0x73,
-                        0x02,
-                        (byte) 0x90,
-                        0x1d,
-                        0x79,
-                        (byte) 0xf8,
-                        0x0d,
-                        (byte) 0xc2,
-                        0x7e,
-                        (byte) 0x91,
-                        0x15 }
-                )
-            )
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, new BytesRef(tsidBytes))
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
@@ -1309,17 +1249,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
         }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
+        LongTerms originalTsIdTermsAggregation = (LongTerms) origList.get(0);
+        LongTerms downsampleTsIdTermsAggregation = (LongTerms) downsampleList.get(0);
         originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
-            StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
+            LongTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
             assertEquals(originalBucket.getAggregations().asList().size(), downsampleBucket.getAggregations().asList().size());
 
             InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
-            InternalDateHistogram downsamoleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
+            InternalDateHistogram downsampleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
             List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
-            List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsamoleDateHistogram.getBuckets();
+            List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsampleDateHistogram.getBuckets();
             assertEquals(originalDateHistogramBuckets.size(), downsampleDateHistogramBuckets.size());
             assertEquals(
                 originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),

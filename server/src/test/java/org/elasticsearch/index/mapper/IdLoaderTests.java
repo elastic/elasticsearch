@@ -46,7 +46,7 @@ public class IdLoaderTests extends ESTestCase {
     private final int routingHash = randomInt();
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createTsIdLoader(null, null, false);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -68,7 +68,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createTsIdLoader(null, null, false);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -138,7 +138,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdRandom() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createTsIdLoader(null, null, false);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();

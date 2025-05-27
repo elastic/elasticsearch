@@ -144,7 +144,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
         FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
-        FIELD_TYPES[8] = TimeSeriesIdFieldMapper.FIELD_TYPE;
+        FIELD_TYPES[8] = TimeSeriesIdFieldMapper.FIELD_TYPE_BYTEREF;
 
         objectMappers = new ArrayList<>();
     }

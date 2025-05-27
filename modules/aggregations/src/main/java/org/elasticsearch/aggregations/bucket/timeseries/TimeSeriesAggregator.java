@@ -150,8 +150,8 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             public void collect(int doc, long bucket) throws IOException {
                 // Naively comparing bucket against currentBucket and tsid ord to currentBucket can work really well.
                 // TimeSeriesIndexSearcher ensures that docs are emitted in tsid and timestamp order, so if tsid ordinal
-                // changes to what is stored in currentTsidOrd then that ordinal well never occur again. Same applies
-                // currentBucket if there is no parent aggregation or the immediate parent aggregation creates buckets
+                // changes to what is stored in currentTsidOrd then that ordinal will never occur again. Same applies to
+                // currentBucket, if there is no parent aggregation or the immediate parent aggregation creates buckets
                 // based on @timestamp field or dimension fields (fields that make up the tsid).
                 if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidHashOrd()) {
                     collectExistingBucket(sub, doc, currentBucketOrdinal);

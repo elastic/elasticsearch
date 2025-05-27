@@ -56,7 +56,11 @@ public class AggregationPhase {
     }
 
     private static void executeInSortOrder(SearchContext context, BucketCollector collector) {
-        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), context.getCancellationChecks());
+        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(
+            context.searcher(),
+            context.getSearchExecutionContext().getIndexSettings(),
+            context.getCancellationChecks()
+        );
         searcher.setMinimumScore(context.minimumScore());
         searcher.setProfiler(context);
         try {

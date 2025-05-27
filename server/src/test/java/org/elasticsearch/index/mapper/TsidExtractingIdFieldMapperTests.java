@@ -19,6 +19,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.name.Named;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -722,6 +723,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }
+    }
+
+    @Override
+    protected IndexVersion getVersion() {
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_LONG);
     }
 
     public void testRoutingPathCompliant() throws IOException {

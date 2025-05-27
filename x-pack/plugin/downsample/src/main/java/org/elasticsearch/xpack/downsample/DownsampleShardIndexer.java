@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -164,7 +164,11 @@ class DownsampleShardIndexer {
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " started");
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
-            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
+            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(
+                searcher,
+                searchExecutionContext.getIndexSettings(),
+                List.of(this::checkCancelled)
+            );
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor, this.dimensions);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(initialStateQuery, bucketCollector);
@@ -223,7 +227,8 @@ class DownsampleShardIndexer {
 
     private Query createQuery() {
         if (this.state.started() && this.state.tsid() != null) {
-            return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
+            long tsidValue = ByteUtils.readLongLE(this.state.tsid().bytes, 0);
+            return SortedNumericDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, tsidValue, Long.MAX_VALUE);
         }
         return new MatchAllDocsQuery();
     }
@@ -435,12 +440,11 @@ class DownsampleShardIndexer {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 task.addNumReceived(1);
-                final BytesRef tsidHash = aggCtx.getTsidHash();
-                assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
-                final int tsidHashOrd = aggCtx.getTsidHashOrd();
+                final long tsid = aggCtx.getTsid();
+                assert tsid != 0 : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                 final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
-                boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
+                boolean tsidChanged = tsid != downsampleBucketBuilder.tsid();
                 if (tsidChanged || timestamp < lastHistoTimestamp) {
                     lastHistoTimestamp = Math.max(rounding.round(timestamp), timestampBoundStartTime);
                 }
@@ -451,13 +455,13 @@ class DownsampleShardIndexer {
                     logger.trace(
                         "Doc: [{}] - _tsid: [{}], @timestamp: [{}] -> downsample bucket ts: [{}]",
                         docId,
-                        DocValueFormat.TIME_SERIES_ID.format(tsidHash),
+                        tsid,
                         timestampFormat.format(timestamp),
                         timestampFormat.format(lastHistoTimestamp)
                     );
                 }
 
-                assert assertTsidAndTimestamp(tsidHash, timestamp);
+                assert assertTsidAndTimestamp(tsid, timestamp);
                 lastTimestamp = timestamp;
 
                 if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
@@ -470,7 +474,7 @@ class DownsampleShardIndexer {
 
                     // Create new downsample bucket
                     if (tsidChanged) {
-                        downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
+                        downsampleBucketBuilder.resetTsid(tsid, lastHistoTimestamp);
                     } else {
                         downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
                     }
@@ -521,15 +525,10 @@ class DownsampleShardIndexer {
              * - _tsid must be sorted in ascending order
              * - @timestamp must be sorted in descending order within the same _tsid
              */
-            boolean assertTsidAndTimestamp(BytesRef tsidHash, long timestamp) {
-                BytesRef lastTsid = downsampleBucketBuilder.tsid();
-                assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
-                    : "_tsid is not sorted in ascending order: ["
-                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                        + "] -> ["
-                        + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
-                        + "]";
-                assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
+            boolean assertTsidAndTimestamp(long tsid, long timestamp) {
+                long lastTsid = downsampleBucketBuilder.tsid();
+                assert lastTsid == 0 || lastTsid <= tsid : "_tsid is not sorted in ascending order: [" + lastTsid + "] -> [" + tsid + "]";
+                assert tsid != lastTsid || lastTimestamp >= timestamp
                     : "@timestamp is not sorted in descending order: ["
                         + timestampFormat.format(lastTimestamp)
                         + "] -> ["
@@ -583,8 +582,7 @@ class DownsampleShardIndexer {
     }
 
     private class DownsampleBucketBuilder {
-        private BytesRef tsid;
-        private int tsidOrd = -1;
+        private long tsid;
         private long timestamp;
         private int docCount;
         private final AbstractDownsampleFieldProducer[] fieldProducers;
@@ -617,9 +615,8 @@ class DownsampleShardIndexer {
         /**
          * tsid changed, reset tsid and timestamp
          */
-        public void resetTsid(BytesRef tsid, int tsidOrd, long timestamp) {
-            this.tsid = BytesRef.deepCopyOf(tsid);
-            this.tsidOrd = tsidOrd;
+        public void resetTsid(long tsid, long timestamp) {
+            this.tsid = tsid;
             resetTimestamp(timestamp);
         }
 
@@ -633,11 +630,7 @@ class DownsampleShardIndexer {
                 producer.reset();
             }
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "New bucket for _tsid: [{}], @timestamp: [{}]",
-                    DocValueFormat.TIME_SERIES_ID.format(tsid),
-                    timestampFormat.format(timestamp)
-                );
+                logger.trace("New bucket for _tsid: [{}], @timestamp: [{}]", tsid, timestampFormat.format(timestamp));
             }
         }
 
@@ -684,12 +677,8 @@ class DownsampleShardIndexer {
             return timestamp;
         }
 
-        public BytesRef tsid() {
+        public long tsid() {
             return tsid;
-        }
-
-        public int tsidOrd() {
-            return tsidOrd;
         }
 
         public int docCount() {
@@ -697,7 +686,7 @@ class DownsampleShardIndexer {
         }
 
         public boolean isEmpty() {
-            return tsid() == null || timestamp() == 0 || docCount() == 0;
+            return tsid() == 0 || timestamp() == 0 || docCount() == 0;
         }
 
     }

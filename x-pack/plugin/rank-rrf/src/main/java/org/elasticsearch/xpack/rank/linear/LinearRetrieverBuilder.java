@@ -131,7 +131,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
         if (minScore < 0) {
-            throw new IllegalArgumentException("[min_score] must be greater than 0, was: " + minScore);
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: " + minScore);
         }
         this.weights = weights;
         this.normalizers = normalizers;

@@ -63,6 +63,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         Property.Dynamic,
         Property.NodeScope
     );
+    /**
+     * The occupied disk space threshold beyond which NO new merges are started.
+     * Conservatively, the estimated temporary disk space required for the to-be-started merge is counted as occupied disk space.
+     * Defaults to the routing allocation flood stage limit value (beyond which shards are toggled read-only).
+     */
     public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high",
         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
@@ -91,9 +96,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         Property.Dynamic,
         Property.NodeScope
     );
+    /**
+     * The available disk space headroom below which NO new merges are started.
+     * Conservatively, the estimated temporary disk space required for the to-be-started merge is NOT counted as available disk space.
+     * Defaults to the routing allocation flood stage headroom value (below which shards are toggled read-only),
+     * unless the merge occupied disk space threshold is specified, in which case the default headroom value here is unset.
+     */
     public static final Setting<ByteSizeValue> INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING = new Setting<>(
         "indices.merge.disk.watermark.high.max_headroom",
         (settings) -> {
+            // if the user explicitly set a value for the occupied disk space threshold, disable the implicit headroom value
             if (INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
@@ -119,11 +131,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         );
                     }
                 }
-                final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING);
                 final RelativeByteSizeValue highWatermark = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING);
+                final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING);
                 if (highWatermark.isAbsolute() && highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                     throw new IllegalArgumentException(
-                        "indices merge max headroom setting is set, but disk watermark value is not a relative value"
+                        "indices merge max headroom setting is set, but indices merge disk watermark value is not a relative value ["
+                            + highWatermark.getStringRep()
+                            + "]"
                     );
                 }
             }
@@ -194,9 +208,27 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         NodeEnvironment nodeEnvironment
     ) {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
-            return new ThreadPoolMergeExecutorService(threadPool, clusterSettings, nodeEnvironment);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = new ThreadPoolMergeExecutorService(
+                threadPool,
+                clusterSettings,
+                nodeEnvironment
+            );
+            clusterSettings.addSettingsUpdateConsumer(
+                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setHighStageWatermark
+            );
+            clusterSettings.addSettingsUpdateConsumer(
+                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setHighStageMaxHeadroom
+            );
+            clusterSettings.addSettingsUpdateConsumer(
+                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setCheckInterval
+            );
+            return threadPoolMergeExecutorService;
         } else {
-            // register no-op settings consumer so that settings validations works properly,
+            // register no-op setting update consumers so that setting validations work properly
+            // (some validations are bypassed if there are no update consumers registered),
             // i.e. to reject watermark and max headroom updates if the thread pool merge scheduler is disabled
             clusterSettings.addSettingsUpdateConsumer(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING, (ignored) -> {});
             clusterSettings.addSettingsUpdateConsumer(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING, (ignored) -> {});
@@ -225,18 +257,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
             clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
             (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
-        );
-        clusterSettings.addSettingsUpdateConsumer(
-            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
-            this.availableDiskSpacePeriodicMonitor::setHighStageWatermark
-        );
-        clusterSettings.addSettingsUpdateConsumer(
-            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
-            this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
-        );
-        clusterSettings.addSettingsUpdateConsumer(
-            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-            this.availableDiskSpacePeriodicMonitor::setCheckInterval
         );
     }
 
@@ -282,6 +302,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         enqueueMergeTask(mergeTask);
+    }
+
+    AvailableDiskSpacePeriodicMonitor getAvailableDiskSpacePeriodicMonitor() {
+        return this.availableDiskSpacePeriodicMonitor;
     }
 
     private void enqueueMergeTask(MergeTask mergeTask) {
@@ -413,16 +437,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             reschedule();
         }
 
-        public void setCheckInterval(TimeValue checkInterval) {
+        void setCheckInterval(TimeValue checkInterval) {
             this.checkInterval = checkInterval;
             reschedule();
         }
 
-        public void setHighStageWatermark(RelativeByteSizeValue highStageWatermark) {
+        void setHighStageWatermark(RelativeByteSizeValue highStageWatermark) {
             this.highStageWatermark = highStageWatermark;
         }
 
-        public void setHighStageMaxHeadroom(ByteSizeValue highStageMaxHeadroom) {
+        void setHighStageMaxHeadroom(ByteSizeValue highStageMaxHeadroom) {
             this.highStageMaxHeadroom = highStageMaxHeadroom;
         }
 

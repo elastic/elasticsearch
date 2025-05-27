@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Represents a unified chat completion request entity.
+ * This class is used to convert the unified chat input into a format that can be serialized to XContent.
+ */
 public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
 
     public static final String NAME_FIELD = "name";
@@ -162,11 +166,19 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
 
         builder.field(STREAM_FIELD, stream);
         if (stream) {
-            builder.startObject(STREAM_OPTIONS_FIELD);
-            builder.field(INCLUDE_USAGE_FIELD, true);
-            builder.endObject();
+            fillStreamOptionsFields(builder);
         }
 
         return builder;
+    }
+
+    /**
+     * This method is used to fill the stream options fields in the request entity.
+     * It is called when the stream option is set to true.
+     */
+    protected void fillStreamOptionsFields(XContentBuilder builder) throws IOException {
+        builder.startObject(STREAM_OPTIONS_FIELD);
+        builder.field(INCLUDE_USAGE_FIELD, true);
+        builder.endObject();
     }
 }

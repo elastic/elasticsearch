@@ -63,9 +63,17 @@ The following index-level settings are typically configured on the backing indic
 $$$index-lifecycle-prefer-ilm$$$
 
 `index.lifecycle.prefer_ilm`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-settings), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream has also a built-in lifecycle. When `true` this index is managed by {{ilm-init}}, when `false` the backing index is managed by the data stream lifecycle. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream has also a built-in lifecycle. When `true` this index is managed by {{ilm-init}}, when `false` the backing index is managed by the data stream lifecycle. Defaults to `true`.
 
 $$$index-data-stream-lifecycle-origination-date$$$
 
 `index.lifecycle.origination_date`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-settings), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
+
+## Reindex settings [reindex-data-stream-settings]
+
+You can use the following settings to control the behavior of the reindex data stream API:
+
+`migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
+
+`migrate.data_stream_reindex_max_request_per_second` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The average maximum number of documents within a given backing index to reindex per second. Defaults to `1000`, though can be any decimal number greater than `0`. To remove throttling, set to `-1`. This setting can be used to throttle the reindex process and manage resource usage. Consult the [reindex throttle docs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex#docs-reindex-throttle) for more information.

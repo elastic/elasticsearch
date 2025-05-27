@@ -146,4 +146,3 @@ $$$reindex-remote-whitelist$$$
 
 `reindex.ssl.verification_mode` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Indicates the type of verification to protect against man in the middle attacks and certificate forgery. One of `full` (verify the hostname and the certificate path), `certificate` (verify the certificate path, but not the hostname) or `none` (perform no verification - this is strongly discouraged in production environments). Defaults to `full`.
-

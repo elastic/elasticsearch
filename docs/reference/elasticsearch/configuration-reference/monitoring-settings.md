@@ -46,7 +46,7 @@ The `xpack.monitoring.collection` settings control how data is collected from yo
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Set to `true` to enable the collection of monitoring data. When this setting is `false` (default), {{es}} monitoring data is not collected and all monitoring data from other sources such as {{kib}}, Beats, and {{ls}} is ignored.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Set to `true` to enable the collection of monitoring data. When this setting is `false` (default), {{es}} monitoring data is not collected and all monitoring data from other sources such as {{kib}}, Beats, and {{ls}} is ignored.
 
 $$$xpack-monitoring-collection-interval$$$
 
@@ -55,7 +55,7 @@ $$$xpack-monitoring-collection-interval$$$
     This setting was deprecated in 6.3.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
 
     Controls how often data samples are collected. Defaults to `10s`. If you modify the collection interval, set the `xpack.monitoring.min_interval_seconds` option in `kibana.yml` to the same value.
 
@@ -65,49 +65,49 @@ $$$xpack-monitoring-collection-interval$$$
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Controls whether statistics about your {{es}} cluster should be collected. Defaults to `true`. This is different from `xpack.monitoring.collection.enabled`, which allows you to enable or disable all monitoring collection. However, this setting simply disables the collection of {{es}} data while still allowing other data (e.g., {{kib}}, {{ls}}, Beats, or APM Server monitoring data) to pass through this cluster.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls whether statistics about your {{es}} cluster should be collected. Defaults to `true`. This is different from `xpack.monitoring.collection.enabled`, which allows you to enable or disable all monitoring collection. However, this setting simply disables the collection of {{es}} data while still allowing other data (e.g., {{kib}}, {{ls}}, Beats, or APM Server monitoring data) to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Timeout for collecting the cluster statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Timeout for collecting the cluster statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.node.stats.timeout`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Timeout for collecting the node statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Timeout for collecting the node statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.indices`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Controls which indices the {{monitor-features}} collect data from. Defaults to all indices. Specify the index names as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana* always start with a `.` and generally should be monitored. Consider adding `.*` to the list of indices ensure monitoring of system indices. For example: `.*,test*,-test3`
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls which indices the {{monitor-features}} collect data from. Defaults to all indices. Specify the index names as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana* always start with a `.` and generally should be monitored. Consider adding `.*` to the list of indices ensure monitoring of system indices. For example: `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Timeout for collecting index statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Timeout for collecting index statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Controls whether or not all recoveries are collected. Set to `true` to collect only active recoveries. Defaults to `false`.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls whether or not all recoveries are collected. Set to `true` to collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`
 :   :::{admonition} Deprecated in 7.16.0
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.min_interval_seconds` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the minimum number of seconds that a time bucket in a chart can represent. If you modify the `xpack.monitoring.collection.interval`, use the same value in this setting.
@@ -121,7 +121,7 @@ $$$xpack-monitoring-history-duration$$$
     This setting was deprecated in 7.16.0.
     :::
 
-    ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Retention duration beyond which the indices created by a monitoring exporter are automatically deleted, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `7d` (7 days).
+    ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Retention duration beyond which the indices created by a monitoring exporter are automatically deleted, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `7d` (7 days).
 
     This setting has a minimum value of `1d` (1 day) to ensure that something is being monitored and it cannot be disabled.
 

@@ -27,7 +27,7 @@ $$$indices-query-bool-max-clause-count$$$
 $$$search-settings-max-buckets$$$
 
 `search.max_buckets`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), integer) Maximum number of [aggregation buckets](/reference/aggregations/bucket.md) allowed in a single response. Defaults to 65,536.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), integer) Maximum number of [aggregation buckets](/reference/aggregations/bucket.md) allowed in a single response. Defaults to 65,536.
 
     Requests that attempt to return more than this limit will return an error.
 
@@ -35,7 +35,7 @@ $$$search-settings-max-buckets$$$
 $$$search-settings-only-allowed-scripts$$$
 
 `search.aggs.only_allowed_metric_scripts`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), boolean) Configures whether only explicitly allowed scripts can be used in [scripted metrics aggregations](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md). Defaults to `false`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), boolean) Configures whether only explicitly allowed scripts can be used in [scripted metrics aggregations](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md). Defaults to `false`.
 
     Requests using scripts not contained in either [`search.aggs.allowed_inline_metric_scripts`](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-allowed-inline-scripts) or [`search.aggs.allowed_stored_metric_scripts`](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-allowed-stored-scripts) will return an error.
 
@@ -43,7 +43,7 @@ $$$search-settings-only-allowed-scripts$$$
 $$$search-settings-allowed-inline-scripts$$$
 
 `search.aggs.allowed_inline_metric_scripts`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), list of strings) List of inline scripts that can be used in scripted metrics aggregations when [`search.aggs.only_allowed_metric_scripts`](#search-settings-only-allowed-scripts) is set to `true`. Defaults to an empty list.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), list of strings) List of inline scripts that can be used in scripted metrics aggregations when [`search.aggs.only_allowed_metric_scripts`](#search-settings-only-allowed-scripts) is set to `true`. Defaults to an empty list.
 
     Requests using other inline scripts will return an error.
 
@@ -51,7 +51,7 @@ $$$search-settings-allowed-inline-scripts$$$
 $$$search-settings-allowed-stored-scripts$$$
 
 `search.aggs.allowed_stored_metric_scripts`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), list of strings) List of ids of stored scripts that can be used in scripted metrics aggregations when [`search.aggs.only_allowed_metric_scripts`](#search-settings-only-allowed-scripts) is set to `true`. Defaults to an empty list.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), list of strings) List of ids of stored scripts that can be used in scripted metrics aggregations when [`search.aggs.only_allowed_metric_scripts`](#search-settings-only-allowed-scripts) is set to `true`. Defaults to an empty list.
 
     Requests using other stored scripts will return an error.
 

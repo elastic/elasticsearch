@@ -21,7 +21,7 @@ You can view a list of in-progress and completed recoveries using the [cat recov
 ## Recovery settings [recovery-settings]
 
 `indices.recovery.max_bytes_per_sec`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
 
     | Total memory | Default recovery rate on cold and frozen nodes |
     | --- | --- |
@@ -44,19 +44,19 @@ You can view a list of in-progress and completed recoveries using the [cat recov
 You can use the following *expert* setting to manage resources for peer recoveries.
 
 `indices.recovery.max_concurrent_file_chunks`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), Expert) Number of file chunks sent in parallel for each recovery. Defaults to `2`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of file chunks sent in parallel for each recovery. Defaults to `2`.
 
     You can increase the value of this setting when the recovery of a single shard is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`, up to a maximum of `8`.
 
 
 `indices.recovery.max_concurrent_operations`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), Expert) Number of operations sent in parallel for each recovery. Defaults to `1`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of operations sent in parallel for each recovery. Defaults to `1`.
 
     Concurrently replaying operations during recovery can be very resource-intensive and may interfere with indexing, search, and other activities in your cluster. Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 
 
 `indices.recovery.use_snapshots`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), Expert) Enables snapshot-based peer recoveries.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Enables snapshot-based peer recoveries.
 
     {{es}} recovers replicas and relocates primary shards using the *peer recovery* process, which involves constructing a new copy of a shard on the target node. When `indices.recovery.use_snapshots` is `false` {{es}} will construct this new copy by transferring the index data from the current primary. When this setting is `true` {{es}} will attempt to copy the index data from a recent snapshot first, and will only copy data from the primary if it cannot identify a suitable snapshot. Defaults to `true`.
 
@@ -66,13 +66,13 @@ You can use the following *expert* setting to manage resources for peer recoveri
 
 
 `indices.recovery.max_concurrent_snapshot_file_downloads`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), Expert) Number of snapshot file downloads requests sent in parallel to the target node for each recovery. Defaults to `5`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests sent in parallel to the target node for each recovery. Defaults to `5`.
 
     Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 
 
 `indices.recovery.max_concurrent_snapshot_file_downloads_per_node`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings), Expert) Number of snapshot file downloads requests executed in parallel in the target node for all recoveries. Defaults to `25`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests executed in parallel in the target node for all recoveries. Defaults to `25`.
 
     Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 

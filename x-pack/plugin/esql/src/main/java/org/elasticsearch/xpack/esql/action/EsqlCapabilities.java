@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -1122,7 +1123,12 @@ public class EsqlCapabilities {
         /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
-        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS;
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

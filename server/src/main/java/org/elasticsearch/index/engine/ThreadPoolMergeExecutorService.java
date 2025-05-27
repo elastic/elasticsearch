@@ -121,7 +121,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
                 if (isPresent) {
                     if (value.equals(ByteSizeValue.MINUS_ONE)) {
-                        throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+                        throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported, " +
+                                "use [null] value to unset");
                     }
                     if (settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
                         throw new IllegalArgumentException(

@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
@@ -49,11 +48,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
 
     public static final float DEFAULT_SCORE = 0f;
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
+    private final String normalizer;
+    private List<String> fields;
+    private String query;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -61,34 +66,43 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         false,
         args -> {
             List<LinearRetrieverComponent> retrieverComponents = (List<LinearRetrieverComponent>) args[0];
-            int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
-            List<RetrieverSource> innerRetrievers = new ArrayList<>();
+            List<String> fields = (List<String>) args[1];
+            String query = (String) args[2];
+            String normalizer = (String) args[3];
+            int rankWindowSize = args[4] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+
+            int index = 0;
             float[] weights = new float[retrieverComponents.size()];
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
-            int index = 0;
+            List<RetrieverSource> innerRetrievers = new ArrayList<>();
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(new RetrieverSource(component.retriever, null));
                 weights[index] = component.weight;
                 normalizers[index] = component.normalizer;
                 index++;
             }
-            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+            return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
         }
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareString(optionalConstructorArg(), QUERY_FIELD);
+        PARSER.declareString(optionalConstructorArg(), NORMALIZER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
-    private static float[] getDefaultWeight(int size) {
+    private static float[] getDefaultWeight(List<RetrieverSource> innerRetrievers) {
+        int size = innerRetrievers != null ? innerRetrievers.size() : 0;
         float[] weights = new float[size];
         Arrays.fill(weights, DEFAULT_WEIGHT);
         return weights;
     }
 
-    private static ScoreNormalizer[] getDefaultNormalizers(int size) {
+    private static ScoreNormalizer[] getDefaultNormalizers(List<RetrieverSource> innerRetrievers) {
+        int size = innerRetrievers != null ? innerRetrievers.size() : 0;
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
         Arrays.fill(normalizers, IdentityScoreNormalizer.INSTANCE);
         return normalizers;
@@ -105,7 +119,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()));
+        this(innerRetrievers, null, null, null, rankWindowSize, getDefaultWeight(innerRetrievers), getDefaultNormalizers(innerRetrievers));
     }
 
     public LinearRetrieverBuilder(
@@ -114,20 +128,45 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         float[] weights,
         ScoreNormalizer[] normalizers
     ) {
-        super(innerRetrievers, rankWindowSize);
-        if (weights.length != innerRetrievers.size()) {
+        this(innerRetrievers, null, null, null, rankWindowSize, weights, normalizers);
+    }
+
+    public LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        List<String> fields,
+        String query,
+        String normalizer,
+        int rankWindowSize,
+        float[] weights,
+        ScoreNormalizer[] normalizers
+    ) {
+        // Use a mutable list for innerRetrievers so that we can add more child retrievers during rewrite
+        super(innerRetrievers == null ? new ArrayList<>() : new ArrayList<>(innerRetrievers), rankWindowSize);
+        if (weights.length != this.innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of weights must match the number of inner retrievers");
         }
-        if (normalizers.length != innerRetrievers.size()) {
+        if (normalizers.length != this.innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
+
+        this.fields = fields == null ? List.of() : List.copyOf(fields);
+        this.query = query;
+        this.normalizer = normalizer;
         this.weights = weights;
         this.normalizers = normalizers;
     }
 
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
+        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(
+            newChildRetrievers,
+            fields,
+            query,
+            normalizer,
+            rankWindowSize,
+            weights,
+            normalizers
+        );
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -203,6 +242,21 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             }
             builder.endArray();
         }
+
+        if (fields.isEmpty() == false) {
+            builder.startArray(FIELDS_FIELD.getPreferredName());
+            for (String field : fields) {
+                builder.value(field);
+            }
+            builder.endArray();
+        }
+        if (query != null) {
+            builder.field(QUERY_FIELD.getPreferredName(), query);
+        }
+        if (normalizer != null) {
+            builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer);
+        }
+
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
 }

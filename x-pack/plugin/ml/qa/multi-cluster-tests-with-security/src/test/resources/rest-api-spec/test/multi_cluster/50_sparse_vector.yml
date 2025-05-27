@@ -226,8 +226,6 @@ teardown:
                   pruning_config:
                     tokens_freq_ratio_threshold: 1.0
                     tokens_weight_threshold: 0.4
-              embeddings:
-                type: sparse_vector
 
   - match: { acknowledged: true }
 
@@ -241,7 +239,6 @@ teardown:
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 1.0 }
   - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
-  - not_exists: sparse_vector_pruning_test.mappings.properties.embeddings.index_options
 
 ---
 "Check sparse_vector token pruning index_options mappings defaults":
@@ -264,8 +261,6 @@ teardown:
               text:
                 type: text
               ml.tokens:
-                type: sparse_vector
-              embeddings:
                 type: sparse_vector
 
   - match: { acknowledged: true }

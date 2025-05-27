@@ -46,6 +46,7 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("cluster.routing.allocation.disk.watermark.low", "1b");
         settings.put("cluster.routing.allocation.disk.watermark.high", "1b");
         settings.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
+        settings.put("indices.merge.disk.watermark.high", "1b");
 
         // increase script compilation limit since tests can rapid-fire script compilations
         if (nodeSpec.getVersion().onOrAfter("7.9.0")) {

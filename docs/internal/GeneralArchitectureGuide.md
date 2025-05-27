@@ -46,8 +46,8 @@ were left unconsumed.
 
 The [RestController] allows the configuration of an interceptor that determines which [RestRequest]s are allowed to be processed. A single
 [RestServerActionPlugin] can provide a [RestInterceptor] implementation, through which all requests are passed. The
-[Security][Security#getRestHandlerInterceptor] plugin uses this capability to authorize access to endpoints that require operator privileges
-and do secondary authentication.
+[Security][Security#getRestHandlerInterceptor] plugin uses this capability to register an interceptor to authorize access to endpoints
+that require [operator privileges], populate the [audit logs] and perform some additional authentication when required.
 
 ### HTTP server infrastructure
 
@@ -61,12 +61,14 @@ additional configuration to implement features such as IP filtering or TLS.
 [ActionModule#initRestHandlers]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionModule.java#L814
 [ActionModule]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionModule.java
 [ActionPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java
+[audit logs]:https://www.elastic.co/docs/deploy-manage/security/logging-configuration/enabling-audit-logs
 [BaseRestHandler#handleRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L79
 [BaseRestHandler#prepareRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L247
 [BaseRestHandler]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java
 [HttpServerTransport.Dispatcher]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/http/HttpServerTransport.java#L36
 [HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/http/HttpServerTransport.java
 [Netty4HttpServerTransport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java
+[operator privileges]:https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/operator-privileges
 [RestBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
 [RestChannelConsumer]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L204
 [RestChannel]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestChannel.java

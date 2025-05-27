@@ -1994,7 +1994,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
             | KEEP a, b, c, d, x
-            """, Set.of("a", "a.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
@@ -2002,7 +2002,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
 
         assertFieldNames("""
             FROM test
-            | KEEP a, b, c, d, x
+            | KEEP a, b, c, d, x, y
             | WHERE a > 2000
             | EVAL b = a + 100
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
@@ -2041,41 +2041,17 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
-        assertFieldNames(
-            """
-                FROM test
-                | KEEP a, b, abc, def, z, xyz
-                | ENRICH enrich_policy ON abc
-                | EVAL b = a + 100
-                | LOOKUP JOIN my_lookup_index ON def
-                | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
-                       (STATS x = count(*), y=min(z))
-                | LOOKUP JOIN my_lookup_index ON xyz
-                | WHERE x > y OR _fork == "fork1"
-                """,
-            Set.of(
-                "x",
-                "y",
-                "_fork",
-                "a",
-                "c",
-                "abc",
-                "b",
-                "def",
-                "z",
-                "xyz",
-                "def.*",
-                "_fork.*",
-                "y.*",
-                "x.*",
-                "xyz.*",
-                "z.*",
-                "abc.*",
-                "a.*",
-                "c.*",
-                "b.*"
-            )
-        );
+        assertFieldNames("""
+            FROM test
+            | KEEP a, b, abc, def, z, xyz
+            | ENRICH enrich_policy ON abc
+            | EVAL b = a + 100
+            | LOOKUP JOIN my_lookup_index ON def
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (STATS x = count(*), y=min(z))
+            | LOOKUP JOIN my_lookup_index ON xyz
+            | WHERE x > y OR _fork == "fork1"
+            """, Set.of("a", "c", "abc", "b", "def", "z", "xyz", "def.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*"));
     }
 
     public void testForkWithStatsInAllBranches() {
@@ -2089,7 +2065,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "z", "z.*"));
+            """, Set.of("a", "a.*", "c", "c.*", "z", "z.*"));
     }
 
     public void testForkWithStatsAndWhere() {

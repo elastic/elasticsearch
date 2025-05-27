@@ -596,31 +596,8 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        Holder<Boolean> projectAfterFork = new Holder<>(false);
-        Holder<Boolean> hasFork = new Holder<>(false);
-
-        parsed.forEachDown(plan -> {
-            if (projectAll.get()) {
-                return;
-            }
-
-            if (hasFork.get() == false && shouldCollectReferencedFields(plan, inlinestatsAggs)) {
-                projectAfterFork.set(true);
-            }
-
-            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
-                hasFork.set(true);
-                fork.children().forEach(child -> {
-                    if (child.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
-                        projectAll.set(true);
-                    }
-                });
-            }
-        });
-
-        if (projectAll.get()) {
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
+        boolean hasFork = parsed.anyMatch(p -> p instanceof Fork);
+        Holder<Boolean> seenFork = new Holder<>(false);
 
         var referencesBuilder = AttributeSet.builder();
         // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
@@ -637,7 +614,36 @@ public class EsqlSession {
 
         boolean[] canRemoveAliases = new boolean[] { true };
 
+        PreAnalysisResult initialResult = result;
+        projectAll.set(false);
         parsed.forEachDown(p -> {// go over each plan top-down
+            if (hasFork && seenFork.get() == false && p instanceof Fork == false) {
+                return;
+            }
+
+            if (projectAll.get()) {
+                return;
+            }
+
+            if (p instanceof Fork fork) {
+                seenFork.set(true);
+
+                Set<String> names = new HashSet<>();
+                for (var subPlan : fork.children()) {
+                    PreAnalysisResult subPlanResult = fieldNames(subPlan, enrichPolicyMatchFields, initialResult);
+
+                    if (subPlanResult.fieldNames.equals(IndexResolver.ALL_FIELDS)) {
+                        projectAll.set(true);
+                        return;
+                    }
+                    names.addAll(subPlanResult.fieldNames);
+                }
+
+                for (var attrName : names) {
+                    referencesBuilder.add(new UnresolvedAttribute(fork.source(), attrName));
+                }
+            }
+
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.addAll(re.input().references());
@@ -710,6 +716,10 @@ public class EsqlSession {
                 });
             }
         });
+
+        if (projectAll.get()) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
 
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.addAll(keepJoinRefsBuilder);

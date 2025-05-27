@@ -30,24 +30,27 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -66,6 +69,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -102,7 +106,12 @@ import static org.elasticsearch.common.io.Streams.limitStream;
  *
  * */
 public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable, AbstractBatchedCompoundCommit {
+
     private static final Logger logger = LogManager.getLogger(VirtualBatchedCompoundCommit.class);
+
+    private static final Logger LOG_TIME_SPENT_READING_DURING_UPLOAD = LogManager.getLogger(
+        VirtualBatchedCompoundCommit.class.getCanonicalName() + ".time_spent_reading_during_upload"
+    );
 
     private final ShardId shardId;
     private final String nodeEphemeralId;
@@ -512,7 +521,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     InputStream getInputStreamForUpload() {
         mustIncRef();
         List<Long> offsets = internalDataReadersByOffset.navigableKeySet().stream().collect(Collectors.toUnmodifiableList());
-        return new SlicedInputStream(offsets.size()) {
+        return wrapForLogging(new SlicedInputStream(offsets.size()) {
             @Override
             protected InputStream openSlice(int slice) throws IOException {
                 final var offset = offsets.get(slice);
@@ -530,7 +539,54 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     }
                 }
             }
-        };
+        });
+    }
+
+    public InputStream getFrozenInputStreamForUpload(final long offset, final long length) {
+        assert isFrozen() : "Cannot stream before freeze";
+        assert assertInternalConsistency();
+        assert hasReferences();
+
+        mustIncRef();
+        final var slices = internalDataReadersByOffset.subMap(
+            internalDataReadersByOffset.floorKey(offset),
+            true,
+            // could have been offset + length - 1, but we avoid an `if` that we'd
+            // otherwise need to avoid a NPE for the case of getBytesByRange(0, 0).
+            internalDataReadersByOffset.floorKey(offset + length),
+            true
+        ).entrySet().stream().toList();
+
+        if (slices.isEmpty()) {
+            return new ByteArrayInputStream(BytesRef.EMPTY_BYTES);
+        }
+        return limitStream(wrapForLogging(new SlicedInputStream(slices.size()) {
+
+            final AtomicBoolean closed = new AtomicBoolean();
+
+            @Override
+            protected InputStream openSlice(int n) throws IOException {
+                var slice = slices.get(n);
+                long skipBytes = Math.max(0L, offset - slice.getKey());
+                assert skipBytes == 0 || n == 0 : "can be non-zero only for the first entry, but got: " + skipBytes + " for slice " + n;
+                var stream = (skipBytes == 0L)
+                    ? slice.getValue().getInputStream() // try to checksum the file when possible
+                    : slice.getValue().getInputStream(skipBytes, Long.MAX_VALUE);
+                assert stream.markSupported();
+                return stream;
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (closed.compareAndSet(false, true)) {
+                    try {
+                        super.close();
+                    } finally {
+                        decRef();
+                    }
+                }
+            }
+        }), length);
     }
 
     public String getBlobName() {
@@ -812,7 +868,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     /**
      * Interface for reading internal data from a batched compound commit
      */
-    @FunctionalInterface
     interface InternalDataReader {
         /**
          * Get the {@link InputStream} for reading the internal data.
@@ -826,9 +881,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          * @return An input stream that will read the entire contents of the file.
          * @throws IOException
          */
-        default InputStream getInputStream() throws IOException {
-            return getInputStream(0L, Long.MAX_VALUE);
-        }
+        InputStream getInputStream() throws IOException;
     }
 
     /**
@@ -837,9 +890,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private record InternalHeaderReader(byte[] header) implements InternalDataReader {
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
-            final var stream = new ByteArrayStreamInput(header);
+            var stream = new ByteArrayInputStream(header);
             stream.skipNBytes(offset);
             return limitStream(stream, length);
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(header);
         }
     }
 
@@ -926,10 +984,78 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
 
         @Override
-        public InputStream getInputStream(long offset, long length) throws IOException {
+        public InputStream getInputStream(long offset, long length) {
             assert offset < padding : "offset [" + offset + "] more than padding length [" + padding + "]";
             int paddingBytesToRead = BlobCacheUtils.toIntBytes(Math.min(length, padding - offset));
-            return limitStream(new ByteArrayStreamInput(PADDING_BYTES), paddingBytesToRead);
+            return limitStream(new ByteArrayInputStream(PADDING_BYTES), paddingBytesToRead);
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return getInputStream(0L, padding);
+        }
+    }
+
+    private InputStream wrapForLogging(InputStream stream) {
+        if (LOG_TIME_SPENT_READING_DURING_UPLOAD.isDebugEnabled()) {
+            return new LogTimeSpentReadingInputStream(stream, shardId, primaryTermAndGeneration);
+        } else {
+            return stream;
+        }
+    }
+
+    /**
+     * {@link FilterInputStream} that tracks the time spent reading from the delegating input stream.
+     */
+    private static class LogTimeSpentReadingInputStream extends FilterInputStream {
+
+        private final ShardId shardId;
+        private final PrimaryTermAndGeneration primaryTermAndGeneration;
+        private long elapsedNanos;
+        private long bytes;
+
+        LogTimeSpentReadingInputStream(InputStream in, ShardId shardId, PrimaryTermAndGeneration primaryTermAndGeneration) {
+            super(in);
+            this.shardId = shardId;
+            this.primaryTermAndGeneration = primaryTermAndGeneration;
+        }
+
+        @Override
+        public int read() throws IOException {
+            long startTime = System.nanoTime();
+            int result = super.read();
+            elapsedNanos += (System.nanoTime() - startTime);
+            if (result != -1) {
+                bytes += 1L;
+            }
+            return result;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            long startTime = System.nanoTime();
+            var result = super.read(b, off, len);
+            elapsedNanos += (System.nanoTime() - startTime);
+            if (result != -1) {
+                bytes += result;
+            }
+            return result;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                LOG_TIME_SPENT_READING_DURING_UPLOAD.debug(
+                    "{} spent [{}] ms reading [{}] bytes from VBCC {} during upload {}",
+                    shardId,
+                    TimeValue.nsecToMSec(elapsedNanos),
+                    bytes,
+                    primaryTermAndGeneration,
+                    System.identityHashCode(in)
+                );
+            }
         }
     }
 }

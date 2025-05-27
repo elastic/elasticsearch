@@ -108,7 +108,7 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSource source = sourceExchanger.createExchangeSource();
         AtomicInteger pagesAddedToSource = new AtomicInteger();
         PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
-        sourceExchanger.addRemoteSink(
+        sourceExchanger.addAndStartRemoteSink(
             sinkExchanger::fetchPageAsync,
             randomBoolean(),
             pagesAddedToSource::incrementAndGet,
@@ -366,7 +366,7 @@ public class ExchangeServiceTests extends ESTestCase {
                     sinkHandler = randomFrom(sinkHandlers);
                 } else {
                     sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
-                    sourceExchanger.addRemoteSink(
+                    sourceExchanger.addAndStartRemoteSink(
                         sinkHandler::fetchPageAsync,
                         randomBoolean(),
                         () -> {},
@@ -412,7 +412,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 totalSinks.incrementAndGet();
                 AtomicBoolean sinkFailed = new AtomicBoolean();
                 ActionListener<Void> oneSinkListener = refs.acquire();
-                exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+                exchangeSourceHandler.addAndStartRemoteSink((allSourcesFinished, listener) -> {
                     if (fetched.incrementAndGet() > failAfter) {
                         sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
                             failedRequests.incrementAndGet();
@@ -492,7 +492,7 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
         AtomicBoolean sinkClosed = new AtomicBoolean();
         PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
-        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+        sourceHandler.addAndStartRemoteSink((allSourcesFinished, listener) -> {
             if (allSourcesFinished) {
                 sinkClosed.set(true);
                 permits.release(10);
@@ -559,7 +559,7 @@ public class ExchangeServiceTests extends ESTestCase {
             var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
-            sourceHandler.addRemoteSink(
+            sourceHandler.addAndStartRemoteSink(
                 exchange0.newRemoteSink(task, exchangeId, node0, connection),
                 randomBoolean(),
                 () -> {},
@@ -630,7 +630,7 @@ public class ExchangeServiceTests extends ESTestCase {
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
-            sourceHandler.addRemoteSink(
+            sourceHandler.addAndStartRemoteSink(
                 exchange0.newRemoteSink(task, exchangeId, node0, connection),
                 true,
                 () -> {},
@@ -668,7 +668,7 @@ public class ExchangeServiceTests extends ESTestCase {
                     TimeValue.timeValueMillis(1),
                     threadPool.generic()
                 );
-                exchangeSourceHandler.addRemoteSink(remoteSink, randomBoolean(), () -> {}, between(1, 3), refs.acquire());
+                exchangeSourceHandler.addAndStartRemoteSink(remoteSink, randomBoolean(), () -> {}, between(1, 3), refs.acquire());
             }
         }
         Exception err = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));

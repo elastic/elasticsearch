@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -53,7 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
  * To connect exchange sources to exchange sinks,
- * use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
+ * use {@link ExchangeSourceHandler#addAndStartRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
 
@@ -143,6 +144,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns an exchange sink handler for the given id or creates a new one if it doesn't exist.
+     */
+    public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
+        return sinks.computeIfAbsent(
+            exchangeId,
+            key -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
+        );
+    }
+
+    /**
      * Removes the exchange sink handler associated with the given exchange id.
      * W will abort the sink handler if the given failure is not null.
      */
@@ -167,13 +178,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
-        transportService.sendRequest(
-            connection,
-            OPEN_EXCHANGE_ACTION_NAME,
-            new OpenExchangeRequest(sessionId, exchangeBuffer),
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
-        );
+        if (connection.getTransportVersion().onOrAfter(TransportVersions.REMOVE_OPEN_EXCHANGE)) {
+            listener.onResponse(null);
+        } else {
+            transportService.sendRequest(
+                connection,
+                OPEN_EXCHANGE_ACTION_NAME,
+                new OpenExchangeRequest(sessionId, exchangeBuffer),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
+            );
+        }
     }
 
     /**

@@ -216,7 +216,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             threadPool.relativeTimeInMillisSupplier()
         );
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
-        sourceExchanger.addRemoteSink(
+        sourceExchanger.addAndStartRemoteSink(
             sinkExchanger::fetchPageAsync,
             randomBoolean(),
             () -> {},

@@ -305,7 +305,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, isA(RepositoryException.class));
-                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist for project [default]"));
             }
         });
     }

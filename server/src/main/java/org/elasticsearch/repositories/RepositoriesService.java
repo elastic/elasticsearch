@@ -916,7 +916,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
+        throw new RepositoryException(
+            repositoryMetadata.name(),
+            "repository type [" + repositoryMetadata.type() + "] does not exist for project [" + projectId + "]"
+        );
     }
 
     private static Repository createUnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {

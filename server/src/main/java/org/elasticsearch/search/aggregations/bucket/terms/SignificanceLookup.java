@@ -220,9 +220,9 @@ class SignificanceLookup {
     }
 
     private QueryBuilder makeBackgroundFrequencyQuery(String value) {
-        var nestedParentField = context.nestedLookup().getNestedParent(fieldType.name());
         QueryBuilder queryBuilder = new TermQueryBuilder(fieldType.name(), value);
 
+        var nestedParentField = context.nestedLookup().getNestedParent(fieldType.name());
         if (nestedParentField != null) {
             queryBuilder = new NestedQueryBuilder(nestedParentField, queryBuilder, ScoreMode.Avg);
         }

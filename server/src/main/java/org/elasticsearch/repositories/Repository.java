@@ -59,19 +59,22 @@ public interface Repository extends LifecycleComponent {
         /**
          * Constructs a repository.
          *
-         * @param projectId
+         * @param projectId the project-id for the repository. {@code null} if the repository is at the cluster level.
          * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception;
+        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception;
 
         /**
          * Constructs a repository.
-         * @param projectId   the project-id for the repository
+         * @param projectId   the project-id for the repository. {@code null} if the repository is at the cluster level.
          * @param metadata    metadata for the repository including name and settings
          * @param typeLookup  a function that returns the repository factory for the given repository type.
          */
-        default Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
-            throws Exception {
+        default Repository create(
+            @Nullable ProjectId projectId,
+            RepositoryMetadata metadata,
+            Function<String, Repository.Factory> typeLookup
+        ) throws Exception {
             return create(projectId, metadata);
         }
     }

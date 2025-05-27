@@ -1,0 +1,5 @@
+pr: 128473
+summary: Conditionally force sequential reading in `LuceneSyntheticSourceChangesSnapshot`
+area: Logs
+type: enhancement
+issues: []

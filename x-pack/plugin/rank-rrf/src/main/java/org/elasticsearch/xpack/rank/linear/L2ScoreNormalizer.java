@@ -1,3 +1,11 @@
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
@@ -25,12 +33,12 @@ public class L2ScoreNormalizer extends ScoreNormalizer {
         double sumOfSquares = 0.0;
         boolean atLeastOneValidScore = false;
         for (ScoreDoc rd : docs) {
-            if (!Float.isNaN(rd.score)) {
+            if (Float.isNaN(rd.score) == false) {
                 atLeastOneValidScore = true;
                 sumOfSquares += rd.score * rd.score;
             }
         }
-        if (!atLeastOneValidScore) {
+        if (atLeastOneValidScore == false) {
             // No valid scores to normalize
             return docs;
         }

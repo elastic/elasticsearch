@@ -42,6 +42,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -116,6 +118,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
+    private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -162,7 +165,8 @@ public class CsvTestsDataLoader {
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
-        Map.entry(MV_TEXT.indexName, MV_TEXT)
+        Map.entry(MV_TEXT.indexName, MV_TEXT),
+        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -195,6 +199,7 @@ public class CsvTestsDataLoader {
         CITY_BOUNDARIES_ENRICH,
         CITY_AIRPORTS_ENRICH
     );
+    public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     /**
      * <p>
@@ -557,7 +562,8 @@ public class CsvTestsDataLoader {
 
     private static String quoteIfNecessary(String value) {
         boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        return isQuoted ? value : "\"" + value + "\"";
+        boolean isNumeric = value.matches(NUMERIC_REGEX);
+        return isQuoted || isNumeric ? value : "\"" + value + "\"";
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

@@ -877,7 +877,12 @@ public class EsqlCapabilities {
         /**
          * The {@code ROUND_TO} function.
          */
-        ROUND_TO;
+        ROUND_TO,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

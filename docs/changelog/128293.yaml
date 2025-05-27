@@ -1,0 +1,5 @@
+pr: 128293
+summary: Use `IndexOrDocValuesQuery` in `NumberFieldType#termQuery` implementations
+area: Search
+type: enhancement
+issues: []

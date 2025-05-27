@@ -140,9 +140,19 @@ action invocations. Implementations of [TransportInterceptor] interface are able
 [TransportRequestHandler]s, or by intercepting requests before they are sent. Plugins that implement the [NetworkPlugin] interface are able
 to register interceptors by implementing the [getTransportInterceptors][NetworkPlugin#getTransportInterceptors] method.
 
+### Transport infrastructure
+
+The transport infrastructure is pluggable and implementations can be provided by [NetworkPlugin#getTransports]. The role of the [Transport]
+is to establish connections between nodes over which [TransportRequest]s can be sent, maintain a registry of [TransportRequestHandler]s for
+routing inbound requests and maintain state to correlate inbound responses with the original requests. There is a single Netty-based TCP
+transport used in production Elasticsearch, the [Netty4Transport], but the security plugin extends that to add SSL and IP filtering
+capabilities.
+
 [ActionRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionRequest.java
+[Netty4Transport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/modules/transport-netty4/src/main/java/org/elasticsearch/transport/netty4/Netty4Transport.java
 [NetworkPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java
 [NetworkPlugin#getTransportInterceptors]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java#L47
+[NetworkPlugin#getTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/NetworkPlugin.java#L58
 [NodeClient]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java
 [NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L101
 [TransportMasterNodeAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java
@@ -153,6 +163,8 @@ to register interceptors by implementing the [getTransportInterceptors][NetworkP
 [ActionPlugin#getActions]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L55
 [ActionType]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionType.java
 [ActionModule#setupActions]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionModule.java#L600
+[Transport]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/Transport.java
+[TransportRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportRequest.java
 [TransportRequestHandler]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportRequestHandler.java
 [TransportService#sendRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportService.java#L769
 [TransportService#registerRequestHandler]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/transport/TransportService.java#L1208

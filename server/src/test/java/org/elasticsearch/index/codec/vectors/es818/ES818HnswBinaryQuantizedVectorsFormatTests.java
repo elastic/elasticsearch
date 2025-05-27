@@ -59,7 +59,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818HnswBinaryQuantizedVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818HnswBinaryQuantizedVectorsFormat());
 
     @Override
     protected Codec getCodec() {

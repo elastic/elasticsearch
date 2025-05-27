@@ -62,7 +62,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816BinaryQuantizedRWVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816BinaryQuantizedRWVectorsFormat());
 
     @Override
     protected Codec getCodec() {

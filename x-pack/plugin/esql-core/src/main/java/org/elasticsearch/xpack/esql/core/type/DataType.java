@@ -309,7 +309,12 @@ public enum DataType {
      */
     SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize()),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES));
+    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+
+    /**
+     * Fields with this type are dense vectors, represented as an array of double values.
+     */
+    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned
@@ -319,7 +324,8 @@ public enum DataType {
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG)
+        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
     );
 
     private final String typeName;

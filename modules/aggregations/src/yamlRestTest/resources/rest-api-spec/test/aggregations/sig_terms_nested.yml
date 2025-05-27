@@ -216,6 +216,92 @@ setup:
   - close_to: { aggregations.significant_terms_keyword.buckets.0.score: {value: 0.3, error: 0.000001 }}
 
 ---
+"Normal fields with neutral background filter":
+  - do:
+      search:
+        size: 0
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "significant_terms": {
+              "significant_terms": {
+                "field": "value",
+                "background_filter": {
+                  "terms": { "type": ["normal", "outlier"] }
+                }
+              }
+            },
+            "significant_terms_keyword": {
+              "significant_terms": {
+                "field": "value_keyword",
+                "background_filter": {
+                  "terms": { "type": ["normal", "outlier"] }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.significant_terms.doc_count: 8}
+  - match: {aggregations.significant_terms.bg_count: 16}
+  - length: {aggregations.significant_terms.buckets: 1}
+  - match: {aggregations.significant_terms.buckets.0.key: 2}
+  - match: {aggregations.significant_terms.buckets.0.doc_count: 4}
+  - match: {aggregations.significant_terms.buckets.0.bg_count: 5}
+  - close_to: { aggregations.significant_terms.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+  - match: {aggregations.significant_terms_keyword.doc_count: 8}
+  - match: {aggregations.significant_terms_keyword.bg_count: 16}
+  - length: {aggregations.significant_terms_keyword.buckets: 1}
+  - match: {aggregations.significant_terms_keyword.buckets.0.key: "2"}
+  - match: {aggregations.significant_terms_keyword.buckets.0.doc_count: 4}
+  - match: {aggregations.significant_terms_keyword.buckets.0.bg_count: 5}
+  - close_to: { aggregations.significant_terms_keyword.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+---
+"Normal fields with background filter":
+  - do:
+      search:
+        size: 0
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "significant_terms": {
+              "significant_terms": {
+                "field": "value",
+                "background_filter": {
+                  "terms": { "type": ["outlier"] }
+                }
+              }
+            },
+            "significant_terms_keyword": {
+              "significant_terms": {
+                "field": "value_keyword",
+                "background_filter": {
+                  "terms": { "type": ["outlier"] }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.significant_terms.doc_count: 8}
+  - match: {aggregations.significant_terms.bg_count: 8}
+  - length: {aggregations.significant_terms.buckets: 0}
+
+  - match: {aggregations.significant_terms_keyword.doc_count: 8}
+  - match: {aggregations.significant_terms_keyword.bg_count: 8}
+  - length: {aggregations.significant_terms_keyword.buckets: 0}
+
+---
 "Nested fields":
   - do:
       search:
@@ -262,6 +348,106 @@ setup:
   - match: {aggregations.nested.significant_terms_keyword.buckets.0.doc_count: 4}
   - match: {aggregations.nested.significant_terms_keyword.buckets.0.bg_count: 5}
   - close_to: { aggregations.nested.significant_terms_keyword.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+---
+"Nested fields with neutral background filter":
+  - do:
+      search:
+        size: 0
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "nested": {
+              "nested": {
+                "path": "nested"
+              },
+              "aggs": {
+                "significant_terms": {
+                  "significant_terms": {
+                    "field": "nested.value",
+                    "background_filter": {
+                      "terms": { "type": ["normal", "outlier"] }
+                    }
+                  }
+                },
+                "significant_terms_keyword": {
+                  "significant_terms": {
+                    "field": "nested.value_keyword",
+                    "background_filter": {
+                      "terms": { "type": ["normal", "outlier"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.nested.significant_terms.doc_count: 8}
+  - match: {aggregations.nested.significant_terms.bg_count: 16}
+  - length: {aggregations.nested.significant_terms.buckets: 1}
+  - match: {aggregations.nested.significant_terms.buckets.0.key: 2}
+  - match: {aggregations.nested.significant_terms.buckets.0.doc_count: 4}
+  - match: {aggregations.nested.significant_terms.buckets.0.bg_count: 5}
+  - close_to: { aggregations.nested.significant_terms.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+  - match: {aggregations.nested.significant_terms_keyword.doc_count: 8}
+  - match: {aggregations.nested.significant_terms_keyword.bg_count: 16}
+  - length: {aggregations.nested.significant_terms_keyword.buckets: 1}
+  - match: {aggregations.nested.significant_terms_keyword.buckets.0.key: "2"}
+  - match: {aggregations.nested.significant_terms_keyword.buckets.0.doc_count: 4}
+  - match: {aggregations.nested.significant_terms_keyword.buckets.0.bg_count: 5}
+  - close_to: { aggregations.nested.significant_terms_keyword.buckets.0.score: {value: 0.3, error: 0.000001 }}
+
+---
+"Nested fields with background filter":
+  - do:
+      search:
+        size: 0
+        rest_total_hits_as_int: true
+        index: test
+        body: {
+          "query": {
+            "terms": { "type": [ "outlier" ] }
+          },
+          "aggs": {
+            "nested": {
+              "nested": {
+                "path": "nested"
+              },
+              "aggs": {
+                "significant_terms": {
+                  "significant_terms": {
+                    "field": "nested.value",
+                    "background_filter": {
+                      "terms": { "type": ["outlier"] }
+                    }
+                  }
+                },
+                "significant_terms_keyword": {
+                  "significant_terms": {
+                    "field": "nested.value_keyword",
+                    "background_filter": {
+                      "terms": { "type": ["outlier"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+  - match: {aggregations.nested.significant_terms.doc_count: 8}
+  - match: {aggregations.nested.significant_terms.bg_count: 8}
+  - length: {aggregations.nested.significant_terms.buckets: 0}
+
+  - match: {aggregations.nested.significant_terms_keyword.doc_count: 8}
+  - match: {aggregations.nested.significant_terms_keyword.bg_count: 8}
+  - length: {aggregations.nested.significant_terms_keyword.buckets: 0}
 
 ---
 "Doubly nested fields":

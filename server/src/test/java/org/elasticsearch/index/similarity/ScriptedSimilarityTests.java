@@ -152,6 +152,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         dir.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/128502")
     public void testInitScript() throws IOException {
         final AtomicBoolean initCalled = new AtomicBoolean();
         SimilarityWeightScript.Factory weightScriptFactory = () -> {

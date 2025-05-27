@@ -97,6 +97,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         TestThreadPool testThreadPool = new TestThreadPool("test", settings);
         nodeEnvironment = newNodeEnvironment(settings);
@@ -213,6 +215,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -298,6 +302,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -396,7 +402,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         Settings settings = Settings.builder()
-            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0")
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         if (nodeEnvironment != null) {
             nodeEnvironment.close();
@@ -465,6 +472,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -550,6 +559,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -608,6 +619,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // few merge threads, in order to increase contention
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -675,7 +688,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         Settings settings = Settings.builder()
-            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0")
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         nodeEnvironment = newNodeEnvironment(settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(

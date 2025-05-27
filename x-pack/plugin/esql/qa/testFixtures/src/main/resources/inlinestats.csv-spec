@@ -218,8 +218,9 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10007          |393084805              |2.863684210555556E8          |4                |5                    |F
 ;
 
-three
+three-Ignore
 required_capability: inlinestats_v8
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -1044,6 +1045,7 @@ emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:
 // line 1:101: Plan [FieldExtractExec[description{f}#274, host{f}#272, ip0{f}#273, _index..]<[],[]>] optimized incorrectly due to duplicate output attribute ip1{r}#267
 // line 1:101: Plan [TopNExec[[Order[ip1{r}#267,ASC,LAST]],1[INTEGER],null]] optimized incorrectly due to duplicate output attribute ip1{r}#267
 // line 1:44: Plan [HashJoinExec[[host_group{f}#271, card{f}#276],[host_group{f}#271, card{f}#276],[host_group{r}#271, card{r}#276],[ip1{r}#267]]] optimized incorrectly due to duplicate output attribute ip1{r}#267
+// https://github.com/elastic/elasticsearch/issues/128311
 inlineStatsOverrideEVALed_FieldWithSameName-Ignore
 
 FROM hosts METADATA _index

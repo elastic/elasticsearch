@@ -114,8 +114,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             @Example(file = "qstr-function", tag = "qstr-with-options") },
         appliesTo = {
             @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
+                lifeCycle = FunctionAppliesToLifecycle.GA,
+                version = "9.1"
+            ),
+            @FunctionAppliesTo(
+                lifeCycle = FunctionAppliesToLifecycle.PREVIEW,
+                version = "9.0"
             ) }
     )
     public QueryString(

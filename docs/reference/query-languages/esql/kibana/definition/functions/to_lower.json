@@ -10,7 +10,7 @@
           "name" : "str",
           "type" : "keyword",
           "optional" : false,
-          "description" : "String expression. If `null`, the function returns `null`. The input can be a single- or multi-valued column or an expression."
+          "description" : "String expression. If `null`, the function returns `null`. The input can be: - a single-valued column or expression - a multi-valued column or expression {applies_to}`ga 9.1`"
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "str",
           "type" : "text",
           "optional" : false,
-          "description" : "String expression. If `null`, the function returns `null`. The input can be a single- or multi-valued column or an expression."
+          "description" : "String expression. If `null`, the function returns `null`. The input can be: - a single-valued column or expression - a multi-valued column or expression {applies_to}`ga 9.1`"
         }
       ],
       "variadic" : false,

@@ -403,7 +403,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
             assertThat(remote2Cluster.getFailedShards(), equalTo(0));
             assertThat(remote2Cluster.getFailures(), hasSize(1));
-            assertThat(remote2Cluster.getFailures().getFirst().reason(), containsString("Unknown index [remote2:mylogs1,mylogs2*]"));
+            assertThat(remote2Cluster.getFailures().get(0).reason(), containsString("Unknown index [remote2:mylogs1,mylogs2*]"));
         }
 
         // test where remote2 is already marked as SKIPPED so no modifications or exceptions should be thrown

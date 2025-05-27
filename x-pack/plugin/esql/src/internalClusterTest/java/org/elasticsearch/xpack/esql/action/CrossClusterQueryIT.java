@@ -874,7 +874,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(remoteCluster.getSkippedShards(), equalTo(0));
             assertThat(remoteCluster.getFailedShards(), equalTo(0));
             assertThat(remoteCluster.getFailures(), hasSize(1));
-            assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
+            assertThat(remoteCluster.getFailures().get(0).reason(), containsString("Accessing failing field"));
         }
     }
 

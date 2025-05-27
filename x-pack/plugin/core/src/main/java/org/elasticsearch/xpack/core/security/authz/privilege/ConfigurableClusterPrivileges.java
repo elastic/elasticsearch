@@ -563,7 +563,7 @@ public final class ConfigurableClusterPrivileges {
                 for (String privilege : indexPrivilege.privileges) {
                     IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
 
-                    // Use resolveBySelectorAccess  to determine whether the passed privilege is valid.
+                    // Use resolveBySelectorAccess to determine whether the passed privilege is valid.
                     // IllegalArgumentException is thrown here when an invalid permission is encountered.
                     IndexPrivilege.resolveBySelectorAccess(Set.of(privilege));
 

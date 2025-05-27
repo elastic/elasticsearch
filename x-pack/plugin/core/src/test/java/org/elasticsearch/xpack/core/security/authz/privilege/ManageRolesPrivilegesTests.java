@@ -262,26 +262,23 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         final XContent xContent = XContentType.JSON.xContent();
 
         final String invalidJsonString = """
-            {
-                "manage": {
-                    "indices": [
-                        {
-                            "names": ["test-*"],
-                            "privileges": ["foobar"]
-                        }
-                    ]
+                {
+                    "manage": {
+                        "indices": [
+                            {
+                                "names": ["test-*"],
+                                "privileges": ["foobar"]
+                            }
+                        ]
+                    }
                 }
-            }
-        """;
+            """;
 
         try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, invalidJsonString.getBytes())) {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
 
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> ManageRolesPrivilege.parse(parser)
-            );
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> ManageRolesPrivilege.parse(parser));
 
             assertThat(exception.getMessage(), containsString("unknown index privilege [foobar]"));
         }

@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -571,8 +572,15 @@ public class EsqlSession {
     }
 
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
-        if (false == parsed.anyMatch(EsqlSession::shouldCollectReferencedFields)) {
+        List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
+        Set<Aggregate> inlinestatsAggs = new HashSet<>();
+        for (var i : inlinestats) {
+            inlinestatsAggs.add(((InlineStats) i).aggregate());
+        }
+
+        if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
             // no explicit columns selection, for example "from employees"
+            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
@@ -596,14 +604,14 @@ public class EsqlSession {
                 return;
             }
 
-            if (hasFork.get() == false && shouldCollectReferencedFields(plan)) {
+            if (hasFork.get() == false && shouldCollectReferencedFields(plan, inlinestatsAggs)) {
                 projectAfterFork.set(true);
             }
 
             if (plan instanceof Fork fork && projectAfterFork.get() == false) {
                 hasFork.set(true);
                 fork.children().forEach(child -> {
-                    if (child.anyMatch(EsqlSession::shouldCollectReferencedFields) == false) {
+                    if (child.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                         projectAll.set(true);
                     }
                 });
@@ -729,8 +737,8 @@ public class EsqlSession {
     /**
      * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
      */
-    private static boolean shouldCollectReferencedFields(LogicalPlan plan) {
-        return plan instanceof Aggregate || plan instanceof Project;
+    private static boolean shouldCollectReferencedFields(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false);
     }
 
     /**

@@ -244,6 +244,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS = Setting.boolSetting(
+        "stateless.object_store.concurrent_multipart_uploads",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
@@ -264,6 +270,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+
+    private final boolean concurrentMultipartUploads;
 
     public ObjectStoreService(
         Settings settings,
@@ -293,6 +301,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             projectObjectStoreExceptions = null;
         }
         this.permits = new Semaphore(0);
+        this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
     }
 
     @Override
@@ -1165,6 +1174,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
         private final ActionListener<Void> listener;
+        private final boolean isDebugEnabled;
 
         BatchedCommitFileUploadTask(
             long timeInNanos,
@@ -1180,6 +1190,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             this.virtualBatchedCompoundCommit = Objects.requireNonNull(virtualBatchedCompoundCommit);
             this.blobContainer = Objects.requireNonNull(blobContainer);
             this.listener = Objects.requireNonNull(listener);
+            this.isDebugEnabled = logger.isDebugEnabled();
         }
 
         @Override
@@ -1191,27 +1202,47 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         protected void doRun() {
             boolean success = false;
             try {
-                var before = threadPool.relativeTimeInMillis();
-                try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                    blobContainer.writeBlobAtomic(
-                        OperationPurpose.INDICES,
-                        virtualBatchedCompoundCommit.getBlobName(),
-                        new LocalIOInputStream(vbccInputStream),
-                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                        false
+                long before = isDebugEnabled ? threadPool.rawRelativeTimeInMillis() : 0L;
+                final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
+                if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
+                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                        blobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            new LocalIOInputStream(vbccInputStream),
+                            totalSizeInBytes,
+                            false
+                        );
+                    }
+                } else {
+                    virtualBatchedCompoundCommit.mustIncRef();
+                    try {
+                        blobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            totalSizeInBytes,
+                            (offset, length) -> new LocalIOInputStream(
+                                virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
+                            ),
+                            false
+                        );
+                    } finally {
+                        virtualBatchedCompoundCommit.decRef();
+                    }
+                }
+                if (isDebugEnabled) {
+                    long elapsedMillis = threadPool.rawRelativeTimeInMillis() - before;
+                    logger.debug(
+                        () -> format(
+                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms",
+                            shardId,
+                            blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
+                            totalSizeInBytes,
+                            generation,
+                            elapsedMillis
+                        )
                     );
                 }
-                var after = threadPool.relativeTimeInMillis();
-                logger.debug(
-                    () -> format(
-                        "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms",
-                        shardId,
-                        blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
-                        virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                        generation,
-                        TimeValue.timeValueNanos(after - before).millis()
-                    )
-                );
                 // assign this last, since it is used as a flag to successfully complete the listener below.
                 // this is critically important, since completing the listener successfully for a failed write can lead to
                 // erroneously deleted files.

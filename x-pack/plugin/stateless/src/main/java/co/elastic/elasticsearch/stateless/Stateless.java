@@ -1052,6 +1052,7 @@ public class Stateless extends Plugin
             ObjectStoreService.BASE_PATH_SETTING,
             ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
+            ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,

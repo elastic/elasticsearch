@@ -970,6 +970,13 @@ public class CefProcessorTests extends ESTestCase {
         });
     }
 
+    public void testInvalidMacAddressSeparator() {
+        CefParser parser = new CefParser(ZoneId.of("UTC"), false);
+        String macAddress = "00|0D|60|AF|1B|61";
+        String result = parser.toMACAddress(macAddress);
+        assertEquals("00|0D|60|AF|1B|61", result);
+    }
+
     public void testEUI48ToMacAddressWithOutSeparators() {
         CefParser parser = new CefParser(ZoneId.of("UTC"), false);
         String macAddress = "000D60AF1B61";

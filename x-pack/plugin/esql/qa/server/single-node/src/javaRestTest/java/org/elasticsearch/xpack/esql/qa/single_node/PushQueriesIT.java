@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for pushing queries to lucene.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@TimeoutSuite(millis = 10 * TimeUnits.MINUTE) // semantic_text can take a long, long time to start in CI
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -151,7 +154,10 @@ public class PushQueriesIT extends ESRestTestCase {
                  * single_value_match is here because there are extra documents hiding in the index
                  * that don't have the `foo` field.
                  */
-                List.of("#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]");
+                List.of(
+                    "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                    "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]"
+                );
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
         boolean filterInCompute = switch (type) {

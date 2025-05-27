@@ -25,7 +25,7 @@ public interface SettingsExtension {
     List<Setting<?>> getSettings();
 
     /**
-     * Loads a single BuildExtension, or returns {@code null} if none are found.
+     * Loads a single SettingsExtension, or returns {@code null} if none are found.
      */
     static List<SettingsExtension> load() {
         var loader = ServiceLoader.load(SettingsExtension.class);

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.esql;
+package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
@@ -67,9 +67,9 @@ public class QueryPlanningBenchmark {
     }
 
     private PlanTelemetry telemetry;
-    private EsqlParser parser;
-    private Analyzer analyzer;
-    private LogicalPlanOptimizer optimizer;
+    private EsqlParser defaultParser;
+    private Analyzer manyFieldsAnalyzer;
+    private LogicalPlanOptimizer defaultOptimizer;
 
     @Setup
     public void setup() {
@@ -100,8 +100,8 @@ public class QueryPlanningBenchmark {
         var functionRegistry = new EsqlFunctionRegistry();
 
         telemetry = new PlanTelemetry(functionRegistry);
-        parser = new EsqlParser();
-        analyzer = new Analyzer(
+        defaultParser = new EsqlParser();
+        manyFieldsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 config,
                 functionRegistry,
@@ -112,10 +112,10 @@ public class QueryPlanningBenchmark {
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );
-        optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
+        defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
     }
 
-    private LogicalPlan plan(String query) {
+    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
         var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
@@ -124,6 +124,6 @@ public class QueryPlanningBenchmark {
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan("FROM test | LIMIT 10"));
+        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
     }
 }

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -1865,7 +1866,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
         var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
         var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
-        var timeSeriesSource = as(timeSeriesPartialAgg.child(), TimeSeriesSourceExec.class);
+        var parallel = as(timeSeriesPartialAgg.child(), ParallelExec.class);
+        var timeSeriesSource = as(parallel.child(), TimeSeriesSourceExec.class);
         assertThat(timeSeriesSource.attributesToExtract(), hasSize(1));
         FieldAttribute field = as(timeSeriesSource.attributesToExtract().getFirst(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.total_bytes_in"));

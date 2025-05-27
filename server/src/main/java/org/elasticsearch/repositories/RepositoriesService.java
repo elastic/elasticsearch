@@ -912,6 +912,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * repository is at the cluster level.
      */
     public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
+        assert DiscoveryNode.isStateless(clusterService.getSettings())
+            : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
         return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 

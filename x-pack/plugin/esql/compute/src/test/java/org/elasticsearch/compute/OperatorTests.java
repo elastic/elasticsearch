@@ -254,7 +254,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
-                List.of((new LimitOperator.Factory(limit)).get(driverContext)),
+                List.of((new LimitOperator.Factory(limit, between(1024, 2048))).get(driverContext)),
                 new PageConsumerOperator(page -> {
                     LongBlock block = page.getBlock(0);
                     for (int i = 0; i < page.getPositionCount(); i++) {

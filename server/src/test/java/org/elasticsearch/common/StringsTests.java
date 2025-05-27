@@ -114,8 +114,11 @@ public class StringsTests extends ESTestCase {
     }
 
     public void testTrimLeadingCharacter() {
+        assertThat(trimLeadingCharacter(null, 'g'), equalTo(null));
+        assertThat(trimLeadingCharacter("", 'g'), equalTo(""));
         assertThat(trimLeadingCharacter("abcdef", 'g'), equalTo("abcdef"));
         assertThat(trimLeadingCharacter("aaabcdef", 'a'), equalTo("bcdef"));
+        assertThat(trimLeadingCharacter("aaa", 'a'), equalTo(""));
     }
 
     public void testToStringToXContent() {

@@ -92,16 +92,6 @@ final class CefParser {
         entry("\\\r", "\r")
     );
 
-    enum DataType {
-        IntegerType,
-        LongType,
-        DoubleType,
-        StringType,
-        IPType,
-        MACAddressType,
-        TimestampType
-    }
-
     private static final Map<String, ExtensionMapping> EXTENSION_MAPPINGS = Map.<String, ExtensionMapping>ofEntries(
         entry("agt", new ExtensionMapping("agentAddress", IPType, "agent.ip")),
         entry("agentDnsDomain", new ExtensionMapping("agentDnsDomain", StringType, "agent.name")),
@@ -602,6 +592,16 @@ final class CefParser {
             this.rootMappings = null;
             this.cefMappings = null;
         }
+    }
+
+    enum DataType {
+        IntegerType,
+        LongType,
+        DoubleType,
+        StringType,
+        IPType,
+        MACAddressType,
+        TimestampType
     }
 
     private record ExtensionMapping(String key, DataType dataType, @Nullable String ecsKey) {

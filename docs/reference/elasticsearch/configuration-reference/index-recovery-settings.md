@@ -81,7 +81,7 @@ You can use the following *expert* setting to manage resources for peer recoveri
 ## Recovery settings for managed services [recovery-settings-for-managed-services]
 
 ::::{note}
-{cloud-only}
+{{cloud-only}}
 ::::
 
 

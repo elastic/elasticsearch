@@ -397,7 +397,52 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         }
     }
 
-    public void testDoNotIgnoreTotalShardsPerNodeAndReplicasIfSet() throws Exception {
+    public void testDoNotIgnorePropagatedTotalShardsPerNodeInColdPhase() throws Exception {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        Map<String, String> ilmCustom = new HashMap<>();
+        String snapshotName = indexName + "-" + policyName;
+        ilmCustom.put("snapshot_name", snapshotName);
+        String repository = "repository";
+        ilmCustom.put("snapshot_repository", repository);
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
+                repository,
+                snapshotName,
+                indexName,
+                RESTORED_INDEX_PREFIX,
+                indexName,
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                null,
+                0
+            );
+            MountSnapshotStep step = new MountSnapshotStep(
+                new StepKey(TimeseriesLifecycleType.COLD_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                randomStepKey(),
+                client,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType(),
+                null,
+                0
+            );
+            performActionAndWait(step, indexMetadata, clusterState, null);
+        }
+    }
+
+    public void testDoNotIgnoreTotalShardsPerNodeAndReplicasIfSetInFrozenPhase() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         Map<String, String> ilmCustom = new HashMap<>();
@@ -434,6 +479,54 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                randomStepKey(),
+                client,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType(),
+                totalShardsPerNode,
+                replicas
+            );
+            performActionAndWait(step, indexMetadata, clusterState, null);
+        }
+    }
+
+    public void testDoNotIgnoreTotalShardsPerNodeAndReplicasIfSetInCold() throws Exception {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        Map<String, String> ilmCustom = new HashMap<>();
+        String snapshotName = indexName + "-" + policyName;
+        ilmCustom.put("snapshot_name", snapshotName);
+        String repository = "repository";
+        ilmCustom.put("snapshot_repository", repository);
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+
+        final Integer totalShardsPerNode = randomTotalShardsPerNode(false);
+        final int replicas = randomIntBetween(1, 5);
+
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
+                repository,
+                snapshotName,
+                indexName,
+                RESTORED_INDEX_PREFIX,
+                indexName,
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                totalShardsPerNode,
+                replicas
+            );
+            MountSnapshotStep step = new MountSnapshotStep(
+                new StepKey(TimeseriesLifecycleType.COLD_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 randomStepKey(),
                 client,
                 RESTORED_INDEX_PREFIX,

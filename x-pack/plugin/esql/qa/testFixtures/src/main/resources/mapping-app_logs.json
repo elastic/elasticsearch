@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "service_id": {
+      "type": "keyword"
+    },
+    "message": {
+      "type": "keyword"
+    }
+  }
+}

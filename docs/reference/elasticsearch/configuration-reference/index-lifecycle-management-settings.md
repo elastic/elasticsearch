@@ -15,7 +15,11 @@ These are the settings available for configuring [{{ilm}}](docs-content://manage
 ## Cluster level settings [_cluster_level_settings_3]
 
 `xpack.ilm.enabled`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), Boolean) [7.8.0]<br> This deprecated setting has no effect and will be removed in Elasticsearch 8.0.
+:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), Boolean)
+
+    :::{admonition} Deprecated in 7.8.0
+    This deprecated setting has no effect and will be removed in Elasticsearch 8.0.
+    :::
 
 `indices.lifecycle.history_index_enabled`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Boolean) Whether ILM’s history index is enabled. If enabled, ILM will record the history of actions taken as part of ILM policies to the `ilm-history-*` indices. Defaults to `true`.

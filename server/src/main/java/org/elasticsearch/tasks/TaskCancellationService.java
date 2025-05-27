@@ -27,12 +27,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -299,7 +299,7 @@ public class TaskCancellationService {
         return cause instanceof NodeDisconnectedException || cause instanceof NodeNotConnectedException;
     }
 
-    private static class BanParentTaskRequest extends TransportRequest {
+    private static class BanParentTaskRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final boolean ban;
@@ -375,7 +375,7 @@ public class TaskCancellationService {
         }
     }
 
-    private static class CancelChildRequest extends TransportRequest {
+    private static class CancelChildRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final long childRequestId;

@@ -78,8 +78,8 @@ steps:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: java-matrix
     steps:
-      - label: "{{matrix.ES_RUNTIME_JAVA}} / entitlements={{matrix.ENTITLEMENTS_ENABLED}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline="-Des.entitlements.enabled=$$ENTITLEMENTS_ENABLED" $$GRADLE_TASK
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -94,9 +94,6 @@ steps:
               - checkPart4
               - checkPart5
               - checkRestCompat
-            ENTITLEMENTS_ENABLED:
-              - "true"
-              - "false"
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -105,7 +102,6 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-          ENTITLEMENTS_ENABLED: "{{matrix.ENTITLEMENTS_ENABLED}}"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -237,7 +233,7 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.19" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

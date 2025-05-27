@@ -1,0 +1,10 @@
+pr: 126581
+summary: "Optimize shared blob cache evictions on shard removal
+  Shared blob cache evictions occur on the cluster applier thread when shards are
+  removed from a node. These can be expensive if a large number of shards are
+  being removed. This change uses the context of the removal to avoid unnecessary
+  evictions that might hold up the applier thread.
+  "
+area: Snapshot/Restore
+type: enhancement
+issues: []

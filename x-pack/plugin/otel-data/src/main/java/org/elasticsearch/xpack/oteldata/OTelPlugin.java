@@ -48,7 +48,14 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new OTelIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
+            new OTelIndexTemplateRegistry(
+                settings,
+                clusterService,
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry(),
+                services.projectResolver()
+            )
         );
         if (enabled) {
             OTelIndexTemplateRegistry registryInstance = registry.get();

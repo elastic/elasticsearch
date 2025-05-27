@@ -1,5 +1,0 @@
-pr: 125732
-summary: Log stack traces on data nodes before they are cleared for transport
-area: Search
-type: bug
-issues: []

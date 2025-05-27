@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -55,6 +55,11 @@ public class EsqlCapabilities {
          * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
          */
         SPATIAL_SHAPES,
+
+        /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
 
         /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
@@ -213,6 +218,11 @@ public class EsqlCapabilities {
          * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
          */
         FN_ROUND_UL_FIXES,
+
+        /**
+         * Support for function {@code SCALB}.
+         */
+        FN_SCALB,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -386,6 +396,12 @@ public class EsqlCapabilities {
         UNION_TYPES_AGG_CAST,
 
         /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES,
+
+        /**
          * Fix to GROK validation in case of multiple fields with same name and different types
          * https://github.com/elastic/elasticsearch/issues/110533
          */
@@ -412,6 +428,18 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
+         * Support for removing empty attribute in merging output.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
+         */
+        REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
 
         /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
@@ -843,7 +871,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT(Build.current().isSnapshot()),
+        CHANGE_POINT,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
@@ -856,7 +884,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -905,6 +933,11 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
@@ -935,9 +968,15 @@ public class EsqlCapabilities {
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
+
+        /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+        INDEX_COMPONENT_SELECTORS,
 
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
@@ -978,9 +1017,14 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support STATS/EVAL/DISSECT in Fork branches
+         * Support streaming of sub plan results
          */
-        FORK_V2(Build.current().isSnapshot()),
+        FORK_V4(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
 
         /**
          * Does the usage information for ESQL contain a histogram of {@code took} values?
@@ -990,7 +1034,101 @@ public class EsqlCapabilities {
         /**
          * Support avg_over_time aggregation that gets evaluated per time-series
          */
-        AVG_OVER_TIME(Build.current().isSnapshot());
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Support last_over_time aggregation that gets evaluated per time-series
+         */
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
+         */
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support sum_over_time aggregation that gets evaluated per time-series
+         */
+        SUM_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * The {@code ROUND_TO} function.
+         */
+        ROUND_TO,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

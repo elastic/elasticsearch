@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -170,13 +173,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ),
         new Batch<>(
             "Resolution",
-            /*
-             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
-             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
-             * attempts to resolve this reference.
-             */
-            new ImplicitCasting(),
             new ResolveRefs(),
+            new ImplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
@@ -488,6 +486,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveAggregate(aggregate, childrenOutput);
             }
 
+            if (plan instanceof Completion c) {
+                return resolveCompletion(c, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -567,7 +569,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+            if (Resolvables.resolved(groupings) == false || Resolvables.resolved(aggregates) == false) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -578,17 +580,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
                 List<NamedExpression> newAggregates = new ArrayList<>();
-                for (NamedExpression ag : aggregate.aggregates()) {
-                    var agg = (NamedExpression) ag.transformUp(UnresolvedAttribute.class, ua -> {
-                        Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
-                        if (maybeResolved != null) {
-                            changed.set(true);
-                            ne = maybeResolved;
-                        }
-                        return ne;
-                    });
-                    newAggregates.add(agg);
+                // If the groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
+                // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
+                // resolved, and verifier doesn't report field/reference/column not found errors for them.
+                boolean groupingResolved = Resolvables.resolved(groupings);
+                int size = groupingResolved ? aggregates.size() : aggregates.size() - groupings.size();
+                for (int i = 0; i < aggregates.size(); i++) {
+                    NamedExpression maybeResolvedAgg = aggregates.get(i);
+                    if (i < size) { // Skip resolving references to groupings in the aggregations if the groupings are not resolved yet.
+                        maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
+                            Expression ne = ua;
+                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
+                            // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
+                            // to get resolved in the next iteration.
+                            // For example STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
+                            if (groupingResolved || maybeResolved.resolved()) {
+                                changed.set(true);
+                                ne = maybeResolved;
+                            }
+                            return ne;
+                        });
+                    }
+                    newAggregates.add(maybeResolvedAgg);
                 }
 
                 // TODO: remove this when Stats interface is removed
@@ -596,6 +610,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return aggregate;
+        }
+
+        private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
+            Attribute targetField = p.targetField();
+            Expression prompt = p.prompt();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), TEXT);
+            }
+
+            if (prompt.resolved() == false) {
+                prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -723,7 +752,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            Set<String> forkColumns = fork.outputSet().names();
+            List<Attribute> outputUnion = Fork.outputUnion(fork.children());
+            List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -731,7 +761,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // find the missing columns
                 List<Attribute> missing = new ArrayList<>();
                 Set<String> currentNames = logicalPlan.outputSet().names();
-                for (Attribute attr : fork.outputSet()) {
+                for (Attribute attr : outputUnion) {
                     if (currentNames.contains(attr.name()) == false) {
                         missing.add(attr);
                     }
@@ -766,7 +796,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            return changed ? new Fork(fork.source(), newSubPlans) : fork;
+            if (changed == false) {
+                return fork;
+            }
+
+            List<Attribute> newOutput = new ArrayList<>();
+
+            // We don't want to keep the same attributes that are outputted by the FORK branches.
+            // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+            for (Attribute attr : newSubPlans.getFirst().output()) {
+                newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
+            }
+
+            return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -1578,10 +1620,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
-            plan = plan.transformExpressionsOnly(
-                AbstractConvertFunction.class,
-                convert -> resolveConvertFunction(convert, unionFieldAttributes)
-            );
+            plan = plan.transformExpressionsOnly(e -> {
+                if (e instanceof ConvertFunction convert) {
+                    return resolveConvertFunction(convert, unionFieldAttributes);
+                }
+                return e;
+            });
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
@@ -1612,7 +1656,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+            Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
@@ -1639,9 +1684,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+                return convertExpression.replaceChildren(
+                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                );
             }
-            return convert;
+            return convertExpression;
         }
 
         private Expression createIfDoesNotAlreadyExist(
@@ -1677,7 +1724,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -1689,7 +1736,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
+            /*
+             * Resolve surrogates immediately because these type specific conversions are serialized
+             * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
+             * TO_IP is expected to be resolved there.
+             */
+            return SubstituteSurrogateExpressions.rule(e);
         }
     }
 

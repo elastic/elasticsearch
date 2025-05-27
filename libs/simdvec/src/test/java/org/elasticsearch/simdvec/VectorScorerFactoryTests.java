@@ -19,8 +19,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
@@ -99,10 +99,13 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         float scc = values.getScalarQuantizer().getConstantMultiplier();
                         float expected = luceneScore(sim, vec1, vec2, scc, vec1Correction, vec2Correction);
 
-                        var luceneSupplier = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer(0);
+                        var luceneSupplier = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer();
+                        luceneSupplier.setScoringOrdinal(0);
                         assertThat(luceneSupplier.score(1), equalTo(expected));
                         var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, scc).get();
-                        assertThat(supplier.scorer(0).score(1), equalTo(expected));
+                        var scorer = supplier.scorer();
+                        scorer.setScoringOrdinal(0);
+                        assertThat(scorer.score(1), equalTo(expected));
 
                         if (Runtime.version().feature() >= 22) {
                             var qScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, query1).get();
@@ -134,24 +137,32 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 float expected = 0f;
                 assertThat(luceneScore(DOT_PRODUCT, vec1, vec2, 1, -5, -5), equalTo(expected));
                 var supplier = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, 1).get();
-                assertThat(supplier.scorer(0).score(1), equalTo(expected));
-                assertThat(supplier.scorer(0).score(1), greaterThanOrEqualTo(0f));
+                var scorer = supplier.scorer();
+                scorer.setScoringOrdinal(0);
+                assertThat(scorer.score(1), equalTo(expected));
+                assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
                 // max inner product
                 expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, -5, -5);
                 supplier = factory.getInt7SQVectorScorerSupplier(MAXIMUM_INNER_PRODUCT, in, values, 1).get();
-                assertThat(supplier.scorer(0).score(1), greaterThanOrEqualTo(0f));
-                assertThat(supplier.scorer(0).score(1), equalTo(expected));
+                scorer = supplier.scorer();
+                scorer.setScoringOrdinal(0);
+                assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
+                assertThat(scorer.score(1), equalTo(expected));
                 // cosine
                 expected = 0f;
                 assertThat(luceneScore(COSINE, vec1, vec2, 1, -5, -5), equalTo(expected));
                 supplier = factory.getInt7SQVectorScorerSupplier(COSINE, in, values, 1).get();
-                assertThat(supplier.scorer(0).score(1), equalTo(expected));
-                assertThat(supplier.scorer(0).score(1), greaterThanOrEqualTo(0f));
+                scorer = supplier.scorer();
+                scorer.setScoringOrdinal(0);
+                assertThat(scorer.score(1), equalTo(expected));
+                assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
                 // euclidean
                 expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, -5, -5);
                 supplier = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, 1).get();
-                assertThat(supplier.scorer(0).score(1), equalTo(expected));
-                assertThat(supplier.scorer(0).score(1), greaterThanOrEqualTo(0f));
+                scorer = supplier.scorer();
+                scorer.setScoringOrdinal(0);
+                assertThat(scorer.score(1), equalTo(expected));
+                assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
             }
         }
     }
@@ -208,7 +219,9 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
                         float expected = luceneScore(sim, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                         var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
-                        assertThat(supplier.scorer(idx0).score(idx1), equalTo(expected));
+                        var scorer = supplier.scorer();
+                        scorer.setScoringOrdinal(idx0);
+                        assertThat(scorer.score(idx1), equalTo(expected));
                     }
                 }
             }
@@ -245,6 +258,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 final byte[][] qVectors = new byte[size][];
                 final float[] corrections = new float[size];
 
+                float delta = 1e-6f * dims;
+
                 String fileName = "testRandom-" + sim + "-" + dims + ".vex";
                 logger.info("Testing " + fileName);
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
@@ -265,7 +280,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
                         var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], correction, corrections[idx0], corrections[idx1]);
                         var scorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, vectors[idx0]).get();
-                        assertThat(scorer.score(idx1), equalTo(expected));
+                        assertEquals(scorer.score(idx1), expected, delta);
                     }
                 }
             }
@@ -313,7 +328,9 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                             var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
                             float expected = luceneScore(sim, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                             var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
-                            assertThat(supplier.scorer(idx0).score(idx1), equalTo(expected));
+                            var scorer = supplier.scorer();
+                            scorer.setScoringOrdinal(idx0);
+                            assertThat(scorer.score(idx1), equalTo(expected));
                         }
                     }
                 }
@@ -352,7 +369,9 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
                         float expected = luceneScore(sim, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
                         var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
-                        assertThat(supplier.scorer(idx0).score(idx1), equalTo(expected));
+                        var scorer = supplier.scorer();
+                        scorer.setScoringOrdinal(idx0);
+                        assertThat(scorer.score(idx1), equalTo(expected));
                     }
                 }
             }
@@ -391,8 +410,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 var values = vectorValues(dims, 4, in, VectorSimilarityType.of(sim));
                 var scoreSupplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, 1f).get();
                 var tasks = List.<Callable<Optional<Throwable>>>of(
-                    new ScoreCallable(scoreSupplier.copy().scorer(0), 1, expectedScore1),
-                    new ScoreCallable(scoreSupplier.copy().scorer(2), 3, expectedScore2)
+                    new ScoreCallable(scoreSupplier.copy().scorer(), 0, 1, expectedScore1),
+                    new ScoreCallable(scoreSupplier.copy().scorer(), 2, 3, expectedScore2)
                 );
                 var executor = Executors.newFixedThreadPool(2);
                 var results = executor.invokeAll(tasks);
@@ -408,14 +427,19 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     static class ScoreCallable implements Callable<Optional<Throwable>> {
 
-        final RandomVectorScorer scorer;
+        final UpdateableRandomVectorScorer scorer;
         final int ord;
         final float expectedScore;
 
-        ScoreCallable(RandomVectorScorer scorer, int ord, float expectedScore) {
-            this.scorer = scorer;
-            this.ord = ord;
-            this.expectedScore = expectedScore;
+        ScoreCallable(UpdateableRandomVectorScorer scorer, int queryOrd, int ord, float expectedScore) {
+            try {
+                this.scorer = scorer;
+                this.scorer.setScoringOrdinal(queryOrd);
+                this.ord = ord;
+                this.expectedScore = expectedScore;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override

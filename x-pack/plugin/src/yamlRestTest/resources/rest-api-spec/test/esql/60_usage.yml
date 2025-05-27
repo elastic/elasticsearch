@@ -33,13 +33,13 @@ setup:
           path: /_query
           parameters: []
           # A snapshot function was removed in match_function_options, it can't work on mixed cluster tests otherwise.
-          capabilities: [ snapshot_test_for_telemetry, fn_byte_length, match_function_options, avg_over_time]
+          capabilities: [ snapshot_test_for_telemetry, fn_byte_length, match_function_options, first_over_time, sum_over_time]
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 15 }
+  - length: { esql.features: 26 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -55,6 +55,17 @@ setup:
   - set: {esql.features.sort: sort_counter}
   - set: {esql.features.stats: stats_counter}
   - set: {esql.features.where: where_counter}
+  - set: {esql.features.lookup_join: lookup_join_counter}
+  - set: {esql.features.lookup: lookup_counter}
+  - set: {esql.features.change_point: change_point_counter}
+  - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.dedup: dedup_counter}
+  - set: {esql.features.insist: insist_counter}
+  - set: {esql.features.fork: fork_counter}
+  - set: {esql.features.rrf: rrf_counter}
+  - set: {esql.features.completion: completion_counter}
+  - set: {esql.features.sample: sample_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -88,6 +99,17 @@ setup:
   - gt: {esql.features.sort: $sort_counter}
   - gt: {esql.features.stats: $stats_counter}
   - gt: {esql.features.where: $where_counter}
+  - match: {esql.features.lookup_join: $lookup_join_counter}
+  - match: {esql.features.lookup: $lookup_counter}
+  - match: {esql.features.change_point: $change_point_counter}
+  - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: {esql.features.rerank: $rerank_counter}
+  - match: {esql.features.dedup: $dedup_counter}
+  - match: {esql.features.insist: $insist_counter}
+  - match: {esql.features.fork: $fork_counter}
+  - match: {esql.features.rrf: $rrf_counter}
+  - match: {esql.features.completion: $completion_counter}
+  - match: {esql.features.sample: $sample_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -100,8 +122,8 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  # Testing for the entire function set isn't feasbile, so we just check that we return the correct count as an approximation.
-  - length: {esql.functions: 136} # check the "sister" test below for a likely update to the same esql.functions length check
+  # Testing for the entire function set isn't feasible, so we just check that we return the correct count as an approximation.
+  - length: {esql.functions: 144} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -117,7 +139,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 15 }
+  - length: { esql.features: 26 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -133,6 +155,17 @@ setup:
   - set: {esql.features.sort: sort_counter}
   - set: {esql.features.stats: stats_counter}
   - set: {esql.features.where: where_counter}
+  - set: {esql.features.lookup_join: lookup_join_counter}
+  - set: {esql.features.lookup: lookup_counter}
+  - set: {esql.features.change_point: change_point_counter}
+  - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.dedup: dedup_counter}
+  - set: {esql.features.insist: insist_counter}
+  - set: {esql.features.fork: fork_counter}
+  - set: {esql.features.rrf: rrf_counter}
+  - set: {esql.features.completion: completion_counter}
+  - set: {esql.features.sample: sample_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -166,6 +199,16 @@ setup:
   - gt: {esql.features.sort: $sort_counter}
   - gt: {esql.features.stats: $stats_counter}
   - gt: {esql.features.where: $where_counter}
+  - match: {esql.features.lookup_join: $lookup_join_counter}
+  - match: {esql.features.lookup: $lookup_counter}
+  - match: {esql.features.change_point: $change_point_counter}
+  - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: {esql.features.rerank: $rerank_counter}
+  - match: {esql.features.dedup: $dedup_counter}
+  - match: {esql.features.insist: $insist_counter}
+  - match: {esql.features.fork: $fork_counter}
+  - match: {esql.features.rrf: $rrf_counter}
+  - match: {esql.features.completion: $completion_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -178,7 +221,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 131} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 134} # check the "sister" test above for a likely update to the same esql.functions length check
 
 ---
 took:

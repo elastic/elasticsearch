@@ -207,7 +207,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                 Template.builder()
                                     .settings(Settings.EMPTY)
                                     .mappings(mappings)
-                                    .lifecycle(DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()))
+                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()))
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),

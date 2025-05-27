@@ -26,6 +26,7 @@ dependencies {
   clusterModules project(xpackModule('rank-rrf'))
   clusterModules project(xpackModule('inference'))
   clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('search-business-rules'))
 
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }

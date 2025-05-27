@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -27,6 +28,9 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
@@ -85,14 +89,30 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
         );
     }
 
-    private static EsqlGetQueryResponse.DetailedQuery toDetailedQuery(TaskInfo task, ListTasksResponse response) {
+    private static EsqlGetQueryResponse.DetailedQuery toDetailedQuery(TaskInfo main, ListTasksResponse sub) {
+        String query = main.description();
+        String coordinatingNode = main.node();
+
+        // TODO include completed drivers in documentsFound and valuesLoaded
+        long documentsFound = 0;
+        long valuesLoaded = 0;
+        Set<String> dataNodes = new TreeSet<>();
+        for (TaskInfo info : sub.getTasks()) {
+            DriverStatus status = (DriverStatus) info.status();
+            documentsFound += status.documentsFound();
+            valuesLoaded += status.valuesLoaded();
+            dataNodes.add(info.node());
+        }
+
         return new EsqlGetQueryResponse.DetailedQuery(
-            task.taskId(),
-            task.startTime(),
-            task.runningTimeNanos(),
-            task.description(), // Query
-            task.node(), // Coordinating node
-            response.getTasks().stream().map(TaskInfo::node).distinct().toList() // Data nodes
+            main.taskId(),
+            main.startTime(),
+            main.runningTimeNanos(),
+            documentsFound,
+            valuesLoaded,
+            query,
+            coordinatingNode,
+            sub.getTasks().stream().map(TaskInfo::node).distinct().toList() // Data nodes
         );
     }
 }

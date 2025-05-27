@@ -22,6 +22,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.io.IOException;
@@ -130,18 +131,33 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
     }
 
     static class HammingScorerSupplier implements RandomVectorScorerSupplier {
-        private final ByteVectorValues byteValues, byteValues1, byteValues2;
+        private final ByteVectorValues byteValues, targetValues;
 
         HammingScorerSupplier(ByteVectorValues byteValues) throws IOException {
             this.byteValues = byteValues;
-            this.byteValues1 = byteValues.copy();
-            this.byteValues2 = byteValues.copy();
+            this.targetValues = byteValues.copy();
         }
 
         @Override
-        public RandomVectorScorer scorer(int i) throws IOException {
-            byte[] query = byteValues1.vectorValue(i);
-            return new HammingVectorScorer(byteValues2, query);
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(targetValues) {
+                private final byte[] query = new byte[targetValues.dimension()];
+                private int currentOrd = -1;
+
+                @Override
+                public void setScoringOrdinal(int i) throws IOException {
+                    if (currentOrd == i) {
+                        return;
+                    }
+                    System.arraycopy(targetValues.vectorValue(i), 0, query, 0, query.length);
+                    this.currentOrd = i;
+                }
+
+                @Override
+                public float score(int i) throws IOException {
+                    return hammingScore(targetValues.vectorValue(i), query);
+                }
+            };
         }
 
         @Override

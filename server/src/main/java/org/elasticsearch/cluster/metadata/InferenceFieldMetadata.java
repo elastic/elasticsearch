@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG;
+import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG_8_19;
 
 /**
  * Contains inference field data for fields.
@@ -74,7 +75,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             this.searchInferenceId = this.inferenceId;
         }
         this.sourceFields = input.readStringArray();
-        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
+        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)
+            || input.getTransportVersion().isPatchFrom(SEMANTIC_TEXT_CHUNKING_CONFIG_8_19)) {
             this.chunkingSettings = input.readGenericMap();
         } else {
             this.chunkingSettings = null;
@@ -89,7 +91,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             out.writeString(searchInferenceId);
         }
         out.writeStringArray(sourceFields);
-        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)
+            || out.getTransportVersion().isPatchFrom(SEMANTIC_TEXT_CHUNKING_CONFIG_8_19)) {
             out.writeGenericMap(chunkingSettings);
         }
     }

@@ -2,7 +2,7 @@
 
 ### ST CONTAINS
 Returns whether the first geometry contains the second geometry.
-This is the inverse of the [ST_WITHIN](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/spatial-functions#esql-st_within) function.
+This is the inverse of the [ST_WITHIN](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions#esql-st_within) function.
 
 ```esql
 FROM airport_city_boundaries

@@ -15,6 +15,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -36,11 +38,12 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         }
         this.featureNames = featureNames;
         this.weights = weights;
-        this.subScorers = new DisiPriorityQueue(weights.size());
+        this.subScorers = DisiPriorityQueue.ofMaxSize(weights.size());
     }
 
     @Override
     public void setNextReader(LeafReaderContext segmentContext) throws IOException {
+        Collection<FeatureDisiWrapper> disiWrappers = new ArrayList<>();
         subScorers.clear();
         for (int i = 0; i < weights.size(); i++) {
             var weight = weights.get(i);
@@ -51,11 +54,13 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             if (scorerSupplier != null) {
                 var scorer = scorerSupplier.get(0L);
                 if (scorer != null) {
-                    subScorers.add(new FeatureDisiWrapper(scorer, featureNames.get(i)));
+                    FeatureDisiWrapper featureDisiWrapper = new FeatureDisiWrapper(scorer, featureNames.get(i));
+                    subScorers.add(featureDisiWrapper);
+                    disiWrappers.add(featureDisiWrapper);
                 }
             }
         }
-        approximation = subScorers.size() > 0 ? new DisjunctionDISIApproximation(subScorers) : null;
+        approximation = subScorers.size() > 0 ? new DisjunctionDISIApproximation(disiWrappers, Long.MAX_VALUE) : null;
     }
 
     @Override
@@ -69,7 +74,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         if (approximation.docID() != docId) {
             return;
         }
-        var w = (FeatureDisiWrapper) subScorers.topList();
+        var w = (FeatureDisiWrapper) approximation.topList();
         for (; w != null; w = (FeatureDisiWrapper) w.next) {
             if (w.twoPhaseView == null || w.twoPhaseView.matches()) {
                 featureMap.put(w.featureName, w.scorable.score());

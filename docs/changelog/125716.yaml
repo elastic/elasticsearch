@@ -1,5 +1,0 @@
-pr: 125716
-summary: Return appropriate error on null dims update instead of npe
-area: Vector Search
-type: bug
-issues: []

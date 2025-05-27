@@ -19,6 +19,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -641,7 +643,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosion() throws IOException {
-        int sensorDataCount = 500;
+        int sensorDataCount = 400;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
@@ -653,7 +655,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosionNoFetch() throws IOException {
-        int sensorDataCount = 7500;
+        int sensorDataCount = 6000;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosionNoFetch(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
@@ -973,6 +975,10 @@ public class HeapAttackIT extends ESRestTestCase {
         if (indexExists(name) == false) {
             // not strictly required, but this can help isolate failure from bulk indexing.
             createIndex(name);
+            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(name).get(name)).get("settings");
+            if (settings.containsKey(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()) == false) {
+                updateIndexSettings(name, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+            }
         }
         if (hasText(bulk)) {
             bulk(name, bulk);

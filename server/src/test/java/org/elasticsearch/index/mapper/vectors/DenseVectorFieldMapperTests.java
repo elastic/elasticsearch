@@ -904,10 +904,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testRescoreVectorOldIndexVersion() {
-        IndexVersion incompatibleVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersionUtils.getLowestReadCompatibleVersion(),
-            IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
+        IndexVersion incompatibleVersion = randomFrom(
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getLowestReadCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
+            ),
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
+            )
         );
         for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
             expectThrows(
@@ -928,10 +935,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testRescoreZeroVectorOldIndexVersion() {
-        IndexVersion incompatibleVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersionUtils.getLowestReadCompatibleVersion(),
-            IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
+        IndexVersion incompatibleVersion = randomFrom(
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getLowestReadCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
+            ),
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
+            )
         );
         for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
             expectThrows(
@@ -1019,6 +1033,60 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testDefaultOversampleValue() throws IOException {
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_flat");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = (DenseVectorFieldMapper.BBQFlatIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertNull(indexOptions.rescoreVector);
         }
     }
 
@@ -1692,7 +1760,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) ft;
@@ -1813,7 +1882,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 128, 0, 0 }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1829,7 +1907,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1839,7 +1918,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1848,7 +1936,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }), 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1864,7 +1961,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1878,7 +1976,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1895,7 +1994,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1929,7 +2029,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1943,7 +2044,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(
@@ -1960,7 +2062,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             )
         );
         assertThat(

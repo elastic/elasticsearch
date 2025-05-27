@@ -174,7 +174,10 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
-    @Override
+    /**
+     * This contains all the underlying ES types.
+     * On a type conflict this will have many elements, some or all of which may be actually supported types.
+     */
     public List<String> originalTypes() {
         return field().getOriginalTypes();
     }

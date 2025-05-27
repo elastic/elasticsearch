@@ -128,6 +128,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Same as {@link #readBytesReference()} but with an explicitly provided length.
+     * @param length number of bytes to read
+     */
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference(length));
+    }
+
+    /**
      * Reads the same bytes returned by {@link #readReleasableBytesReference()} but does not retain a reference to these bytes.
      * The returned {@link BytesReference} thus only contains valid content as long as the underlying buffer has not been released.
      * This method should be preferred over {@link #readReleasableBytesReference()} when the returned reference is known to not be used
@@ -136,6 +144,10 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readSlicedBytesReference() throws IOException {
         return readBytesReference();
+    }
+
+    public BytesReference readSlicedBytesReference(int bytes) throws IOException {
+        return readBytesReference(bytes);
     }
 
     /**

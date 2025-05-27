@@ -188,8 +188,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         assertNotSame(clusterState, resultingState);
         assertThat(
             resultingState.routingTable()
-                .shardRoutingTable(task.getEntry().shardId)
-                .getByAllocationId(task.getEntry().allocationId)
+                .shardRoutingTable(task.getStartedShardEntry().shardId)
+                .getByAllocationId(task.getStartedShardEntry().allocationId)
                 .state(),
             is(ShardRoutingState.STARTED)
         );
@@ -222,8 +222,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         assertNotSame(clusterState, resultingState);
         assertThat(
             resultingState.routingTable()
-                .shardRoutingTable(task.getEntry().shardId)
-                .getByAllocationId(task.getEntry().allocationId)
+                .shardRoutingTable(task.getStartedShardEntry().shardId)
+                .getByAllocationId(task.getStartedShardEntry().allocationId)
                 .state(),
             is(ShardRoutingState.STARTED)
         );
@@ -263,8 +263,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         for (final var task : tasks) {
             assertThat(
                 resultingState.routingTable(project.id())
-                    .shardRoutingTable(task.getEntry().shardId)
-                    .getByAllocationId(task.getEntry().allocationId)
+                    .shardRoutingTable(task.getStartedShardEntry().shardId)
+                    .getByAllocationId(task.getStartedShardEntry().allocationId)
                     .state(),
                 is(ShardRoutingState.STARTED)
             );
@@ -307,8 +307,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             assertSame(clusterState, executeTasks(clusterState, List.of(task)));
             assertThat(
                 clusterState.routingTable()
-                    .shardRoutingTable(task.getEntry().shardId)
-                    .getByAllocationId(task.getEntry().allocationId)
+                    .shardRoutingTable(task.getStartedShardEntry().shardId)
+                    .getByAllocationId(task.getStartedShardEntry().allocationId)
                     .state(),
                 is(ShardRoutingState.INITIALIZING)
             );
@@ -330,8 +330,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             assertNotSame(clusterState, resultingState);
             assertThat(
                 resultingState.routingTable()
-                    .shardRoutingTable(task.getEntry().shardId)
-                    .getByAllocationId(task.getEntry().allocationId)
+                    .shardRoutingTable(task.getStartedShardEntry().shardId)
+                    .getByAllocationId(task.getStartedShardEntry().allocationId)
                     .state(),
                 is(ShardRoutingState.STARTED)
             );
@@ -383,8 +383,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             assertNotSame(clusterState, resultingState);
             assertThat(
                 resultingState.routingTable()
-                    .shardRoutingTable(task.getEntry().shardId)
-                    .getByAllocationId(task.getEntry().allocationId)
+                    .shardRoutingTable(task.getStartedShardEntry().shardId)
+                    .getByAllocationId(task.getStartedShardEntry().allocationId)
                     .state(),
                 is(ShardRoutingState.STARTED)
             );
@@ -421,8 +421,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         assertNotSame(clusterState, resultingState);
         assertThat(
             resultingState.routingTable()
-                .shardRoutingTable(task.getEntry().shardId)
-                .getByAllocationId(task.getEntry().allocationId)
+                .shardRoutingTable(task.getStartedShardEntry().shardId)
+                .getByAllocationId(task.getStartedShardEntry().allocationId)
                 .state(),
             is(ShardRoutingState.STARTED)
         );
@@ -483,8 +483,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         assertNotSame(clusterState, resultingState);
         assertThat(
             resultingState.routingTable()
-                .shardRoutingTable(task.getEntry().shardId)
-                .getByAllocationId(task.getEntry().allocationId)
+                .shardRoutingTable(task.getStartedShardEntry().shardId)
+                .getByAllocationId(task.getStartedShardEntry().allocationId)
                 .state(),
             is(ShardRoutingState.STARTED)
         );

@@ -22,6 +22,8 @@ public class EsqlGetQueryResponse extends ActionResponse implements ToXContentOb
         TaskId id,
         long startTimeMillis,
         long runningTimeNanos,
+        long documentsFound,
+        long valuesLoaded,
         String query,
         String coordinatingNode,
         List<String> dataNodes
@@ -33,6 +35,8 @@ public class EsqlGetQueryResponse extends ActionResponse implements ToXContentOb
             builder.field("node", id.getNodeId());
             builder.field("start_time_millis", startTimeMillis);
             builder.field("running_time_nanos", runningTimeNanos);
+            builder.field("documents_found", documentsFound);
+            builder.field("values_loaded", valuesLoaded);
             builder.field("query", query);
             builder.field("coordinating_node", coordinatingNode);
             builder.field("data_nodes", dataNodes);

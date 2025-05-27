@@ -57,6 +57,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
@@ -130,7 +131,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
-        private Boolean allPartialResults = null;
+        private Boolean allowPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -177,6 +178,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        /**
+         * Allow sending pragmas even in non-snapshot builds.
+         */
+        public RequestObjectBuilder pragmasOk() throws IOException {
+            builder.field("accept_pragma_risks", true);
+            return this;
+        }
+
         Boolean keepOnCompletion() {
             return keepOnCompletion;
         }
@@ -208,9 +217,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
-            this.allPartialResults = allPartialResults;
+        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
+            this.allowPartialResults = allowPartialResults;
             return this;
+        }
+
+        public Boolean allowPartialResults() {
+            return allowPartialResults;
         }
 
         public RequestObjectBuilder build() throws IOException {
@@ -264,12 +277,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(4, answer.size());
+        assertEquals(6, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
-        assertEquals(List.of(colA, colB), answer.get("columns"));
-        assertEquals(List.of(List.of(1, 2)), answer.get("values"));
+        assertMap(
+            answer,
+            matchesMap().entry("took", greaterThanOrEqualTo(0))
+                .entry("is_partial", any(Boolean.class))
+                .entry("documents_found", 0)
+                .entry("values_loaded", 0)
+                .entry("columns", List.of(colA, colB))
+                .entry("values", List.of(List.of(1, 2)))
+        );
     }
 
     public void testUseUnknownIndex() throws IOException {
@@ -1227,7 +1247,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
+        throws IOException {
         if (mode == ASYNC) {
             return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
         } else {
@@ -1268,6 +1289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
+        var supportsSuggestedCast = clusterHasCapability("POST", "/_query", List.of(), List.of("suggested_cast")).orElse(false);
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1313,13 +1335,39 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         // assert initial contents, if any, are the same as async get contents
         if (initialColumns != null) {
-            assertEquals(initialColumns, result.get("columns"));
+            if (supportsSuggestedCast == false) {
+                assertEquals(
+                    removeOriginalTypesAndSuggestedCast(initialColumns),
+                    removeOriginalTypesAndSuggestedCast(result.get("columns"))
+                );
+            } else {
+                assertEquals(initialColumns, result.get("columns"));
+            }
             assertEquals(initialValues, result.get("values"));
         }
 
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    private static Object removeOriginalTypesAndSuggestedCast(Object response) {
+        if (response instanceof ArrayList<?> columns) {
+            var newColumns = new ArrayList<>();
+            for (var column : columns) {
+                if (column instanceof Map<?, ?> columnMap) {
+                    var newMap = new HashMap<>(columnMap);
+                    newMap.remove("original_types");
+                    newMap.remove("suggested_cast");
+                    newColumns.add(newMap);
+                } else {
+                    newColumns.add(column);
+                }
+            }
+            return newColumns;
+        } else {
+            return response;
+        }
     }
 
     public void testAsyncGetWithoutContentType() throws IOException {
@@ -1367,8 +1415,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
-        if (requestObject.allPartialResults != null) {
-            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
+        if (requestObject.allowPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();

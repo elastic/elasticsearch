@@ -9,4 +9,4 @@ It is calculated as the median of each data point’s deviation from the median 
 FROM employees
 | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
 ```
-Note: Like [`PERCENTILE`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/aggregation-functions#esql-percentile), `MEDIAN_ABSOLUTE_DEVIATION` is [usually approximate](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/aggregation-functions#esql-percentile-approximate).
+Note: Like [`PERCENTILE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile), `MEDIAN_ABSOLUTE_DEVIATION` is [usually approximate](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile-approximate).

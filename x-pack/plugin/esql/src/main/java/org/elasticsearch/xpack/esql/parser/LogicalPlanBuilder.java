@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -636,7 +637,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans);
+            return new Fork(source(ctx), subPlans, List.of());
         };
     }
 
@@ -730,7 +731,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitFields(ctx.fields()));
+        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
     }
 
     @Override
@@ -767,5 +768,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             "Query parameter [{}] is not a string and cannot be used as inference id",
             ctx.parameter().getText()
         );
+    }
+
+    public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
+        var probability = visitDecimalValue(ctx.probability);
+        Literal seed;
+        if (ctx.seed != null) {
+            seed = visitIntegerValue(ctx.seed);
+            if (seed.dataType() != DataType.INTEGER) {
+                throw new ParsingException(
+                    seed.source(),
+                    "seed must be an integer, provided [{}] of type [{}]",
+                    ctx.seed.getText(),
+                    seed.dataType()
+                );
+            }
+        } else {
+            seed = null;
+        }
+        return plan -> new Sample(source(ctx), probability, seed, plan);
     }
 }

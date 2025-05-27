@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.text.ParseException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class JwtAuthenticatorIdTokenTypeTests extends JwtAuthenticatorTests {
 
@@ -27,5 +37,24 @@ public class JwtAuthenticatorIdTokenTypeTests extends JwtAuthenticatorTests {
 
     public void testInvalidIssuerIsCheckedBeforeAlgorithm() throws ParseException {
         doTestInvalidIssuerIsCheckedBeforeAlgorithm(buildJwtAuthenticator());
+    }
+
+    public void testAccessTokenHeaderTypeIsRejected() throws ParseException {
+        final JWTClaimsSet claimsSet = JWTClaimsSet.parse(Map.of());
+        final SignedJWT signedJWT = new SignedJWT(
+            JWSHeader.parse(Map.of("alg", allowedAlgorithm, "typ", "at+jwt")).toBase64URL(),
+            claimsSet.toPayload().toBase64URL(),
+            Base64URL.encode("signature")
+        );
+
+        final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
+
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
+        final JwtAuthenticator jwtAuthenticator = buildJwtAuthenticator();
+        jwtAuthenticator.authenticate(jwtAuthenticationToken, future);
+        final Exception e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("invalid jwt typ header"));
     }
 }

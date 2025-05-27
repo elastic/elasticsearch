@@ -10,6 +10,7 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.ServerArgs;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -21,6 +22,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +47,6 @@ public class ServerProcessBuilder {
     private ServerArgs serverArgs;
     private ProcessInfo processInfo;
     private List<String> jvmOptions;
-    private Path workingDir;
     private Terminal terminal;
 
     // this allows mocking the process building by tests
@@ -81,11 +83,6 @@ public class ServerProcessBuilder {
      */
     public ServerProcessBuilder withJvmOptions(List<String> jvmOptions) {
         this.jvmOptions = jvmOptions;
-        return this;
-    }
-
-    public ServerProcessBuilder withWorkingDir(Path workingDir) {
-        this.workingDir = workingDir;
         return this;
     }
 
@@ -141,6 +138,17 @@ public class ServerProcessBuilder {
         return start(ProcessBuilder::start);
     }
 
+    private void ensureWorkingDirExists() throws UserException {
+        Path workingDir = serverArgs.logsDir();
+        try {
+            Files.createDirectories(workingDir);
+        } catch (FileAlreadyExistsException e) {
+            throw new UserException(ExitCodes.CONFIG, "Logs dir [" + workingDir + "] exists but is not a directory", e);
+        } catch (IOException e) {
+            throw new UserException(ExitCodes.CONFIG, "Unable to create logs dir [" + workingDir + "]", e);
+        }
+    }
+
     private static void checkRequiredArgument(Object argument, String argumentName) {
         if (argument == null) {
             throw new IllegalStateException(
@@ -157,12 +165,14 @@ public class ServerProcessBuilder {
         checkRequiredArgument(jvmOptions, "jvmOptions");
         checkRequiredArgument(terminal, "terminal");
 
+        ensureWorkingDirExists();
+
         Process jvmProcess = null;
         ErrorPumpThread errorPump;
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), workingDir, processStarter);
+            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), serverArgs.logsDir(), processStarter);
             errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());

@@ -313,7 +313,7 @@ final class CefParser {
     static List<String> parseHeaders(String cefString) {
         List<String> headers = new ArrayList<>();
         int extensionStart = -1;
-        final StringBuilder buffer = new StringBuilder();
+        StringBuilder buffer = new StringBuilder();
         for (int i = 0; i < cefString.length(); i++) {
             char curr = cefString.charAt(i);
             char next = i < cefString.length() - 1 ? cefString.charAt(i + 1) : '\0';
@@ -325,7 +325,7 @@ final class CefParser {
                 i++; // and skip the next character
             } else if (curr == '|') { // a pipe, it's the end of a header
                 headers.add(buffer.toString()); // emit the header
-                buffer.setLength(0); // and reset the buffer
+                buffer = new StringBuilder(); // and reset the buffer
                 if (headers.size() == 7) {
                     extensionStart = i + 1; // the extensions begin after this pipe
                     break; // we've processed all the headers, so exit the loop

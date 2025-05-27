@@ -36,7 +36,7 @@ public class ES813FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813FlatVectorFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813FlatVectorFormat());
 
     @Override
     protected Codec getCodec() {

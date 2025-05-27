@@ -1,0 +1,5 @@
+pr: 128539
+summary: Optimise shared-blob-cache evictions
+area: Searchable Snapshots
+type: enhancement
+issues: []

@@ -39,6 +39,8 @@ for a particular action. [prepareRequest][BaseRestHandler#prepareRequest] proces
 were left unconsumed.
 5. [BaseRestHandler] then supplies the channel to the [RestChannelConsumer] to begin executing the action. Some handlers, such as the
 [RestBulkAction], consume the request as a stream of chunks to allow incremental processing of large requests.
+6. The response is written to the [RestChannel], either as a [single payload][RestToXContentListener] or a
+[stream of chunks][RestChunkedToXContentListener].
 
 ### Request interceptor
 
@@ -68,6 +70,7 @@ additional configuration to implement features such as IP filtering or TLS.
 [RestBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
 [RestChannelConsumer]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L204
 [RestChannel]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestChannel.java
+[RestChunkedToXContentListener]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/action/RestChunkedToXContentListener.java
 [RestController#dispatchRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestController.java#L304
 [RestController#registerHandler]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestController.java#L299
 [RestController]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestController.java
@@ -77,6 +80,7 @@ additional configuration to implement features such as IP filtering or TLS.
 [RestInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestInterceptor.java
 [RestRequest]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestRequest.java
 [RestServerActionPlugin]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/interceptor/RestServerActionPlugin.java
+[RestToXContentListener]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/action/RestToXContentListener.java
 [Route]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/rest/RestHandler.java#L123
 [Security#getHttpTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L1959
 [Security#getRestHandlerInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L2140

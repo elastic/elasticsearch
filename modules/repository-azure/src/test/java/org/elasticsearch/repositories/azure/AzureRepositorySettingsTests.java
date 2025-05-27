@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -35,8 +37,9 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final AzureRepository azureRepository = new AzureRepository(
-            randomProjectIdOrDefault(),
+            projectId,
             new RepositoryMetadata("foo", "azure", internalSettings),
             NamedXContentRegistry.EMPTY,
             mock(AzureStorageService.class),
@@ -45,6 +48,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             RepositoriesMetrics.NOOP
         );
+        assertThat(azureRepository.getProjectId(), equalTo(projectId));
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }

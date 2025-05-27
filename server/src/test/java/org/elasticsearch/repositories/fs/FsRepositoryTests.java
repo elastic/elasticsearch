@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -101,8 +102,9 @@ public class FsRepositoryTests extends ESTestCase {
 
             int numDocs = indexDocs(directory);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+            final ProjectId projectId = randomProjectIdOrDefault();
             FsRepository repository = new FsRepository(
-                randomProjectIdOrDefault(),
+                projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
@@ -110,6 +112,7 @@ public class FsRepositoryTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
+            assertThat(repository.getProjectId(), equalTo(projectId));
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
@@ -228,8 +231,9 @@ public class FsRepositoryTests extends ESTestCase {
             final AtomicBoolean canErrorForWriteBlob = new AtomicBoolean();
             final AtomicBoolean shouldErrorForWriteMetadataBlob = new AtomicBoolean();
             final AtomicBoolean writeBlobErrored = new AtomicBoolean(false);
+            final ProjectId projectId = randomProjectIdOrDefault();
             final var repository = new FsRepository(
-                randomProjectIdOrDefault(),
+                projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
@@ -286,6 +290,7 @@ public class FsRepositoryTests extends ESTestCase {
                     };
                 }
             };
+            assertThat(repository.getProjectId(), equalTo(projectId));
             repository.start();
 
             final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(

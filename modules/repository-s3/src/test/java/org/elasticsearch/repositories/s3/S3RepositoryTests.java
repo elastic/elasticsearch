@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,6 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -152,8 +154,9 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        return new S3Repository(
-            randomProjectIdOrDefault(),
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final S3Repository s3Repository = new S3Repository(
+            projectId,
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(mock(Environment.class), mock(ResourceWatcherService.class)),
@@ -162,6 +165,8 @@ public class S3RepositoryTests extends ESTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
         );
+        assertThat(s3Repository.getProjectId(), equalTo(projectId));
+        return s3Repository;
     }
 
     public void testAnalysisFailureDetail() {

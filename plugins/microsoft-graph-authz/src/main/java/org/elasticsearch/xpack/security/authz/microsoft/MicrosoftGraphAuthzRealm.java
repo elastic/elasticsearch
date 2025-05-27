@@ -27,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -51,7 +52,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         "false"
     ).equals("true");
 
-    private static final LicensedFeature.Momentary MICROSOFT_GRAPH_FEATURE = LicensedFeature.momentary(
+    static final LicensedFeature.Momentary MICROSOFT_GRAPH_FEATURE = LicensedFeature.momentary(
         "security-realms",
         "microsoft_graph",
         License.OperationMode.PLATINUM
@@ -60,6 +61,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final RealmConfig config;
     private final UserRoleMapper roleMapper;
     private final GraphServiceClient client;
+    private final XPackLicenseState licenseState;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
         super(config);
@@ -79,7 +81,17 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             );
         }
 
-        client = buildClient(clientSecret);
+        this.client = buildClient(clientSecret);
+        this.licenseState = XPackPlugin.getSharedLicenseState();
+    }
+
+    // for testing
+    MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, GraphServiceClient client, XPackLicenseState licenseState) {
+        super(config);
+        this.config = config;
+        this.roleMapper = roleMapper;
+        this.client = client;
+        this.licenseState = licenseState;
     }
 
     private void require(Setting.AffixSetting<String> setting) {
@@ -106,7 +118,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
     @Override
     public void lookupUser(String principal, ActionListener<User> listener) {
-        if (MICROSOFT_GRAPH_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        if (MICROSOFT_GRAPH_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(MICROSOFT_GRAPH_FEATURE.getName()));
             return;
         }

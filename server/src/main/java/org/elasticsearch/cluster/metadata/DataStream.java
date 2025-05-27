@@ -34,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -78,6 +80,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
+    public static final boolean LOGS_STREAM_FEATURE_FLAG = new FeatureFlag("logs_stream").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
@@ -1010,7 +1013,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *         given indices
      */
     @Nullable
+    @Deprecated
     public DataStream snapshot(Set<String> indicesInSnapshot, Metadata.Builder snapshotMetadataBuilder) {
+        @FixForMultiProject
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder project = snapshotMetadataBuilder.getProject(projectId);
+        if (project == null) {
+            project = ProjectMetadata.builder(projectId);
+            snapshotMetadataBuilder.put(project);
+        }
+        return snapshot(indicesInSnapshot, project);
+    }
+
+    /**
+     * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
+     * stream definitions that do not reference backing indices and failure indices not contained in the snapshot.
+     *
+     * @param indicesInSnapshot List of indices in the snapshot
+     * @param snapshotMetadataBuilder a project metadata builder with the current view of the snapshot metadata
+     * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
+     *         given indices
+     */
+    public DataStream snapshot(Set<String> indicesInSnapshot, ProjectMetadata.Builder snapshotMetadataBuilder) {
         boolean backingIndicesChanged = false;
         boolean failureIndicesChanged = false;
 
@@ -1044,7 +1068,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return builder.setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
     }
 
-    private static boolean isAnyIndexMissing(List<Index> indices, Metadata.Builder builder, Set<String> indicesInSnapshot) {
+    private static boolean isAnyIndexMissing(List<Index> indices, ProjectMetadata.Builder builder, Set<String> indicesInSnapshot) {
         for (Index index : indices) {
             final String indexName = index.getName();
             if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {

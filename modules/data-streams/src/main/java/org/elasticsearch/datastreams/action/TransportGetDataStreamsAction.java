@@ -370,7 +370,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            globalRetentionSettings.get()
+            globalRetentionSettings.get(false),
+            globalRetentionSettings.get(true)
         );
     }
 

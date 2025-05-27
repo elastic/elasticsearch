@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
@@ -25,9 +26,10 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         Query childFilter,
         Integer k,
         int numCands,
-        BitSetProducer parentsFilter
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy
     ) {
-        super(field, query, childFilter, numCands, parentsFilter);
+        super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
     }
 
@@ -41,5 +43,9 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
+    }
+
+    public KnnSearchStrategy getStrategy() {
+        return searchStrategy;
     }
 }

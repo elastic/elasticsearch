@@ -189,3 +189,101 @@ book_no:keyword
 7140
 2714
 ;
+
+testKqlInStatsNonPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where kql("title:Lord")
+;
+
+c:long
+3
+;
+
+
+testMatchInStatsPushableAndNonPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where (kql("title: lord") and ratings > 4.5) or (kql("author: dostoevsky") and length(title) > 50)
+;
+
+c:long
+6
+;
+
+testKqlInStatsPushable
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where kql("author:tolkien")
+;
+
+c:long
+22
+;
+
+testKqlInStatsWithNonPushableDisjunctions
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where kql("title: lord") or length(title) > 130 
+;
+
+c:long
+5
+;
+
+testKqlInStatsWithMultipleAggs
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS c = count(*) where kql("title: lord"), m = max(book_no::integer) where kql("author: tolkien"), n = min(book_no::integer) where kql("author: dostoevsky") 
+;
+
+c:long | m:integer | n:integer
+4      | 9607      | 1211
+;
+
+
+testKqlInStatsWithGrouping
+required_capability: kql_function
+required_capability: full_text_functions_in_stats_where
+FROM books
+| STATS r = AVG(ratings) where kql("title: Lord AND Rings") by author | WHERE r is not null
+;
+ignoreOrder: true
+
+r:double           | author: text
+4.75               | Alan Lee                 
+4.674999952316284  | J. R. R. Tolkien         
+4.670000076293945  | John Ronald Reuel Tolkien
+4.670000076293945  | Agnes Perkins            
+4.670000076293945  | Charles Adolph Huttar    
+4.670000076293945  | Walter Scheps            
+4.559999942779541  | J.R.R. Tolkien           
+;
+
+testKqlInStatsWithGroupingBy
+required_capability: kql_function
+required_capability: lucene_query_evaluator_query_rewrite
+FROM airports 
+| STATS c = COUNT(*) where kql("country: United States") BY scalerank
+| SORT scalerank desc
+;
+
+c: long     |   scalerank: long   
+0              | 9              
+44             | 8              
+10             | 7              
+28             | 6              
+10             | 5              
+12             | 4              
+10             | 3              
+15             | 2              
+;

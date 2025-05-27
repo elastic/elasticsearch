@@ -29,8 +29,9 @@ public class StoredFieldsSpecTests extends ESTestCase {
 
     public void testDefaults() {
         SearchSourceBuilder search = new SearchSourceBuilder();
+        var context = searchContext(search);
         // defaults - return source and metadata fields
-        FetchContext fc = new FetchContext(searchContext(search));
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
 
         FetchSubPhaseProcessor sourceProcessor = new FetchSourcePhase().getProcessor(fc);
         assertNotNull(sourceProcessor);
@@ -52,7 +53,8 @@ public class StoredFieldsSpecTests extends ESTestCase {
     public void testStoredFieldsDisabled() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.storedField("_none_");
-        FetchContext fc = new FetchContext(searchContext(search));
+        var context = searchContext(search);
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
 
         assertNull(new StoredFieldsPhase().getProcessor(fc));
         assertNull(new FetchSourcePhase().getProcessor(fc));
@@ -61,7 +63,8 @@ public class StoredFieldsSpecTests extends ESTestCase {
     public void testScriptFieldsEnableMetadata() {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.scriptField("field", new Script("script"));
-        FetchContext fc = new FetchContext(searchContext(search));
+        var context = searchContext(search);
+        FetchContext fc = new FetchContext(context, null);
 
         FetchSubPhaseProcessor subPhaseProcessor = new ScriptFieldsPhase().getProcessor(fc);
         assertNotNull(subPhaseProcessor);

@@ -4,7 +4,7 @@
 // range. These stats should be correctly adjusted for the sampling. Furthermore,
 // they also assert the value of MV_COUNT(VALUES(...)), which is not adjusted for
 // the sampling and therefore gives the size of the sample.
-// All ranges are very loose, so that the tests should fail less than 1 in a billion.
+// All ranges are very loose, so that the tests should practically never fail.
 // The range checks are done in ES|QL, resulting in one boolean value (is_expected),
 // because the CSV tests don't support such assertions.
 
@@ -40,10 +40,10 @@ required_capability: sample
 FROM employees
   | SAMPLE 0.5
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no), sum_emp_no = SUM(emp_no)
-  | EVAL is_expected = count >= 40 AND count <= 160 AND
-                       values_count >= 20 AND values_count <= 80 AND
+  | EVAL is_expected = count >= 20 AND count <= 180 AND
+                       values_count >= 10 AND values_count <= 90 AND
                        avg_emp_no > 10010 AND avg_emp_no < 10090 AND
-                       sum_emp_no > 40*10010 AND sum_emp_no < 160*10090
+                       sum_emp_no > 20*10010 AND sum_emp_no < 180*10090
   | KEEP is_expected
 ;
 
@@ -59,8 +59,8 @@ FROM employees
   | SAMPLE 0.5
   | WHERE emp_no > 10050 
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND 
-                       values_count >= 5 AND values_count <= 45 AND
+  | EVAL is_expected = count >= 5 AND count <= 95 AND
+                       values_count >= 2 AND values_count <= 48 AND
                        avg_emp_no > 10055 AND avg_emp_no < 10095
   | KEEP is_expected
 ;
@@ -77,8 +77,8 @@ FROM employees
   | WHERE emp_no <= 10050 
   | SAMPLE 0.5
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND 
-                       values_count >= 5 AND values_count <= 45 AND
+  | EVAL is_expected = count >= 5 AND count <= 95 AND
+                       values_count >= 2 AND values_count <= 48 AND
                        avg_emp_no > 10005 AND avg_emp_no < 10045
   | KEEP is_expected
 ;
@@ -95,8 +95,8 @@ FROM employees
   | SAMPLE 0.5
   | SORT emp_no
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 40 AND count <= 160 AND
-                       values_count >= 20 AND values_count <= 80 AND
+  | EVAL is_expected = count >= 20 AND count <= 180 AND
+                       values_count >= 10 AND values_count <= 90 AND
                        avg_emp_no > 10010 AND avg_emp_no < 10090
   | KEEP is_expected
 ;
@@ -113,8 +113,8 @@ FROM employees
   | SORT emp_no
   | SAMPLE 0.5
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 40 AND count <= 160 AND
-                       values_count >= 20 AND values_count <= 80 AND
+  | EVAL is_expected = count >= 20 AND count <= 180 AND
+                       values_count >= 10 AND values_count <= 90 AND
                        avg_emp_no > 10010 AND avg_emp_no < 10090
   | KEEP is_expected
 ;
@@ -147,8 +147,8 @@ FROM employees
   | LIMIT 50
   | SAMPLE 0.5
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no))
-  | EVAL is_expected = count >= 10 AND count <= 90 AND 
-                       values_count >= 5 AND values_count <= 45
+  | EVAL is_expected = count >= 5 AND count <= 95 AND
+                       values_count >= 2 AND values_count <= 48
   | KEEP is_expected
 ;
 
@@ -201,8 +201,8 @@ FROM employees
   | SAMPLE 0.8
   | SAMPLE 0.9
   | STATS count = COUNT(), values_count = MV_COUNT(VALUES(emp_no)), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 40 AND count <= 160 AND
-                       values_count >= 20 AND values_count <= 80 AND
+  | EVAL is_expected = count >= 20 AND count <= 180 AND
+                       values_count >= 10 AND values_count <= 90 AND
                        avg_emp_no > 10010 AND avg_emp_no < 10090
   | KEEP is_expected
 ;

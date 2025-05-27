@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
@@ -17,7 +18,9 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -585,6 +588,51 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithConditionOnForkField() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | WHERE _fork == "fork2"
+                | KEEP _fork, id, content, a, b, c
+                | SORT _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a", "b", "c"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "fork2", 5, "There is also a white cat", null, 2, null }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithFilteringOnConstantColumn() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL a = 2 )
+                       ( WHERE content:"dog" | EVAL a = 3 )
+                | WHERE a == 3
+                | KEEP _fork, id, content, a
+                | SORT id
+                | LIMIT 3
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork3", 2, "This is a brown dog", 3),
+                List.of("fork3", 3, "This dog is really brown", 3),
+                List.of("fork3", 4, "The dog is brown but this document is very very long", 3)
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test
@@ -683,6 +731,33 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));
+    }
+
+    public void testProfile() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" | SORT id )
+               ( WHERE content:"dog" | SORT id )
+            | SORT _fork, id
+            | KEEP _fork, id, content
+            """;
+
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+
+        request.pragmas(randomPragmas());
+        request.query(query);
+        request.profile(true);
+
+        try (var resp = run(request)) {
+            EsqlQueryResponse.Profile profile = resp.profile();
+            assertNotNull(profile);
+
+            assertEquals(
+                Set.of("data", "main.final", "node_reduce", "subplan-0.final", "subplan-1.final"),
+                profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
+            );
+        }
     }
 
     private void createAndPopulateIndex() {

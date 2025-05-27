@@ -89,9 +89,9 @@ $$$dissect-key-modifiers-table$$$
 
 ### Right padding modifier (`->`) [dissect-modifier-skip-right-padding]
 
-The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
+The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
 
-The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
+The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
 
 Use the right padding modifier to allow for repetition of the characters after a `%{keyname->}`.
 
@@ -102,7 +102,7 @@ Right padding modifier example
 |     |     |
 | --- | --- |
 | **Pattern** | `%{ts->} %{{level}}` |
-| **Input** | 1998-08-10T17:15:42,466          WARN |
+| **Input** | 1998-08-10T17:15:42,466          WARN |
 | **Result** | * ts = 1998-08-10T17:15:42,466<br>* level = WARN<br> |
 
 The right padding modifier may be used with an empty key to help skip unwanted data. For example, the same input string, but wrapped with brackets requires the use of an empty right padded key to achieve the same result.
@@ -112,7 +112,7 @@ Right padding modifier with empty key example
 |     |     |
 | --- | --- |
 | **Pattern** | `[%{{ts}}]%{->}[%{{level}}]` |
-| **Input** | [1998-08-10T17:15:42,466]            [WARN] |
+| **Input** | [1998-08-10T17:15:42,466]            [WARN] |
 | **Result** | * ts = 1998-08-10T17:15:42,466<br>* level = WARN<br> |
 
 

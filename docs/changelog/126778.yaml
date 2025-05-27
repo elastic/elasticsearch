@@ -1,5 +1,0 @@
-pr: 126778
-summary: Fix bbq quantization algorithm but for differently distributed components
-area: Vector Search
-type: bug
-issues: []

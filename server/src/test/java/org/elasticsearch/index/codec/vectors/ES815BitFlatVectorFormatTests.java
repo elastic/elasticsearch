@@ -10,9 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnByteVectorField;
@@ -23,6 +21,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.junit.Before;
 
@@ -30,14 +29,11 @@ import java.io.IOException;
 
 public class ES815BitFlatVectorFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815BitFlatVectorFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES815BitFlatVectorFormat();
-            }
-        };
+        return codec;
     }
 
     @Before

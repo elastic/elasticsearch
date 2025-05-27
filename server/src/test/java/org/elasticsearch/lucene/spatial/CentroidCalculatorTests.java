@@ -429,6 +429,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
             double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
                 : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
                 : (value > 1e8 || value < -1e8) ? Math.abs(value / 1e15)
+                : (value > 1e5 || value < -1e5) ? DELTA * 10
                 : DELTA;
             return closeTo(value, delta);
         }

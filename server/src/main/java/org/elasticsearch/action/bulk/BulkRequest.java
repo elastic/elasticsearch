@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -56,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest
+public class BulkRequest extends LegacyActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,

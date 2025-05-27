@@ -2,6 +2,8 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/index.html
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html
+products:
+  - id: painless
 ---
 
 # Painless [painless-guide]

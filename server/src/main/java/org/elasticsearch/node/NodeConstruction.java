@@ -193,6 +193,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
@@ -1111,11 +1112,12 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService(settings);
+        var fileSettingsHealthIndicatorPublisher = new FileSettingsService.FileSettingsHealthIndicatorPublisherImpl(clusterService, client);
+        var fileSettingsHealthTracker = new FileSettingsHealthTracker(settings, fileSettingsHealthIndicatorPublisher);
         FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
             FileSettingsServiceProvider.class,
             () -> FileSettingsService::new
-        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthIndicatorService);
+        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthTracker);
 
         RestoreService restoreService = new RestoreService(
             clusterService,
@@ -1199,8 +1201,7 @@ class NodeConstruction {
                 transportService,
                 threadPool,
                 telemetryProvider,
-                repositoriesService,
-                fileSettingsHealthIndicatorService
+                repositoriesService
             )
         );
 
@@ -1372,8 +1373,7 @@ class NodeConstruction {
         TransportService transportService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        RepositoriesService repositoriesService,
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1389,7 +1389,7 @@ class NodeConstruction {
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
-            fileSettingsHealthIndicatorService
+            new FileSettingsHealthIndicatorService()
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());

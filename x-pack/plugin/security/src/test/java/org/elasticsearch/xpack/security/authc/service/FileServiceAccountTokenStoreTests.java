@@ -21,8 +21,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -238,7 +238,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
         );
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
-        final List<TokenInfo> tokenInfos = store.findTokensFor(accountId);
+        final List<TokenInfo> tokenInfos = store.findNodeLocalTokensFor(accountId);
         assertThat(tokenInfos, hasSize(5));
         assertThat(
             tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),

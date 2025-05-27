@@ -181,10 +181,13 @@ public class Driver implements Releasable, Describable {
         while (true) {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
+                assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators();
                 assert isFinished() : "not finished after early termination";
+            } finally {
+                assert driverContext.assertEndRunLoop();
             }
             totalIterationsThisRun++;
             iterationsSinceLastStatusUpdate++;

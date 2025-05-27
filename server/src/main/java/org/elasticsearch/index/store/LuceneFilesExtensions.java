@@ -83,7 +83,11 @@ public enum LuceneFilesExtensions {
     VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
     VEQ("veq", "Scalar Quantized Vector Data", false, true),
     VEMB("vemb", "Binarized Vector Metadata", true, false),
-    VEB("veb", "Binarized Vector Data", false, true);
+    VEB("veb", "Binarized Vector Data", false, true),
+    // ivf vectors format
+    MIVF("mivf", "IVF Metadata", true, false),
+    CENIVF("cenivf", "IVF Centroid Data", false, true),
+    CLIVF("clivf", "IVF Cluster Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

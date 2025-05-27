@@ -16,3 +16,5 @@ com.azure.identity:
       mode: read
 reactor.core:
   - manage_threads
+reactor.netty.core:
+  - manage_threads # https://github.com/elastic/elasticsearch/issues/128046

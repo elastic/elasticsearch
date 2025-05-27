@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-literals.html
+products:
+  - id: painless
 ---
 
 # Literals [painless-literals]

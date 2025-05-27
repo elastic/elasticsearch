@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -84,7 +85,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         } else if (child instanceof OrderBy orderBy) {
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
-        } else if (child instanceof Join join) {
+        } else if (child instanceof Join join && child instanceof InlineJoin == false) {
+            // TODO: could we do better here about pushing down filters for inlinestats?
+            // See also https://github.com/elastic/elasticsearch/issues/127497
+            // Push down past INLINESTATS if the condition is on the groupings
             return pushDownPastJoin(filter, join);
         }
         // cannot push past a Limit, this could change the tailing result set returned

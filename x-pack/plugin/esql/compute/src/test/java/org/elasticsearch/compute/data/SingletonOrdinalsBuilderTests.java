@@ -8,7 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.Directory;
@@ -37,6 +40,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SingletonOrdinalsBuilderTests extends ESTestCase {
     public void testReader() throws IOException {
@@ -147,6 +151,39 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                                 assertThat(built.isNull(p), equalTo(true));
                             }
                             assertThat(built.areAllValuesNull(), equalTo(true));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testEmitOrdinalForHighCardinality() throws IOException {
+        BlockFactory factory = breakingDriverContext().blockFactory();
+        int numOrds = between(50, 100);
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+            for (int o = 0; o < numOrds; o++) {
+                int docPerOrds = between(10, 15);
+                for (int d = 0; d < docPerOrds; d++) {
+                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", new BytesRef("value-" + o))));
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                assertThat(reader.leaves(), hasSize(1));
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    int batchSize = between(40, 100);
+                    int ord = random().nextInt(numOrds);
+                    try (
+                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);
+                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize)
+                    ) {
+                        for (int i = 0; i < batchSize; i++) {
+                            b1.appendOrd(ord);
+                            b2.appendOrd(ord);
+                        }
+                        try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
+                            assertThat(block1, equalTo(block2));
+                            assertNotNull(block1.asOrdinals());
                         }
                     }
                 }

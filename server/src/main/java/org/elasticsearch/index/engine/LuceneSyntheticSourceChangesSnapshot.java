@@ -17,6 +17,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
@@ -85,7 +86,10 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
-        this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
+        String defaultCodec = EngineConfig.INDEX_CODEC_SETTING.get(mapperService.getIndexSettings().getSettings());
+        // zstd best compression stores upto 2048 docs in a block, so it is likely that in this case docs are co-located in same block:
+        boolean forceSequentialReader = CodecService.BEST_COMPRESSION_CODEC.equals(defaultCodec);
+        this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 

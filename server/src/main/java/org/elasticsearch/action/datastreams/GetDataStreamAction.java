@@ -213,6 +213,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+            public static final ParseField SETTINGS_FIELD = new ParseField("settings");
             public static final ParseField PREFER_ILM = new ParseField("prefer_ilm");
             public static final ParseField MANAGED_BY = new ParseField("managed_by");
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
@@ -351,7 +352,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return toXContent(builder, params, null, null);
+                return toXContent(builder, params, null, null, null);
             }
 
             /**
@@ -362,7 +363,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 XContentBuilder builder,
                 Params params,
                 @Nullable RolloverConfiguration rolloverConfiguration,
-                @Nullable DataStreamGlobalRetention globalRetention
+                @Nullable DataStreamGlobalRetention dataGlobalRetention,
+                @Nullable DataStreamGlobalRetention failureGlobalRetention
             ) throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
@@ -383,7 +385,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (dataStream.getDataLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     dataStream.getDataLifecycle()
-                        .toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
+                        .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -416,6 +418,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
+                if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    dataStream.getSettings().toXContent(builder, params);
+                    builder.endObject();
+                }
 
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                 builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
@@ -425,7 +432,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamLifecycle failuresLifecycle = dataStream.getFailuresLifecycle(failureStoreEffectivelyEnabled);
                 if (failuresLifecycle != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    failuresLifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
+                    failuresLifecycle.toXContent(builder, params, rolloverConfiguration, failureGlobalRetention, dataStream.isInternal());
                 }
                 builder.endObject();
                 builder.endObject();
@@ -599,20 +606,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable
-        private final DataStreamGlobalRetention globalRetention;
+        private final DataStreamGlobalRetention dataGlobalRetention;
+        @Nullable
+        private final DataStreamGlobalRetention failuresGlobalRetention;
 
         public Response(List<DataStreamInfo> dataStreams) {
-            this(dataStreams, null, null);
+            this(dataStreams, null, null, null);
         }
 
         public Response(
             List<DataStreamInfo> dataStreams,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention dataGlobalRetention,
+            @Nullable DataStreamGlobalRetention failuresGlobalRetention
         ) {
             this.dataStreams = dataStreams;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
+            this.dataGlobalRetention = dataGlobalRetention;
+            this.failuresGlobalRetention = failuresGlobalRetention;
         }
 
         public List<DataStreamInfo> getDataStreams() {
@@ -625,8 +636,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Nullable
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+        public DataStreamGlobalRetention getDataGlobalRetention() {
+            return dataGlobalRetention;
+        }
+
+        @Nullable
+        public DataStreamGlobalRetention getFailuresGlobalRetention() {
+            return failuresGlobalRetention;
         }
 
         /**
@@ -640,8 +656,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
+            // A version 9.x cluster will never read this, so we only need to include the patch version here.
+            if (out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
+                out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeOptionalWriteable(dataGlobalRetention);
             }
         }
 
@@ -654,7 +675,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder,
                     DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
-                    globalRetention
+                    dataGlobalRetention,
+                    failuresGlobalRetention
                 );
             }
             builder.endArray();
@@ -669,12 +691,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Response response = (Response) o;
             return dataStreams.equals(response.dataStreams)
                 && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
-                && Objects.equals(globalRetention, response.globalRetention);
+                && Objects.equals(dataGlobalRetention, response.dataGlobalRetention)
+                && Objects.equals(failuresGlobalRetention, response.failuresGlobalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams, rolloverConfiguration, globalRetention);
+            return Objects.hash(dataStreams, rolloverConfiguration, dataGlobalRetention, failuresGlobalRetention);
         }
     }
 

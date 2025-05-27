@@ -1,0 +1,5 @@
+pr: 126612
+summary: Add Support for Providing a custom `ServiceAccountTokenStore` through `SecurityExtensions`
+area: Authentication
+type: enhancement
+issues: []

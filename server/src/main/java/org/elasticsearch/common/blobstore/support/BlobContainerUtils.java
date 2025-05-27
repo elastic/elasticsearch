@@ -22,7 +22,7 @@ public class BlobContainerUtils {
         // no instances
     }
 
-    public static final int MAX_REGISTER_CONTENT_LENGTH = 3 * Long.BYTES;
+    public static final int MAX_REGISTER_CONTENT_LENGTH = 4 * Long.BYTES;
 
     public static void ensureValidRegisterContent(BytesReference bytesReference) {
         if (bytesReference.length() > MAX_REGISTER_CONTENT_LENGTH) {

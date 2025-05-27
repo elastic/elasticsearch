@@ -22,6 +22,12 @@ MV_EXPAND column
 `column`
 :   The multivalued column to expand.
 
+::::{warning}
+The output rows produced by `MV_EXPAND` can be in any order and may not respect
+preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after any
+`MV_EXPAND`s.
+::::
+
 **Example**
 
 :::{include} ../examples/mv_expand.csv-spec/simple.md

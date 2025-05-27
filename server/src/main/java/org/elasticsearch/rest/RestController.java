@@ -61,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -560,10 +561,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
+            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
-        attributes.put("http.method", method);
-        attributes.put("http.url", req.uri());
+        attributes.put("http.method", Objects.requireNonNullElse(method, "<unknown>"));
+        attributes.put("http.url", Objects.requireNonNullElse(req.uri(), "<unknown>"));
         switch (req.getHttpRequest().protocolVersion()) {
             case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
             case HTTP_1_1 -> attributes.put("http.flavour", "1.1");

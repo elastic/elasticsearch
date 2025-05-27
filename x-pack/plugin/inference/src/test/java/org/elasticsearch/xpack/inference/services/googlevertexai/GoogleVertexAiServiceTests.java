@@ -898,7 +898,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
-                                   "supported_task_types": ["text_embedding", "rerank"]
+                                   "supported_task_types": ["text_embedding"]
                                },
                                "rate_limit.requests_per_minute": {
                                    "description": "Minimize the number of rate limit errors.",

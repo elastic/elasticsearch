@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-azure-classic-scale.html
 ---
 
-# Scaling out! [discovery-azure-classic-scale]
+# Scaling out [discovery-azure-classic-scale]
 
 You need first to create an image of your previous machine. Disconnect from your machine and run locally the following commands:
 

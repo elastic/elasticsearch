@@ -107,7 +107,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
                     if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
                         affectedByMaxRetentionCounter++;
                     }
-                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION)) {
+                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_FAILURES_RETENTION)) {
                         affectedByDefaultRetentionCounter++;
                     }
                 }

@@ -1,5 +1,0 @@
-pr: 127146
-summary: Fix sneaky bug in single value query
-area: ES|QL
-type: bug
-issues: []

@@ -29,8 +29,16 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("from test", ALL_FIELDS);
     }
 
+    public void testBasicFromCommandWithInlinestats() {
+        assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
+    }
+
     public void testBasicFromCommandWithMetadata() {
         assertFieldNames("from test metadata _index, _id, _version", ALL_FIELDS);
+    }
+
+    public void testBasicFromCommandWithMetadata_AndInlinestats() {
+        assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
     }
 
     public void testBasicEvalAndDrop() {
@@ -294,6 +302,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | LIMIT 0""", ALL_FIELDS);
     }
 
+    public void testLimitZero_WithInlinestats() {
+        assertFieldNames("""
+            FROM employees
+            | INLINESTATS COUNT(*), MAX(salary) BY gender
+            | LIMIT 0""", ALL_FIELDS);
+    }
+
     public void testDocsDropHeight() {
         assertFieldNames("""
             FROM employees
@@ -301,9 +316,25 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | LIMIT 0""", ALL_FIELDS);
     }
 
+    public void testDocsDropHeight_WithInlinestats() {
+        assertFieldNames("""
+            FROM employees
+            | DROP height
+            | INLINESTATS MAX(salary) BY gender
+            | LIMIT 0""", ALL_FIELDS);
+    }
+
     public void testDocsDropHeightWithWildcard() {
         assertFieldNames("""
             FROM employees
+            | DROP height*
+            | LIMIT 0""", ALL_FIELDS);
+    }
+
+    public void testDocsDropHeightWithWildcard_AndInlinestats() {
+        assertFieldNames("""
+            FROM employees
+            | INLINESTATS MAX(salary) BY gender
             | DROP height*
             | LIMIT 0""", ALL_FIELDS);
     }
@@ -466,6 +497,10 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("from employees | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
+    public void testSortWithLimitOne_DropHeight_WithInlinestats() {
+        assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
+    }
+
     public void testDropAllColumns() {
         assertFieldNames("from employees | keep height | drop height | eval x = 1", Set.of("height", "height.*"));
     }
@@ -604,7 +639,20 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | eval language = concat(x, "-", lang)
                 | keep emp_no, x, lang, language
                 | sort emp_no desc | limit 3""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*", "lang", "lang.*")
+            Set.of(
+                "emp_no",
+                "x",
+                "lang",
+                "language",
+                "language_name",
+                "languages",
+                "x.*",
+                "language_name.*",
+                "languages.*",
+                "emp_no.*",
+                "lang.*",
+                "language.*"
+            )
         );
     }
 
@@ -745,7 +793,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testFilterById() {
-        assertFieldNames("FROM apps metadata _id| WHERE _id == \"4\"", ALL_FIELDS);
+        assertFieldNames("FROM apps metadata _id | WHERE _id == \"4\"", ALL_FIELDS);
+    }
+
+    public void testFilterById_WithInlinestats() {
+        assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
     public void testKeepId() {
@@ -1214,6 +1266,15 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, ALL_FIELDS);
     }
 
+    public void testProjectDropPattern_WithInlinestats() {
+        assertFieldNames("""
+            from test
+            | inlinestats max(foo) by bar
+            | keep *
+            | drop *_name
+            """, ALL_FIELDS);
+    }
+
     public void testProjectDropNoStarPattern() {
         assertFieldNames("""
             from test
@@ -1287,6 +1348,15 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
+    public void testCountAllAndOtherStatGrouped_WithInlinestats() {
+        assertFieldNames("""
+            from test
+            | inlinestats c = count(*), min = min(emp_no) by languages
+            | stats c = count(*), min = min(emp_no) by languages
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
     public void testCountAllWithImplicitNameOtherStatGrouped() {
         assertFieldNames("""
             from test
@@ -1316,6 +1386,69 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
+    public void testCountAllWithEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | inlinestats max(salary) by l
+            | stats min = min(salary) by l
+            | eval x = min + 1
+            | stats ca = count(*), cx = count(x) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testKeepAfterEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | inlinestats max(salary) by l
+            | stats min = min(salary) by l
+            | eval x = min + 1
+            | keep x, l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testKeepBeforeEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | keep l, salary, emp_no
+            | inlinestats max(salary) by l
+            | eval x = `max(salary)` + 1
+            | stats min = min(salary) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testStatsBeforeEval_AndInlinestats() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | stats min = min(salary) by l
+            | eval salary = min + 1
+            | inlinestats max(salary) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testStatsBeforeInlinestats() {
+        assertFieldNames("""
+            from test
+            | stats min = min(salary) by languages
+            | inlinestats max(min) by languages
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testKeepBeforeInlinestats() {
+        assertFieldNames("""
+            from test
+            | keep languages, salary
+            | inlinestats max(salary) by languages
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
     public void testCountStar() {
         assertFieldNames("""
             from test
@@ -1339,6 +1472,107 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect first_name "%{first_name} %{more}"
             | keep emp_no, first_name, more""", Set.of());
         assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+    }
+
+    /**
+     * Fix alias removal in regex extraction with JOIN
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
+      */
+    public void testAvoidGrokAttributesRemoval() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
+    }
+
+    public void testAvoidGrokAttributesRemoval2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from sample_data
+            | dissect message "%{type}"
+            | drop type
+            | lookup join message_types_lookup on message
+            | stats count = count(*) by type
+            | keep count
+            | sort count""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("type", "message", "count", "message.*", "type.*", "count.*")));
+    }
+
+    public void testAvoidGrokAttributesRemoval3() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from sample_data
+            | grok message "%{WORD:type}"
+            | drop type
+            | lookup join message_types_lookup on message
+            | stats max = max(event_duration) by type
+            | keep max
+            | sort max""", Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(Set.of("type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*"))
+        );
+
+    }
+
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     */
+    public void testAvoidGrokAttributesRemoval4() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            from message_types
+            | eval type = 1
+            | lookup join message_types_lookup on message
+            | drop  message
+            | grok type "%{WORD:b}"
+            | stats x = max(b)
+            | keep x""", Set.of());
+        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
+    }
+
+    /**
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
+     */
+    public void testAvoidGrokAttributesRemoval5() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        Set<String> fieldNames = fieldNames("""
+            FROM sample_data, employees
+            | EVAL client_ip = client_ip::keyword
+            | RENAME languages AS language_code
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | EVAL type = 1::keyword
+            | EVAL type = 2
+            | LOOKUP JOIN message_types_lookup ON message
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DISSECT type "%{type_as_text}"
+            | KEEP message
+            | WHERE message IS NOT NULL
+            | SORT message DESC
+            | LIMIT 1""", Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "message",
+                    "type",
+                    "languages",
+                    "client_ip",
+                    "language_code",
+                    "language_code.*",
+                    "client_ip.*",
+                    "message.*",
+                    "type.*",
+                    "languages.*"
+                )
+            )
+        );
     }
 
     public void testEnrichOnDefaultField() {
@@ -1708,6 +1942,160 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on languages
             | lookup join message_types_lookup on language_name
             | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+    }
+
+    public void testDropAgainWithWildcardAfterEval() {
+        assertFieldNames("""
+            from employees
+            | eval full_name = 12
+            | drop full_name
+            | drop *name
+            | keep emp_no
+            """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
+    }
+
+    public void testDropWildcardedFields_AfterRename() {
+        assertFieldNames(
+            """
+                from employees
+                | rename first_name AS first_names, last_name AS last_names
+                | eval first_names = 1
+                | drop first_names
+                | drop *_names
+                | keep gender""",
+            Set.of("first_name", "first_name.*", "last_name", "last_name.*", "*_names", "*_names.*", "gender", "gender.*")
+        );
+    }
+
+    public void testDropWildcardFields_WithLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP @timestamp, message, *e*
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of()
+        );
+    }
+
+    public void testForkFieldsWithKeepAfterFork() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames("""
+            FROM test
+            | WHERE a > 2000
+            | EVAL b = a + 100
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
+            | WHERE x > y
+            | KEEP a, b, c, d, x
+            """, Set.of("a", "a.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+    }
+
+    public void testForkFieldsWithKeepBeforeFork() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames("""
+            FROM test
+            | KEEP a, b, c, d, x
+            | WHERE a > 2000
+            | EVAL b = a + 100
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
+            | WHERE x > y
+            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+    }
+
+    public void testForkFieldsWithNoProjection() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames("""
+            FROM test
+            | WHERE a > 2000
+            | EVAL b = a + 100
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
+            | WHERE x > y
+            """, ALL_FIELDS);
+    }
+
+    public void testForkFieldsWithStatsInOneBranch() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames("""
+            FROM test
+            | WHERE a > 2000
+            | EVAL b = a + 100
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (STATS x = count(*), y=min(z))
+            | WHERE x > y
+            """, ALL_FIELDS);
+    }
+
+    public void testForkFieldsWithEnrichAndLookupJoins() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        assertFieldNames(
+            """
+                FROM test
+                | KEEP a, b, abc, def, z, xyz
+                | ENRICH enrich_policy ON abc
+                | EVAL b = a + 100
+                | LOOKUP JOIN my_lookup_index ON def
+                | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                       (STATS x = count(*), y=min(z))
+                | LOOKUP JOIN my_lookup_index ON xyz
+                | WHERE x > y OR _fork == "fork1"
+                """,
+            Set.of(
+                "x",
+                "y",
+                "_fork",
+                "a",
+                "c",
+                "abc",
+                "b",
+                "def",
+                "z",
+                "xyz",
+                "def.*",
+                "_fork.*",
+                "y.*",
+                "x.*",
+                "xyz.*",
+                "z.*",
+                "abc.*",
+                "a.*",
+                "c.*",
+                "b.*"
+            )
+        );
+    }
+
+    public void testForkWithStatsInAllBranches() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames("""
+            FROM test
+            | WHERE a > 2000
+            | EVAL b = a + 100
+            | FORK (WHERE c > 1 AND a < 10000 | STATS m = count(*))
+                   (EVAL z = a * b | STATS m = max(z))
+                   (STATS x = count(*), y=min(z))
+            | WHERE x > y
+            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "z", "z.*"));
+    }
+
+    public void testForkWithStatsAndWhere() {
+        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

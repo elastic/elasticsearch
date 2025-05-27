@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm"
+    }
+  }
+}

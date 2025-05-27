@@ -27,8 +27,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -423,7 +421,7 @@ public class PluginsLoader {
             finder,
             Set.of(moduleName)
         );
-        var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
+        var controller = ModuleLayer.defineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);
         // export/open upstream modules to this plugin module
@@ -432,7 +430,7 @@ public class PluginsLoader {
         addPluginExportsServices(qualifiedExports, controller);
         enableNativeAccess(moduleName, modulesWithNativeAccess, controller);
         logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
-        return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
+        return new LayerAndLoader(controller.layer(), controller.layer().findLoader(moduleName));
     }
 
     /** Determines the module name of the SPI module, given its URL. */
@@ -488,18 +486,6 @@ public class PluginsLoader {
         if (className != null) {
             controller.addOpens(pluginModule, toPackageName(className), serverModule);
         }
-    }
-
-    @SuppressWarnings("removal")
-    static Controller privilegedDefineModulesWithOneLoader(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, parentLayers, parentLoader)
-        );
-    }
-
-    @SuppressWarnings("removal")
-    static ClassLoader privilegedFindLoader(ModuleLayer layer, String name) {
-        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> layer.findLoader(name));
     }
 
     private static List<ModuleLayer> parentLayersOrBoot(List<ModuleLayer> parentLayers) {

@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
@@ -216,9 +218,29 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             numCands = Math.max(numCands, k);
         }
 
+        final KnnSearchStrategy expectedStrategy = context.getIndexSettings()
+            .getIndexVersionCreated()
+            .onOrAfter(IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC)
+                ? DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                : DenseVectorFieldMapper.FilterHeuristic.FANOUT.getKnnSearchStrategy();
+
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE, BIT -> new ESKnnByteVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asByteVector(), k, numCands, filterQuery);
-            case FLOAT -> new ESKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asFloatVector(), k, numCands, filterQuery);
+            case BYTE, BIT -> new ESKnnByteVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asByteVector(),
+                k,
+                numCands,
+                filterQuery,
+                expectedStrategy
+            );
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asFloatVector(),
+                k,
+                numCands,
+                filterQuery,
+                expectedStrategy
+            );
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();

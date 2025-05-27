@@ -210,7 +210,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 .toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
                     dataType() + " can’t be coalesced"
                 );
         };

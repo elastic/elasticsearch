@@ -67,6 +67,12 @@ public class Clusters {
         return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
     }
 
+    public static org.elasticsearch.Version bwcVersion() {
+        org.elasticsearch.Version local = localClusterVersion();
+        org.elasticsearch.Version remote = remoteClusterVersion();
+        return local.before(remote) ? local : remote;
+    }
+
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
         return val != null ? Version.fromString(val) : Version.CURRENT;

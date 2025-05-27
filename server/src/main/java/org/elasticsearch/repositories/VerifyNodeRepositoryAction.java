@@ -10,10 +10,10 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -67,7 +67,7 @@ public class VerifyNodeRepositoryAction {
         }
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         protected final String repository;
         protected final String verificationToken;

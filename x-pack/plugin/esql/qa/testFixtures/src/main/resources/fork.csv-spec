@@ -3,7 +3,7 @@
 //
 
 simpleFork
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK ( WHERE emp_no == 10001 )
@@ -18,7 +18,7 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithWhereSortAndLimit
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | _fork:keyword
 ;
 
 fiveFork
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK ( WHERE emp_no == 10005 )
@@ -59,7 +59,7 @@ fork5         | 10001
 ;
 
 forkWithWhereSortDescAndLimit
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
@@ -76,7 +76,7 @@ fork2         | 10087          | Xinglin
 ;
 
 forkWithCommonPrefilter
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | WHERE emp_no > 10050
@@ -94,7 +94,7 @@ fork2         | 10100
 ;
 
 forkWithSemanticSearchAndScore
-required_capability: fork_v3
+required_capability: fork_v4
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -114,7 +114,7 @@ fork2         | 6.093784261960139E18  | 2           | all we have to decide is w
 ;
 
 forkWithEvals
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
@@ -131,7 +131,7 @@ fork2         | 10087          | def       | null      | 2
 ;
 
 forkWithStats
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
@@ -152,7 +152,7 @@ fork4         | null           | 100    | 10001     | null
 ;
 
 forkWithDissect
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -172,7 +172,7 @@ fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
 ;
 
 forkWithMixOfCommands
-required_capability: fork_v3
+required_capability: fork_v4
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -194,4 +194,25 @@ fork3         | 10048          | Syrotiuk  | null      | null      | null
 fork3         | 10081          | Rosen     | null      | null      | null
 fork4         | 10048          | abc       | aaa       | null      | null
 fork4         | 10081          | abc       | aaa       | null      | null
+;
+
+forkWithFiltersOnConstantValues
+required_capability: fork_v4
+
+FROM employees
+| EVAL z = 1
+| WHERE z == 1
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | WHERE z - 1 == 0)
+       (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL a = "x" )
+       (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no) | EVAL a = "y" )
+       (STATS x = COUNT(*), y = MIN(emp_no))
+| WHERE _fork == "fork2" OR a == "y"
+| KEEP _fork, emp_no, x, y, z
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:long | y:integer | z:integer
+fork2         | 10081          | null   | null      | 1
+fork2         | 10087          | null   | null      | 1
+fork3         | null           | 100    | 10100     | 10001
 ;

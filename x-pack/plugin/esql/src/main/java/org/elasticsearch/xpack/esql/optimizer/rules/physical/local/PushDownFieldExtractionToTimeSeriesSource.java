@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -78,7 +79,7 @@ public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizer
         return p instanceof FilterExec || p instanceof TopNExec || p instanceof LimitExec;
     }
 
-    private TimeSeriesSourceExec addFieldExtract(
+    private PhysicalPlan addFieldExtract(
         LocalPhysicalOptimizerContext context,
         EsQueryExec query,
         boolean keepDocAttribute,
@@ -96,7 +97,7 @@ public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizer
         if (keepDocAttribute == false) {
             attrs = attrs.stream().filter(a -> EsQueryExec.isSourceAttribute(a) == false).toList();
         }
-        return new TimeSeriesSourceExec(
+        var tsSource = new TimeSeriesSourceExec(
             query.source(),
             attrs,
             query.query(),
@@ -107,5 +108,8 @@ public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizer
             attributesToExtract,
             query.estimatedRowSize()
         );
+        // Use a separate driver for the time-series source to split the pipeline to increase parallelism,
+        // since the time-series source must be executed with a single driver at the shard level.
+        return new ParallelExec(query.source(), tsSource);
     }
 }

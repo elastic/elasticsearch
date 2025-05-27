@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -337,6 +338,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 ensureRepositoryExists(repositoryName, currentState);
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName, "clone snapshot");
+                ensureNotReadOnly(currentState, repositoryName);
                 final SnapshotsInProgress snapshots = SnapshotsInProgress.get(currentState);
                 ensureSnapshotNameNotRunning(snapshots, repositoryName, snapshotName);
                 validate(repositoryName, snapshotName, currentState);
@@ -429,6 +431,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         .map(RepositoryCleanupInProgress.Entry::repository)
                         .collect(Collectors.toSet())
             );
+        }
+    }
+
+    public static void ensureNotReadOnly(final ClusterState currentState, final String repositoryName) {
+        final var repositoryMetadata = RepositoriesMetadata.get(currentState).repository(repositoryName);
+        if (RepositoriesService.isReadOnly(repositoryMetadata.settings())) {
+            throw new RepositoryException(repositoryMetadata.name(), "repository is readonly");
         }
     }
 
@@ -757,12 +766,26 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        @FixForMultiProject
+        final ProjectMetadata snapshotProject = projectForSnapshot(snapshot, metadata.getProject());
         final Metadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Remove global state from the cluster state
             builder = Metadata.builder();
+        } else {
+            builder = Metadata.builder(metadata);
+        }
+        builder.put(snapshotProject);
+        return builder.build();
+    }
+
+    private static ProjectMetadata projectForSnapshot(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        final ProjectMetadata.Builder builder;
+        if (snapshot.includeGlobalState() == false) {
+            // Create a new project state that only includes the index data
+            builder = ProjectMetadata.builder(project.id());
             for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = metadata.getProject().index(index.getName());
+                final IndexMetadata indexMetadata = project.index(index.getName());
                 if (indexMetadata == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                 } else {
@@ -770,14 +793,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         } else {
-            builder = Metadata.builder(metadata);
+            builder = ProjectMetadata.builder(project);
         }
         // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
         // all their indices contained in the snapshot
         final Map<String, DataStream> dataStreams = new HashMap<>();
         final Set<String> indicesInSnapshot = snapshot.indices().keySet();
         for (String dataStreamName : snapshot.dataStreams()) {
-            DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
+            DataStream dataStream = project.dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
@@ -788,7 +811,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         }
-        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.getProject().dataStreamAliases())).build();
+        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, project.dataStreamAliases())).build();
     }
 
     /**
@@ -1455,31 +1478,31 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
-                // This listener is kinda unnecessary since we now always complete it synchronously. It's only here to catch exceptions.
-                // TODO simplify this.
-                ActionListener.completeWith(metadataListener, () -> {
-                    final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
-                    final Metadata.Builder metaBuilder = Metadata.builder(existing);
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                    final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source());
+                    @FixForMultiProject
+                    final ProjectMetadata existingProject = existingMetadata.getProject();
+                    final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(existingProject);
                     final Set<Index> existingIndices = new HashSet<>();
                     for (IndexId index : entry.indices().values()) {
                         final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
                         existingIndices.add(indexMetadata.getIndex());
-                        metaBuilder.put(indexMetadata, false);
+                        projBuilder.put(indexMetadata, false);
                     }
                     // remove those data streams from metadata for which we are missing indices
                     Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
-                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.getProject().dataStreams().entrySet()) {
+                    for (Map.Entry<String, DataStream> dataStreamEntry : existingProject.dataStreams().entrySet()) {
                         if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
                             dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
                         }
                     }
                     Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
                         dataStreamsToCopy,
-                        existing.getProject().dataStreamAliases()
+                        existingProject.dataStreamAliases()
                     );
-                    metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
-                    return metaBuilder.build();
-                });
+                    projBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
+                    return Metadata.builder(existingMetadata).put(projBuilder).build();
+                }));
             } else {
                 metadataListener.onResponse(metadata);
             }
@@ -2150,6 +2173,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     snapshotIds.stream().findFirst().get().getName(),
                     "delete snapshot"
                 );
+
+                ensureNotReadOnly(currentState, repositoryName);
 
                 final SnapshotDeletionsInProgress deletionsInProgress = SnapshotDeletionsInProgress.get(currentState);
 
@@ -4060,11 +4085,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
+                        final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
+                        if (RepositoriesService.isReadOnly(repoMeta.settings())) {
+                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            continue;
+                        }
+
                         registeredPolicySnapshots.addIfSnapshotIsSLMInitiated(
                             task.createSnapshotRequest.userMetadata(),
                             task.snapshot.getSnapshotId()
                         );
-                        final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
                         } else {

@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -103,7 +104,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportRequest request,
         SearchExecutionContext context,
         Block inputBlock,
-        DataType inputDataType,
+        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
@@ -128,8 +129,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         return new LookupResponse(in, blockFactory);
     }
 
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+    private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType && inputDataType != null) {
             // For range policy types, the ENRICH index field type will be one of a list of supported range types,
             // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
             if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
@@ -142,7 +143,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         // For geo_match, type validation is done earlier, in the Analyzer.
     }
 
-    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+    private static boolean rangeTypesCompatible(RangeType rangeType, @Nullable DataType inputDataType) {
         if (inputDataType.noText() == DataType.KEYWORD) {
             // We allow runtime parsing of string types to numeric types
             return true;

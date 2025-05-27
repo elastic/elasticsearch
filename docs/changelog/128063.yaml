@@ -1,0 +1,5 @@
+pr: 128063
+summary: More efficient sort in `tryRelocateShard`
+area: Allocation
+type: enhancement
+issues: []

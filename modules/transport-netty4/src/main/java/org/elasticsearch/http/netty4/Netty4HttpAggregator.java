@@ -15,6 +15,7 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
@@ -48,6 +49,9 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
         }
         if (aggregating || msg instanceof FullHttpRequest) {
             super.channelRead(ctx, msg);
+            if (msg instanceof LastHttpContent == false) {
+                ctx.read(); // HttpObjectAggregator is tricky with auto-read off, it might not call read again, calling on its behalf
+            }
         } else {
             streamContentSizeHandler.channelRead(ctx, msg);
         }

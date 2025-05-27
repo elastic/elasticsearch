@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidMod
 public class SageMakerService implements InferenceService {
     public static final String NAME = "sagemaker";
     private static final int DEFAULT_BATCH_SIZE = 256;
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
     private final SageMakerModelBuilder modelBuilder;
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
@@ -128,7 +129,7 @@ public class SageMakerService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof SageMakerModel == false) {
@@ -148,7 +149,7 @@ public class SageMakerService implements InferenceService {
                 client.invokeStream(
                     regionAndSecrets,
                     request,
-                    timeout,
+                    timeout != null ? timeout : DEFAULT_TIMEOUT,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.streamResponse(sageMakerModel, response)),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -160,7 +161,7 @@ public class SageMakerService implements InferenceService {
                 client.invoke(
                     regionAndSecrets,
                     request,
-                    timeout,
+                    timeout != null ? timeout : DEFAULT_TIMEOUT,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -201,7 +202,7 @@ public class SageMakerService implements InferenceService {
     public void unifiedCompletionInfer(
         Model model,
         UnifiedCompletionRequest request,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof SageMakerModel == false) {
@@ -217,7 +218,7 @@ public class SageMakerService implements InferenceService {
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
-                timeout,
+                timeout != null ? timeout : DEFAULT_TIMEOUT,
                 ActionListener.wrap(
                     response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),
                     e -> listener.onFailure(schema.chatCompletionError(sageMakerModel, e))
@@ -235,7 +236,7 @@ public class SageMakerService implements InferenceService {
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof SageMakerModel == false) {

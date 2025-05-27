@@ -144,7 +144,7 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`, `fuzzines
 
 :name: operator-min
 
-The `best_fields` and `most_fields` types are *field-centric* — they generate a `match` query **per field**. This means that the `operator` and `minimum_should_match` parameters are applied to each field individually, which is probably not what you want.
+The `best_fields` and `most_fields` types are *field-centric* — they generate a `match` query **per field**. This means that the `operator` and `minimum_should_match` parameters are applied to each field individually, which is probably not what you want.
 
 Take this query for example:
 

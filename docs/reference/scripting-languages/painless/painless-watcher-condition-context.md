@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-watcher-condition-context.html
+products:
+  - id: painless
 ---
 
 # Watcher condition context [painless-watcher-condition-context]

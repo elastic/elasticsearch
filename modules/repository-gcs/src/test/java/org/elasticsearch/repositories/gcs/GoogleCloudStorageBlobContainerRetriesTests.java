@@ -19,6 +19,7 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
@@ -45,6 +46,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -56,6 +58,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -71,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
@@ -86,6 +90,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
@@ -212,6 +217,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
     }
 
+    @Override
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange) {
+        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(randomNonNegativeInt()));
+    }
+
     public void testShouldRetryOnConnectionRefused() {
         // port 1 should never be open
         endpointUrlOverride = "http://127.0.0.1:1";
@@ -242,6 +252,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+            addSuccessfulDownloadHeaders(exchange);
             final HttpHeaderParser.Range range = getRange(exchange);
             final int offset = Math.toIntExact(range.start());
             final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));
@@ -568,6 +579,55 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         assertEquals(0, requestHandlers.size());
         container.delete(randomPurpose());
+    }
+
+    public void testContentsChangeWhileStreaming() throws IOException {
+        GoogleCloudStorageHttpHandler handler = new GoogleCloudStorageHttpHandler("bucket");
+        httpServer.createContext("/", handler);
+        // The blob needs to be large enough that it won't be entirely buffered on the first request
+        final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
+
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+
+        final String key = randomIdentifier();
+        byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+        container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
+
+        BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
+        assertEquals(new BytesArray(initialValue), reference);
+
+        try (InputStream inputStream = container.readBlob(randomPurpose(), key)) {
+            // Trigger the first chunk to load
+            int read = inputStream.read();
+            assert read != -1;
+
+            // Restart the server (this triggers a retry)
+            restartHttpServer();
+            httpServer.createContext("/", handler);
+
+            // Update the file
+            byte[] updatedValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
+            container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
+
+            // Read the rest of the stream, it should throw because the contents changed
+            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                startsWith(
+                    "Blob object ["
+                        + container.path().buildAsString()
+                        + key
+                        + "] generation [1] unavailable on resume (contents changed, or object deleted):"
+                )
+            );
+        }
+    }
+
+    private void restartHttpServer() throws IOException {
+        InetSocketAddress currentAddress = httpServer.getAddress();
+        httpServer.stop(0);
+        httpServer = MockHttpServer.createHttp(currentAddress, 0);
+        httpServer.start();
     }
 
     private HttpHandler safeHandler(HttpHandler handler) {

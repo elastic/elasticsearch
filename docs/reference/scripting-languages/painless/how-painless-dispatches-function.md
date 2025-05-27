@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/modules-scripting-painless-dispatch.html
+products:
+  - id: painless
 ---
 
 # How painless dispatches function [modules-scripting-painless-dispatch]

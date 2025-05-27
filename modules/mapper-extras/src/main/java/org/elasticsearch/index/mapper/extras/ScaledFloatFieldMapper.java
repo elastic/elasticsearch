@@ -323,7 +323,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed(), hasDocValues());
         }
 
         @Override

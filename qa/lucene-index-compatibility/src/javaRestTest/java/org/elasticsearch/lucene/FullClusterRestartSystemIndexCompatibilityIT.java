@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -95,7 +96,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
                 } catch (IOException e) {
                     throw new AssertionError("System feature migration failed", e);
                 }
-            });
+            }, 30, TimeUnit.SECONDS);
 
             // check search results from n-2 search are still readable
             assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);

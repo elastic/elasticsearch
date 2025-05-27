@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link FloatVector}. Cannot represent multi-values or nulls.

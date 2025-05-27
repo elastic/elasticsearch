@@ -16,15 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.test.PrivilegedOperations;
-import org.elasticsearch.test.mockito.SecureMockMaker;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -74,52 +69,8 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
-        // init mockito
-        SecureMockMaker.init();
-
-        // init the privileged operation
-        try {
-            MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
-        }
-
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
-    }
-
-    static Map<String, URL> getCodebases() {
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
-        // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-        addClassCodebase(codebases, "elasticsearch", "org.elasticsearch.plugins.PluginsService");
-        addClassCodebase(codebases, "elasticsearch-plugin-classloader", "org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader");
-        addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-        addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-        addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
-        addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
-        addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
-        addClassCodebase(codebases, "elasticsearch-simdvec", "org.elasticsearch.simdvec.VectorScorerFactory");
-        addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
-        return codebases;
-    }
-
-    /** Add the codebase url of the given classname to the codebases map, if the class exists. */
-    private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
-        try {
-            if (codebases.containsKey(name)) {
-                return; // the codebase already exists, from the classpath
-            }
-            Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
-            URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
-            if (location.toString().endsWith(".jar") == false) {
-                if (codebases.put(name, location) != null) {
-                    throw new IllegalStateException("Already added " + name + " codebase for testing");
-                }
-            }
-        } catch (ClassNotFoundException e) {
-            // no class, fall through to not add. this can happen for any tests that do not include
-            // the given class. eg only core tests include plugin-classloader
-        }
     }
 
     // does nothing, just easy way to make sure the class is loaded.

@@ -34,6 +34,7 @@ public class S3ClientSettingsTests extends ESTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.credentials, nullValue());
+        assertThat(defaultSettings.protocol, is(HttpScheme.HTTPS));
         assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.proxyHost, is(emptyString()));
         assertThat(defaultSettings.proxyPort, is(80));

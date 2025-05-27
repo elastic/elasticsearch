@@ -63,6 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -120,6 +121,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -976,7 +978,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                assertThat(okURIs.contains(request.uri()), is(true));
+                assertThat(request.uri(), in(okURIs));
                 // assert validated request is dispatched
                 okURIs.remove(request.uri());
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("dispatch OK")));
@@ -985,7 +987,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 // assert unvalidated request is NOT dispatched
-                assertThat(nokURIs.contains(channel.request().uri()), is(true));
+                assertThat(channel.request().uri(), in(nokURIs));
                 nokURIs.remove(channel.request().uri());
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
@@ -1000,9 +1002,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             assertThat(channelSetOnce.get(), is(channel));
             // some requests are validated while others are not
             if (httpPreRequest.uri().contains("X-Auth=OK")) {
-                validationListener.onResponse(null);
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, channel.eventLoop()).execute(() -> validationListener.onResponse(null));
             } else if (httpPreRequest.uri().contains("X-Auth=NOK")) {
-                validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, channel.eventLoop()).execute(
+                    () -> validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED))
+                );
             } else {
                 throw new AssertionError("Unrecognized URI");
             }

@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,13 +33,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * vectors.
  */
 public class PerFieldFormatSupplier {
-    public static final FeatureFlag USE_LUCENE101_POSTINGS_FORMAT = new FeatureFlag("use_lucene101_postings_format");
+    public static final FeatureFlag USE_DEFAULT_LUCENE_POSTINGS_FORMAT = new FeatureFlag("use_default_lucene_postings_format");
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
-    private static final Lucene101PostingsFormat lucene101PostingsFormat = new Lucene101PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -53,10 +51,10 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
         if (mapperService != null
-            && USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
+            && USE_DEFAULT_LUCENE_POSTINGS_FORMAT.isEnabled()
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
             && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
-            defaultPostingsFormat = lucene101PostingsFormat;
+            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -12,12 +10,11 @@ esplugin {
 dependencies {
   testImplementation project(path: ':test:test-clusters')
   clusterModules project(':test:external-modules:test-multi-project')
-}
-
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution("to be triaged")
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(":modules:ingest-common")
 }
 
 tasks.named("javaRestTest").configure {
   enabled = buildParams.snapshotBuild
+  systemProperty "tests.multi_project.enabled", true
 }

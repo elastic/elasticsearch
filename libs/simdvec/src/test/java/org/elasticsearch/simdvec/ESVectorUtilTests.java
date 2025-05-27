@@ -268,6 +268,22 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testSoarOverspillScore() {
+        int size = random().nextInt(128, 512);
+        float deltaEps = 1e-5f * size;
+        var vector = new float[size];
+        var centroid = new float[size];
+        var preResidual = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            centroid[i] = random().nextFloat();
+            preResidual[i] = random().nextFloat();
+        }
+        var expected = defaultedProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        var result = defOrPanamaProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        assertEquals(expected, result, deltaEps);
+    }
+
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
         int iterations = atLeast(50);
         for (int i = 0; i < iterations; i++) {

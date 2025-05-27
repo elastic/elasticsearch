@@ -15,7 +15,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -68,7 +69,12 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
@@ -84,7 +90,12 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
@@ -99,28 +110,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        SumDoubleAggregator.combine(state, groupId, values.getDouble(v));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -141,7 +131,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -152,6 +142,62 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          SumDoubleAggregator.combine(state, groupId, values.getDouble(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        SumDoubleAggregator.combine(state, groupId, values.getDouble(v));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
     }
   }
 

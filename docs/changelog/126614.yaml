@@ -1,5 +1,0 @@
-pr: 126614
-summary: Fix join masking eval
-area: ES|QL
-type: bug
-issues: []

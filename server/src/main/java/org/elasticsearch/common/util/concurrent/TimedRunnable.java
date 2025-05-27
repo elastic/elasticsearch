@@ -18,6 +18,7 @@ import org.elasticsearch.ExceptionsHelper;
 class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final Runnable original;
     private final long creationTimeNanos;
+    private long beforeExecuteTime = -1;
     private long startTimeNanos;
     private long finishTimeNanos = -1;
     private boolean failedOrRejected = false;
@@ -59,6 +60,19 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * Returns the time in nanoseconds between the creation time and the execution time
+     *
+     * @return The time in nanoseconds or -1 if the task was never de-queued
+     */
+    long getQueueTimeNanos() {
+        if (beforeExecuteTime == -1) {
+            assert false : "beforeExecute must be called before getQueueTimeNanos";
+            return -1;
+        }
+        return beforeExecuteTime - creationTimeNanos;
+    }
+
+    /**
      * Return the time this task spent being run.
      * If the task is still running or has not yet been run, returns -1.
      */
@@ -68,6 +82,13 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
             return -1;
         }
         return Math.max(finishTimeNanos - startTimeNanos, 1);
+    }
+
+    /**
+     * Called when the task has reached the front of the queue and is about to be executed
+     */
+    public void beforeExecute() {
+        beforeExecuteTime = System.nanoTime();
     }
 
     /**

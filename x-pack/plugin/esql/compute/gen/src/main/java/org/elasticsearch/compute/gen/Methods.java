@@ -60,19 +60,30 @@ public class Methods {
         NameMatcher nameMatcher,
         ArgumentMatcher argumentMatcher
     ) {
+        ExecutableElement method = optionalStaticMethod(declarationType, returnTypeMatcher, nameMatcher, argumentMatcher);
+        if (method == null) {
+            var message = nameMatcher.names.size() == 1 ? "Requires method: " : "Requires one of methods: ";
+            var signatures = nameMatcher.names.stream()
+                .map(name -> "public static " + returnTypeMatcher + " " + declarationType + "#" + name + "(" + argumentMatcher + ")")
+                .collect(joining(" or "));
+            throw new IllegalArgumentException(message + signatures);
+        }
+        return method;
+    }
+
+    static ExecutableElement optionalStaticMethod(
+        TypeElement declarationType,
+        TypeMatcher returnTypeMatcher,
+        NameMatcher nameMatcher,
+        ArgumentMatcher argumentMatcher
+    ) {
         return typeAndSuperType(declarationType).flatMap(type -> ElementFilter.methodsIn(type.getEnclosedElements()).stream())
             .filter(method -> method.getModifiers().contains(Modifier.STATIC))
             .filter(method -> nameMatcher.test(method.getSimpleName().toString()))
             .filter(method -> returnTypeMatcher.test(TypeName.get(method.getReturnType())))
             .filter(method -> argumentMatcher.test(method.getParameters().stream().map(it -> TypeName.get(it.asType())).toList()))
             .findFirst()
-            .orElseThrow(() -> {
-                var message = nameMatcher.names.size() == 1 ? "Requires method: " : "Requires one of methods: ";
-                var signatures = nameMatcher.names.stream()
-                    .map(name -> "public static " + returnTypeMatcher + " " + declarationType + "#" + name + "(" + argumentMatcher + ")")
-                    .collect(joining(" or "));
-                return new IllegalArgumentException(message + signatures);
-            });
+            .orElse(null);
     }
 
     static NameMatcher requireName(String... names) {

@@ -1409,6 +1409,76 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(result2.v2());
     }
 
+    private void doTestSkipNodesNotInRoutingTable(boolean sourceNodeInTable, boolean targetNodeInTable) {
+        final var projectId = randomProjectIdOrDefault();
+        final Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+                    .build()
+            );
+
+        metadataBuilder.putCustom(
+            NodesShutdownMetadata.TYPE,
+            new NodesShutdownMetadata(
+                Collections.singletonMap(
+                    "node1",
+                    SingleNodeShutdownMetadata.builder()
+                        .setNodeId("node1")
+                        .setNodeEphemeralId("node1")
+                        .setReason("testing")
+                        .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                        .setTargetNodeName("node3")
+                        .setStartedAtMillis(randomNonNegativeLong())
+                        .build()
+                )
+            )
+        );
+
+        final Metadata metadata = metadataBuilder.build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.getProject(projectId).index("test"))
+            .build();
+        DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder().add(newNormalNode("node2", "node2"));
+        // node1 which is replaced by node3 may or may not be in the cluster
+        if (sourceNodeInTable) {
+            discoveryNodes.add(newNormalNode("node1", "node1"));
+        }
+        // node3 which is to replace node1 may or may not be in the cluster
+        if (targetNodeInTable) {
+            discoveryNodes.add(newNormalNode("node3", "node3"));
+        }
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(metadata)
+                .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
+                .nodes(discoveryNodes)
+                .build(),
+            createAllocationService(Settings.EMPTY)
+        );
+        final Index testIndex = routingTable.index("test").getIndex();
+
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
+        diskUsages.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
+        final ClusterInfo clusterInfo = clusterInfo(diskUsages);
+        Tuple<Boolean, Set<Index>> result = runDiskThresholdMonitor(clusterState, clusterInfo);
+        assertTrue(result.v1()); // reroute on new nodes
+        assertThat(result.v2(), contains(testIndex));
+    }
+
+    public void testSkipReplaceSourceNodeNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(false, true);
+    }
+
+    public void testSkipReplaceTargetNodeNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(true, false);
+    }
+
+    public void testSkipReplaceSourceAndTargetNodesNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(false, false);
+    }
+
     // Runs a disk threshold monitor with a given cluster state and cluster info and returns whether a reroute should
     // happen and any indices that should be marked as read-only.
     private Tuple<Boolean, Set<Index>> runDiskThresholdMonitor(ClusterState clusterState, ClusterInfo clusterInfo) {

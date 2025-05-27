@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -177,19 +178,38 @@ class FieldCapabilitiesFetcher {
         allMappers.addAll(context.getMetadataFields());
 
         for (Mapper mapper : allMappers) {
-            addFieldToFieldCaps(
-                mapper.fullPath(),
-                context.getFieldType(mapper.fullPath()),
-                fieldNameFilter,
-                fieldPredicate,
-                filter,
-                context,
-                indexShard.getFieldInfos(),
-                includeEmptyFields,
-                isTimeSeriesIndex,
-                includeParentObjects,
-                responseMap
-            );
+            if (mapper instanceof PassThroughObjectMapper) {
+                // Handles PassThroughObjectMapper by processing its immediate child fields.
+                for (Mapper childMapper : mapper.getSourceFields()) {
+                    addFieldToFieldCaps(
+                        childMapper.leafName(),
+                        context.getFieldType(childMapper.fullPath()),
+                        fieldNameFilter,
+                        fieldPredicate,
+                        filter,
+                        context,
+                        indexShard.getFieldInfos(),
+                        includeEmptyFields,
+                        isTimeSeriesIndex,
+                        includeParentObjects,
+                        responseMap
+                    );
+                }
+            } else {
+                addFieldToFieldCaps(
+                    mapper.fullPath(),
+                    context.getFieldType(mapper.fullPath()),
+                    fieldNameFilter,
+                    fieldPredicate,
+                    filter,
+                    context,
+                    indexShard.getFieldInfos(),
+                    includeEmptyFields,
+                    isTimeSeriesIndex,
+                    includeParentObjects,
+                    responseMap
+                );
+            }
         }
 
         // populate runtime fields

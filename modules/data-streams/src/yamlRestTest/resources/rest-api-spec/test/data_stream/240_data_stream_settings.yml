@@ -51,16 +51,20 @@ setup:
         body:
           index:
             number_of_shards: 2
-            lifecycle.name: my-new-policy
+            lifecycle:
+              name: my-new-policy
+              prefer_ilm: true
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.applied_to_data_stream: true }
   - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: [index.number_of_shards]}
-  - match: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: [index.lifecycle.name] }
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: 2  }
   - match: { data_streams.0.settings.index.number_of_shards: "2" }
   - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
   - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
   - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
   - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: "true" }
 
   - do:
       indices.rollover:
@@ -79,6 +83,7 @@ setup:
   - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
   - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
   - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: "true" }
 
   - do:
       indices.get_data_stream:
@@ -86,6 +91,7 @@ setup:
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.settings.index.number_of_shards: "2" }
   - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
   - match: { data_streams.0.effective_settings: null }
 
   - do:
@@ -101,6 +107,7 @@ setup:
   - match: { .$idx0name.settings.index.lifecycle.name: "my-new-policy" }
   - match: { .$idx1name.settings.index.number_of_shards: "2" }
   - match: { .$idx1name.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { .$idx1name.settings.index.lifecycle.prefer_ilm: "true" }
 
 ---
 "Test multiple data streams":

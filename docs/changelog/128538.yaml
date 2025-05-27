@@ -1,0 +1,5 @@
+pr: 128538
+summary: "[ML] Add Mistral Chat Completion support to the Inference Plugin"
+area: Machine Learning
+type: enhancement
+issues: []

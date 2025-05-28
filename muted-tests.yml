@@ -488,6 +488,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/128500
 - class: org.elasticsearch.xpack.esql.ccq.EsqlRestValidationIT
   issue: https://github.com/elastic/elasticsearch/issues/128543
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testProcessOnceOnPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/128541
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

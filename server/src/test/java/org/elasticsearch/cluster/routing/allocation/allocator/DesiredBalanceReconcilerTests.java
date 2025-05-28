@@ -1016,13 +1016,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         AtomicReference<DesiredBalance> db = new AtomicReference<>(
             desiredBalance(clusterState, (shardId, nodeId) -> nodeOrdinal.apply(nodeId) >= numToRemain)
         );
-
         final var allocationService = createTestAllocationService(routingAllocation -> reconcile(routingAllocation, db.get()));
-
         clusterState = fullyReconcile(allocationService, clusterState);
         logger.info("Initial state: {}", shardCounts(clusterState));
 
-        // Recalculate desired balance
+        // Recalculate desired balance, marking only remaining nodes as desired
         db.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeOrdinal.apply(nodeId) < numToRemain));
 
         // Reconcile it

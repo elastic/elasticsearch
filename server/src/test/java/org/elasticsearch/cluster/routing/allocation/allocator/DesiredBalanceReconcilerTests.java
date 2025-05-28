@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -107,6 +108,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -980,6 +982,76 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 7, 3), allocationStats.get());
 
         assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
+    }
+
+    /**
+     * Simulate many nodes leaving a cluster, ensure that
+     * shards that are reallocated evenly among desired
+     * candidates
+     */
+    public void testShardsAreRelocatedEvenly() {
+        final var numNodes = randomIntBetween(6, 10);
+        final var numToRemain = randomIntBetween(2, numNodes - 1);
+        final var discoveryNodes = discoveryNodes(numNodes);
+        final var numberOfIndices = randomIntBetween(6, 20);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        for (int i = 0; i < numberOfIndices; i++) {
+            final String indexName = "index-" + i;
+            final IndexMetadata indexMetadata = randomPriorityIndex(indexName, 1, 0);
+            metadataBuilder.put(indexMetadata, true);
+            routingTableBuilder.addAsNew(indexMetadata);
+        }
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .build();
+
+        Function<String, Integer> nodeOrdinal = (String nodeName) -> Integer.parseInt(nodeName.split("-")[1]);
+
+        // Initially put all shards on the nodes that are going to leave the cluster
+        AtomicReference<DesiredBalance> db = new AtomicReference<>(
+            desiredBalance(clusterState, (shardId, nodeId) -> nodeOrdinal.apply(nodeId) >= numToRemain)
+        );
+
+        final var allocationService = createTestAllocationService(routingAllocation -> reconcile(routingAllocation, db.get()));
+
+        clusterState = fullyReconcile(allocationService, clusterState);
+        logger.info("Initial state: {}", shardCounts(clusterState));
+
+        // Recalculate desired balance
+        db.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeOrdinal.apply(nodeId) < numToRemain));
+
+        // Reconcile it
+        clusterState = fullyReconcile(allocationService, clusterState);
+        logger.info("State after shutdowns: {}", shardCounts(clusterState));
+
+        Map<String, Integer> allocationCounts = shardCounts(clusterState);
+        // All allocations should be on the remaining nodes
+        assertTrue(allocationCounts.keySet().stream().allMatch(nodeId -> nodeOrdinal.apply(nodeId) < numToRemain));
+        // Allocations should be spread evenly amongst them
+        int minimumAllocationCount = allocationCounts.values().stream().min(Integer::compareTo).orElse(0);
+        int maximumAllocationCount = allocationCounts.values().stream().max(Integer::compareTo).orElse(Integer.MAX_VALUE);
+        assertThat(maximumAllocationCount - minimumAllocationCount, lessThanOrEqualTo(1));
+    }
+
+    private Map<String, Integer> shardCounts(ClusterState clusterState) {
+        Map<String, Integer> shardCounts = new HashMap<>();
+        clusterState.routingTable().allShards().forEach(sr -> shardCounts.compute(sr.currentNodeId(), (v, e) -> e == null ? 0 : e + 1));
+        return shardCounts;
+    }
+
+    private static ClusterState fullyReconcile(AllocationService allocationService, ClusterState clusterState) {
+        boolean changed;
+        do {
+            final var newState = startInitializingShardsAndReroute(allocationService, clusterState);
+            changed = newState != clusterState;
+            clusterState = newState;
+        } while (changed);
+        return clusterState;
     }
 
     public void testRebalance() {

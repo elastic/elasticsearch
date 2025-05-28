@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -633,7 +634,9 @@ public class DesiredBalanceReconciler {
             Set<String> desiredNodeIds,
             BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
         ) {
-            for (final var nodeId : desiredNodeIds) {
+            // First sort by allocation ordering so we distributed relocated shards evenly
+            final List<String> allocationPreference = allocationOrdering.sort(desiredNodeIds);
+            for (final var nodeId : allocationPreference) {
                 // TODO consider ignored nodes here too?
                 if (nodeId.equals(shardRouting.currentNodeId())) {
                     continue;
@@ -645,6 +648,7 @@ public class DesiredBalanceReconciler {
                 final var decision = canAllocateDecider.apply(shardRouting, node);
                 logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
                 if (decision.type() == Decision.Type.YES) {
+                    allocationOrdering.recordAllocation(nodeId);
                     return node.node();
                 }
             }

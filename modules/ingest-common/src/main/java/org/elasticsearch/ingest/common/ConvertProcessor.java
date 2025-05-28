@@ -34,7 +34,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    String strValue = value.toString();
+                    String strValue = (String) STRING.convert(value);
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
                         return Integer.decode(strValue);
                     }
@@ -49,7 +49,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    String strValue = value.toString();
+                    String strValue = (String) STRING.convert(value);
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
                         return Long.decode(strValue);
                     }

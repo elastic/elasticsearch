@@ -25,7 +25,9 @@ import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.randomCasing;
@@ -99,7 +101,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             String text = textSupplier.get();
             return new TextAndPattern(text, escapeString.apply(text) + randomAlphaOfLength(1));
         }, false);
-        cases(cases, title + " doesn't match self with trailing", () -> {
+        cases(cases, title + " doesn't match self with trailing case insensitive", () -> {
             String text = textSupplier.get();
             return new TextAndPattern(randomCasing(text), escapeString.apply(text) + randomAlphaOfLength(1));
         }, true, false);
@@ -107,7 +109,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             String text = randomAlphaOfLength(1);
             return new TextAndPattern(text, escapeString.apply(text) + optionalPattern.get());
         }, true);
-        cases(cases, title + " matches self with optional trailing", () -> {
+        cases(cases, title + " matches self with optional trailing case insensitive", () -> {
             String text = randomAlphaOfLength(1);
             return new TextAndPattern(randomCasing(text), escapeString.apply(text) + optionalPattern.get());
         }, true, true);
@@ -117,9 +119,11 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                 String different = escapeString.apply(randomValueOtherThan(text, textSupplier));
                 return new TextAndPattern(text, different);
             }, false);
-            cases(cases, title + " doesn't match different", () -> {
+            cases(cases, title + " doesn't match different case insensitive", () -> {
                 String text = textSupplier.get();
-                String different = escapeString.apply(randomValueOtherThan(text, textSupplier));
+                Predicate<String> predicate = t -> t.toLowerCase(Locale.ROOT).equals(text.toLowerCase(Locale.ROOT));
+                String different = escapeString.apply(randomValueOtherThanMany(predicate, textSupplier));
+                System.err.println("XXX text=" + text + " different=" + different);
                 return new TextAndPattern(text, different);
             }, true, false);
         }

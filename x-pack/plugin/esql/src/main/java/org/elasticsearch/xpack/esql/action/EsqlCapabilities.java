@@ -882,7 +882,13 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
+         */
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE;
 
         private final boolean enabled;
 

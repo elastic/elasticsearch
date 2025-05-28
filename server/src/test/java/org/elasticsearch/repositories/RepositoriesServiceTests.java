@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -118,15 +119,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            TestRepository::new,
+            (projectId, metadata1) -> new TestRepository(projectId, metadata1),
             UnstableRepository.TYPE,
-            UnstableRepository::new,
+            (projectId, metadata2) -> new UnstableRepository(projectId, metadata2),
             VerificationFailRepository.TYPE,
-            VerificationFailRepository::new,
+            (projectId, metadata3) -> new VerificationFailRepository(projectId, metadata3),
             MeteredRepositoryTypeA.TYPE,
-            metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+            (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            metadata -> new MeteredRepositoryTypeB(metadata, clusterService)
+            (projectId, metadata) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
@@ -304,7 +305,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, isA(RepositoryException.class));
-                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist for project [default]"));
             }
         });
     }
@@ -507,12 +508,19 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
+        private final ProjectId projectId;
         private RepositoryMetadata metadata;
         private boolean isClosed;
         private boolean isStarted;
 
-        private TestRepository(RepositoryMetadata metadata) {
+        private TestRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            this.projectId = projectId;
             this.metadata = metadata;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -662,8 +670,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class UnstableRepository extends TestRepository {
         private static final String TYPE = "unstable";
 
-        private UnstableRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private UnstableRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
@@ -671,8 +679,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class VerificationFailRepository extends TestRepository {
         public static final String TYPE = "verify-fail";
 
-        private VerificationFailRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private VerificationFailRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
         }
 
         @Override
@@ -685,8 +693,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13)));
 
-        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeA(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
@@ -712,8 +721,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-b";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new BlobStoreActionStats(20, 25)));
 
-        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeB(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,

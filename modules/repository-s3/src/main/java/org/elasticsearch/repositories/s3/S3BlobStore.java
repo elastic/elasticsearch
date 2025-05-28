@@ -27,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
@@ -74,6 +76,8 @@ class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
+    @Nullable // if the blobstore is at the cluster level
+    private final ProjectId projectId;
     private final S3Service service;
 
     private final BigArrays bigArrays;
@@ -106,6 +110,7 @@ class S3BlobStore implements BlobStore {
     private final boolean addPurposeCustomQueryParameter;
 
     S3BlobStore(
+        @Nullable ProjectId projectId,
         S3Service service,
         String bucket,
         boolean serverSideEncryption,
@@ -119,6 +124,7 @@ class S3BlobStore implements BlobStore {
         S3RepositoriesMetrics s3RepositoriesMetrics,
         BackoffPolicy retryThrottledDeleteBackoffPolicy
     ) {
+        this.projectId = projectId;
         this.service = service;
         this.bigArrays = bigArrays;
         this.bucket = bucket;
@@ -257,6 +263,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
+        // TODO: use service.client(ProjectId, RepositoryMetadata), see https://github.com/elastic/elasticsearch/pull/127631
         return service.client(repositoryMetadata);
     }
 

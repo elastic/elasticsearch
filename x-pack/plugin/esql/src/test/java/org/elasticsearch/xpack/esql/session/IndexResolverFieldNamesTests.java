@@ -30,6 +30,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
     }
 
@@ -38,6 +39,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
     }
 
@@ -303,6 +305,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLimitZero_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS COUNT(*), MAX(salary) BY gender
@@ -317,6 +320,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeight_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | DROP height
@@ -332,6 +336,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeightWithWildcard_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS MAX(salary) BY gender
@@ -498,6 +503,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSortWithLimitOne_DropHeight_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
@@ -797,6 +803,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testFilterById_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
@@ -1267,6 +1274,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testProjectDropPattern_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats max(foo) by bar
@@ -1349,6 +1357,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllAndOtherStatGrouped_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats c = count(*), min = min(emp_no) by languages
@@ -1387,6 +1396,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllWithEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1399,6 +1409,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepAfterEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1411,6 +1422,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1423,6 +1435,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1434,6 +1447,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | stats min = min(salary) by languages
@@ -1442,6 +1456,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | keep languages, salary

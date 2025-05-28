@@ -36,10 +36,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class MsGraphHttpFixture extends ExternalResource {
 
@@ -53,7 +57,11 @@ public class MsGraphHttpFixture extends ExternalResource {
     private final String email;
     private final String[] firstGroupsPage;
     private final String[] secondGroupsPage;
-    private final String jwt;
+    private final String jwt = "test jwt";
+
+    private final AtomicInteger loginCount = new AtomicInteger(0);
+    private final AtomicInteger getUserPropertiesCount = new AtomicInteger(0);
+    private final AtomicInteger getGroupMembershipCount = new AtomicInteger(0);
 
     private HttpsServer server;
 
@@ -75,8 +83,6 @@ public class MsGraphHttpFixture extends ExternalResource {
         this.email = email;
         this.firstGroupsPage = firstGroupsPage;
         this.secondGroupsPage = secondGroupsPage;
-
-        this.jwt = "test jwt";
     }
 
     @Override
@@ -105,6 +111,7 @@ public class MsGraphHttpFixture extends ExternalResource {
             exchange.close();
         });
         server.start();
+        logger.info("Started server on port [{}]", server.getAddress().getPort());
     }
 
     @Override
@@ -118,6 +125,9 @@ public class MsGraphHttpFixture extends ExternalResource {
 
     private void registerGetAccessTokenHandler() {
         server.createContext("/" + tenantId + "/oauth2/v2.0/token", exchange -> {
+            logger.info("Received access token request");
+            loginCount.incrementAndGet();
+
             if (exchange.getRequestMethod().equals("POST") == false) {
                 graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected POST request");
                 return;
@@ -171,6 +181,9 @@ public class MsGraphHttpFixture extends ExternalResource {
 
     private void registerGetUserHandler() {
         server.createContext("/v1.0/users/" + principal, exchange -> {
+            logger.info("Received get user properties request [{}]", exchange.getRequestURI());
+            final var callCount = getUserPropertiesCount.incrementAndGet();
+
             if (exchange.getRequestMethod().equals("GET") == false) {
                 graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
                 return;
@@ -184,6 +197,15 @@ public class MsGraphHttpFixture extends ExternalResource {
 
             if (exchange.getRequestURI().getQuery().contains("$select=displayName,mail") == false) {
                 graphError(exchange, RestStatus.BAD_REQUEST, "Must filter fields using $select");
+                return;
+            }
+
+            // ensure the client retries temporary errors
+            if (callCount == 1) {
+                graphError(exchange, RestStatus.GATEWAY_TIMEOUT, "Gateway timed out");
+                return;
+            } else if (callCount == 2) {
+                graphError(exchange, RestStatus.TOO_MANY_REQUESTS, "Too many requests");
                 return;
             }
 
@@ -207,6 +229,9 @@ public class MsGraphHttpFixture extends ExternalResource {
         final var skipToken = UUID.randomUUID().toString();
 
         server.createContext("/v1.0/users/" + principal + "/memberOf", exchange -> {
+            logger.info("Received get user membership request [{}]", exchange.getRequestURI());
+            getGroupMembershipCount.incrementAndGet();
+
             if (exchange.getRequestMethod().equals("GET") == false) {
                 graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");
                 return;

@@ -100,6 +100,8 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host", () -> graphFixture.getBaseUrl() + "/v1.0")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
             .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
+            .setting("logger.com.microsoft", "TRACE")
+            .setting("logger.com.azure", "TRACE")
             .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
             .systemProperty("javax.net.ssl.trustStoreType", "jks")
             .systemProperty("tests.azure.credentials.disable_instance_discovery", "true")

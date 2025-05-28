@@ -92,8 +92,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return PARSER.apply(parser, context);
     }
 
-    private List<String> fields;
-    private String query;
+    private final List<String> fields;
+    private final String query;
     private final int rankConstant;
 
     public RRFRetrieverBuilder(int rankWindowSize, int rankConstant) {
@@ -183,8 +183,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected boolean doRewrite(QueryRewriteContext ctx) {
-        boolean modified = false;
+    protected RRFRetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        RRFRetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
@@ -208,7 +208,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverBuilder> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+            List<RetrieverSource> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
                 fields,
                 query,
                 localIndicesMetadata.values(),
@@ -225,16 +225,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                         );
                     }
                 }
-            );
-            fieldsInnerRetrievers.forEach(this::addChild);
+            ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
 
-            // Clear fields and query to indicate that this stage of the rewrite process is complete
-            fields = List.of();
-            query = null;
-            modified = true;
+            rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, rankWindowSize, rankConstant);
         }
 
-        return modified;
+        return rewritten;
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

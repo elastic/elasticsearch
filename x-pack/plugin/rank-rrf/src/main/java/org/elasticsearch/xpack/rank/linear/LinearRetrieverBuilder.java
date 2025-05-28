@@ -38,6 +38,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
+// TODO: Add toEquals method
+
 /**
  * The {@code LinearRetrieverBuilder} supports the combination of different retrievers through a weighted linear combination.
  * For example, assume that we have retrievers r1 and r2, the final score of the {@code LinearRetrieverBuilder} is defined as
@@ -59,9 +61,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
+    private final List<String> fields;
+    private final String query;
     private final String normalizer;
-    private List<String> fields;
-    private String query;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -227,8 +229,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
-    protected boolean doRewrite(QueryRewriteContext ctx) {
-        boolean modified = false;
+    protected LinearRetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        LinearRetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
@@ -259,7 +261,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 );
             }
 
-            List<RetrieverBuilder> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+            List<RetrieverSource> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
                 fields,
                 query,
                 localIndicesMetadata.values(),
@@ -283,17 +285,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                         throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
                     }
                 }
-            );
-            fieldsInnerRetrievers.forEach(this::addChild);
-            // TODO: Set weight and normalizer for each child retriever added
+            ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
 
-            // Clear fields and query to indicate that this stage of the rewrite process is complete
-            fields = List.of();
-            query = null;
-            modified = true;
+            float[] weights = new float[fieldsInnerRetrievers.size()];
+            Arrays.fill(weights, DEFAULT_WEIGHT);
+
+            ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
+            Arrays.fill(normalizers, fieldsNormalizer);
+
+            rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
         }
 
-        return modified;
+        return rewritten;
     }
 
     @Override

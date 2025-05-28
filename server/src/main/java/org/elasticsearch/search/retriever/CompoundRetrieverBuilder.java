@@ -65,7 +65,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @SuppressWarnings("unchecked")
     public T addChild(RetrieverBuilder retrieverBuilder) {
-        innerRetrievers.add(new RetrieverSource(retrieverBuilder, null));
+        innerRetrievers.add(convertToRetrieverSource(retrieverBuilder));
         return (T) this;
     }
 
@@ -99,8 +99,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             throw new IllegalStateException("PIT is required");
         }
 
-        if (doRewrite(ctx)) {
-            return clone(innerRetrievers, preFilterQueryBuilders);
+        T rewritten = doRewrite(ctx);
+        if (rewritten != this) {
+            return rewritten;
         }
 
         // Rewrite prefilters
@@ -324,10 +325,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Perform any custom rewrite logic necessary
      *
      * @param ctx The query rewrite context
-     * @return true if the retriever changed, false otherwise
+     * @return T the rewritten retriever
      */
-    protected boolean doRewrite(QueryRewriteContext ctx) {
-        return false;
+    @SuppressWarnings("unchecked")
+    protected T doRewrite(QueryRewriteContext ctx) {
+        return (T) this;
+    }
+
+    protected static RetrieverSource convertToRetrieverSource(RetrieverBuilder retrieverBuilder) {
+        return new RetrieverSource(retrieverBuilder, null);
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

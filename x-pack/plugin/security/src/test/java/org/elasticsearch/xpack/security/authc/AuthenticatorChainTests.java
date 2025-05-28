@@ -67,7 +67,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private ServiceAccountAuthenticator serviceAccountAuthenticator;
     private OAuth2TokenAuthenticator oAuth2TokenAuthenticator;
     private ApiKeyAuthenticator apiKeyAuthenticator;
-    private CloudApiKeyAuthenticator cloudApiKeyAuthenticator;
+    private PluggableApiKeyAuthenticator customApiKeyAuthenticatorWrapper;
     private RealmsAuthenticator realmsAuthenticator;
     private Authentication authentication;
     private User fallbackUser;
@@ -92,7 +92,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
-        cloudApiKeyAuthenticator = mock(CloudApiKeyAuthenticator.class);
+        customApiKeyAuthenticatorWrapper = mock(PluggableApiKeyAuthenticator.class);
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -105,7 +105,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             authenticationContextSerializer,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
-            cloudApiKeyAuthenticator,
+            customApiKeyAuthenticatorWrapper,
             apiKeyAuthenticator,
             realmsAuthenticator
         );
@@ -220,7 +220,7 @@ public class AuthenticatorChainTests extends ESTestCase {
                 new ApiKeyCredentials(randomAlphaOfLength(20), apiKeySecret, randomFrom(ApiKey.Type.values()))
             );
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
-            doCallRealMethod().when(cloudApiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(customApiKeyAuthenticatorWrapper).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         }
         doAnswer(invocationOnMock -> {
@@ -263,7 +263,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
-            doCallRealMethod().when(cloudApiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(customApiKeyAuthenticatorWrapper).authenticate(eq(context), anyActionListener());
         }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -326,7 +326,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
-        doCallRealMethod().when(cloudApiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+        doCallRealMethod().when(customApiKeyAuthenticatorWrapper).authenticate(eq(context), anyActionListener());
         // 1. realms do not consume the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

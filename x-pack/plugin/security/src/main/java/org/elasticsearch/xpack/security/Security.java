@@ -208,7 +208,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.cloud.CloudApiKeyService;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -1102,9 +1102,9 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final CloudApiKeyService cloudApiKeyService = createCloudApiKeyService(extensionComponents);
+        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
 
-        components.add(cloudApiKeyService);
+        components.add(customApiKeyAuthenticator);
 
         authcService.set(
             new AuthenticationService(
@@ -1118,7 +1118,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                cloudApiKeyService,
+                customApiKeyAuthenticator,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1254,34 +1254,34 @@ public class Security extends Plugin
         return components;
     }
 
-    private CloudApiKeyService createCloudApiKeyService(SecurityExtension.SecurityComponents extensionComponents) {
-        final SetOnce<CloudApiKeyService> cloudApiKeyServiceSetOnce = new SetOnce<>();
+    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
+        final SetOnce<CustomApiKeyAuthenticator> customApiKeyAuthenticatorSetOnce = new SetOnce<>();
         for (var extension : securityExtensions) {
-            final CloudApiKeyService cloudApiKeyService = extension.getCloudApiKeyService(extensionComponents);
-            if (cloudApiKeyService != null) {
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
+            if (customApiKeyAuthenticator != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
                         "The ["
                             + extension.getClass().getName()
-                            + "] extension tried to install a custom CloudApiKeyService. "
+                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                boolean success = cloudApiKeyServiceSetOnce.trySet(cloudApiKeyService);
+                boolean success = customApiKeyAuthenticatorSetOnce.trySet(customApiKeyAuthenticator);
                 if (false == success) {
                     throw new IllegalStateException(
                         "The ["
                             + extension.getClass().getName()
-                            + "] extension tried to install a custom CloudApiKeyService, but one has already been installed."
+                            + "] extension tried to install a custom CustomApiKeyAuthenticator, but one has already been installed."
                     );
                 }
-                logger.debug("CloudApiKeyService provided by extension [{}]", extension.extensionName());
+                logger.debug("CustomApiKeyAuthenticator provided by extension [{}]", extension.extensionName());
             }
         }
-        if (cloudApiKeyServiceSetOnce.get() == null) {
-            cloudApiKeyServiceSetOnce.set(new CloudApiKeyService.Noop());
+        if (customApiKeyAuthenticatorSetOnce.get() == null) {
+            customApiKeyAuthenticatorSetOnce.set(new CustomApiKeyAuthenticator.Noop());
         }
-        return cloudApiKeyServiceSetOnce.get();
+        return customApiKeyAuthenticatorSetOnce.get();
     }
 
     private ServiceAccountService createServiceAccountService(

@@ -318,7 +318,6 @@ public class LuceneSourceOperator extends LuceneOperator {
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);
             Page page = null;
             if (currentPagePos >= minPageSize || scorer.isDone() || (remainingDocs = limiter.remaining()) == 0) {
-                log.error("SADADSF {}", remainingDocs);
                 IntVector shard = null;
                 IntVector leaf = null;
                 IntVector docs = null;

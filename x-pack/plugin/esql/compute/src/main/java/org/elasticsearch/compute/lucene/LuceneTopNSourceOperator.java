@@ -172,7 +172,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
         try {
             if (scorer.tags().isEmpty() == false) {
-                throw new UnsupportedOperationException("extra not supported by " + getClass());
+                throw new UnsupportedOperationException("tags not supported by " + getClass());
             }
             if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
                 // TODO: share the bottom between shardCollectors

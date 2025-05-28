@@ -121,7 +121,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 remainingDocs = 0;
             } else {
                 if (scorer.tags().isEmpty() == false) {
-                    throw new UnsupportedOperationException("extra not supported by " + getClass());
+                    throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
                 Weight weight = scorer.weight();
                 var leafReaderContext = scorer.leafReaderContext();

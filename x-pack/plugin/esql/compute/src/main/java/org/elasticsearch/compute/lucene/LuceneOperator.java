@@ -155,10 +155,13 @@ public abstract class LuceneOperator extends SourceOperator {
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
             logger.trace("Starting {}", partialLeaf);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext();
-            if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
+            if (currentScorer == null // First time
+                || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
+                || currentScorer.weight != currentSlice.weight() // Moved to a new query
+            ) {
                 final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.extra(), leaf);
+                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
             currentScorer.maxPosition = partialLeaf.maxDoc();

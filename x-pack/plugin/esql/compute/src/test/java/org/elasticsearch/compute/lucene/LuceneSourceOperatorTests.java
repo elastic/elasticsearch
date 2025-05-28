@@ -9,10 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -67,8 +63,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-//@Seed("4FF2CB98F60FD89D:EBBB701671985F2B")
-@Repeat(iterations = 100)
 public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
@@ -210,6 +204,13 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                 }
             }
             reader = writer.getReader();
+
+            IndexSearcher searcher = new IndexSearcher(reader);
+            int count = 0;
+            for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
+                count += searcher.count(q.query());
+            }
+            assertThat(count, equalTo(testCase.numResults(numDocs)));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -217,7 +218,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        int taskConcurrency = 4; // randomIntBetween(1, 4); NOCOMMIT
+        int taskConcurrency = randomIntBetween(1, 4);
         return new LuceneSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
@@ -268,17 +269,17 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testEarlyTermination() {
-        int numDocs = 20_000; //between(1_000, 20_000); NOCOMMIT
-        int limit = 100_000; //between(0, numDocs * 2); NOCOMMIT
-        LuceneSourceOperator.Factory factory = simple(DataPartitioning.DOC
-            // randomFrom(DataPartitioning.values()) NOCOMMIT
-            , numDocs, limit, scoring);
+        int numDocs = between(1_000, 20_000);
+        int limit = between(0, numDocs * 2);
+        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), numDocs, limit, scoring);
         int taskConcurrency = factory.taskConcurrency();
         final AtomicInteger receivedRows = new AtomicInteger();
+        List<SourceOperator> sources = new ArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext driverContext = driverContext();
             SourceOperator sourceOperator = factory.get(driverContext);
+            sources.add(sourceOperator);
             SinkOperator sinkOperator = new PageConsumerOperator(p -> {
                 receivedRows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
@@ -301,6 +302,9 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             drivers.add(driver);
         }
         OperatorTestCase.runDriver(drivers);
+        for (SourceOperator source : sources) {
+            logger.info("source status {}", source.status());
+        }
         logger.info(
             "{} received={} limit={} numResults={}",
             factory.dataPartitioning,
@@ -376,6 +380,9 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         testCase.checkPages(numDocs, limit, factory.maxPageSize(), results);
+        int count = results.stream().mapToInt(Page::getPositionCount).sum();
+        logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
+        assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled

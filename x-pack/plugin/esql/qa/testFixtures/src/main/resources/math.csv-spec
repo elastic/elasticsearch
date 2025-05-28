@@ -1844,9 +1844,11 @@ emp_no:integer | l1:double | l2:double
 ;
 
 copySignWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+
 ROW a = 1.0, b = -2.0
-| EVAL c = COPY_SIGN(a, b)
-| EVAL d = COPY_SIGN(b, a)
+| EVAL c = copy_sign(a, b)
+| EVAL d = copy_sign(b, a)
 ;
 
 a:double | b:double | c:double | d:double

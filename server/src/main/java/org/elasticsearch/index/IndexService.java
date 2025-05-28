@@ -81,6 +81,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -485,7 +486,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         nodeEnv,
                         lock,
                         this.indexSettings,
-                        shardPaths -> indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPaths)
+                        shardPaths -> indexFoldersDeletionListener.beforeShardFoldersDeleted(
+                            shardId,
+                            this.indexSettings,
+                            shardPaths,
+                            IndexRemovalReason.FAILURE
+                        )
                     );
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
                 } catch (Exception inner) {
@@ -693,11 +699,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 } finally {
-                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings, IndexRemovalReason.DELETED);
                     eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 }
             } catch (IOException e) {
-                shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
+                shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings, IndexRemovalReason.DELETED);
                 logger.debug(() -> "[" + lock.getShardId().id() + "] failed to delete shard content - scheduled a retry", e);
             }
         }
@@ -1043,9 +1049,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public interface ShardStoreDeleter {
-        void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
+        void deleteShardStore(String reasonText, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason) throws IOException;
 
-        void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
+        void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason reason);
     }
 
     public final EngineFactory getEngineFactory() {

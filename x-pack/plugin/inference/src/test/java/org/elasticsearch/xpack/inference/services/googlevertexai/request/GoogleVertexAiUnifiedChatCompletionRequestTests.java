@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -44,7 +45,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var uri = URI.create(
-            String.format(
+            Strings.format(
                 "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers"
                     + "/google/models/%s:streamGenerateContent?alt=sse",
                 location,

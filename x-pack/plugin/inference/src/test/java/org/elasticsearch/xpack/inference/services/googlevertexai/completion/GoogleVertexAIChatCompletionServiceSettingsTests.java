@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 
-public class GoogleVertexAIChatCompletionServiceSettingsTest extends InferenceSettingsTestCase<
+public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
     @Override
     protected Writeable.Reader<GoogleVertexAiChatCompletionServiceSettings> instanceReader() {
@@ -33,7 +33,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTest extends InferenceSe
             randomString(),
             randomString(),
             randomString(),
-            new RateLimitSettings(randomInt())
+            new RateLimitSettings(randomIntBetween(1, 1000))
         );
     }
 }

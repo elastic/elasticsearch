@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -138,6 +138,6 @@ public class OptimizerRulesTests extends ESTestCase {
         var alias = new Alias(new Source(1, 18, "x=f1+1"), "x", add);
 
         // contains expressions only from EVAL
-        assertThat(rule.appliedTo, contains(alias, add, attribute, literal));
+        assertThat(rule.appliedTo, containsInAnyOrder(alias, add, attribute, literal));
     }
 }

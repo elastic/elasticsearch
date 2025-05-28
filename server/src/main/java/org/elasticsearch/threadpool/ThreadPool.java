@@ -682,7 +682,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
+    public static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
         final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
         return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
     }

@@ -17,7 +17,7 @@ breaking:
      considerable space improvement for this use case.
 
      Users can opt out of this behavior on a per-field basis by setting
-     `synthetic_source_keep: all` on the field.
+     `synthetic_source_keep` to `all` on the field.
 
   impact: By default, normalized keyword fields in synthetic source
      indices will no longer return the non-normalized value in the source.

@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -16,16 +17,12 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * A mapper for the _id field.
  */
 public class LogsdbIdFieldMapper extends IdFieldMapper {
-    // here
-    public static final String NAME = "_id";
-
-    public static final String CONTENT_TYPE = "_id";
-
     public static final LogsdbIdFieldMapper INSTANCE = new LogsdbIdFieldMapper();
 
     public LogsdbIdFieldMapper() {
@@ -39,7 +36,7 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
         }
         context.id(context.sourceToParse().id());
         BytesRef uidEncoded = Uid.encodeId(context.id());
-        context.doc().add(new SortedDocValuesField(fieldType().name(), uidEncoded));
+        context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), uidEncoded));
     }
 
     @Override
@@ -60,12 +57,12 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
     protected static class LogsdbIdFieldType extends TermBasedFieldType {
 
         public LogsdbIdFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(IdFieldMapper.NAME, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
+            return IdFieldMapper.CONTENT_TYPE;
         }
 
         @Override
@@ -76,24 +73,33 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            var bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+            var bytesRefs = values.stream()
+                .map(LogsdbIdFieldType::encode)
+                .map(this::indexedValueForSearch).toList();
             return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(encode(value)));
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(NAME);
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(IdFieldMapper.NAME);
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // TODO can this be done somehow?
             throw new UnsupportedOperationException("logsdb id cannot be fetched by values since only using doc values");
+        }
+
+        private static BytesRef encode(Object idObject) {
+            if (idObject instanceof BytesRef) {
+                idObject = ((BytesRef) idObject).utf8ToString();
+            }
+            return Uid.encodeId(idObject.toString());
         }
     }
 }

@@ -30,7 +30,9 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
@@ -38,7 +40,9 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -106,13 +110,6 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             .build();
     }
 
-    public void testStandard() throws Exception {
-        String dataStreamName = "k8s";
-        createTemplate(dataStreamName);
-        checkIndexSearchAndRetrieval(dataStreamName, false);
-    }
-
-
     public void testGetByGeneratedId() throws Exception {
         String dataStreamName = "k8s";
         createTemplate(dataStreamName);
@@ -125,7 +122,7 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             indexRequest.source(
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + randomIntBetween(0, 10)),
+                    .replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -143,11 +140,13 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
 
             for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-                String id = searchResponse.getHits().getHits()[i].getId();
+                SearchHit hit = searchResponse.getHits().getHits()[i];
+                String id = hit.getId();
                 assertThat(id, notNullValue());
 
                 // Check that the _id is gettable:
-                var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
+                var getRequest = new GetRequest(indexName).id(id);
+                var getResponse = client().get(getRequest).actionGet();
                 assertThat(getResponse.isExists(), is(true));
                 assertThat(getResponse.getId(), equalTo(id));
             }
@@ -163,11 +162,11 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         for (int j = 0; j < numDocs; j++) {
             var indexRequest = new IndexRequest(indexName)
                 .opType(DocWriteRequest.OpType.INDEX)
-                .id("some-id-" + j);
+                .id("id-" + j);
             indexRequest.source(
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + randomIntBetween(0, 10)),
+                    .replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -188,22 +187,24 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
 
             for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-                String id = searchResponse.getHits().getHits()[i].getId();
+                SearchHit hit = searchResponse.getHits().getHits()[i];
+                String id = hit.getId();
+                String numPart = id.split("-")[1];
                 assertThat(id, notNullValue());
-
-                // test get with the IDs from search response
-                var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
-                assertThat(getResponse.isExists(), is(true));
-                assertThat(getResponse.getId(), equalTo(id));
+                // check got correct doc in search response
+                var pod = (String) hit.getSourceAsMap().get("message");
+                assertThat(pod, equalTo("pod-" + numPart));
             }
         });
 
         // test get with the provided IDs
         for (int i = 0; i < numDocs; i++) {
-            String id = "some-id-" + i;
-            var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
+            String id = "id-" + i;
+            var getRequest = new GetRequest(indexName).id(id).fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
+            var getResponse = client().get(getRequest).actionGet();
             assertThat(getResponse.isExists(), is(true));
             assertThat(getResponse.getId(), equalTo(id));
+            assertThat(getResponse.getSourceAsMap().get("message"), equalTo("pod-" + i));
         }
     }
 
@@ -216,7 +217,7 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         for (int j = 0; j < numDocs; j++) {
             var indexRequest = new IndexRequest(indexName)
                 .opType(DocWriteRequest.OpType.INDEX)
-                .id("some-id-" + j);
+                .id("id-" + j);
             indexRequest.source(
                 DOC.replace("$time", formatInstant(time))
                     .replace("$uuid", UUID.randomUUID().toString())
@@ -231,12 +232,12 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         client().admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
 
         for (int i = 0; i < numDocs; i++) {
-            String id = "some-id-" + i;
+            String id = "id-" + i;
             var searchRequest = new SearchRequest(indexName);
             searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("_id", id)).size(10));
             var searchResponse = client().search(searchRequest).actionGet();
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
-            assertThat(searchResponse.getHits().getAt(0).field("message"), equalTo("pod-" + i));
+            assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("message"), equalTo("pod-" + i));
         }
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -717,9 +718,13 @@ public abstract class DocumentParserContext {
         // and inner hits to fail or yield incorrect results.
         IndexableField idField = doc.getParent().getField(IdFieldMapper.NAME);
         if (idField != null) {
-            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
-            // delete it when the root document is deleted too.
-            doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+            if (indexSettings().getMode() == IndexMode.LOGSDB) {
+                doc.add(new SortedDocValuesField(IdFieldMapper.NAME, idField.binaryValue()));
+            } else {
+                // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+                // delete it when the root document is deleted too.
+                doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+            }
         } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the

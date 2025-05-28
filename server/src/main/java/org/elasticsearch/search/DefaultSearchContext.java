@@ -972,6 +972,8 @@ final class DefaultSearchContext extends SearchContext {
                 }
             }
             return IdLoader.createTsIdLoader(indexRouting, routingPaths);
+        } else if (indexService.getIndexSettings().getMode() == IndexMode.LOGSDB) {
+            return IdLoader.createDocValueIdLoader();
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

@@ -222,6 +222,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         var dataLifecycle = retention == null
             ? DataStreamLifecycle.Template.DATA_DEFAULT
             : DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
+        var failuresLifecycle = retention == null ? null : DataStreamLifecycle.createFailuresLifecycleTemplate(true, retention);
         putComposableIndexTemplate("id1", """
             {
                 "properties": {
@@ -232,7 +233,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     "type": "long"
                   }
                 }
-            }""", List.of(dataStreamName + "*"), null, null, dataLifecycle);
+            }""", List.of(dataStreamName + "*"), null, null, dataLifecycle, failuresLifecycle);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -271,7 +272,8 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle.Template dataLifecycle
+        @Nullable DataStreamLifecycle.Template dataLifecycle,
+        @Nullable DataStreamLifecycle.Template failuresLifecycle
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -282,7 +284,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                         .settings(settings)
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
                         .lifecycle(dataLifecycle)
-                        .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true)))
+                        .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, failuresLifecycle)))
                 )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -358,7 +360,14 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                                             }
                                         }"""))
                                     .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO))
-                                    .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true)))
+                                    .dataStreamOptions(
+                                        new DataStreamOptions.Template(
+                                            new DataStreamFailureStore.Template(
+                                                true,
+                                                DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate()
+                                            )
+                                        )
+                                    )
                             )
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),

@@ -83,7 +83,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testPluginCanRegisterAction() {
-        class FakeRequest extends ActionRequest {
+        class FakeRequest extends LegacyActionRequest {
             @Override
             public ActionRequestValidationException validate() {
                 return null;

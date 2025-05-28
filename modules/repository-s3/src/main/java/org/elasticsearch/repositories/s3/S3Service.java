@@ -37,6 +37,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -177,6 +178,13 @@ class S3Service extends AbstractLifecycleComponent {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
+
+            if (lifecycle.started() == false) {
+                // doClose() calls releaseCachedClients() which is also synchronized (this) so if we're STARTED here then the client we
+                // create will definitely not leak on close.
+                throw new AlreadyClosedException("S3Service is in state [" + lifecycle + "]");
+            }
+
             final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
             Releasable toRelease = httpClient::close;
             try {
@@ -254,7 +262,25 @@ class S3Service extends AbstractLifecycleComponent {
         }
 
         if (Strings.hasLength(clientSettings.endpoint)) {
-            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
+            String endpoint = clientSettings.endpoint;
+            if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+                // The SDK does not know how to interpret endpoints without a scheme prefix and will error. Therefore, when the scheme is
+                // absent, we'll look at the deprecated .protocol setting
+                // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
+                endpoint = switch (clientSettings.protocol) {
+                    case HTTP -> "http://" + endpoint;
+                    case HTTPS -> "https://" + endpoint;
+                };
+                LOGGER.warn(
+                    """
+                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should be [{}]; \
+                        to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
+                    clientSettings.endpoint,
+                    endpoint,
+                    S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+                );
+            }
+            s3clientBuilder.endpointOverride(URI.create(endpoint));
         }
 
         return s3clientBuilder;

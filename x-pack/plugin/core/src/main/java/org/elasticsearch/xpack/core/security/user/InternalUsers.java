@@ -28,7 +28,6 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
@@ -162,7 +161,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             "delete_index",
                             RolloverAction.NAME,
                             ForceMergeAction.NAME + "*",
@@ -185,7 +184,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             "delete_index",
                             RolloverAction.NAME,
                             ForceMergeAction.NAME + "*",
@@ -264,7 +263,7 @@ public class InternalUsers {
                     .privileges(
                         filterNonNull(
                             // needed to rollover failure store
-                            DataStream.isFailureStoreFeatureFlagEnabled() ? "manage_failure_store" : null,
+                            "manage_failure_store",
                             LazyRolloverAction.NAME
                         )
                     )

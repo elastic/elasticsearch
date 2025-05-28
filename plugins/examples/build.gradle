@@ -22,21 +22,15 @@ subprojects {
 
   repositories {
     // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
-    maven {
-      url = 'https://snapshots.elastic.co/maven/'
-      mavenContent {
-        if (gradle.includedBuilds) {
-          // When building in a composite, restrict this to only resolve the Java REST client
-          includeModule 'co.elastic.clients', 'elasticsearch-java'
-        }
-      }
-    }
     if (gradle.includedBuilds.isEmpty()) {
       maven {
         url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
         mavenContent {
           includeModule 'org.elasticsearch', 'elasticsearch'
         }
+      }
+      maven {
+        url = 'https://snapshots.elastic.co/maven/'
       }
     }
 

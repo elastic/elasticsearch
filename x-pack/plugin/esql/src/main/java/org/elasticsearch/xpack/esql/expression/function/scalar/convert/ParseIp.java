@@ -204,14 +204,14 @@ public class ParseIp {
     }
 
     private static int digit(BytesRef string, int offset) {
-        if (string.bytes[offset] < '0' && '9' < string.bytes[offset]) {
+        if (string.bytes[offset] < '0' || '9' < string.bytes[offset]) {
             throw invalid(string);
         }
         return string.bytes[offset] - '0';
     }
 
     private static int octalDigit(BytesRef string, int offset) {
-        if (string.bytes[offset] < '0' && '7' < string.bytes[offset]) {
+        if (string.bytes[offset] < '0' || '7' < string.bytes[offset]) {
             throw invalid(string);
         }
         return string.bytes[offset] - '0';

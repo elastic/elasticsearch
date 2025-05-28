@@ -1,0 +1,44 @@
+[[release-notes-8.17.6]]
+== {es} version 8.17.6
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.6]]
+[float]
+=== Bug fixes
+
+CCS::
+* Cancel expired async search task when a remote returns its results {es-pull}126583[#126583]
+
+Data streams::
+* [otel-data] Bump plugin version to release _metric_names_hash changes {es-pull}126850[#126850]
+
+ES|QL::
+* Fix count optimization with pushable union types {es-pull}127225[#127225] (issue: {es-issue}127200[#127200])
+
+Infra/Core::
+* Rework uniquify to not use iterators {es-pull}126889[#126889] (issue: {es-issue}126883[#126883])
+* Workaround max name limit imposed by Jackson 2.17 {es-pull}126806[#126806]
+
+Machine Learning::
+* Adding missing `onFailure` call for Inference API start model request {es-pull}126930[#126930]
+* Fix text structure NPE when fields in list have null value {es-pull}125922[#125922]
+* Leverage threadpool schedule for inference api to avoid long running thread {es-pull}126858[#126858] (issue: {es-issue}126853[#126853])
+
+Ranking::
+* Fix LTR rescorer with model alias {es-pull}126273[#126273]
+
+Task Management::
+* Fix race condition in `RestCancellableNodeClient` {es-pull}126686[#126686] (issue: {es-issue}88201[#88201])
+
+Vector Search::
+* Fix `vec_caps` to test for OS support too (on x64) {es-pull}126911[#126911] (issue: {es-issue}126809[#126809])
+
+[[enhancement-8.17.6]]
+[float]
+=== Enhancements
+
+Security::
+* Add Issuer to failed SAML Signature validation logs when available {es-pull}126310[#126310] (issue: {es-issue}111022[#111022])
+
+

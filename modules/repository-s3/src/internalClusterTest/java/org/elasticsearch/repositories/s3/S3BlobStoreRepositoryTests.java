@@ -165,6 +165,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
+            .put(S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER.getConcreteSettingForNamespace("test").getKey(), "true")
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
@@ -617,7 +618,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             assertTrue(
                 isValidAwsV4SignedAuthorizationHeader(
                     "test_access_key",
-                    Objects.requireNonNullElse(region, "us-east-1"),
+                    // If unset, the region used by the SDK is usually going to be `us-east-1` but sometimes these tests run on bare EC2
+                    // machines and the SDK picks up the region from the IMDS there, so for now we use '*' to skip validation.
+                    Objects.requireNonNullElse(region, "*"),
                     "s3",
                     exchange.getRequestHeaders().getFirst("Authorization")
                 )

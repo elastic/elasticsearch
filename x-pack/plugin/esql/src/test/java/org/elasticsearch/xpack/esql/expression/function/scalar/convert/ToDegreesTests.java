@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 public class ToDegreesTests extends AbstractScalarFunctionTestCase {
@@ -30,16 +29,10 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
-        BiFunction<String, String, String> evaluatorName = (eval, f) -> "ToDegreesEvaluator[deg="
-            + eval
-            + "["
-            + f
-            + "=Attribute[channel=0]]]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("ToDoubleFromIntEvaluator", "i"),
+            evaluatorName("ToDoubleFromIntEvaluator", "i"),
             DataType.DOUBLE,
             Math::toDegrees,
             Integer.MIN_VALUE,
@@ -48,7 +41,7 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromLongEvaluator", "l"),
+            evaluatorName("ToDoubleFromLongEvaluator", "l"),
             DataType.DOUBLE,
             Math::toDegrees,
             Long.MIN_VALUE,
@@ -57,7 +50,7 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("ToDoubleFromUnsignedLongEvaluator", "l"),
+            evaluatorName("ToDoubleFromUnsignedLongEvaluator", "l"),
             DataType.DOUBLE,
             ul -> Math.toDegrees(ul.doubleValue()),
             BigInteger.ZERO,
@@ -94,6 +87,10 @@ public class ToDegreesTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        return "ToDegreesEvaluator[deg=" + inner + "[" + next + "=Attribute[channel=0]]]";
     }
 
     @Override

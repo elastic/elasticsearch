@@ -1,0 +1,6 @@
+pr: 127009
+summary: "ESQL: Keep `DROP` attributes when resolving field names"
+area: ES|QL
+type: bug
+issues:
+  - 126418

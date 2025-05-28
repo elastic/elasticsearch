@@ -213,7 +213,7 @@ public class NodeDeprecationChecks {
                 "Specifying multiple data paths is deprecated",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0.",
                 false,
                 null
             );
@@ -233,7 +233,7 @@ public class NodeDeprecationChecks {
                 "Multiple data paths are not supported",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0.",
                 false,
                 null
             );

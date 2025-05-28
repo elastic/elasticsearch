@@ -8,7 +8,7 @@ esplugin {
   name = 'x-pack-ent-search'
   description = 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
   classname = 'org.elasticsearch.xpack.application.EnterpriseSearch'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'search-business-rules']
 }
 
 base {
@@ -17,7 +17,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  implementation project(xpackModule('search-business-rules'))
+  compileOnly project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
 
   // JSON Schema dependencies

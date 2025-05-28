@@ -93,7 +93,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> DataStreamLifecycle.Template.fromXContent(p),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplateFromXContent(p),
             LIFECYCLE
         );
         PARSER.declareObjectOrNull(
@@ -125,6 +125,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
+        assert lifecycle == null || lifecycle.toDataStreamLifecycle().targetsFailureStore() == false
+            : "Invalid lifecycle type for data lifecycle";
         this.lifecycle = lifecycle;
         assert dataStreamOptions != null : "Template does not accept null values, please use Resettable.undefined()";
         this.dataStreamOptions = dataStreamOptions;
@@ -316,9 +318,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
-        }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }

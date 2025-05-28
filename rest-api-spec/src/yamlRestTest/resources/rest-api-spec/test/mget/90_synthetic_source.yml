@@ -6,7 +6,7 @@ setup:
 ---
 keyword:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
+      cluster_features: [ "gte_v8.4.0" ]
       reason: introduced in 8.4.0
 
   - do:
@@ -23,15 +23,15 @@ keyword:
 
   - do:
       index:
-        index:   test
-        id:      1
+        index: test
+        id: 1
         body:
           kwd: foo
 
   - do:
       index:
-        index:   test
-        id:      2
+        index: test
+        id: 2
         body:
           kwd: bar
 
@@ -40,21 +40,25 @@ keyword:
       mget:
         index: test
         body:
-          ids:    [1, 2]
-  - match: {docs.0._index: "test"}
-  - match: {docs.0._id: "1"}
+          ids: [ 1, 2 ]
+  - match: { docs.0._index: "test" }
+  - match: { docs.0._id: "1" }
   - match:
       docs.0._source:
         kwd: foo
 
-  - match: {docs.1._index: "test"}
-  - match: {docs.1._id: "2"}
+  - match: { docs.1._index: "test" }
+  - match: { docs.1._id: "2" }
   - match:
       docs.1._source:
         kwd: bar
 
 ---
 keyword with normalizer:
+  - requires:
+      - cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      - reason: "Behavior changed in #126623"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -113,7 +117,7 @@ keyword with normalizer:
       mget:
         index: test-keyword-with-normalizer
         body:
-          ids:    [ 1, 2, 3 ]
+          ids: [ 1, 2, 3 ]
   - match: { docs.0._index: "test-keyword-with-normalizer" }
   - match: { docs.0._id: "1" }
   - match:
@@ -200,7 +204,7 @@ keyword with normalizer, source keep mode all:
       mget:
         index: test-keyword-with-normalizer
         body:
-          ids:    [ 1, 2, 3 ]
+          ids: [ 1, 2, 3 ]
   - match: { docs.0._index: "test-keyword-with-normalizer" }
   - match: { docs.0._id: "1" }
   - match:
@@ -228,7 +232,7 @@ keyword with normalizer, source keep mode all:
 ---
 stored text:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
+      cluster_features: [ "gte_v8.5.0" ]
       reason: introduced in 8.5.0
 
   - do:
@@ -246,15 +250,15 @@ stored text:
 
   - do:
       index:
-        index:   test
-        id:      1
+        index: test
+        id: 1
         body:
           text: the quick brown fox
 
   - do:
       index:
-        index:   test
-        id:      2
+        index: test
+        id: 2
         body:
           text: jumped over the lazy dog
 
@@ -262,15 +266,15 @@ stored text:
       mget:
         index: test
         body:
-          ids:    [1, 2]
-  - match: {docs.0._index: "test"}
-  - match: {docs.0._id: "1"}
+          ids: [ 1, 2 ]
+  - match: { docs.0._index: "test" }
+  - match: { docs.0._id: "1" }
   - match:
       docs.0._source:
         text: the quick brown fox
 
-  - match: {docs.1._index: "test"}
-  - match: {docs.1._id: "2"}
+  - match: { docs.1._index: "test" }
+  - match: { docs.1._id: "2" }
   - match:
       docs.1._source:
         text: jumped over the lazy dog
@@ -278,7 +282,7 @@ stored text:
 ---
 force_synthetic_source_ok:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
+      cluster_features: [ "gte_v8.4.0" ]
       reason: introduced in 8.4.0
 
   - do:
@@ -297,15 +301,15 @@ force_synthetic_source_ok:
 
   - do:
       index:
-        index:   test
-        id:      1
+        index: test
+        id: 1
         body:
           obj.kwd: foo
 
   - do:
       index:
-        index:   test
-        id:      2
+        index: test
+        id: 2
         body:
           obj:
             kwd: bar
@@ -315,7 +319,7 @@ force_synthetic_source_ok:
       mget:
         index: test
         body:
-          ids: [1, 2]
+          ids: [ 1, 2 ]
   - match:
       docs.0._source:
         obj.kwd: foo

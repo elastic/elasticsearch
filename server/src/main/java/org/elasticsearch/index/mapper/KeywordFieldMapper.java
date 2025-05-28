@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -91,6 +92,10 @@ import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldNa
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
 public final class KeywordFieldMapper extends FieldMapper {
+
+    public static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature(
+        "mapper.keyword.keyword_normalizer_synthetic_source"
+    );
 
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 

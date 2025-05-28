@@ -77,7 +77,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      * @param indexSettings                  used to obtain the {@link MergeSchedulerConfig}
      * @param threadPoolMergeExecutorService the executor service used to execute merge tasks from this scheduler
      * @param mergeMemoryEstimateProvider    provides an estimate for how much memory a merge will take
-     * @param mergeMetrics
+     * @param mergeMetrics metrics related to merges
      */
     public ThreadPoolMergeScheduler(
         ShardId shardId,
@@ -540,7 +540,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
             try {
-                return currentMerge.getMergeInfo().sizeInBytes();
+                return currentMerge.getMergeInfo() != null ? currentMerge.getMergeInfo().sizeInBytes() : currentMerge.estimatedMergeBytes;
             } catch (FileNotFoundException | NoSuchFileException e) {
                 // It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to reaching this point.
                 // Once the IW creates the new segment, it could be exposed to be included in a new merge. That merge can be executed

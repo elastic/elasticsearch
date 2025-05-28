@@ -328,8 +328,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-                SearchContext context = null;
                 for (IndexShard shard : targetShards) {
+                    SearchContext context = null;
                     try {
                         var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
                         var shardRequest = new ShardSearchRequest(

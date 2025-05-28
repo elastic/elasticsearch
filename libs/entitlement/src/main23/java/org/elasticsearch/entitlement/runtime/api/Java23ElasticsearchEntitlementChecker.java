@@ -10,11 +10,11 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 public class Java23ElasticsearchEntitlementChecker extends Java22ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
 
-    public Java23ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        super(policyManager);
+    public Java23ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
+        super(policyChecker);
     }
 }

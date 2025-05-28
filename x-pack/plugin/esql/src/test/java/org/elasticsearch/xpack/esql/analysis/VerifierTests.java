@@ -1216,6 +1216,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchPhraseInsideEval() throws Exception {
+        assumeTrue("match_phrase function capability not available", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
         assertEquals(
             "1:36: [MatchPhrase] function is only supported in WHERE and STATS commands\n"
                 + "line 1:49: [MatchPhrase] function cannot operate on [title], which is not a field from an index mapping",
@@ -1260,6 +1261,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchPhraseWithNonIndexedColumnCurrentlyUnsupported() {
+        assumeTrue("match_phrase function capability not available", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
         assertEquals(
             "1:74: [MatchPhrase] function cannot operate on [initial], which is not a field from an index mapping",
             error("from test | eval initial = substring(first_name, 1) | where match_phrase(initial, \"A\")")
@@ -1278,6 +1280,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchPhraseFunctionIsNotNullable() {
+        assumeTrue("match_phrase function capability not available", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
         assertEquals(
             "1:55: [MatchPhrase] function cannot operate on [text::keyword], which is not a field from an index mapping",
             error("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"Anna\")")

@@ -13,6 +13,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -29,6 +32,12 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        assumeTrue("match_phrase function capability not available", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        return super.run(request);
     }
 
     public void testSimpleWhereMatchPhrase() {

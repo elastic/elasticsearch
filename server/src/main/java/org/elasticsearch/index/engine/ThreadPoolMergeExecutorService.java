@@ -221,11 +221,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private ThreadPoolMergeExecutorService(
-        ThreadPool threadPool,
-        ClusterSettings clusterSettings,
-        NodeEnvironment nodeEnvironment
-    ) {
+    private ThreadPoolMergeExecutorService(ThreadPool threadPool, ClusterSettings clusterSettings, NodeEnvironment nodeEnvironment) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
         // the intent here is to throttle down whenever we submit a task and no other task is running

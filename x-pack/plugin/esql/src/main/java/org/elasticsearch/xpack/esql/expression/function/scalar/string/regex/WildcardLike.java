@@ -5,25 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,13 +26,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-
-public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
-    implements
-        EvaluatorMapper,
-        TranslationAware.SingleValueTranslationAware {
+public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLike",
@@ -84,7 +71,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             new WildcardPattern(in.readString()),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean()
+            deserializeCaseInsensitivity(in)
         );
     }
 
@@ -93,16 +80,12 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeString(pattern().pattern());
-        if (caseInsensitive() && out.getTransportVersion().before(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {
-            // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
-            // the serialization of the boolean would result in wrong results.
-            throw new EsqlIllegalArgumentException(
-                NAME + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
-                out.getTransportVersion(),
-                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
-            );
-        }
-        out.writeBoolean(caseInsensitive());
+        serializeCaseInsensitivity(out);
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     @Override
@@ -111,33 +94,13 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike> info() {
+    protected NodeInfo<WildcardLike> info() {
         return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
-        return new WildcardLike(source(), newLeft, pattern());
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT);
-    }
-
-    @Override
-    public Boolean fold(FoldContext ctx) {
-        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return AutomataMatch.toEvaluator(
-            source(),
-            toEvaluator.apply(field()),
-            // The empty pattern will accept the empty string
-            pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton(caseInsensitive())
-        );
+        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
     }
 
     @Override
@@ -155,15 +118,5 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     // TODO: see whether escaping is needed
     private Query translateField(String targetFieldName) {
         return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
-    }
-
-    @Override
-    public Expression singleValueField() {
-        return field();
-    }
-
-    @Override
-    public String nodeString() {
-        return NAME + "(" + field().nodeString() + ", \"" + pattern().pattern() + "\", " + caseInsensitive() + ")";
     }
 }

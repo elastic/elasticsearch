@@ -320,7 +320,7 @@ emp_no:integer | job_positions:keyword
 10025          | Accountant 
 ;
 
-likeWithUpper
+likeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -332,7 +332,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLower
+likeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -344,7 +344,29 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithUpper
+likeWithLowerConflictingFolded
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) LIKE "geor*"
+;
+
+emp_no:integer |first_name:keyword
+;
+
+likeWithLowerTurnedInsensitiveNotPushedDown
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(first_name) LIKE "geor*" OR emp_no + 1 IN (10002, 10056)
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -356,7 +378,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLower
+rlikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -368,7 +390,17 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-negatedRLikeWithLower
+rlikeWithLowerConflictingFolded
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) RLIKE "geor.*"
+;
+
+emp_no:integer |first_name:keyword
+;
+
+negatedRLikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -378,4 +410,16 @@ FROM employees
 
 c:long
 88
+;
+
+rlikeWithLowerTurnedInsensitiveNotPushedDown
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(first_name) RLIKE "geor.*" OR emp_no + 1 IN (10002, 10056)
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
 ;

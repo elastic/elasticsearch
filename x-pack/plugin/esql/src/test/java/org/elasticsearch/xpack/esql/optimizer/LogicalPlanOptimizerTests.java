@@ -78,8 +78,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -6303,88 +6303,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
         assertThat(bRef.utf8ToString(), is("VALÜ"));
         as(filter.child(), EsRelation.class);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false]
-     * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
-     *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
-     */
-    public void testReplaceUpperStringCasingWithInsensitiveRLike() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE \"VALÜ*\"");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var rlike = as(filter.condition(), RLike.class);
-        var field = as(rlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
-        assertThat(rlike.pattern().pattern(), is("VALÜ*"));
-        assertThat(rlike.caseInsensitive(), is(true));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    // same plan as above, but lower case pattern
-    public void testReplaceLowerStringCasingWithInsensitiveRLike() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var rlike = as(filter.condition(), RLike.class);
-        var field = as(rlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
-        assertThat(rlike.pattern().pattern(), is("valü*"));
-        assertThat(rlike.caseInsensitive(), is(true));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
-     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
-     */
-    public void testReplaceStringCasingAndRLikeWithLocalRelation() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
-
-        var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
-    }
-
-    // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
-    public void testReplaceUpperStringCasingWithInsensitiveLike() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE \"VALÜ*\"");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var wlike = as(filter.condition(), WildcardLike.class);
-        var field = as(wlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
-        assertThat(wlike.pattern().pattern(), is("VALÜ*"));
-        assertThat(wlike.caseInsensitive(), is(true));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    // same plan as above, but lower case pattern
-    public void testReplaceLowerStringCasingWithInsensitiveLike() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var wlike = as(filter.condition(), WildcardLike.class);
-        var field = as(wlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
-        assertThat(wlike.pattern().pattern(), is("valü*"));
-        assertThat(wlike.caseInsensitive(), is(true));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
-     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
-     */
-    public void testReplaceStringCasingAndLikeWithLocalRelation() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
-
-        var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 
     @Override

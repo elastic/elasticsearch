@@ -5,23 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,13 +26,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-
-public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike
-    implements
-        EvaluatorMapper,
-        TranslationAware.SingleValueTranslationAware {
+public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 
@@ -73,7 +62,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             new RLikePattern(in.readString()),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean()
+            deserializeCaseInsensitivity(in)
         );
     }
 
@@ -82,16 +71,12 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeString(pattern().asJavaRegex());
-        if (caseInsensitive() && out.getTransportVersion().before(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {
-            // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
-            // the serialization of the boolean would result in wrong results.
-            throw new EsqlIllegalArgumentException(
-                NAME + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
-                out.getTransportVersion(),
-                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
-            );
-        }
-        out.writeBoolean(caseInsensitive());
+        serializeCaseInsensitivity(out);
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     @Override
@@ -110,39 +95,9 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT);
-    }
-
-    @Override
-    public Boolean fold(FoldContext ctx) {
-        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton(caseInsensitive()));
-    }
-
-    @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(field()) ? Translatable.YES : Translatable.NO;
-    }
-
-    @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
         // TODO: see whether escaping is needed
         return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
-    }
-
-    @Override
-    public Expression singleValueField() {
-        return field();
-    }
-
-    @Override
-    public String nodeString() {
-        return NAME + "(" + field().nodeString() + ", \"" + pattern().pattern() + "\", " + caseInsensitive() + ")";
     }
 }

@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -205,7 +206,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -2322,6 +2323,42 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
+     *     \_FieldExtractExec[_meta_field{f}#10, gender{f}#6, hire_date{f}#11, jo..]<[],[]>
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[LIKE(first_name{f}#5, "FOO*", true) OR IN(1[INTEGER],2[INTEGER],3[INTEGER],emp_no{f}#4 + 1[INTEGER])]
+     *           \_FieldExtractExec[first_name{f}#5, emp_no{f}#4]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[332]
+     */
+    public void testChangeCaseAsInsensitiveWildcardLikeNotPushedDown() {
+        var esql = """
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*" OR emp_no + 1 IN (1, 2, 3)
+            """;
+        var plan = physicalPlan(esql);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var or = as(filter.condition(), Or.class);
+        var wildcard = as(or.left(), WildcardLike.class);
+        assertThat(Expressions.name(wildcard.field()), is("first_name"));
+        assertThat(wildcard.pattern().pattern(), is("FOO*"));
+        assertThat(wildcard.caseInsensitive(), is(true));
+    }
+
     public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test
@@ -2553,6 +2590,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + KEYWORD_EST));
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2]]
+     *     \_FieldExtractExec[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"wildcard":{"_index":{"wildcard":"test*","boost":0.0}}}][_doc{f}#27],
+     *          limit[1000], sort[] estimatedRowSize[382]
+     *
+     */
     public void testPushDownMetadataIndexInWildcard() {
         var plan = physicalPlan("""
             from test metadata _index
@@ -8205,7 +8253,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);
         if (assertSerialization) {
-            assertSerialization(physical);
+            assertSerialization(physical, config);
         }
         return physical;
     }

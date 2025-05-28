@@ -47,6 +47,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -2907,14 +2908,33 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private static Long getHighestSeqNo(final IndexReader reader) throws IOException {
-        final String fieldName = SeqNoFieldMapper.NAME;
-        long size = PointValues.size(reader, fieldName);
-        if (size == 0) {
-            return null;
+    private Long getHighestSeqNo(final IndexReader reader) throws IOException {
+        boolean usePoints = switch (defaultSettings.seqNoIndexOptions()) {
+            case POINTS_AND_DOC_VALUES -> randomBoolean();
+            case DOC_VALUES_ONLY -> false;
+        };
+        if (usePoints) {
+            final String fieldName = SeqNoFieldMapper.NAME;
+            long size = PointValues.size(reader, fieldName);
+            if (size == 0) {
+                return null;
+            }
+            byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
+            return LongPoint.decodeDimension(max, 0);
+        } else {
+            Long value = null;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                NumericDocValues dv = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                while (dv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (value == null) {
+                        value = dv.longValue();
+                    } else {
+                        value = Math.max(value, dv.longValue());
+                    }
+                }
+            }
+            return value;
         }
-        byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-        return LongPoint.decodeDimension(max, 0);
     }
 
     private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {
@@ -5499,7 +5519,7 @@ public class InternalEngineTests extends EngineTestCase {
             final String id = "id";
             final Field uidField = new StringField("_id", id, Field.Store.YES);
             final Field versionField = new NumericDocValuesField("_version", 0);
-            final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+            final var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
             final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.HardcodedEntitlements;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;

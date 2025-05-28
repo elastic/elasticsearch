@@ -13,6 +13,11 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 
+/**
+ * An adapter for {@link CustomApiKeyAuthenticator} that implements the {@link Authenticator} interface, so the custom API key authenticator
+ * can be plugged into the authenticator chain. Module dependencies prevent us from introducing a direct extension point for
+ * an {@link Authenticator}.
+ */
 public class PluggableApiKeyAuthenticator implements Authenticator {
     private final CustomApiKeyAuthenticator authenticator;
 

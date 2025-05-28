@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroi
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Scalb;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
@@ -326,6 +328,7 @@ public class EsqlFunctionRegistry {
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
+                def(RoundTo.class, RoundTo::new, "round_to"),
                 def(Scalb.class, Scalb::new, "scalb"),
                 def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
@@ -451,6 +454,7 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
+                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),

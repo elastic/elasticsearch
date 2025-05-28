@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -70,7 +71,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     }
 
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
-        var messageRoleLowered = messageRole.toLowerCase();
+        var messageRoleLowered = messageRole.toLowerCase(Locale.ROOT);
 
         if (messageRoleLowered.equals(USER_ROLE)) {
             return USER_ROLE;

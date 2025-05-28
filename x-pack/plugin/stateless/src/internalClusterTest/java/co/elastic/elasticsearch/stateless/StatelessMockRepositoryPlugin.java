@@ -49,7 +49,8 @@ public class StatelessMockRepositoryPlugin extends Plugin implements RepositoryP
     ) {
         return Map.of(
             TYPE,
-            (metadata) -> new StatelessMockRepository(
+            (projectId, metadata) -> new StatelessMockRepository(
+                projectId,
                 metadata,
                 env,
                 namedXContentRegistry,

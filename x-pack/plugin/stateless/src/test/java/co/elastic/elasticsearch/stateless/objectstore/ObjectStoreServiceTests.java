@@ -527,6 +527,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final String blobName = "test_blob";
 
             final BlobStoreRepository clusterObjectStore = objectStoreService.getObjectStore();
+            assertNull(clusterObjectStore.getProjectId());
             assertThat(
                 objectStoreService.getProjectObjectStores(),
                 equalTo(Map.of(ProjectId.DEFAULT, objectStoreService.getObjectStore()))
@@ -562,6 +563,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                 final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);
                 assertNotNull(projectObjectStore);
+                assertThat(projectObjectStore.getProjectId(), equalTo(projectId));
                 assertThat(projectObjectStore.getMetadata().type(), equalTo("fs"));
                 assertThat(
                     projectObjectStore.getMetadata().settings().get("location"),
@@ -612,11 +614,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             ) {
                 @Override
                 protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
-                    return new RepositoriesService(nodeSettings, clusterService, Map.of(FsRepository.TYPE, metadata -> {
+                    return new RepositoriesService(nodeSettings, clusterService, Map.of(FsRepository.TYPE, (projectId, metadata) -> {
                         if (metadata.settings().get("location").contains("bucket_" + projectId)) {
                             throw expectedException;
                         } else {
-                            return createFsRepository(xContentRegistry, metadata);
+                            return createFsRepository(xContentRegistry, projectId, metadata);
                         }
                     }), Map.of(), threadPool, client, List.of());
                 }

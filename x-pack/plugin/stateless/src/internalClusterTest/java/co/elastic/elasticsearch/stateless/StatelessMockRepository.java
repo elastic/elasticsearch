@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -64,6 +65,7 @@ public class StatelessMockRepository extends FsRepository {
     private StatelessMockRepositoryStrategy strategy;
 
     public StatelessMockRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -72,7 +74,7 @@ public class StatelessMockRepository extends FsRepository {
         RecoverySettings recoverySettings,
         StatelessMockRepositoryStrategy strategy
     ) {
-        super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         this.strategy = strategy;
     }
 

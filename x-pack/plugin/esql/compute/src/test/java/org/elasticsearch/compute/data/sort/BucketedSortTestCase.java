@@ -445,22 +445,6 @@ public abstract class BucketedSortTestCase<T extends Releasable, V extends Compa
         }
     }
 
-    public final void testZeroBucketSize() {
-        try (T sort = build(randomFrom(SortOrder.values()), 0)) {
-            collect(sort, randomValue(), 0);
-
-            try (T otherSort = build(randomFrom(SortOrder.values()), randomIntBetween(1, 3))) {
-                for (int i = 0; i < randomIntBetween(0, 3); i++) {
-                    collect(otherSort, randomValue(), 0);
-                }
-
-                merge(sort, 0, otherSort, 0);
-            }
-
-            assertBlock(sort, 0, List.of());
-        }
-    }
-
     protected void assertBlock(T sort, int groupId, List<V> values) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
 

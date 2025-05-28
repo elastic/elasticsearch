@@ -96,7 +96,9 @@ final class LongTopNBlockHash extends BlockHash {
 
         if (nullsFirst) {
             hasNull = true;
-            migrateToSmallTop();
+            // Reduce the limit of the sort by one, as it's not filled with a null
+            assert topValues.getLimit() == limit : "The top values can't be reduced twice";
+            topValues.reduceLimitByOne();
             return true;
         }
 
@@ -122,16 +124,6 @@ final class LongTopNBlockHash extends BlockHash {
         }
 
         return true;
-    }
-
-    /**
-     * Converts the current BucketedSort to one with {@code limit - 1} values, as one value is a null.
-     */
-    private void migrateToSmallTop() {
-        assert nullsFirst : "The small top is only used when nulls are first";
-        assert topValues.getLimit() == limit : "The top values can't be migrated twice";
-
-        topValues.reduceLimitByOne();
     }
 
     /**

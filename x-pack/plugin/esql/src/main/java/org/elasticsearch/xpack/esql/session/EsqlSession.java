@@ -616,8 +616,6 @@ public class EsqlSession {
 
         boolean[] canRemoveAliases = new boolean[] { true };
 
-        PreAnalysisResult initialResult = result;
-        projectAll.set(false);
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
@@ -691,10 +689,6 @@ public class EsqlSession {
                 });
             }
         });
-
-        if (projectAll.get()) {
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
 
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.addAll(keepJoinRefsBuilder);

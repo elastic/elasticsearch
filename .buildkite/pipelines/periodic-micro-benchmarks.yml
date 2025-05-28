@@ -1,0 +1,10 @@
+steps:
+  - label: periodic-micro-benchmarks
+    command: |
+      .ci/scripts/run-gradle.sh -p benchmarks/ run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

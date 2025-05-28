@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -102,7 +103,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             } else if (r.getEndpoints().isEmpty() == false
                 && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
                     configuredTopN = googleVertexAiTaskSettings.topN();
-                }
+                } else if (r.getEndpoints().isEmpty() == false
+                    && r.getEndpoints().get(0).getTaskSettings() instanceof HuggingFaceRerankTaskSettings huggingFaceRerankTaskSettings) {
+                        configuredTopN = huggingFaceRerankTaskSettings.getTopNDocumentsOnly();
+                    }
             if (configuredTopN != null && configuredTopN < rankWindowSize) {
                 l.onFailure(
                     new IllegalArgumentException(

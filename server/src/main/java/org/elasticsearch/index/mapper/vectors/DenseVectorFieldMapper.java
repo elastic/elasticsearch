@@ -108,7 +108,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.common.Strings.isNullOrBlank;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -2428,8 +2427,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ?
-                PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
+            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2459,8 +2457,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ?
-                PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
+            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
 
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2514,11 +2511,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 numCands = Math.max(adjustedK, numCands);
             }
             KnnFloatVectorQuery knnFloatVectorQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, numCands, parentFilter,
-                knnSearchStrategy) : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(
+                    name(),
+                    queryVector,
+                    filter,
+                    adjustedK,
+                    numCands,
+                    parentFilter,
+                    knnSearchStrategy
+                )
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
             // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ?
-                PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery) : knnFloatVectorQuery;
+            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery) : knnFloatVectorQuery;
 
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(

@@ -1,5 +1,4 @@
 
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -343,7 +342,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)
         implements
-        Writeable {
+            Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
             return new ShardToQuery(
@@ -393,8 +392,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         return request;
     }
 
-    private static boolean isPartOfPIT(SearchRequest request, ShardSearchContextId contextId,
-                                       NamedWriteableRegistry namedWriteableRegistry) {
+    private static boolean isPartOfPIT(
+        SearchRequest request,
+        ShardSearchContextId contextId,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
             return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
@@ -592,8 +594,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         TransportActionProxy.registerProxyAction(transportService, NODE_SEARCH_ACTION_NAME, true, NodeQueryResponse::new);
     }
 
-    private static void releaseLocalContext(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result,
-                                            NamedWriteableRegistry namedWriteableRegistry) {
+    private static void releaseLocalContext(
+        SearchService searchService,
+        NodeQueryRequest request,
+        SearchPhaseResult result,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         var phaseResult = result.queryResult() != null ? result.queryResult() : result.rankFeatureResult();
         if (phaseResult != null
             && phaseResult.hasSearchContext()
@@ -825,11 +831,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
         }
 
-        private void handleMergeFailure(Exception e, ChannelActionListener<TransportResponse> channelListener,
-                                        NamedWriteableRegistry namedWriteableRegistry) {
+        private void handleMergeFailure(
+            Exception e,
+            ChannelActionListener<TransportResponse> channelListener,
+            NamedWriteableRegistry namedWriteableRegistry
+        ) {
             queryPhaseResultConsumer.getSuccessfulResults()
-                .forEach(searchPhaseResult -> releaseLocalContext(dependencies.searchService, searchRequest,
-                    searchPhaseResult, namedWriteableRegistry));
+                .forEach(
+                    searchPhaseResult -> releaseLocalContext(
+                        dependencies.searchService,
+                        searchRequest,
+                        searchPhaseResult,
+                        namedWriteableRegistry
+                    )
+                );
             channelListener.onFailure(e);
         }
 

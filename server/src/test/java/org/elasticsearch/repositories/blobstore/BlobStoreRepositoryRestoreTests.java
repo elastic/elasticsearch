@@ -219,6 +219,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

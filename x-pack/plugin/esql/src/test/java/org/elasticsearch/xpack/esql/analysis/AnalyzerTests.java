@@ -3304,7 +3304,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 5 )
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
-        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting {"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM test

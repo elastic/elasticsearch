@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -35,36 +34,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | WHERE match_phrase(content, "brown fox")
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
-        }
-    }
-
-    public void testSimpleWhereMatchPhraseNoResults() {
-        var query = """
-            FROM test
-            | WHERE match_phrase(content, "fox brown")
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), Collections.emptyList());
-        }
-    }
-
-    public void testSimpleWhereMatchPhraseAndSlop() {
-        var query = """
-            FROM test
-            | WHERE match_phrase(content, "fox brown", {"slop": 5})
             | KEEP id
             | SORT id
             """;

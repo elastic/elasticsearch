@@ -4,29 +4,13 @@
 
 | field | query | options | result |
 | --- | --- | --- | --- |
-| boolean | boolean | named parameters | boolean |
 | boolean | keyword | named parameters | boolean |
-| date | date | named parameters | boolean |
 | date | keyword | named parameters | boolean |
-| date_nanos | date_nanos | named parameters | boolean |
 | date_nanos | keyword | named parameters | boolean |
-| double | double | named parameters | boolean |
-| double | integer | named parameters | boolean |
-| double | long | named parameters | boolean |
-| integer | double | named parameters | boolean |
-| integer | integer | named parameters | boolean |
-| integer | long | named parameters | boolean |
-| ip | ip | named parameters | boolean |
 | ip | keyword | named parameters | boolean |
 | keyword | keyword | named parameters | boolean |
-| long | double | named parameters | boolean |
-| long | integer | named parameters | boolean |
-| long | long | named parameters | boolean |
+| keyword | text | named parameters | boolean |
 | text | keyword | named parameters | boolean |
-| unsigned_long | double | named parameters | boolean |
-| unsigned_long | integer | named parameters | boolean |
-| unsigned_long | long | named parameters | boolean |
-| unsigned_long | unsigned_long | named parameters | boolean |
+| text | text | named parameters | boolean |
 | version | keyword | named parameters | boolean |
-| version | version | named parameters | boolean |
 

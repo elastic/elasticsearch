@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -61,14 +60,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
@@ -82,31 +78,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         "MatchPhrase",
         MatchPhrase::readFrom
     );
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
-        KEYWORD,
-        TEXT,
-        BOOLEAN,
-        DATETIME,
-        DATE_NANOS,
-        DOUBLE,
-        INTEGER,
-        IP,
-        LONG,
-        UNSIGNED_LONG,
-        VERSION
-    );
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
-        KEYWORD,
-        BOOLEAN,
-        DATETIME,
-        DATE_NANOS,
-        DOUBLE,
-        INTEGER,
-        IP,
-        LONG,
-        UNSIGNED_LONG,
-        VERSION
-    );
+    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, BOOLEAN, DATETIME, DATE_NANOS, IP, VERSION);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     protected final Expression field;
 
@@ -148,12 +121,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         Source source,
         @Param(
             name = "field",
-            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            type = { "keyword", "text", "boolean", "date", "date_nanos", "ip", "version" },
             description = "Field that the query will target."
         ) Expression field,
         @Param(
             name = "query",
-            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            type = { "keyword", "text" },
             description = "Value to find in the provided field."
         ) Expression matchPhraseQuery,
         @MapParam(
@@ -179,12 +152,6 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
                     valueHint = { "none", "all" },
                     description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
                         + "when using a stop filter. Defaults to none."
-                ),
-                @MapParam.MapParamEntry(
-                    name = "boost",
-                    type = "float",
-                    valueHint = { "2.5" },
-                    description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             description = "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query-phrase,match_phrase query>> for more information.",
@@ -339,10 +306,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         }
 
         // Converts specific types to the correct type for the query
-        if (query().dataType() == DataType.UNSIGNED_LONG) {
-            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
-        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
-            // When casting to date and datetime, we get a long back. But Match query needs a date string
+        if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But MatchPhrase query needs a date string
             return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
         } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
             return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
@@ -366,12 +331,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     @Override
     public boolean equals(Object o) {
         // MatchPhrase does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two MatchPhrase functions
+        // ignore options when comparing two Match functions
         if (o == null || getClass() != o.getClass()) return false;
-        MatchPhrase matchPhrase = (MatchPhrase) o;
-        return Objects.equals(field(), matchPhrase.field())
-            && Objects.equals(query(), matchPhrase.query())
-            && Objects.equals(queryBuilder(), matchPhrase.queryBuilder());
+        MatchPhrase match = (MatchPhrase) o;
+        return Objects.equals(field(), match.field())
+            && Objects.equals(query(), match.query())
+            && Objects.equals(queryBuilder(), match.queryBuilder());
     }
 
     @Override

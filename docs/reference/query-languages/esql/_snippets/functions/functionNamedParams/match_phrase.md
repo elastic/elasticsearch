@@ -5,9 +5,6 @@
 `zero_terms_query`
 :   (keyword) Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.
 
-`boost`
-:   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
-
 `analyzer`
 :   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
 

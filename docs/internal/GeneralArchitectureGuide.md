@@ -44,7 +44,7 @@ were left unconsumed.
 
 ### Request interceptor
 
-The [RestController] allows the configuration of an interceptor that determines which [RestRequest]s are allowed to be processed. A single
+The [RestController] accepts a `RestInterceptor` that can intercept [RestRequest]s and add additional pre-handling. The
 [RestServerActionPlugin] can provide a [RestInterceptor] implementation, through which all requests are passed. The
 [Security][Security#getRestHandlerInterceptor] plugin uses this capability to register an interceptor to authorize access to endpoints
 that require [operator privileges], populate the [audit logs] and perform some additional authentication when required.

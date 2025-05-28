@@ -43,7 +43,9 @@ RUN set -eux ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod 0555 /bin/tini
 
+RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
+
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1

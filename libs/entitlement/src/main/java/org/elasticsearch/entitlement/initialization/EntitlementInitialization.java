@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.bootstrap.HardcodedEntitlements;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
@@ -124,19 +123,11 @@ public class EntitlementInitialization {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        PolicyManager policyManager = new PolicyManager(
-            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), bootstrapArgs.serverPolicyPatch()),
-            HardcodedEntitlements.agentEntitlements(),
-            pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
-            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            pathLookup
-        );
         return new PolicyCheckerImpl(
             bootstrapArgs.suppressFailureLogPackages(),
             ENTITLEMENTS_MODULE,
-            policyManager,
-            bootstrapArgs.pathLookup()
+            bootstrapArgs.policyManager(),
+            pathLookup
         );
     }
 

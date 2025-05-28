@@ -33,7 +33,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.HardcodedEntitlements;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
@@ -75,6 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap.getUserHome;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -247,25 +250,30 @@ class Elasticsearch {
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
-        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
-        EntitlementBootstrap.bootstrap(
-            serverPolicyPatch,
-            pluginPolicies,
-            scopeResolver::resolveClassToScope,
-            nodeEnv.settings()::getValues,
+        PathLookupImpl pathLookup = new PathLookupImpl(
+            getUserHome(),
+            nodeEnv.configDir(),
             nodeEnv.dataDirs(),
             nodeEnv.repoDirs(),
-            nodeEnv.configDir(),
             nodeEnv.libDir(),
             nodeEnv.modulesDir(),
             nodeEnv.pluginsDir(),
-            sourcePaths,
             nodeEnv.logsDir(),
             nodeEnv.tmpDir(),
             args.pidFile(),
-            Set.of(EntitlementSelfTester.class.getPackage())
+            nodeEnv.settings()::getValues
         );
+        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
+        PolicyManager policyManager = new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            scopeResolver::resolveClassToScope,
+            sourcePaths,
+            pathLookup
+        );
+        EntitlementBootstrap.bootstrap(policyManager, pluginPolicies, pathLookup, Set.of(EntitlementSelfTester.class.getPackage()));
         EntitlementSelfTester.entitlementSelfTest();
 
         bootstrap.setPluginsLoader(pluginsLoader);

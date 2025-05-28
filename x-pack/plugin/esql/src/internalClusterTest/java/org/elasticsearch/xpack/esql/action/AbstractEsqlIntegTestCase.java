@@ -139,6 +139,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            .build();
+    }
+
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(

@@ -190,7 +190,7 @@ $$$dense-vector-element-type$$$
 `element_type`
 :   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
 
-::::{dropdown} Valid values for `element_type`
+::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
 
@@ -211,15 +211,15 @@ $$$dense-vector-element-type$$$
 $$$dense-vector-similarity$$$
 
 `similarity`
-:   (Optional*, string) The vector similarity metric to use in kNN search. Documents are ranked by their vector field’s similarity to the query vector. The `_score` of each document will be derived from the similarity, in a way that ensures scores are positive and that a larger score corresponds to a higher ranking. Defaults to `l2_norm` when `element_type: bit` otherwise defaults to `cosine`.
+:   (Optional[¹](#footnote-1), string) The vector similarity metric to use in kNN search. Documents are ranked by their vector field’s similarity to the query vector. The `_score` of each document will be derived from the similarity, in a way that ensures scores are positive and that a larger score corresponds to a higher ranking. Defaults to `l2_norm` when `element_type: bit` otherwise defaults to `cosine`.
 
-    * This parameter can only be specified when `index` is `true`.
+    ¹ $$$footnote-1$$$ This parameter can only be specified when `index` is `true`.
 
     ::::{note}
     `bit` vectors only support `l2_norm` as their similarity metric.
     ::::
 
-::::{dropdown} Valid values for `similarity`
+::::{dropdown} Valid values for similarity
 `l2_norm`
 :   Computes similarity based on the L2 distance (also known as Euclidean distance) between the vectors. The document `_score` is computed as `1 / (1 + l2_norm(query, vector)^2)`.
 
@@ -247,41 +247,41 @@ Although they are conceptually related, the `similarity` parameter is different 
 $$$dense-vector-index-options$$$
 
 `index_options`
-:   (Optional*, object) An optional section that configures the kNN indexing algorithm. The HNSW algorithm has two internal parameters that influence how the data structure is built. These can be adjusted to improve the accuracy of results, at the expense of slower indexing speed.
+:   (Optional[²](#footnote-2), object) An optional section that configures the kNN indexing algorithm. The HNSW algorithm has two internal parameters that influence how the data structure is built. These can be adjusted to improve the accuracy of results, at the expense of slower indexing speed.
 
-    * This parameter can only be specified when `index` is `true`.
+    ² $$$footnote-2$$$ This parameter can only be specified when `index` is `true`.
 
-    ::::{dropdown} Properties of `index_options`
-    `type`
-    :   (Required, string) The type of kNN algorithm to use. Can be either any of:
-        * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
-        * `int8_hnsw` - The default index type for float vectors. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-        * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-        * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-        * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
-        * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.
-        * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
-        * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatically binary quantization. Only supports `element_type` of `float`.
-        
-    `m`
-    :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
-    
-    `ef_construction`
-    :   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
-    
-    `confidence_interval`
-    :   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
+::::{dropdown} Properties of index_options
+`type`
+:   (Required, string) The type of kNN algorithm to use. Can be either any of:
+    * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
+    * `int8_hnsw` - The default index type for float vectors. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
+    * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.
+    * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
+    * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatically binary quantization. Only supports `element_type` of `float`.
+
+`m`
+:   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
+
+`ef_construction`
+:   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
+
+`confidence_interval`
+:   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
 
 
-    `rescore_vector`
-    :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
-    :::::{dropdown} Properties of `rescore_vector`
-    `oversample`
-    :   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0` or exactly `0` to indicate no oversampling & rescoring should occur. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
-        :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
-        :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
-        :::::
-    ::::
+`rescore_vector`
+:   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
+:::::{dropdown} Properties of rescore_vector
+`oversample`
+:   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0` or exactly `0` to indicate no oversampling & rescoring should occur. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
+    :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
+    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+:::::
+::::
 
 
 

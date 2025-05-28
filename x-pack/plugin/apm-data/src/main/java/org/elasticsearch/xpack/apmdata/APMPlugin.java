@@ -48,7 +48,14 @@ public class APMPlugin extends Plugin implements ActionPlugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new APMIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
+            new APMIndexTemplateRegistry(
+                settings,
+                clusterService,
+                services.threadPool(),
+                services.client(),
+                services.xContentRegistry(),
+                services.projectResolver()
+            )
         );
         if (enabled) {
             APMIndexTemplateRegistry registryInstance = registry.get();

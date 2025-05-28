@@ -56,7 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -242,7 +241,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
                     .setWaitForCompletion(true)
                     .setRenamePattern(indexName)
-                    .setRenameReplacement(indexName + "-copy")
+                    .setRenameReplacement(copyIndexName)
                     .execute(ActionTestUtils.assertNoFailureListener(restoreSnapshotResponse -> {
                         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                         assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
@@ -268,11 +267,25 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // wait for all the shards to finish moving
         safeAwait(allShardsActiveListener);
-        ensureGreen(indexName, indexName + "-copy");
+        ensureGreen(indexName, copyIndexName);
 
         final var tinyNodeShardIds = getShardIds(dataNodeId, indexName);
-        assertThat(tinyNodeShardIds, hasSize(1));
-        assertThat(tinyNodeShardIds.iterator().next(), in(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace)));
+        final var tinyNodeShardIdsCopy = getShardIds(dataNodeId, copyIndexName);
+        assertThat(
+            "expected just one shard from one index on the tiny node, instead got "
+                + tinyNodeShardIds
+                + " from the original index and "
+                + tinyNodeShardIdsCopy
+                + " from the copy",
+            tinyNodeShardIds.size() + tinyNodeShardIdsCopy.size(),
+            is(1)
+        );
+        final var useableSpaceShardSizes = shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace);
+        final var tinyNodeShardId = tinyNodeShardIds.isEmpty() == false
+            ? tinyNodeShardIds.iterator().next()
+            // shardSizes only contains the sizes from the original index, not the copy, so we map the copied shard back to the original idx
+            : new ShardId(useableSpaceShardSizes.iterator().next().getIndex(), tinyNodeShardIdsCopy.iterator().next().id());
+        assertThat(tinyNodeShardId, in(useableSpaceShardSizes));
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {

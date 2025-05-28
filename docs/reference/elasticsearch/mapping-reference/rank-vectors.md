@@ -92,7 +92,7 @@ $$$rank-vectors-element-type$$$
 `element_type`
 :   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
 
-::::{dropdown} Valid values for `element_type`
+::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
 

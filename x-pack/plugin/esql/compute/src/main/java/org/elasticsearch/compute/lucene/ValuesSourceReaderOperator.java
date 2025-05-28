@@ -107,7 +107,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
     private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
@@ -247,8 +247,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
 
             SourceLoader sourceLoader = null;
+            ShardContext shardContext = shardContexts.get(shard);
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                sourceLoader = shardContext.newSourceLoader.get();
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
@@ -261,7 +262,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docs)) {
+            if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -438,9 +439,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
-        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
+        if (count < SEQUENTIAL_BOUNDARY) {
+            return false;
+        }
+        int range = docs.get(count - 1) - docs.get(0);
+        return range * storedFieldsSequentialProportion <= count;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
@@ -639,14 +644,42 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory, Releasable {
-        private final BlockFactory factory;
+    private static class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
         private final int pageSize;
         private Block nullBlock;
 
         private ComputeBlockLoaderFactory(BlockFactory factory, int pageSize) {
-            this.factory = factory;
+            super(factory);
             this.pageSize = pageSize;
+        }
+
+        @Override
+        public Block constantNulls() {
+            if (nullBlock == null) {
+                nullBlock = factory.newConstantNullBlock(pageSize);
+            }
+            nullBlock.incRef();
+            return nullBlock;
+        }
+
+        @Override
+        public void close() {
+            if (nullBlock != null) {
+                nullBlock.close();
+            }
+        }
+
+        @Override
+        public BytesRefBlock constantBytes(BytesRef value) {
+            return factory.newConstantBytesRefBlockWith(value, pageSize);
+        }
+    }
+
+    public abstract static class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
+        protected final BlockFactory factory;
+
+        protected DelegatingBlockLoaderFactory(BlockFactory factory) {
+            this.factory = factory;
         }
 
         @Override
@@ -680,6 +713,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.FloatBuilder denseVectors(int expectedVectorsCount, int dimensions) {
+            return factory.newFloatBlockBuilder(expectedVectorsCount * dimensions);
+        }
+
+        @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
             return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
@@ -702,27 +740,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.Builder nulls(int expectedCount) {
             return ElementType.NULL.newBlockBuilder(expectedCount, factory);
-        }
-
-        @Override
-        public Block constantNulls() {
-            if (nullBlock == null) {
-                nullBlock = factory.newConstantNullBlock(pageSize);
-            }
-            nullBlock.incRef();
-            return nullBlock;
-        }
-
-        @Override
-        public void close() {
-            if (nullBlock != null) {
-                nullBlock.close();
-            }
-        }
-
-        @Override
-        public BytesRefBlock constantBytes(BytesRef value) {
-            return factory.newConstantBytesRefBlockWith(value, pageSize);
         }
 
         @Override

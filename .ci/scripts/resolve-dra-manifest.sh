@@ -24,11 +24,6 @@ if [ "$LATEST_VERSION" != "$ES_VERSION" ]; then
   echo "Latest build for '$ARTIFACT' is version $LATEST_VERSION but expected version $ES_VERSION." 1>&2
   NEW_BRANCH=$(echo $ES_VERSION | sed -E "s/([0-9]+\.[0-9]+)\.[0-9]/\1/g")
 
-  # Temporary
-  if [[ "$ES_VERSION" == "8.16.0" ]]; then
-    NEW_BRANCH="8.x"
-  fi
-
   echo "Using branch $NEW_BRANCH instead of $BRANCH." 1>&2
   LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $NEW_BRANCH)
 fi

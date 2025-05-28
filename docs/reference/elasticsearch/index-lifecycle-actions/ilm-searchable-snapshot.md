@@ -40,12 +40,11 @@ By default, this snapshot is deleted by the [delete action](/reference/elasticse
 `force_merge_index`
 :   (Optional, Boolean) Force merges the managed index to one segment. Defaults to `true`. If the managed index was already force merged using the [force merge action](/reference/elasticsearch/index-lifecycle-actions/ilm-forcemerge.md) in a previous action the `searchable snapshot` action force merge step will be a no-op.
 
-::::{note}
-Shards that are relocating during a `forcemerge` will not be merged. The `searchable_snapshot` action will continue executing even if not all shards are force merged.
-::::
+    ::::{note}
+    Shards that are relocating during a `forcemerge` will not be merged. The `searchable_snapshot` action will continue executing even if not all shards are force merged.
+    ::::
 
-
-This force merging occurs in the phase that the index is in **prior** to the `searchable_snapshot` action. For example, if using a `searchable_snapshot` action in the `hot` phase, the force merge will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the force merge will be performed on whatever tier the index is **prior** to the `cold` phase (either `hot` or `warm`).
+    This force merging occurs in the phase that the index is in **prior** to the `searchable_snapshot` action. For example, if using a `searchable_snapshot` action in the `hot` phase, the force merge will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the force merge will be performed on whatever tier the index is **prior** to the `cold` phase (either `hot` or `warm`).
 
 `total_shards_per_node`
 :   The maximum number of shards (replicas and primaries) that will be allocated to a single node for the searchable snapshot index. Defaults to unbounded.

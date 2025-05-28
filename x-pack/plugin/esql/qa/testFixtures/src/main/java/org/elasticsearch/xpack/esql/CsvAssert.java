@@ -146,8 +146,8 @@ public final class CsvAssert {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }
-                if (blockType == Type.DOUBLE && expectedType == DENSE_VECTOR) {
-                    // DENSE_VECTOR is internally represented as a double block
+                if (blockType == Type.FLOAT && expectedType == DENSE_VECTOR) {
+                    // DENSE_VECTOR is internally represented as a float block
                     continue;
                 }
                 if (blockType == Type.NULL) {

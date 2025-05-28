@@ -865,7 +865,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:19: extraneous input '-' expecting INTEGER_LITERAL");
+        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
     }
 
     public void testBasicSortCommand() {
@@ -3036,7 +3036,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("drop {}", "line 1:18: token recognition error at: '{'"),
             Map.entry("rename a as {}", "line 1:25: token recognition error at: '{'"),
             Map.entry("mv_expand {}", "line 1:23: token recognition error at: '{'"),
-            Map.entry("limit {}", "line 1:19: mismatched input '{' expecting INTEGER_LITERAL"),
+            Map.entry("limit {}", "line 1:19: extraneous input '{' expecting {QUOTED_STRING"),
             Map.entry("enrich idx2 on f1 with f2 = {}", "line 1:41: token recognition error at: '{'"),
             Map.entry("dissect {} \"%{bar}\"", "line 1:21: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("grok {} \"%{WORD:foo}\"", "line 1:18: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL")
@@ -3427,7 +3427,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
-        expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'and',");
+        expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'=', ',', '.', 'with'}");
     }
 
     public void testCompletionUsingFieldAsPrompt() {
@@ -3493,6 +3493,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSample() {
+        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
         expectError("FROM test | SAMPLE .1 2 3", "line 1:25: extraneous input '3' expecting <EOF>");
         expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
         expectError("FROM test | SAMPLE 1", "line 1:20: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");

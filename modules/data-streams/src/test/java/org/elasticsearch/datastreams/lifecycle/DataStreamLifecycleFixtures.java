@@ -15,7 +15,9 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
@@ -56,7 +58,7 @@ public class DataStreamLifecycleFixtures {
         @Nullable DataStreamLifecycle lifecycle,
         Long now
     ) {
-        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, now);
+        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, null, now);
     }
 
     public static DataStream createDataStream(
@@ -65,7 +67,8 @@ public class DataStreamLifecycleFixtures {
         int backingIndicesCount,
         int failureIndicesCount,
         Settings.Builder backingIndicesSettings,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle dataLifecycle,
+        @Nullable DataStreamLifecycle failuresLifecycle,
         Long now
     ) {
         final List<Index> backingIndices = new ArrayList<>();
@@ -100,7 +103,18 @@ public class DataStreamLifecycleFixtures {
             builder.put(indexMetadata, false);
             failureIndices.add(indexMetadata.getIndex());
         }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(
+            dataStreamName,
+            backingIndices,
+            backingIndicesCount,
+            null,
+            false,
+            dataLifecycle,
+            failureIndices,
+            new DataStreamOptions(
+                DataStreamFailureStore.builder().enabled(failureIndices.isEmpty() == false).lifecycle(failuresLifecycle).build()
+            )
+        );
     }
 
     static void putComposableIndexTemplate(

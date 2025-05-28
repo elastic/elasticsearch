@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,12 +43,15 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -57,6 +62,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
@@ -65,10 +71,16 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -100,12 +112,14 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -136,11 +150,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
     private TestPlannerOptimizer plannerOptimizer;
+    private Analyzer timeSeriesAnalyzer;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(String field) {
             return true;
+        }
+    };
+
+    private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
+        @Override
+        public boolean isSingleValue(String field) {
+            return true;
+        }
+
+        @Override
+        public String constantValue(String name) {
+            return name.startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -178,6 +205,18 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             )
         );
         plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
+        var timeSeriesMapping = loadMapping("k8s-mappings.json");
+        var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
+        timeSeriesAnalyzer = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                timeSeriesIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
@@ -186,7 +225,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution, emptyInferenceResolution()),
+            new AnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
@@ -1307,15 +1353,16 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return luceneQuery;
     }
 
-    /**
+    /*
      * Expects
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
-     * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
-     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, first_name{r}#3 AS last_name, long_noidx{f}#12, emp_no{r}#2 AS salary]]
+     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, hire_date{f}#9, job{..]<[],[]>
      *       \_EvalExec[[null[INTEGER] AS emp_no, null[KEYWORD] AS first_name]]
-     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[1000], sort[] estimatedRowSize[270]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#13], limit[1000], sort[] estimatedRowSize[278]
      */
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
@@ -1342,9 +1389,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             )
         );
         // emp_no
-        assertThat(projections.get(1), instanceOf(FieldAttribute.class));
+        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
         // first_name
-        assertThat(projections.get(2), instanceOf(FieldAttribute.class));
+        assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
 
         // last_name --> first_name
         var nullAlias = Alias.unwrap(projections.get(8));
@@ -1356,6 +1403,174 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var fields = field.attributesToExtract();
         assertThat(Expressions.names(fields), contains("_meta_field", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx"));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[language_code{r}#6],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#11, language_code{r}#6],FINAL,[language_code{r}#6, $
+     *      $c$count{r}#25, $$c$seen{r}#26],12]
+     *   \_ExchangeExec[[language_code{r}#6, $$c$count{r}#25, $$c$seen{r}#26],true]
+     *     \_AggregateExec[[languages{r}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#11, languages{r}#15 AS language_code#6],INITIAL,[langua
+     *          ges{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     *       \_FieldExtractExec[emp_no{f}#12]<[],[]>
+     *         \_EvalExec[[null[INTEGER] AS languages#15]]
+     *           \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[], sort[] estimatedRowSize[12]
+     */
+    public void testMissingFieldsPurgesTheJoinLocally() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages
+            | rename languages AS language_code
+            | lookup join languages_lookup ON language_code
+            | stats c = count(emp_no) by language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(Expressions.names(agg.output()), contains("c", "language_code"));
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        var source = as(eval.child(), EsQueryExec.class);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],FINAL,[language_code{r}#7, $
+     *      $c$count{r}#32, $$c$seen{r}#33],12]
+     *   \_ExchangeExec[[language_code{r}#7, $$c$count{r}#32, $$c$seen{r}#33],true]
+     *     \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],INITIAL,[language_code{r}#7,
+     *          $$c$count{r}#34, $$c$seen{r}#35],12]
+     *       \_GrokExec[first_name{f}#19,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@75389ac1],[foo{r}#12]]
+     *         \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
+     *           \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
+     *             \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
+     *               \_EvalExec[[null[INTEGER] AS languages#21]]
+     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[112]
+     */
+    public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages, first_name
+            | rename languages AS language_code
+            | mv_expand emp_no
+            | grok first_name "%{WORD:foo}"
+            | lookup join languages_lookup ON language_code
+            | stats c = count(emp_no) by language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(Expressions.names(agg.output()), contains("c", "language_code"));
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var grok = as(agg.child(), GrokExec.class);
+        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var project = as(mvexpand.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        var source = as(eval.child(), EsQueryExec.class);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],FINAL,[language_code{r}#12
+     * , $$c$count{r}#32, $$c$seen{r}#33],12]
+     *   \_ExchangeExec[[language_code{r}#12, $$c$count{r}#32, $$c$seen{r}#33],true]
+     *     \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],INITIAL,[language_code{r}#
+     *          12, $$c$count{r}#34, $$c$seen{r}#35],12]
+     *       \_LookupJoinExec[[language_code{r}#12],[language_code{f}#29],[]]
+     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@764e5109],[languag
+     *              e_code{r}#12]]
+     *         | \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
+     *         |   \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
+     *         |     \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
+     *         |       \_EvalExec[[null[INTEGER] AS languages#21]]
+     *         |         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[66]
+     *         \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#37], limit[], sort[] estimatedRowSize[4]
+     */
+    public void testMissingFieldsNotPurgingTheJoinLocally() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages, first_name
+            | rename languages AS language_code
+            | mv_expand emp_no
+            | grok first_name "%{NUMBER:language_code:int}" // this reassigns language_code
+            | lookup join languages_lookup ON language_code
+            | stats c = count(emp_no) by language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(Expressions.names(agg.output()), contains("c", "language_code"));
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var join = as(agg.child(), LookupJoinExec.class);
+        var grok = as(join.left(), GrokExec.class);
+        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var project = as(mvexpand.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        var source = as(eval.child(), EsQueryExec.class);
+        var right = as(join.right(), EsQueryExec.class);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_LookupJoinExec[[language_code{r}#6],[language_code{f}#23],[language_name{f}#24]]
+     *   |_LimitExec[1000[INTEGER]]
+     *   | \_AggregateExec[[languages{f}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{f}#15 AS language_code#6],FINAL,[language
+     *          s{f}#15, $$c$count{r}#25, $$c$seen{r}#26],62]
+     *   |   \_ExchangeExec[[languages{f}#15, $$c$count{r}#25, $$c$seen{r}#26],true]
+     *   |     \_AggregateExec[[languages{r}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{r}#15 AS language_code#6],INITIAL,
+     *              [languages{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     *   |       \_FieldExtractExec[emp_no{f}#12]<[],[]>
+     *   |         \_EvalExec[[null[INTEGER] AS languages#15]]
+     *   |           \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[], sort[] estimatedRowSize[12]
+     *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#30], limit[], sort[] estimatedRowSize[4]
+     */
+    public void testMissingFieldsDoesNotPurgeTheJoinOnCoordinator() {
+        var stats = EsqlTestUtils.statsForMissingField("languages");
+
+        // same as the query above, but with the last two lines swapped, so that the join is no longer pushed to the data nodes
+        var plan = plannerOptimizer.plan("""
+            from test
+            | keep emp_no, languages
+            | rename languages AS language_code
+            | stats c = count(emp_no) by language_code
+            | lookup join languages_lookup ON language_code
+            """, stats);
+
+        var limit = as(plan, LimitExec.class);
+        var join = as(limit.child(), LookupJoinExec.class);
+        limit = as(join.left(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("languages"));
+        var literal = as(alias.child(), Literal.class);
+        assertNull(literal.value());
+        var source = as(eval.child(), EsQueryExec.class);
+        assertThat(source.indexPattern(), is("test"));
+        assertThat(source.indexMode(), is(IndexMode.STANDARD));
+
+        source = as(join.right(), EsQueryExec.class);
+        assertThat(source.indexPattern(), is("languages_lookup"));
+        assertThat(source.indexMode(), is(IndexMode.LOOKUP));
     }
 
     /*
@@ -1816,6 +2031,218 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
             .should(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10)), "emp_no", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testPushDownFieldExtractToTimeSeriesSource() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
+        var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
+        PhysicalPlan plan = optimizer.plan(query);
+        var limit = as(plan, LimitExec.class);
+        var finalAgg = as(limit.child(), AggregateExec.class);
+        var partialAgg = as(finalAgg.child(), AggregateExec.class);
+        var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
+        var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
+        var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
+        var parallel = as(timeSeriesPartialAgg.child(), ParallelExec.class);
+        var timeSeriesSource = as(parallel.child(), TimeSeriesSourceExec.class);
+        assertThat(timeSeriesSource.attributesToExtract(), hasSize(1));
+        FieldAttribute field = as(timeSeriesSource.attributesToExtract().getFirst(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertThat(timeSeriesSource.attrs(), hasSize(2));
+        assertTrue(timeSeriesSource.attrs().stream().noneMatch(EsQueryExec::isSourceAttribute));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
+     *   double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
+     *   !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432], false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
+     *     double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
+     *     !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#415, byte{f}#416, consta..]
+     *       \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#434], limit[1000], sort[] estimatedRowSize[412]
+     */
+    public void testConstantKeywordWithMatchingFilter() {
+        String queryText = """
+            from test
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
+        assertNull(query.query());
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *    float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
+     *    short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], false]
+     *   \_LocalSourceExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *     float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
+     *     short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], EMPTY]
+     */
+    public void testConstantKeywordWithNonMatchingFilter() {
+        String queryText = """
+            from test
+            | where `constant_keyword-foo` == "non-matching"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var source = as(exchange.child(), LocalSourceExec.class);
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, date{f}#9,
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[constant_keyword-foo{r}#25 == [66 6f 6f][KEYWORD]]
+     *           \_MvExpandExec[constant_keyword-foo{f}#8,constant_keyword-foo{r}#25]
+     *             \_FieldExtractExec[constant_keyword-foo{f}#8]
+     *               \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[412]
+     */
+    public void testConstantKeywordExpandFilter() {
+        String queryText = """
+            from test
+            | mv_expand `constant_keyword-foo`
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var expand = as(filter.child(), MvExpandExec.class);
+        var field = as(expand.child(), FieldExtractExec.class); // MV_EXPAND is not optimized yet (it doesn't accept literals)
+        as(field.child(), EsQueryExec.class);
+    }
+
+    /**
+     * DissectExec[constant_keyword-foo{f}#8,Parser[pattern=%{bar}, appendSeparator=, ...
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *     \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *       \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, constant_k..]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#25], limit[1000], sort[] estimatedRowSize[462]
+     */
+    public void testConstantKeywordDissectFilter() {
+        String queryText = """
+            from test
+            | dissect `constant_keyword-foo` "%{bar}"
+            | where `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+
+        var dissect = as(plan, DissectExec.class);
+        var limit = as(dissect.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertNull(query.query());
+    }
+
+    public void testMatchFunctionWithStatsWherePushable() {
+        String query = """
+            from test
+            | stats c = count(*) where match(last_name, "Smith")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var stats = as(exchange.child(), EsStatsQueryExec.class);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(stats.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testMatchFunctionWithStatsPushableAndNonPushableCondition() {
+        String query = """
+            from test
+            | where length(first_name) > 10
+            | stats c = count(*) where match(last_name, "Smith")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var filter = as(aggExec.child(), FilterExec.class);
+        assertTrue(filter.condition() instanceof GreaterThan);
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testMatchFunctionStatisWithNonPushableCondition() {
+        String query = """
+            from test
+            | stats c = count(*) where match(last_name, "Smith"), d = count(*) where match(first_name, "Anna")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates.size(), is(2));
+        for (NamedExpression aggregate : aggregates) {
+            var alias = as(aggregate, Alias.class);
+            var count = as(alias.child(), Count.class);
+            var match = as(count.filter(), Match.class);
+        }
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(aggExec.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        assertNull(esQuery.query());
+    }
+
+    public void testMatchFunctionWithStatsBy() {
+        String query = """
+            from test
+            | stats count(*) where match(job_positions, "Data Scientist") by gender
+            """;
+        var analyzer = makeAnalyzer("mapping-default.json");
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var grouping = as(agg.groupings().get(0), FieldAttribute.class);
+        assertEquals("gender", grouping.name());
+        var aggregateAlias = as(agg.aggregates().get(0), Alias.class);
+        assertEquals("count(*) where match(job_positions, \"Data Scientist\")", aggregateAlias.name());
+        var count = as(aggregateAlias.child(), Count.class);
+        var countFilter = as(count.filter(), Match.class);
+        assertEquals("Data Scientist", ((BytesRef) ((Literal) countFilter.query()).value()).utf8ToString());
+        var aggregateFieldAttr = as(agg.aggregates().get(1), FieldAttribute.class);
+        assertEquals("gender", aggregateFieldAttr.name());
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(aggExec.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        assertNull(esQuery.query());
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

@@ -10,10 +10,10 @@ mapped_pages:
 The following numeric types are supported:
 
 `long`
-:   A signed 64-bit integer with a minimum value of `-2`^`63`^ and a maximum value of `2`^`63`^`-1`.
+:   A signed 64-bit integer with a minimum value of `-2^63` and a maximum value of `2^63 - 1`.
 
 `integer`
-:   A signed 32-bit integer with a minimum value of `-2`^`31`^ and a maximum value of `2`^`31`^`-1`.
+:   A signed 32-bit integer with a minimum value of `-2^31` and a maximum value of `2^31 - 1`.
 
 `short`
 :   A signed 16-bit integer with a minimum value of `-32,768` and a maximum value of `32,767`.
@@ -34,7 +34,7 @@ The following numeric types are supported:
 :   A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
 
 `unsigned_long`
-:   An unsigned 64-bit integer with a minimum value of 0 and a maximum value of `2`^`64`^`-1`.
+:   An unsigned 64-bit integer with a minimum value of 0 and a maximum value of `2^64 - 1`.
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -75,9 +75,9 @@ $$$floating_point$$$
 
 | Type | Minimum value | Maximum value | Significant<br>                                                      bits / digits | Example precision loss |
 | --- | --- | --- | --- | --- |
-| `double` | `2`^`-1074`^ | `(2-2`^`-52`^`)·2`^`1023`^ | `53` / `15.95` | `1.2345678912345678`→<br>                                                                      `1.234567891234568` |
-| `float` | `2`^`-149`^ | `(2-2`^`-23`^`)·2`^`127`^ | `24` / `7.22` | `1.23456789`→<br>                                                                      `1.2345679` |
-| `half_float` | `2`^`-24`^ | `65504` | `11` / `3.31` | `1.2345`→<br>                                                                      `1.234375` |
+| `double` | `2^-1074` | `(2 - 2^-52) * 2^1023` | `53 / 15.95` | `1.2345678912345678`→<br>`1.234567891234568` |
+| `float` | `2^-149` | `(2 - 2^-23) * 2^127` | `24 / 7.22` | `1.23456789`→<br>`1.2345679` |
+| `half_float` | `2^-24` | `65504` | `11 / 3.31` | `1.2345`→<br>`1.234375` |
 
 ::::{admonition} Mapping numeric identifiers
 :class: tip
@@ -147,7 +147,8 @@ The following parameters are accepted by numeric types:
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for numeric fields
+    **Valid `time_series_metric` values for numeric fields**:
+
     `counter`
     :   A cumulative metric that only monotonically increases or resets to `0` (zero). For example, a count of errors or completed tasks.
 
@@ -156,9 +157,6 @@ The following parameters are accepted by numeric types:
 
     `null` (Default)
     :   Not a time series metric.
-
-    ::::
-
 
     For a numeric time series metric, the `doc_values` parameter must be `true`. A numeric field can’t be both a time series dimension and a time series metric.
 

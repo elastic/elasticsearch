@@ -12,20 +12,24 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -42,6 +46,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -114,15 +119,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            TestRepository::new,
+            (projectId, metadata1) -> new TestRepository(projectId, metadata1),
             UnstableRepository.TYPE,
-            UnstableRepository::new,
+            (projectId, metadata2) -> new UnstableRepository(projectId, metadata2),
             VerificationFailRepository.TYPE,
-            VerificationFailRepository::new,
+            (projectId, metadata3) -> new VerificationFailRepository(projectId, metadata3),
             MeteredRepositoryTypeA.TYPE,
-            metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+            (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            metadata -> new MeteredRepositoryTypeB(metadata, clusterService)
+            (projectId, metadata) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
@@ -300,7 +305,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, isA(RepositoryException.class));
-                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist for project [default]"));
             }
         });
     }
@@ -377,6 +382,103 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
     }
 
+    public void testCannotSetRepositoryReadonlyFlagDuringGenerationChange() {
+        final var repoName = randomAlphaOfLengthBetween(10, 25);
+        final long originalGeneration = randomFrom(RepositoryData.EMPTY_REPO_GEN, 0L, 1L, randomLongBetween(2, Long.MAX_VALUE - 1));
+        final long newGeneration = originalGeneration + 1;
+
+        safeAwait(
+            SubscribableListener
+
+                .newForked(
+                    l -> repositoriesService.registerRepository(
+                        new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE),
+                        l.map(ignored -> null)
+                    )
+                )
+                .andThen(l -> updateGenerations(repoName, originalGeneration, newGeneration, l))
+                .andThenAccept(ignored -> {
+                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    assertEquals(originalGeneration, metadata.generation());
+                    assertEquals(newGeneration, metadata.pendingGeneration());
+                    assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
+                })
+                .andThen(
+                    l -> repositoriesService.registerRepository(
+                        new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE)
+                            .settings(Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true)),
+                        ActionTestUtils.assertNoSuccessListener(e -> {
+                            assertEquals(
+                                Strings.format(
+                                    """
+                                        [%s] trying to modify or unregister repository that is currently used \
+                                        (currently updating root blob generation from [%d] to [%d], cannot update readonly flag)""",
+                                    repoName,
+                                    originalGeneration,
+                                    newGeneration
+                                ),
+                                asInstanceOf(RepositoryConflictException.class, e).getMessage()
+                            );
+                            l.onResponse(null);
+                        })
+                    )
+                )
+                .andThenAccept(ignored -> {
+                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    assertEquals(originalGeneration, metadata.generation());
+                    assertEquals(newGeneration, metadata.pendingGeneration());
+                    assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
+                })
+                .andThen(l -> updateGenerations(repoName, newGeneration, newGeneration, l))
+                .andThenAccept(ignored -> {
+                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    assertEquals(newGeneration, metadata.generation());
+                    assertEquals(newGeneration, metadata.pendingGeneration());
+                    assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
+                })
+                .andThen(
+                    l -> repositoriesService.registerRepository(
+                        new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE)
+                            .settings(Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true)),
+                        l.map(ignored -> null)
+                    )
+                )
+                .andThenAccept(
+                    ignored -> assertTrue(
+                        repositoriesService.repository(repoName)
+                            .getMetadata()
+                            .settings()
+                            .getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null)
+                    )
+                )
+        );
+    }
+
+    private void updateGenerations(String repositoryName, long safeGeneration, long pendingGeneration, ActionListener<?> listener) {
+        clusterService.submitUnbatchedStateUpdateTask("update repo generations", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return new ClusterState.Builder(currentState).metadata(
+                    Metadata.builder(currentState.metadata())
+                        .putCustom(
+                            RepositoriesMetadata.TYPE,
+                            RepositoriesMetadata.get(currentState).withUpdatedGeneration(repositoryName, safeGeneration, pendingGeneration)
+                        )
+                ).build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                listener.onResponse(null);
+            }
+        });
+    }
+
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         Metadata.Builder mdBuilder = Metadata.builder();
@@ -406,12 +508,19 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
-        private final RepositoryMetadata metadata;
+        private final ProjectId projectId;
+        private RepositoryMetadata metadata;
         private boolean isClosed;
         private boolean isStarted;
 
-        private TestRepository(RepositoryMetadata metadata) {
+        private TestRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            this.projectId = projectId;
             this.metadata = metadata;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -514,7 +623,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void updateState(final ClusterState state) {}
+        public void updateState(final ClusterState state) {
+            metadata = RepositoriesMetadata.get(state).repository(metadata.name());
+        }
 
         @Override
         public void cloneShardSnapshot(
@@ -559,8 +670,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class UnstableRepository extends TestRepository {
         private static final String TYPE = "unstable";
 
-        private UnstableRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private UnstableRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
@@ -568,8 +679,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class VerificationFailRepository extends TestRepository {
         public static final String TYPE = "verify-fail";
 
-        private VerificationFailRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private VerificationFailRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
         }
 
         @Override
@@ -582,8 +693,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13)));
 
-        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeA(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
@@ -609,8 +721,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-b";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new BlobStoreActionStats(20, 25)));
 
-        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeB(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,

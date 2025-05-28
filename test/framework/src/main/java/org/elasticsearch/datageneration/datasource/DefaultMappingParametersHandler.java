@@ -36,34 +36,27 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return null;
         }
 
-        var map = commonMappingParameters();
-        if (ESTestCase.randomBoolean()) {
-            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
-        }
-
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (fieldType) {
-            case KEYWORD -> keywordMapping(request, map);
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(map, fieldType);
-            case SCALED_FLOAT -> scaledFloatMapping(map);
-            case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
-            case BOOLEAN -> booleanMapping(map);
-            case DATE -> dateMapping(map);
-            case GEO_POINT -> geoPointMapping(map);
-            case TEXT -> textMapping(request, new HashMap<>());
-            case IP -> ipMapping(map);
-            case CONSTANT_KEYWORD -> constantKeywordMapping(new HashMap<>());
-            case WILDCARD -> wildcardMapping(new HashMap<>());
+            case KEYWORD -> keywordMapping(request);
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(fieldType);
+            case SCALED_FLOAT -> scaledFloatMapping();
+            case COUNTED_KEYWORD -> countedKeywordMapping();
+            case BOOLEAN -> booleanMapping();
+            case DATE -> dateMapping();
+            case GEO_POINT -> geoPointMapping();
+            case TEXT -> textMapping(request);
+            case IP -> ipMapping();
+            case CONSTANT_KEYWORD -> constantKeywordMapping();
+            case WILDCARD -> wildcardMapping();
         });
     }
 
-    private Supplier<Map<String, Object>> plain(Map<String, Object> injected) {
-        return () -> injected;
-    }
-
-    private Supplier<Map<String, Object>> numberMapping(Map<String, Object> injected, FieldType fieldType) {
+    private Supplier<Map<String, Object>> numberMapping(FieldType fieldType) {
         return () -> {
+            var mapping = commonMappingParameters();
+
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 Number value = switch (fieldType) {
@@ -77,18 +70,17 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     default -> throw new IllegalStateException("Unexpected field type");
                 };
 
-                injected.put("null_value", value);
+                mapping.put("null_value", value);
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> keywordMapping(
-        DataSourceRequest.LeafMappingParametersGenerator request,
-        Map<String, Object> injected
-    ) {
+    private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
+            var mapping = commonMappingParameters();
+
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
@@ -100,69 +92,79 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    injected.put("copy_to", ESTestCase.randomFrom(options));
+                    mapping.put("copy_to", ESTestCase.randomFrom(options));
                 }
             }
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+                mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> scaledFloatMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> scaledFloatMapping() {
         return () -> {
-            injected.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+            var mapping = commonMappingParameters();
+
+            mapping.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", ESTestCase.randomDouble());
+                mapping.put("null_value", ESTestCase.randomDouble());
             }
 
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> booleanMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> countedKeywordMapping() {
+        return () -> Map.of("index", ESTestCase.randomBoolean());
+    }
+
+    private Supplier<Map<String, Object>> booleanMapping() {
         return () -> {
+            var mapping = commonMappingParameters();
+
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
+                mapping.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
-            return injected;
+            return mapping;
         };
     }
 
     // just a custom format, specific format does not matter
     private static final String FORMAT = "yyyy_MM_dd_HH_mm_ss_n";
 
-    private Supplier<Map<String, Object>> dateMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> dateMapping() {
         return () -> {
+            var mapping = commonMappingParameters();
+
             String format = null;
             if (ESTestCase.randomBoolean()) {
                 format = FORMAT;
-                injected.put("format", format);
+                mapping.put("format", format);
             }
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 var instant = ESTestCase.randomInstantBetween(Instant.parse("2300-01-01T00:00:00Z"), Instant.parse("2350-01-01T00:00:00Z"));
 
                 if (format == null) {
-                    injected.put("null_value", instant.toEpochMilli());
+                    mapping.put("null_value", instant.toEpochMilli());
                 } else {
-                    injected.put(
+                    mapping.put(
                         "null_value",
                         DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).format(instant)
                     );
@@ -170,91 +172,102 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
 
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> geoPointMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> geoPointMapping() {
         return () -> {
+            var mapping = commonMappingParameters();
+
             if (ESTestCase.randomDouble() <= 0.2) {
                 var point = GeometryTestUtils.randomPoint(false);
-                injected.put("null_value", WellKnownText.toWKT(point));
+                mapping.put("null_value", WellKnownText.toWKT(point));
             }
 
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(
-        DataSourceRequest.LeafMappingParametersGenerator request,
-        Map<String, Object> injected
-    ) {
+    private Supplier<Map<String, Object>> textMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
-            injected.put("store", ESTestCase.randomBoolean());
-            injected.put("index", ESTestCase.randomBoolean());
+            var mapping = new HashMap<String, Object>();
+
+            mapping.put("store", ESTestCase.randomBoolean());
+            mapping.put("index", ESTestCase.randomBoolean());
 
             if (ESTestCase.randomDouble() <= 0.1) {
-                var keywordMultiFieldMapping = keywordMapping(request, commonMappingParameters()).get();
+                var keywordMultiFieldMapping = keywordMapping(request).get();
                 keywordMultiFieldMapping.put("type", "keyword");
                 keywordMultiFieldMapping.remove("copy_to");
 
-                injected.put("fields", Map.of("kwd", keywordMultiFieldMapping));
-
+                mapping.put("fields", Map.of("kwd", keywordMultiFieldMapping));
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> ipMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> ipMapping() {
         return () -> {
+            var mapping = commonMappingParameters();
+
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
+                mapping.put("null_value", NetworkAddress.format(ESTestCase.randomIp(ESTestCase.randomBoolean())));
             }
 
             if (ESTestCase.randomBoolean()) {
-                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+                mapping.put("ignore_malformed", ESTestCase.randomBoolean());
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> constantKeywordMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> constantKeywordMapping() {
         return () -> {
+            var mapping = new HashMap<String, Object>();
+
             // value is optional and can be set from the first document
             // we don't cover this case here
-            injected.put("value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            mapping.put("value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
 
-            return injected;
+            return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> wildcardMapping(Map<String, Object> injected) {
+    private Supplier<Map<String, Object>> wildcardMapping() {
         return () -> {
+            var mapping = new HashMap<String, Object>();
+
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+                mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
-            return injected;
+            return mapping;
         };
     }
 
-    private static HashMap<String, Object> commonMappingParameters() {
+    public static HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
         map.put("doc_values", ESTestCase.randomBoolean());
+
+        if (ESTestCase.randomBoolean()) {
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+        }
+
         return map;
     }
 

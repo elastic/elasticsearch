@@ -1,10 +1,10 @@
 ---
-navigation_title: "Correlate data with LOOKUP JOIN"
+navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
-# LOOKUP JOIN [esql-lookup-join-reference]
+# Join data from multiple indices with `LOOKUP JOIN` [esql-lookup-join-reference]
 
 The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
@@ -122,7 +122,7 @@ FROM firewall_logs # The source index
 | LOOKUP JOIN threat_list ON source.ip # The lookup index and join field
 | WHERE threat_level IS NOT NULL # Filter for rows non-null threat levels
 | SORT timestamp # LOOKUP JOIN does not guarantee output order, so you must explicitly sort the results if needed
-| KEEP timestamp, source.ip, destination.ip, action, threat_level, threat_type # Keep only relevant fields
+| KEEP source.ip, action, threat_type, threat_level # Keep only relevant fields
 | LIMIT 10 # Limit the output to 10 rows
 ```
 
@@ -130,13 +130,11 @@ FROM firewall_logs # The source index
 
 A successful query will output a table. In this example, you can see that the `source.ip` field from the `firewall_logs` index is matched with the `source.ip` field in the `threat_list` index, and the corresponding `threat_level` and `threat_type` fields are added to the output.
 
-```
-   source.ip   |    action     |  threat_type  | threat_level  
----------------+---------------+---------------+---------------
-203.0.113.5    |allow          |C2_SERVER      |high           
-198.51.100.2   |block          |SCANNER        |medium         
-203.0.113.5    |allow          |C2_SERVER      |high        
-```
+|source.ip|action|threat_type|threat_level|
+|---|---|---|---|
+|203.0.113.5|allow|C2_SERVER|high|
+|198.51.100.2|block|SCANNER|medium|
+|203.0.113.5|allow|C2_SERVER|high|
 
 ### Additional examples
 
@@ -158,9 +156,27 @@ To obtain a join key with a compatible type, use a [conversion function](/refere
 
 For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
 
+## Usage notes
+
+This section covers important details about `LOOKUP JOIN` that impact query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
+
+### Handling name collisions
+
+When fields from the lookup index match existing column names, the new columns override the existing ones.
+Before the `LOOKUP JOIN` command, preserve columns by either:
+
+* Using `RENAME` to assign non-conflicting names
+* Using `EVAL` to create new columns with different names
+
+### Sorting behavior
+
+The output rows produced by `LOOKUP JOIN` can be in any order and may not
+respect preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after
+any `LOOKUP JOIN`s.
+
 ## Limitations
 
-The following are the current limitations with `LOOKUP JOIN`
+The following are the current limitations with `LOOKUP JOIN`:
 
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.

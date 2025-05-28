@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -42,9 +43,11 @@ import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /** A dummy repository for testing which just needs restore overridden */
 public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+    private final ProjectId projectId;
     private final String indexName;
 
-    public RestoreOnlyRepository(String indexName) {
+    public RestoreOnlyRepository(ProjectId projectId, String indexName) {
+        this.projectId = projectId;
         this.indexName = indexName;
     }
 
@@ -56,6 +59,11 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     protected void doClose() {}
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
 
     @Override
     public RepositoryMetadata getMetadata() {

@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal.test
 
 import org.elasticsearch.gradle.OS
-
+import groovy.ant.AntBuilder
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
 import org.elasticsearch.gradle.testclusters.TestClusterInfo
@@ -26,7 +26,6 @@ import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
-
 import javax.inject.Inject
 
 /**

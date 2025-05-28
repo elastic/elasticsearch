@@ -2,7 +2,7 @@
 asm = "9.7.1"
 jackson = "2.15.0"
 junit5 = "5.12.1"
-spock = "2.1-groovy-3.0"
+spock = "2.3-groovy-4.0"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"
@@ -38,7 +38,7 @@ maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
-shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:8.3.5"
+shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:9.0.0-beta12"
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.0" } }
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }

@@ -489,6 +489,7 @@ r:double           | author: text
 ;
 
 testMatchPhraseRequiresExactPhraseMatch
+required_capability: match_phrase_function
 from books 
 | where match_phrase(title, "Lord Rings")
 | keep book_no

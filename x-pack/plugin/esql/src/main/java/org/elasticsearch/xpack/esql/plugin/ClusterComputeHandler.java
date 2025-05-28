@@ -85,11 +85,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
-                l.onResponse(List.of());
-            } else if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+                || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                    executionInfo,
+                    clusterAlias,
+                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                    e
+                );
                 l.onResponse(List.of());
             } else {
                 l.onFailure(e);

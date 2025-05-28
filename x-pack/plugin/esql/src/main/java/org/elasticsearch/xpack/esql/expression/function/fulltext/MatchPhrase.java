@@ -152,6 +152,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
                     valueHint = { "none", "all" },
                     description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
                         + "when using a stop filter. Defaults to none."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "boost",
+                    type = "float",
+                    valueHint = { "2.5" },
+                    description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             description = "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query-phrase,match_phrase query>> for more information.",
@@ -331,12 +337,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     @Override
     public boolean equals(Object o) {
         // MatchPhrase does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Match functions
+        // ignore options when comparing two MatchPhrase functions
         if (o == null || getClass() != o.getClass()) return false;
-        MatchPhrase match = (MatchPhrase) o;
-        return Objects.equals(field(), match.field())
-            && Objects.equals(query(), match.query())
-            && Objects.equals(queryBuilder(), match.queryBuilder());
+        MatchPhrase matchPhrase = (MatchPhrase) o;
+        return Objects.equals(field(), matchPhrase.field())
+            && Objects.equals(query(), matchPhrase.query())
+            && Objects.equals(queryBuilder(), matchPhrase.queryBuilder());
     }
 
     @Override

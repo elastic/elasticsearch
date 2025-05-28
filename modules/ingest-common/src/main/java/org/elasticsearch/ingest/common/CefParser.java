@@ -277,7 +277,7 @@ final class CefParser {
 
     /**
      * List of allowed timestamp formats for CEF spec v27, see: Appendix A: Date Formats
-     * <a href="https://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
+     * <a href="https://web.archive.org/web/20240925170528/http://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
      */
     private static final List<DateTimeFormatter> TIME_FORMATS = Stream.of(
         "MMM dd HH:mm:ss.SSS zzz",

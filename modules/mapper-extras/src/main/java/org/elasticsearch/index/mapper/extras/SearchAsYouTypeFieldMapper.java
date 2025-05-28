@@ -767,12 +767,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public List<Mapper> getSourceFields() {
+    public List<Mapper> getSourceFieldMappers() {
         List<Mapper> fields = new ArrayList<>();
         fields.add(this);
         for (Iterator<Mapper> it = subfieldsAndMultifieldsIterator(); it.hasNext();) {
             Mapper mapper = it.next();
-            fields.addAll(mapper.getSourceFields());
+            fields.addAll(mapper.getSourceFieldMappers());
         }
         return fields;
     }

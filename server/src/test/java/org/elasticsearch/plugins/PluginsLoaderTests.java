@@ -19,7 +19,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.NativeAccessUtil;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -351,13 +350,13 @@ public class PluginsLoaderTests extends ESTestCase {
         pluginsLoader.pluginLayers().forEach(lp -> {
             if (lp.pluginClassLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                    urlClassLoader.close();
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             } else if (lp.pluginClassLoader() instanceof UberModuleClassLoader loader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                    loader.getInternalLoader().close();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

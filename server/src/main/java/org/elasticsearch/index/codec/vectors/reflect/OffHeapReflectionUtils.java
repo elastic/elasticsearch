@@ -26,8 +26,6 @@ import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsRe
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Map;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -91,62 +89,62 @@ public class OffHeapReflectionUtils {
         try {
             // Lucene99ScalarQuantizedVectorsReader
             var cls = Class.forName("org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader$FieldEntry");
-            var lookup = privilegedPrivateLookupIn(L99_SQ_VR_CLS, MethodHandles.lookup());
+            var lookup = MethodHandles.privateLookupIn(L99_SQ_VR_CLS, MethodHandles.lookup());
             var mt = methodType(cls, String.class);
             GET_FIELD_ENTRY_HNDL_SQ = lookup.findVirtual(L99_SQ_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_DATA_LENGTH_HANDLE_SQ = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             RAW_VECTORS_READER_HNDL_SQ = lookup.findVarHandle(L99_SQ_VR_CLS, "rawVectorsReader", FlatVectorsReader.class);
             // Lucene99FlatVectorsReader
             cls = Class.forName("org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L99_FLT_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L99_FLT_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_L99FLT = lookup.findVirtual(L99_FLT_VR_CLS, "getFieldEntry", mt);
             VECTOR_DATA_LENGTH_HANDLE_L99FLT = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // DirectIOLucene99FlatVectorsReader
             cls = Class.forName("org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(DIOL99_FLT_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(DIOL99_FLT_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_DIOL99FLT = lookup.findVirtual(DIOL99_FLT_VR_CLS, "getFieldEntry", mt);
             VECTOR_DATA_LENGTH_HANDLE_DIOL99FLT = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene99HnswVectorsReader
             cls = Class.forName("org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_L99HNSW = lookup.findVirtual(L99_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L99HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
-            lookup = privilegedPrivateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
             FLAT_VECTORS_READER_HNDL_L99HNSW = lookup.findVarHandle(L99_HNSW_VR_CLS, "flatVectorsReader", FlatVectorsReader.class);
             // Lucene90HnswVectorsReader
             cls = Class.forName("org.apache.lucene.backward_codecs.lucene90.Lucene90HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L90_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L90_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class);
             GET_FIELD_ENTRY_HANDLE_L90HNSW = lookup.findVirtual(L90_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L90HNSW = lookup.findVirtual(cls, "indexDataLength", methodType(long.class));
             GET_VECTOR_DATA_LENGTH_HANDLE_L90HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene91HnswVectorsReader
             cls = Class.forName("org.apache.lucene.backward_codecs.lucene91.Lucene91HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L91_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L91_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class);
             GET_FIELD_ENTRY_HANDLE_L91HNSW = lookup.findVirtual(L91_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L91HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
             GET_VECTOR_DATA_LENGTH_HANDLE_L91HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene92HnswVectorsReader
             cls = Class.forName("org.apache.lucene.backward_codecs.lucene92.Lucene92HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L92_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L92_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class);
             GET_FIELD_ENTRY_HANDLE_L92HNSW = lookup.findVirtual(L92_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L92HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
             GET_VECTOR_DATA_LENGTH_HANDLE_L92HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene94HnswVectorsReader
             cls = Class.forName("org.apache.lucene.backward_codecs.lucene94.Lucene94HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L94_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L94_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_L94HNSW = lookup.findVirtual(L94_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L94HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
             GET_VECTOR_DATA_LENGTH_HANDLE_L94HNSW = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene95HnswVectorsReader
             cls = Class.forName("org.apache.lucene.backward_codecs.lucene95.Lucene95HnswVectorsReader$FieldEntry");
-            lookup = privilegedPrivateLookupIn(L95_HNSW_VR_CLS, MethodHandles.lookup());
+            lookup = MethodHandles.privateLookupIn(L95_HNSW_VR_CLS, MethodHandles.lookup());
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_L95HNSW = lookup.findVirtual(L95_HNSW_VR_CLS, "getFieldEntry", mt);
             GET_VECTOR_INDEX_LENGTH_HANDLE_L95HNSW = lookup.findVirtual(cls, "vectorIndexLength", methodType(long.class));
@@ -276,18 +274,6 @@ public class OffHeapReflectionUtils {
             handleThrowable(t);
         }
         throw new AssertionError("should not reach here");
-    }
-
-    @SuppressWarnings("removal")
-    private static MethodHandles.Lookup privilegedPrivateLookupIn(Class<?> cls, MethodHandles.Lookup lookup) {
-        PrivilegedAction<MethodHandles.Lookup> pa = () -> {
-            try {
-                return MethodHandles.privateLookupIn(cls, lookup);
-            } catch (IllegalAccessException e) {
-                throw new AssertionError("should not happen, check opens", e);
-            }
-        };
-        return AccessController.doPrivileged(pa);
     }
 
     private static void handleThrowable(Throwable t) {

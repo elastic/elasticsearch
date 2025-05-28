@@ -106,22 +106,6 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return cause;
     }
 
-    private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
-        if (CollectionUtils.isEmpty(shardFailures) == false) {
-            sb.append("; shardFailures ");
-            for (ShardSearchFailure shardFailure : shardFailures) {
-                if (shardFailure.shard() != null) {
-                    sb.append("{").append(shardFailure.shard()).append(": ").append(shardFailure.reason()).append("}");
-                } else {
-                    sb.append("{").append(shardFailure.reason()).append("}");
-                }
-            }
-        }
-        return sb.toString();
-    }
-
     @Override
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("phase", phaseName);
@@ -144,17 +128,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(
-                builder,
-                params,
-                this,
-                getExceptionName(),
-                getMessage(),
-                getHeaders(),
-                getMetadata(),
-                super.getCause(),
-                nestedLevel
-            );
+            innerToXContent(builder, params, this, getHeaders(), getMetadata(), super.getCause(), nestedLevel);
         }
         return builder;
     }
@@ -172,7 +146,23 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public String toString() {
-        return buildMessage(phaseName, getMessage(), shardFailures);
+        return "Failed to execute phase ["
+            + phaseName
+            + "], "
+            + getMessage()
+            + (CollectionUtils.isEmpty(shardFailures) ? "" : buildShardFailureString());
+    }
+
+    private String buildShardFailureString() {
+        StringBuilder sb = new StringBuilder("; shardFailures ");
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            sb.append("{");
+            if (shardFailure.shard() != null) {
+                sb.append(shardFailure.shard()).append(": ");
+            }
+            sb.append(shardFailure.reason()).append("}");
+        }
+        return sb.toString();
     }
 
     public String getPhaseName() {

@@ -13,11 +13,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -246,6 +248,42 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchWithStats() {
+        var errorQuery = """
+            FROM test
+            | STATS c = count(*) BY match(content, "fox")
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
+
+        var query = """
+            FROM test
+            | STATS c = count(*) WHERE match(content, "fox"), d = count(*) WHERE match(content, "dog")
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c", "d"));
+            assertColumnTypes(resp.columns(), List.of("long", "long"));
+            assertValues(resp.values(), List.of(List.of(2L, 4L)));
+        }
+
+        query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox")
+            | STATS m = max(_score), n = min(_score)
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("m", "n"));
+            assertColumnTypes(resp.columns(), List.of("double", "double"));
+            List<List<Object>> valuesList = getValuesList(resp.values());
+            assertEquals(1, valuesList.size());
+            assertThat((double) valuesList.get(0).get(0), Matchers.greaterThan(1.0));
+            assertThat((double) valuesList.get(0).get(1), Matchers.greaterThan(0.0));
+        }
+    }
+
     public void testMatchWithinEval() {
         var query = """
             FROM test
@@ -253,7 +291,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
     private void createAndPopulateIndex() {

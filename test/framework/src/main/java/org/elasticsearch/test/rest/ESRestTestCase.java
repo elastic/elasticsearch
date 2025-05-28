@@ -2057,12 +2057,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
+        return indexExists(client(), index);
+    }
+
+    protected static boolean indexExists(RestClient client, String index) throws IOException {
         // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
         Request request = new Request("GET", "/_cluster/health/" + index);
         request.addParameter("timeout", "0");
         request.addParameter("level", "indices");
         try {
-            final var response = client().performRequest(request);
+            final var response = client.performRequest(request);
             @SuppressWarnings("unchecked")
             final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
             return indices.containsKey(index);
@@ -2122,9 +2126,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns a list of the data stream's backing index names.
      */
-    @SuppressWarnings("unchecked")
     protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
-        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
         List<?> dataStreams = (List<?>) response.get("data_streams");
         assertThat(dataStreams.size(), equalTo(1));
         Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
@@ -2793,6 +2804,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
+     */
+    protected String activeProjectPrefix() {
+        return multiProjectEnabled ? (activeProject + "/") : "";
+    }
+
     protected void createProject(String project) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("PUT", "/_project/" + project);
@@ -2815,7 +2834,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    private Collection<String> getProjectIds(RestClient client) throws IOException {
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
         try {

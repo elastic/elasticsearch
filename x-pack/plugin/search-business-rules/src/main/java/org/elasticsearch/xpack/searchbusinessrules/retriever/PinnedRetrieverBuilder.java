@@ -151,10 +151,6 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         return NAME;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
-    }
-
     /**
      * Creates a PinnedQueryBuilder with the appropriate pinned documents.
      *

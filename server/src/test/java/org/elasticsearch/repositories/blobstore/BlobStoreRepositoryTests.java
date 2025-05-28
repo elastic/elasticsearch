@@ -21,12 +21,18 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
@@ -211,6 +217,89 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
+
+        // adding more snapshots to check that writeIndexGen checks the actual repo metadata and fails on a readonly repository
+        final var newRepositoryData = addRandomSnapshotsToRepoData(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
+        final var barrier = new CyclicBarrier(2);
+        final var setReadonlyPromise = blockAndSetRepositoryReadOnly(repository.getMetadata().name(), barrier);
+        safeAwait(barrier); // wait for set-readonly task to start executing
+        safeAwait(l -> {
+            repository.writeIndexGen(
+                newRepositoryData,
+                newRepositoryData.getGenId(),
+                IndexVersion.current(),
+                Function.identity(),
+                ActionTestUtils.assertNoSuccessListener(e -> {
+                    assertThat(
+                        asInstanceOf(RepositoryException.class, e).getMessage(),
+                        containsString("[test-repo] Failed to execute cluster state update [set pending repository generation")
+                    );
+                    assertThat(
+                        asInstanceOf(RepositoryException.class, e.getCause()).getMessage(),
+                        containsString("[test-repo] repository is readonly, cannot update root blob")
+                    );
+                    l.onResponse(null);
+                })
+            );
+            safeAwait(barrier); // allow set-readonly task to proceed now that the set-pending-generation task is enqueued
+        });
+        safeAwait(setReadonlyPromise);
+    }
+
+    /**
+     * Submits a cluster state update which blocks on the {@code barrier} twice and then marks the given repository as readonly.
+     * @return a promise that is completed when the cluster state update finishes.
+     */
+    private SubscribableListener<Void> blockAndSetRepositoryReadOnly(String repositoryName, CyclicBarrier barrier) {
+        return SubscribableListener.newForked(
+            l -> getInstanceFromNode(ClusterService.class).submitUnbatchedStateUpdateTask(
+                "update readonly flag",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                        return new ClusterState.Builder(currentState).metadata(
+                            Metadata.builder(currentState.metadata())
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(
+                                        RepositoriesMetadata.get(currentState)
+                                            .repositories()
+                                            .stream()
+                                            .map(
+                                                r -> r.name().equals(repositoryName)
+                                                    ? new RepositoryMetadata(
+                                                        r.name(),
+                                                        r.uuid(),
+                                                        r.type(),
+                                                        Settings.builder()
+                                                            .put(r.settings())
+                                                            .put(BlobStoreRepository.READONLY_SETTING_KEY, "true")
+                                                            .build(),
+                                                        r.generation(),
+                                                        r.pendingGeneration()
+                                                    )
+                                                    : r
+                                            )
+                                            .toList()
+                                    )
+                                )
+                        ).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                }
+            )
+        );
     }
 
     public void testCorruptIndexLatestFile() throws Exception {
@@ -434,6 +523,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -80,7 +81,6 @@ import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurit
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.performRequestWithAdminUser;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -282,7 +282,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 GetCcrRestoreFileChunkAction.REMOTE_TYPE,
                 new GetCcrRestoreFileChunkRequest(response2.getNode(), sessionUUID2, leaderIndex2FileName, 1, shardId2)
             );
-            assertThat(getChunkResponse.getChunk().length(), equalTo(1));
+            assertBusy(() -> assertFalse(getChunkResponse.getChunk().hasReferences()));
 
             // Clear restore session fails if index is unauthorized
             final var e4 = expectThrows(
@@ -633,7 +633,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return service;
     }
 
-    private static class MalformedGetRequest extends ActionRequest {
+    private static class MalformedGetRequest extends LegacyActionRequest {
         private final String otherIndexId;
 
         MalformedGetRequest(String otherIndexId) {

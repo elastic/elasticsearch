@@ -35,6 +35,11 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * Main entry point for firing up the Entitlements system.
+ * Called by ES {@code initPhase2} to load the agent after setting up its prerequisites,
+ * such as {@link BootstrapArgs} and some special module exports.
+ */
 public class EntitlementBootstrap {
 
     public record BootstrapArgs(
@@ -63,9 +68,11 @@ public class EntitlementBootstrap {
     /**
      * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
+     * <p>
+     * (Note: when we reference Elasticsearch "plugins" here, we generally also include Elasticsearch "modules".)
      *
      * @param serverPolicyPatch a policy with additional entitlements to patch the embedded server layer policy
-     * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
+     * @param pluginPolicies a map holding policies for plugins, by plugin name.
      * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
@@ -74,7 +81,7 @@ public class EntitlementBootstrap {
      * @param libDir         the lib directory for Elasticsearch
      * @param modulesDir     the directory where Elasticsearch modules are
      * @param pluginsDir     the directory where plugins are installed for Elasticsearch
-     * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
+     * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin name.
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified

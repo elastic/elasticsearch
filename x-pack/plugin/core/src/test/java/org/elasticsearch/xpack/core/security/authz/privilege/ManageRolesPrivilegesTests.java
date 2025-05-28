@@ -274,7 +274,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                 }
             """;
 
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, invalidJsonString.getBytes())) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, invalidJsonString.getBytes(StandardCharsets.UTF_8))) {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
 

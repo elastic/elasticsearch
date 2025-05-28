@@ -225,7 +225,7 @@ public class MsGraphHttpFixture extends ExternalResource {
     private void registerGetUserMembershipHandler() {
         final var skipToken = UUID.randomUUID().toString();
 
-        server.createContext("/v1.0/users/" + principal + "/memberOf", exchange -> {
+        server.createContext("/v1.0/users/" + principal + "/transitiveMemberOf", exchange -> {
             logger.info("Received get user membership request [{}]", exchange.getRequestURI());
             getGroupMembershipCount.incrementAndGet();
 

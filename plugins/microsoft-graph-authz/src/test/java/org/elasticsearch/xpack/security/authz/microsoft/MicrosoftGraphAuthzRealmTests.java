@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
+import com.microsoft.graph.models.DirectoryObjectCollectionResponse;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.models.odataerrors.MainError;
@@ -18,6 +19,7 @@ import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
 import com.microsoft.graph.users.item.memberof.MemberOfRequestBuilder;
 import com.microsoft.graph.users.item.memberof.graphgroup.GraphGroupRequestBuilder;
+import com.microsoft.graph.users.item.transitivememberof.TransitiveMemberOfRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -88,16 +90,14 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
         when(userItemRequestBuilder.get(any())).thenReturn(msUser);
 
-        final var memberOfRequestBuilder = mock(MemberOfRequestBuilder.class);
-        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
+        final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
         final var group = new Group();
         group.setId(groupId);
-        final var groupMembership = new GroupCollectionResponse();
+        final var groupMembership = new DirectoryObjectCollectionResponse();
         groupMembership.setValue(List.of(group));
 
-        when(userItemRequestBuilder.memberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
-        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership);
+        when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
+        when(memberOfRequestBuilder.get(any())).thenReturn(groupMembership);
 
         final var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);

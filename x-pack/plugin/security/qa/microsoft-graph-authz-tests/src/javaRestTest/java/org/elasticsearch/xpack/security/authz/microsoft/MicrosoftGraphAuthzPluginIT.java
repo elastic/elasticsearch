@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -174,7 +178,13 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     public void testAuthenticationSuccessful() throws Exception {
-        samlAuthWithMicrosoftGraphAuthz(USERNAME, getSamlAssertionJsonBodyString(USERNAME));
+        final var listener = new PlainActionFuture<Response>();
+        samlAuthWithMicrosoftGraphAuthz(USERNAME, getSamlAssertionJsonBodyString(USERNAME), listener);
+        final var resp = entityAsMap(listener.get());
+        List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
+        assertThat(resp.get("username"), equalTo(USERNAME));
+        assertThat(roles, contains("microsoft_graph_user"));
+        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml1"));
     }
 
     private String getSamlAssertionJsonBodyString(String username) throws Exception {
@@ -191,14 +201,10 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         return Strings.toString(JsonXContent.contentBuilder().map(body));
     }
 
-    private void samlAuthWithMicrosoftGraphAuthz(String username, String samlAssertion) throws Exception {
+    private void samlAuthWithMicrosoftGraphAuthz(String username, String samlAssertion, ActionListener<Response> listener) {
         var req = new Request("POST", "_security/saml/authenticate");
         req.setJsonEntity(samlAssertion);
-        var resp = entityAsMap(client().performRequest(req));
-        List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
-        assertThat(resp.get("username"), equalTo(username));
-        assertThat(roles, contains("microsoft_graph_user"));
-        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml1"));
+        client().performRequestAsync(req, ActionTestUtils.wrapAsRestResponseListener(listener));
     }
 
 }

@@ -12,6 +12,8 @@ package org.elasticsearch.xpack.security.authz.microsoft;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
+import com.microsoft.graph.models.DirectoryObject;
+import com.microsoft.graph.models.DirectoryObjectCollectionResponse;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
@@ -183,17 +185,14 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private List<String> sdkFetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
         List<String> groups = new ArrayList<>();
 
-        // TODO figure out exactly what we need to fetch here - we may need to fetch transitive groups as well, and may need to remove
-        // the `graph.group` cast (i.e. fetch "directory roles" and "administrative units" as well);
-        // see https://learn.microsoft.com/en-us/graph/api/user-list-transitivememberof
-        var groupMembership = client.users().byUserId(userId).memberOf().graphGroup().get(requestConfig -> {
+        var groupMembership = client.users().byUserId(userId).transitiveMemberOf().get(requestConfig -> {
             requestConfig.queryParameters.select = new String[] { "id" };
             requestConfig.queryParameters.top = 999;
         });
 
-        var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>().client(client)
+        var pageIterator = new PageIterator.Builder<DirectoryObject, DirectoryObjectCollectionResponse>().client(client)
             .collectionPage(groupMembership)
-            .collectionPageFactory(GroupCollectionResponse::createFromDiscriminatorValue)
+            .collectionPageFactory(DirectoryObjectCollectionResponse::createFromDiscriminatorValue)
             .requestConfigurator(requestInfo -> {
                 requestInfo.addQueryParameter("%24select", new String[] { "id" });
                 requestInfo.addQueryParameter("%24top", "999");

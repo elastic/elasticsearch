@@ -92,3 +92,7 @@ dependencies {
 }
 
 tasks.named("javadoc").configure { enabled = false }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: "microsoft-graph-core", to: "microsoft-graph"
+}

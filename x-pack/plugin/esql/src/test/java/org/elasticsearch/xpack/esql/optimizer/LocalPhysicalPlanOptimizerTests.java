@@ -1095,6 +1095,19 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    public void testIdPushdownFilter() {
+        var plan = plannerOptimizer.plan("from test metadata _id | where _id in (\"1\")");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
+        var expected = termQuery("_id", "1").boost(0);;
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
     /**
      * Expects
      *

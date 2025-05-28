@@ -153,6 +153,15 @@ public interface LucenePushdownPredicates {
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.field().getName(), value);
             }
+
+            @Override
+            public boolean isPushableAttribute(Expression exp) {
+                return LucenePushdownPredicates.super.isPushableAttribute(exp) || isIndexedMetadataAttribute(exp);
+            }
+
+            boolean isIndexedMetadataAttribute(Expression exp) {
+                return exp instanceof MetadataAttribute ma && (stats.isIndexed(ma.name()));
+            }
         };
     }
 }

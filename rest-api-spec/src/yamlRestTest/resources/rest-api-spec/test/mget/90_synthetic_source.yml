@@ -56,8 +56,8 @@ keyword:
 ---
 keyword with normalizer:
   - requires:
-      - cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
-      - reason: "Behavior changed in #126623"
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       indices.create:
         index: test-keyword-with-normalizer

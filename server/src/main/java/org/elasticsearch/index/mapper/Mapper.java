@@ -229,5 +229,5 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return null;
     }
 
-    public abstract List<Mapper> getSourceFieldMappers();
+    public abstract List<Mapper> getSourceMappers();
 }

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 @TimeoutSuite(millis = 10 * TimeUnits.MINUTE) // semantic_text can take a long, long time to start in CI
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/128506")
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();

@@ -10,6 +10,11 @@
 package org.elasticsearch.index.store;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -19,9 +24,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -29,6 +38,25 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
 public class DirectIOIT extends ESIntegTestCase {
+
+    @BeforeClass
+    public static void checkSupported() throws IOException {
+        Path path = createTempDir("directIOProbe");
+        try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
+            out.writeString("test");
+        } catch (IOException e) {
+            assumeNoException("test requires filesystem that supports Direct IO", e);
+        }
+    }
+
+    static DirectIODirectory open(Path path) throws IOException {
+        return new DirectIODirectory(FSDirectory.open(path)) {
+            @Override
+            protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                return true;
+            }
+        };
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

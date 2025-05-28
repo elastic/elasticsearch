@@ -333,7 +333,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         testSupportedStream("streaming_completion_test_service_alias");
     }
 
-    public void testSupportedStream(String serviceName) throws Exception {
+    private void testSupportedStream(String serviceName) throws Exception {
         String modelId = "streaming";
         putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION, serviceName));
         var singleModel = getModel(modelId);

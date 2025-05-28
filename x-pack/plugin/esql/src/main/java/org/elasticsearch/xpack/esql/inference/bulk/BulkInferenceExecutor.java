@@ -53,7 +53,7 @@ public class BulkInferenceExecutor {
                         r -> bulkExecutionState.onInferenceResponse(seqNo, r),
                         e -> bulkExecutionState.onInferenceException(seqNo, e)
                     ),
-                    responseHandler::persistsInferenceResponses
+                    responseHandler::persistPendingResponses
                 )
             );
         }
@@ -75,15 +75,15 @@ public class BulkInferenceExecutor {
             this.responses = new ArrayList<>(estimatedSize);
         }
 
-        public synchronized void persistsInferenceResponses() {
+        public synchronized void persistPendingResponses() {
             long persistedSeqNo = bulkExecutionState.getPersistedCheckpoint();
 
             while (persistedSeqNo < bulkExecutionState.getProcessedCheckpoint()) {
                 persistedSeqNo++;
-                InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
-                assert response != null || bulkExecutionState.hasFailure();
                 if (bulkExecutionState.hasFailure() == false) {
                     try {
+                        InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
+                        assert response != null;
                         responses.add(response);
                     } catch (Exception e) {
                         bulkExecutionState.addFailure(e);
@@ -148,7 +148,7 @@ public class BulkInferenceExecutor {
 
                 try {
                     executorService.execute(task);
-                } catch (Exception e){
+                } catch (Exception e) {
                     task.onFailure(e);
                     permits.release();
                 }

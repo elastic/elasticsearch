@@ -61,7 +61,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
@@ -93,7 +93,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
 
         InferenceRunner inferenceRunner = mock(invocation -> {
             runWithRandomDelay(() -> {
@@ -115,7 +115,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(10_000);
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
@@ -180,7 +180,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     private List<InferenceAction.Response> randomInferenceResponseList(int size) {
         List<InferenceAction.Response> response = new ArrayList<>(size);
         while (response.size() < size) {
-            response.add(this.mockInferenceResponse());
+            response.add(mock(InferenceAction.Response.class));
         }
         return response;
     }
@@ -197,7 +197,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         } else {
             threadPool.schedule(
                 runnable,
-                TimeValue.timeValueNanos(between(1, 100)),
+                TimeValue.timeValueNanos(between(1, 1_000)),
                 threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
             );
         }

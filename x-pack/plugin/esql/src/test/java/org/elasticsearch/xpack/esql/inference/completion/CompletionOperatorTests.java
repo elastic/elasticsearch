@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -30,13 +30,6 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new CompletionOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
-    }
-
-    @Override
-    protected ChatCompletionResults mockInferenceResult(InferenceAction.Request request) {
-        return new ChatCompletionResults(
-            request.getInput().stream().map(r -> new ChatCompletionResults.Result(r.toLowerCase(Locale.ROOT))).collect(Collectors.toList())
-        );
     }
 
     @Override
@@ -80,8 +73,17 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             }
             scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
 
-            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toLowerCase(Locale.ROOT)));
+            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toUpperCase(Locale.ROOT)));
         }
+    }
+
+    @Override
+    protected ChatCompletionResults mockInferenceResult(InferenceAction.Request request) {
+        List<ChatCompletionResults.Result> results = new ArrayList<>();
+        for (String input : request.getInput()) {
+            results.add(new ChatCompletionResults.Result(input.toUpperCase(Locale.ROOT)));
+        }
+        return new ChatCompletionResults(results);
     }
 
     @Override

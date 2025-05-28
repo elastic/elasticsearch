@@ -56,7 +56,7 @@ public class CompletionOperator extends InferenceOperator {
 
     public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
-        OperatorFactory {
+            OperatorFactory {
         @Override
         public String describe() {
             return "CompletionOperator[inference_id=[" + inferenceId + "]]";

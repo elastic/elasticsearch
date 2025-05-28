@@ -39,19 +39,20 @@ public class BulkInferenceExecutionState {
         return checkpoint.getMaxSeqNo();
     }
 
-    public void onInferenceResponse(long seqNo, InferenceAction.Response response) {
+    public synchronized void onInferenceResponse(long seqNo, InferenceAction.Response response) {
         if (failureCollector.hasFailure() == false) {
             bufferedResponses.put(seqNo, response);
         }
         checkpoint.markSeqNoAsProcessed(seqNo);
     }
 
-    public void onInferenceException(long seqNo, Exception e) {
+    public synchronized void onInferenceException(long seqNo, Exception e) {
         failureCollector.unwrapAndCollect(e);
         checkpoint.markSeqNoAsProcessed(seqNo);
+        bufferedResponses.clear();
     }
 
-    public InferenceAction.Response fetchBufferedResponse(long seqNo) {
+    public synchronized InferenceAction.Response fetchBufferedResponse(long seqNo) {
         return bufferedResponses.remove(seqNo);
     }
 

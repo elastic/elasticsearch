@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,8 +32,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,10 +48,6 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
     private ThreadPool threadPool;
@@ -110,33 +110,26 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected InferenceRunner mockedSimpleInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        when(inferenceRunner.threadPool()).thenReturn(threadPool());
-        doAnswer(i -> {
-            Runnable sendResponse = () -> {
-                @SuppressWarnings("unchecked")
-                ActionListener<InferenceAction.Response> listener = i.getArgument(1, ActionListener.class);
-                InferenceAction.Request request = i.getArgument(0, InferenceAction.Request.class);
-                InferenceAction.Response inferenceResponse = mock(InferenceAction.Response.class);
-                doAnswer(invocation -> mockInferenceResult(request)).when(inferenceResponse).getResults();
+        Client client = new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
+                    InferenceAction.Response inferenceResponse = new InferenceAction.Response(mockInferenceResult(inferenceRequest));
+                    listener.onResponse((Response) inferenceResponse);
+                    return;
+                }
 
-                listener.onResponse(inferenceResponse);
-            };
-
-            if (randomBoolean()) {
-                sendResponse.run();
-            } else {
-                threadPool.schedule(
-                    sendResponse,
-                    TimeValue.timeValueNanos(between(1, 100)),
-                    threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-                );
+                fail("Unexpected call to action [" + action.name() + "]");
             }
+        };
 
-            return null;
-        }).when(inferenceRunner).doInference(any(InferenceAction.Request.class), any());
-        return inferenceRunner;
+        return new InferenceRunner(client, threadPool);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

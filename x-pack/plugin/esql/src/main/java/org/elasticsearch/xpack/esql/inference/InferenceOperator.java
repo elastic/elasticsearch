@@ -59,7 +59,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     protected void performAsync(Page input, ActionListener<OngoingInference> listener) {
         try {
             BulkInferenceRequestIterator requests = requests(input);
-            listener = ActionListener.releaseAfter(listener, requests);
+            listener = ActionListener.releaseBefore(requests, listener);
             bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInference(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);

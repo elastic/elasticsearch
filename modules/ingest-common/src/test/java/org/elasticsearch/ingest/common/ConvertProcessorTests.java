@@ -468,10 +468,8 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertStringIntegralDoubleBillion() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Double> expectedResult = new HashMap<>();
         double billion = 1e9;
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, billion);
-        expectedResult.put(fieldName, billion);
 
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.STRING, false);
         processor.execute(ingestDocument);
@@ -480,10 +478,8 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertStringIntegralFloatTenMillion() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Float> expectedResult = new HashMap<>();
         float tenMillion = (float) 1e7;
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, tenMillion);
-        expectedResult.put(fieldName, tenMillion);
 
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.STRING, false);
         processor.execute(ingestDocument);

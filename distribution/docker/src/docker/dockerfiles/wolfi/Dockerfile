@@ -29,21 +29,9 @@ FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:29150cd940cc7f69407d9
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-# For wolfi we pick it from the blessed wolfi package registry.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-
-# Fetch the appropriate Elasticsearch distribution for this architecture.
-# Keep this command on one line - it is replaced with a `COPY` during local builds.
-# It uses the `arch` shell command to fetch the correct distro for the build machine,
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\${arch}.tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
@@ -152,16 +140,6 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-
-LABEL name="Elasticsearch" \\
-  maintainer="infra@elastic.co" \\
-  vendor="Elastic" \\
-  version="${version}" \\
-  release="1" \\
-  summary="Elasticsearch" \\
-  description="You know, for search."
-
-RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

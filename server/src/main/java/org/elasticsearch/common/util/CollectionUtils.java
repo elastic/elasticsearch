@@ -51,20 +51,24 @@ public class CollectionUtils {
             return;
         }
 
-        ListIterator<T> uniqueItr = list.listIterator();
-        ListIterator<T> existingItr = list.listIterator();
-        T uniqueValue = uniqueItr.next(); // get first element to compare with
-        existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
+        ListIterator<T> resultItr = list.listIterator();
+        ListIterator<T> currentItr = list.listIterator(1); // start at second element to compare
+        T lastValue = resultItr.next(); // result always includes first element, so advance it and grab first
         do {
-            T existingValue = existingItr.next();
-            if (cmp.compare(existingValue, uniqueValue) != 0 && (uniqueValue = uniqueItr.next()) != existingValue) {
-                uniqueItr.set(existingValue);
+            T currentValue = currentItr.next(); // each iter we check if the next element is different from the last we put in the result
+            if (cmp.compare(lastValue, currentValue) != 0) {
+                lastValue = currentValue;
+                resultItr.next(); // advance result so the current position is where we want to set
+                if (resultItr.previousIndex() != currentItr.previousIndex()) {
+                    // optimization: only need to set if different
+                    resultItr.set(currentValue);
+                }
             }
-        } while (existingItr.hasNext());
+        } while (currentItr.hasNext());
 
         // Lop off the rest of the list. Note with LinkedList this requires advancing back to this index,
         // but Java provides no way to efficiently remove from the end of a non random-access list.
-        list.subList(uniqueItr.nextIndex(), list.size()).clear();
+        list.subList(resultItr.nextIndex(), list.size()).clear();
     }
 
     /**

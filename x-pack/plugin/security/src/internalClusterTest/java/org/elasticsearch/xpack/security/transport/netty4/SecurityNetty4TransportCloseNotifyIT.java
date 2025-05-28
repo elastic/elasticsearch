@@ -36,6 +36,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -121,7 +122,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
                 channel.close().sync();
             }
         } finally {
-            client.config().group().shutdownGracefully().sync();
+            client.config().group().shutdownGracefully(0, 0, TimeUnit.SECONDS).sync();
         }
     }
 
@@ -150,7 +151,7 @@ public class SecurityNetty4TransportCloseNotifyIT extends SecurityIntegTestCase 
                 channel.close().sync();
             }
         } finally {
-            client.config().group().shutdownGracefully().sync();
+            client.config().group().shutdownGracefully(0, 0, TimeUnit.SECONDS).sync();
         }
     }
 

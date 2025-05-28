@@ -1,4 +1,4 @@
-## Add `+` [esql-add]
+### Add `+` [esql-add]
 
 :::{image} ../../../images/operators/add.svg
 :alt: Embedded

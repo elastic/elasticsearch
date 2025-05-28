@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class CodecService implements CodecProvider {
 
-    public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
+    public static final boolean ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields").isEnabled();
 
     private final Map<String, Codec> codecs;
 
@@ -47,7 +47,7 @@ public class CodecService implements CodecProvider {
         final var codecs = new HashMap<String, Codec>();
 
         Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene101Codec.Mode.BEST_SPEED, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);

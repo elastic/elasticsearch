@@ -6,58 +6,12 @@ mapped_pages:
 
 # {{esql}} limitations [esql-limitations]
 
-
-
 ## Result set size limit [esql-max-rows]
 
-By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/esql-commands.md#esql-limit) command.
+By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/commands/processing-commands.md#esql-limit) command.
 
-For instance,
-```esql
-FROM index | WHERE field = "value"
-```
-is equivalent to:
-```esql
-FROM index | WHERE field = "value" | LIMIT 1000
-```
-
-Queries do not return more than 10,000 rows, regardless of the `LIMIT` command’s value. This is a configurable upper limit.
-
-To overcome this limitation:
-
-* Reduce the result set size by modifying the query to only return relevant data. Use [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) to select a smaller subset of the data.
-* Shift any post-query processing to the query itself. You can use the {{esql}} [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by) command to aggregate data in the query.
-
-The upper limit only applies to the number of rows that are output by the query, not to the number of documents it processes: the query runs on the full data set.
-
-Consider the following two queries:
-```esql
-FROM index | WHERE field0 == "value" | LIMIT 20000
-```
-and
-```esql
-FROM index | STATS AVG(field1) BY field2 | LIMIT 20000
-```
-
-In both cases, the filtering by `field0` in the first query or the grouping by `field2` in the second is applied over all the documents present in the `index`, irrespective of their number or indexes size. However, both queries will return at most 10,000 rows, even if there were more rows available to return.
-
-The default and maximum limits can be changed using these dynamic cluster settings:
-
-* `esql.query.result_truncation_default_size`
-* `esql.query.result_truncation_max_size`
-
-However, doing so involves trade-offs. A larger result-set involves a higher memory pressure and increased processing times; the internode traffic within and across clusters can also increase.
-
-These limitations are similar to those enforced by the [search API for pagination](/reference/elasticsearch/rest-apis/paginate-search-results.md).
-
-| Functionality                    | Search                  | {{esql}}                                  |
-|----------------------------------|-------------------------|-------------------------------------------|
-| Results returned by default      | 10                      | 1.000                                     |
-| Default upper limit              | 10,000                  | 10,000                                    |
-| Specify number of results        | `size`                  | `LIMIT`                                   |
-| Change default number of results | n/a                     | esql.query.result_truncation_default_size |
-| Change default upper limit       | index-max-result-window | esql.query.result_truncation_max_size     |
-
+:::{include} _snippets/common/result-set-size-limitation.md
+:::
 
 ## Field types [esql-supported-types]
 
@@ -131,7 +85,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/esql-commands.md#esql-sort) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
 
     * `geo_point`
     * `geo_shape`
@@ -151,7 +105,12 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 ## Full-text search [esql-limitations-full-text-search]
 
-[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) is currently in Technical Preview. One limitation of full-text search is that it is necessary to use the search function, like [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), in a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command directly after the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command, or close enough to it. Otherwise, the query will fail with a validation error.
+[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is currently in Technical Preview.
+One limitation of full-text search is that it is necessary to use the search function,
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+in a [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command directly after the
+[`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command, or close enough to it.
+Otherwise, the query will fail with a validation error.
 
 For example, this query is valid:
 
@@ -160,7 +119,7 @@ FROM books
 | WHERE MATCH(author, "Faulkner") AND MATCH(author, "Tolkien")
 ```
 
-But this query will fail due to the [STATS](/reference/query-languages/esql/esql-commands.md#esql-stats-by) command:
+But this query will fail due to the [STATS](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command:
 
 ```esql
 FROM books
@@ -168,7 +127,12 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields), any queries on `text` fields that do not explicitly use the full-text functions, [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), [`QSTR`](/reference/query-languages/esql/esql-functions-operators.md#esql-qstr) or [`KQL`](/reference/query-languages/esql/esql-functions-operators.md#esql-kql), will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
+Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields),
+any queries on `text` fields that do not explicitly use the full-text functions,
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
+will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
 
 
 ## `text` fields behave like `keyword` fields [esql-limitations-text-fields]
@@ -184,7 +148,11 @@ For example, the following query will return a column `greatest` of type `keywor
 | EVAL greatest = GREATEST(field1, field2, field3)
 ```
 
-Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences. Other than when explicitly using the full-text functions, [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match) and [`QSTR`](/reference/query-languages/esql/esql-functions-operators.md#esql-qstr), any {{esql}} query on a `text` field is case-sensitive.
+Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences.
+Other than when explicitly using the full-text functions,
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) and
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr),
+any {{esql}} query on a `text` field is case-sensitive.
 
 For example, after indexing a field of type `text` with the value `Elasticsearch query language`, the following `WHERE` clause does not match because the `LIKE` operator is case-sensitive:
 
@@ -206,14 +174,16 @@ As a workaround, use wildcards and regular expressions. For example:
 
 Furthermore, a subfield may have been mapped with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
 
-To avoid these issues, a best practice is to be explicit about the field that you query, and query `keyword` sub-fields instead of `text` fields. Or consider using one of the [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) functions.
+To avoid these issues, a best practice is to be explicit about the field that you query,
+and query `keyword` sub-fields instead of `text` fields.
+Or consider using one of the [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) functions.
 
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
 
 As discussed in more detail in [Using {{esql}} to query multiple indices](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
 
-* All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
+* All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
 * The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
 
 
@@ -265,7 +235,10 @@ The `GROK` command does not support configuring [custom patterns](/reference/enr
 
 ## Multivalue limitations [esql-limitations-mv]
 
-{{esql}} [supports multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md), but functions return `null` when applied to a multivalued field, unless documented otherwise. Work around this limitation by converting the field to single value with one of the [multivalue functions](/reference/query-languages/esql/esql-functions-operators.md#esql-mv-functions).
+{{esql}} [supports multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md),
+but functions return `null` when applied to a multivalued field, unless documented otherwise.
+Work around this limitation by converting the field to single value with one of the
+[multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md).
 
 
 ## Timezone support [esql-limitations-timezone]
@@ -275,9 +248,9 @@ The `GROK` command does not support configuring [custom patterns](/reference/enr
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command instead.
+* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
-* Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/esql-commands.md#esql-drop) or [`KEEP`](/reference/query-languages/esql/esql-commands.md#esql-keep) to limit the number of fields returned.
+* Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/processing-commands.md#esql-drop) or [`KEEP`](/reference/query-languages/esql/commands/processing-commands.md#esql-keep) to limit the number of fields returned.
 

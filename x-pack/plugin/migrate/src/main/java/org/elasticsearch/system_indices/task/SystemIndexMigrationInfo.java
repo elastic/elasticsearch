@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -22,7 +23,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -34,7 +34,7 @@ import static org.elasticsearch.core.Strings.format;
  * Holds the data required to migrate a single system index, including metadata from the current index. If necessary, computes the settings
  * and mappings for the "next" index based off of the current one.
  */
-class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
+final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrationInfo.class);
 
     private final IndexMetadata currentIndex;
@@ -46,10 +46,6 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final SystemIndices.Feature owningFeature;
     private final boolean allowsTemplates;
 
-    private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
-        SystemIndexMigrationInfo::getFeatureName
-    ).thenComparing(SystemIndexMigrationInfo::getCurrentIndexName);
-
     private SystemIndexMigrationInfo(
         IndexMetadata currentIndex,
         String featureName,
@@ -60,6 +56,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         SystemIndices.Feature owningFeature,
         boolean allowsTemplates
     ) {
+        super(featureName, origin, owningFeature);
         this.currentIndex = currentIndex;
         this.featureName = featureName;
         this.settings = settings;
@@ -77,9 +74,20 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         return currentIndex.getIndex().getName();
     }
 
+    @Override
+    protected String getCurrentResourceName() {
+        return getCurrentIndexName();
+    }
+
+    @Override
+    Stream<IndexMetadata> getIndices(ProjectMetadata metadata) {
+        return Stream.of(currentIndex);
+    }
+
     /**
      * Indicates if the index to be migrated is closed.
      */
+    @Override
     boolean isCurrentIndexClosed() {
         return CLOSE.equals(currentIndex.getState());
     }
@@ -168,11 +176,6 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     Client createClient(Client baseClient) {
         return new OriginSettingClient(baseClient, this.getOrigin());
-    }
-
-    @Override
-    public int compareTo(SystemIndexMigrationInfo o) {
-        return SAME_CLASS_COMPARATOR.compare(this, o);
     }
 
     @Override

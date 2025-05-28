@@ -18,8 +18,10 @@ SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_RERANK : {this.isDevVersion()}? 'rerank'              -> pushMode(EXPRESSION_MODE);
+DEV_COMPLETION : {this.isDevVersion()}? 'completion'   -> pushMode(EXPRESSION_MODE);
+DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE);
+DEV_RERANK : {this.isDevVersion()}? 'rerank'           -> pushMode(EXPRESSION_MODE);
+DEV_SAMPLE : {this.isDevVersion()}? 'sample'           -> pushMode(EXPRESSION_MODE);
 
 
 mode EXPRESSION_MODE;

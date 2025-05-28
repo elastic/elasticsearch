@@ -1,6 +1,50 @@
 # General Architecture
 
-## Transport Actions
+# REST and Transport Layers
+
+### REST Layer
+
+The REST and Transport layers are bound together through the `ActionModule`. `ActionModule#initRestHandlers` registers all the
+rest actions with a `RestController` that matches incoming requests to particular REST actions. `RestController#registerHandler`
+uses each `Rest*Action`'s `#routes()` implementation to match HTTP requests to that particular `Rest*Action`. Typically, REST
+actions follow the class naming convention `Rest*Action`, which makes them easier to find, but not always; the `#routes()`
+definition can also be helpful in finding a REST action. `RestController#dispatchRequest` eventually calls `#handleRequest` on a
+`RestHandler` implementation. `RestHandler` is the base class for `BaseRestHandler`, which most `Rest*Action` instances extend to
+implement a particular REST action.
+
+`BaseRestHandler#handleRequest` calls into `BaseRestHandler#prepareRequest`, which children `Rest*Action` classes extend to
+define the behavior for a particular action. `RestController#dispatchRequest` passes a `RestChannel` to the `Rest*Action` via
+`RestHandler#handleRequest`: `Rest*Action#prepareRequest` implementations return a `RestChannelConsumer` defining how to execute
+the action and reply on the channel (usually in the form of completing an ActionListener wrapper). `Rest*Action#prepareRequest`
+implementations are responsible for parsing the incoming request, and verifying that the structure of the request is valid.
+`BaseRestHandler#handleRequest` will then check that all the request parameters have been consumed: unexpected request parameters
+result in an error.
+
+### How REST Actions Connect to Transport Actions
+
+The Rest layer uses an implementation of `AbstractClient`. `BaseRestHandler#prepareRequest` takes a `NodeClient`: this client
+knows how to connect to a specified TransportAction. A `Rest*Action` implementation will return a `RestChannelConsumer` that
+most often invokes a call into a method on the `NodeClient` to pass through to the TransportAction. Along the way from
+`BaseRestHandler#prepareRequest` through the `AbstractClient` and `NodeClient` code, `NodeClient#executeLocally` is called: this
+method calls into `TaskManager#registerAndExecute`, registering the operation with the `TaskManager` so it can be found in Task
+API requests, before moving on to execute the specified TransportAction.
+
+`NodeClient` has a `NodeClient#actions` map from `ActionType` to `TransportAction`. `ActionModule#setupActions` registers all the
+core TransportActions, as well as those defined in any plugins that are being used: plugins can override `Plugin#getActions()` to
+define additional TransportActions. Note that not all TransportActions will be mapped back to a REST action: many TransportActions
+are only used for internode operations/communications.
+
+### Transport Layer
+
+(Managed by the TransportService, TransportActions must be registered there, too)
+
+(Executing a TransportAction (either locally via NodeClient or remotely via TransportService) is where most of the authorization & other security logic runs)
+
+(What actions, and why, are registered in TransportService but not NodeClient?)
+
+### Direct Node to Node Transport Layer
+
+(TransportService maps incoming requests to TransportActions)
 
 ## Serializations
 

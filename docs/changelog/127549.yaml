@@ -1,0 +1,5 @@
+pr: 127549
+summary: Add local optimizations for `constant_keyword`
+area: ES|QL
+type: enhancement
+issues: []

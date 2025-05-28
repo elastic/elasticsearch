@@ -88,25 +88,43 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         }
     }
 
+    // Default for escape hatch:
+    static final boolean OPTIMIZED_MERGE_ENABLE_DEFAULT;
+    static final String OPTIMIZED_MERGE_ENABLED_NAME = ES819TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
+
+    static {
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
+    }
+
     final int skipIndexIntervalSize;
+    private final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize) {
+    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, boolean enableOptimizedMerge) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
         this.skipIndexIntervalSize = skipIndexIntervalSize;
+        this.enableOptimizedMerge = enableOptimizedMerge;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES819TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES819TSDBDocValuesConsumer(
+            state,
+            skipIndexIntervalSize,
+            enableOptimizedMerge,
+            DATA_CODEC,
+            DATA_EXTENSION,
+            META_CODEC,
+            META_EXTENSION
+        );
     }
 
     @Override

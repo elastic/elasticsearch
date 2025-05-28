@@ -13,16 +13,17 @@ apply plugin: 'com.gradleup.shadow'
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
-def patched = Attribute.of('patched', Boolean)
+def hdfs2patched = Attribute.of('hdfs2-patched', Boolean)
+def hdfs3patched = Attribute.of('hdfs3-patched', Boolean)
 configurations {
   hdfs2 {
     attributes {
-      attribute(patched, true)
+      attribute(hdfs2patched, true)
     }
   }
   hdfs3 {
     attributes {
-      attribute(patched, true)
+      attribute(hdfs3patched, true)
     }
   }
   consumable("shadowedHdfs2")
@@ -30,16 +31,26 @@ configurations {
 
 dependencies {
   attributesSchema {
-    attribute(patched)
+    attribute(hdfs2patched)
+    attribute(hdfs3patched)
   }
   artifactTypes.getByName("jar") {
-    attributes.attribute(patched, false)
+    attributes.attribute(hdfs2patched, false)
+    attributes.attribute(hdfs3patched, false)
   }
   registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
-    from.attribute(patched, false)
-    to.attribute(patched, true)
+    from.attribute(hdfs2patched, false)
+    to.attribute(hdfs2patched, true)
     parameters {
-      matchingArtifacts = ["hadoop-common"]
+      matchingArtifacts = ["hadoop2-common"]
+    }
+  }
+
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs3patched, false)
+    to.attribute(hdfs3patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop3-common"]
     }
   }
 

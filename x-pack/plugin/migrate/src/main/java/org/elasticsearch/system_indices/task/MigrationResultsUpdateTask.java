@@ -97,7 +97,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
                 () -> format(
                     "failed to update cluster state after failed migration of feature [%s] on index [%s]",
                     featureName,
-                    status.getFailedIndexName()
+                    status.getFailedResourceName()
                 ),
                 clusterStateUpdateException
             );

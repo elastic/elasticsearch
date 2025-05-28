@@ -59,6 +59,12 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                                 .put("canned_acl", "private")
                                 .put("storage_class", "standard")
                                 .put("disable_chunked_encoding", randomBoolean())
+                                .put(
+                                    randomFrom(
+                                        Settings.EMPTY,
+                                        Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()
+                                    )
+                                )
                                 .build()
                         )
                     )
@@ -183,8 +189,10 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         final var responseObjectPath = ObjectPath.createFromResponse(responseException.getResponse());
         assertThat(responseObjectPath.evaluate("error.type"), equalTo("repository_verification_exception"));
         assertThat(responseObjectPath.evaluate("error.reason"), containsString("is not accessible on master node"));
-        assertThat(responseObjectPath.evaluate("error.caused_by.type"), equalTo("illegal_argument_exception"));
-        assertThat(responseObjectPath.evaluate("error.caused_by.reason"), containsString("Unknown s3 client name"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.type"), equalTo("repository_exception"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.reason"), containsString("cannot create blob store"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.caused_by.type"), equalTo("illegal_argument_exception"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.caused_by.reason"), containsString("Unknown s3 client name"));
     }
 
     public void testNonexistentSnapshot() throws Exception {

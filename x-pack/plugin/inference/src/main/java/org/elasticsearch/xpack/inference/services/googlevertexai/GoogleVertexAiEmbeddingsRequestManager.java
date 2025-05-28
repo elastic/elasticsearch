@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.googlevertexai.GoogleVertexAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;

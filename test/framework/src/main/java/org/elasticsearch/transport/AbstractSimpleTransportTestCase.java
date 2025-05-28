@@ -246,7 +246,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             version,
             threadPool,
             clusterSettings,
-            Collections.emptySet(),
+            emptySet(),
             interceptor
         );
         service.start();
@@ -1472,7 +1472,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public static class StringMessageRequest extends TransportRequest implements RawIndexingDataTransportRequest {
+    public static class StringMessageRequest extends AbstractTransportRequest implements RawIndexingDataTransportRequest {
 
         private String message;
         private long timeout;
@@ -1533,7 +1533,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public static class Version0Request extends TransportRequest {
+    public static class Version0Request extends AbstractTransportRequest {
 
         int value1;
 
@@ -2053,7 +2053,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public static class TestRequest extends TransportRequest {
+    public static class TestRequest extends AbstractTransportRequest {
 
         String info;
         int resendCount;
@@ -3228,7 +3228,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testActionStats() throws Exception {
         final String ACTION = "internal:action";
 
-        class Request extends TransportRequest {
+        class Request extends AbstractTransportRequest {
             final int refSize;
 
             Request(int refSize) {
@@ -3477,7 +3477,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * Connect to the specified node with the default connection profile
      *
      * @param service service to connect from
-     * @param node the node to connect to
+     * @param node    the node to connect to
      */
     public static void connectToNode(TransportService service, DiscoveryNode node) throws ConnectTransportException {
         connectToNode(service, node, null);
@@ -3486,8 +3486,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     /**
      * Connect to the specified node with the given connection profile
      *
-     * @param service service to connect from
-     * @param node the node to connect to
+     * @param service           service to connect from
+     * @param node              the node to connect to
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
@@ -3512,8 +3512,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     /**
      * Establishes and returns a new connection to the given node from the given {@link TransportService}.
      *
-     * @param service service to connect from
-     * @param node the node to connect to
+     * @param service           service to connect from
+     * @param node              the node to connect to
      * @param connectionProfile the connection profile to use
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {

@@ -91,6 +91,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.SearcherHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -172,6 +173,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
+    protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -199,6 +201,7 @@ public abstract class EngineTestCase extends ESTestCase {
             )
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), seqNoIndexOptions)
             .build();
     }
 
@@ -304,7 +307,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getEngineResetLock()
         );
     }
 
@@ -337,7 +341,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getEngineResetLock()
         );
     }
 
@@ -370,7 +375,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getEngineResetLock()
         );
     }
 
@@ -447,7 +453,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
@@ -875,7 +881,8 @@ public abstract class EngineTestCase extends ESTestCase {
             this::relativeTimeInNanos,
             indexCommitListener,
             true,
-            mapperService
+            mapperService,
+            new EngineResetLock()
         );
     }
 
@@ -916,7 +923,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
-            config.getMapperService()
+            config.getMapperService(),
+            config.getEngineResetLock()
         );
     }
 
@@ -1391,10 +1399,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             assertThat(luceneOp, notNullValue());
-            assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
+            assertThat(
+                "primary term does not match, luceneOp=[" + luceneOp + "], translogOp=[" + translogOp + "]",
+                luceneOp.primaryTerm(),
+                equalTo(translogOp.primaryTerm())
+            );
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
+                    || engine.engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false) {
                     assertTrue(
                         "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)

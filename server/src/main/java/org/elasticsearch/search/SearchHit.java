@@ -216,8 +216,15 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
-        final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
+        final Map<String, DocumentField> documentFields;
+        final Map<String, DocumentField> metaFields;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+            documentFields = DocumentField.readFieldsFromMapValues(in);
+            metaFields = DocumentField.readFieldsFromMapValues(in);
+        } else {
+            documentFields = in.readMap(DocumentField::new);
+            metaFields = in.readMap(DocumentField::new);
+        }
         Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
         highlightFields = highlightFields.isEmpty() ? null : unmodifiableMap(highlightFields);
 
@@ -322,8 +329,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        out.writeMap(documentFields, StreamOutput::writeWriteable);
-        out.writeMap(metaFields, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+            out.writeMapValues(documentFields);
+            out.writeMapValues(metaFields);
+        } else {
+            out.writeMap(documentFields, StreamOutput::writeWriteable);
+            out.writeMap(metaFields, StreamOutput::writeWriteable);
+        }
         if (highlightFields == null) {
             out.writeVInt(0);
         } else {
@@ -502,9 +514,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     /*
     * Adds a new DocumentField to the map in case both parameters are not null.
     * */
-    public void setDocumentField(String fieldName, DocumentField field) {
-        if (fieldName == null || field == null) return;
-        this.documentFields.put(fieldName, field);
+    public void setDocumentField(DocumentField field) {
+        if (field == null) return;
+        this.documentFields.put(field.getName(), field);
     }
 
     public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {

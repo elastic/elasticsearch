@@ -8,11 +8,12 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
-import com.amazonaws.services.s3.model.MultipartUpload;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
+import software.amazon.awssdk.services.s3.model.MultipartUpload;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
@@ -146,6 +147,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
+                randomProjectIdOrDefault(),
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
@@ -176,8 +178,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                     }
 
                     List<MultipartUpload> listMultipartUploads() {
-                        return client.listMultipartUploads(new ListMultipartUploadsRequest(bucketName).withPrefix(registerBlobPath))
-                            .getMultipartUploads();
+                        return client.listMultipartUploads(
+                            ListMultipartUploadsRequest.builder().bucket(bucketName).prefix(registerBlobPath).build()
+                        ).uploads();
                     }
                 }
 
@@ -191,11 +194,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertEquals(bytes1, testHarness.readRegister());
                 assertArrayEquals(
                     bytes1.array(),
-                    client.getObject(new GetObjectRequest(bucketName, registerBlobPath)).getObjectContent().readAllBytes()
+                    client.getObject(GetObjectRequest.builder().bucket(bucketName).key(registerBlobPath).build()).readAllBytes()
                 );
 
                 // a fresh ongoing upload blocks other CAS attempts
-                client.initiateMultipartUpload(new InitiateMultipartUploadRequest(bucketName, registerBlobPath));
+                client.createMultipartUpload(CreateMultipartUploadRequest.builder().bucket(bucketName).key(registerBlobPath).build());
                 assertThat(testHarness.listMultipartUploads(), hasSize(1));
 
                 assertFalse(testHarness.tryCompareAndSet(bytes1, bytes2));
@@ -203,10 +206,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertThat(multipartUploads, hasSize(1));
 
                 // repo clock may not be exactly aligned with ours, but it should be close
-                final var age = blobStore.getThreadPool().absoluteTimeInMillis() - multipartUploads.get(0)
-                    .getInitiated()
-                    .toInstant()
-                    .toEpochMilli();
+                final var age = blobStore.getThreadPool().absoluteTimeInMillis() - multipartUploads.get(0).initiated().toEpochMilli();
                 final var ageRangeMillis = TimeValue.timeValueMinutes(1).millis();
                 assertThat(age, allOf(greaterThanOrEqualTo(-ageRangeMillis), lessThanOrEqualTo(ageRangeMillis)));
 
@@ -224,8 +224,62 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     public void testReadFromPositionLargerThanBlobLength() {
-        testReadFromPositionLargerThanBlobLength(
-            e -> asInstanceOf(AmazonS3Exception.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
-        );
+        testReadFromPositionLargerThanBlobLength(e -> {
+            final var s3Exception = asInstanceOf(S3Exception.class, e.getCause());
+            return s3Exception.statusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
+                && "InvalidRange".equals(s3Exception.awsErrorDetails().errorCode());
+        });
+    }
+
+    public void testCopy() {
+        final var sourceBlobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+        final var destinationBlobName = randomIdentifier();
+
+        final var repository = getRepository();
+
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+
+            final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+            destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            );
+
+            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+        });
+
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
+
+    public void testMultipartCopy() {
+        final var sourceBlobName = randomIdentifier();
+        // executeMultipart requires a minimum part size of 5 MiB
+        final var blobBytes = randomBytesReference(randomIntBetween(5 * 1024 * 1024, 10 * 1024 * 1024));
+        final var destinationBlobName = randomIdentifier();
+
+        final var repository = getRepository();
+
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+
+            final S3BlobContainer destinationBlobContainer = (S3BlobContainer) repository.blobStore()
+                .blobContainer(repository.basePath().add("target"));
+            destinationBlobContainer.executeMultipartCopy(
+                randomPurpose(),
+                (S3BlobContainer) sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            );
+
+            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+        });
+
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
     }
 }

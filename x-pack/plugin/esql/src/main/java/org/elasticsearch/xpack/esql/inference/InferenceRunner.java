@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class InferenceRunner {
 
     private final Client client;
@@ -33,7 +36,7 @@ public class InferenceRunner {
         return client.threadPool().getThreadContext();
     }
 
-    public void resolveInferenceIds(List<InferencePlan> plans, ActionListener<InferenceResolution> listener) {
+    public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
         resolveInferenceIds(plans.stream().map(InferenceRunner::planInferenceId).collect(Collectors.toSet()), listener);
 
     }
@@ -68,11 +71,11 @@ public class InferenceRunner {
         }
     }
 
-    private static String planInferenceId(InferencePlan plan) {
+    private static String planInferenceId(InferencePlan<?> plan) {
         return plan.inferenceId().fold(FoldContext.small()).toString();
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        client.execute(InferenceAction.INSTANCE, request, listener);
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
     }
 }

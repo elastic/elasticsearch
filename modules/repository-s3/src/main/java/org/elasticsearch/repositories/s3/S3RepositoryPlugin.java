@@ -9,11 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.regions.RegionUtils;
-import com.amazonaws.util.json.Jackson;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -30,8 +32,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,23 +43,7 @@ import java.util.Map;
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
-    static {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
-                // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
-                RegionUtils.initialize();
-            } catch (final ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
-    }
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final Settings settings;
@@ -74,6 +58,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     // proxy method for testing
     protected S3Repository createRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
@@ -81,18 +66,36 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RecoverySettings recoverySettings,
         final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
+        return new S3Repository(
+            projectId,
+            metadata,
+            registry,
+            service.get(),
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            s3RepositoriesMetrics
+        );
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        return List.of(service);
+        return List.of(service.get());
     }
 
     S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService);
+        return new S3Service(environment, nodeSettings, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    }
+
+    private static Region getDefaultRegion() {
+        try {
+            return DefaultAwsRegionProviderChain.builder().build().getRegion();
+        } catch (Exception e) {
+            logger.info("failed to obtain region from default provider chain", e);
+            return null;
+        }
     }
 
     @Override
@@ -107,7 +110,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics)
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            )
         );
     }
 
@@ -128,9 +139,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_CONNECTIONS_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
+            S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
-            S3ClientSettings.SIGNER_OVERRIDE,
+            S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
+            S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
             S3ClientSettings.REGION,
             S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
             S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,

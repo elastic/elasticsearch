@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.cohere.response.CohereEmbeddingsResponseEntity;
 
 import java.util.List;
 import java.util.Objects;

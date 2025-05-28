@@ -166,7 +166,8 @@ public class RefreshListenersTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            EngineTestCase.createMapperService()
+            EngineTestCase.createMapperService(),
+            new EngineResetLock()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
@@ -561,7 +562,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field idField = new StringField(IdFieldMapper.NAME, uid, Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(engine.config().getIndexSettings().seqNoIndexOptions());
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);

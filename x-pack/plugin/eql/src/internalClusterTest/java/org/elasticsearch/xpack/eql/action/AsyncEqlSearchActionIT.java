@@ -29,6 +29,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
@@ -81,6 +83,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() throws Exception {
+        internalCluster().startNode();
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
@@ -108,6 +111,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testBasicAsyncExecution() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -160,6 +164,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testGoingAsync() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -218,6 +223,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testAsyncCancellation() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -261,6 +267,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testFinishingBeforeTimeout() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();

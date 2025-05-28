@@ -529,7 +529,7 @@
     }
   ],
   "examples" : [
-    "FROM books\n| WHERE MATCH(author, \"Faulkner\")"
+    "FROM books\n| WHERE author:\"Faulkner\""
   ],
   "preview" : true,
   "snapshot_only" : false

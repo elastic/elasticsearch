@@ -100,12 +100,12 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression>, T
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return field() instanceof TranslationAware aware && aware.translatable(pushdownPredicates);
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return TranslationAware.translatable(field(), pushdownPredicates).negate();
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return handler.asQuery(field()).negate(source());
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return handler.asQuery(pushdownPredicates, field()).negate(source());
     }
 }

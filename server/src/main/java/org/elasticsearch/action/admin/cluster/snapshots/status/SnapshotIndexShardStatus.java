@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -160,5 +161,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

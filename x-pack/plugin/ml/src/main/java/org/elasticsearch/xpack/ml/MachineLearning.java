@@ -364,6 +364,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -525,7 +526,7 @@ public class MachineLearning extends Plugin
         License.OperationMode.PLATINUM
     );
 
-    private static final LicensedFeature.Momentary CATEGORIZE_TEXT_AGG_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary CATEGORIZE_TEXT_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "categorize-text-agg",
         License.OperationMode.PLATINUM
@@ -540,7 +541,7 @@ public class MachineLearning extends Plugin
         "inference-agg",
         License.OperationMode.PLATINUM
     );
-    private static final LicensedFeature.Momentary CHANGE_POINT_AGG_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary CHANGE_POINT_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "change-point-agg",
         License.OperationMode.PLATINUM
@@ -921,6 +922,9 @@ public class MachineLearning extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
         TelemetryProvider telemetryProvider = services.telemetryProvider();
 
+        // Initialize WritableIndexExpander
+        WritableIndexExpander.initialize(clusterService, indexNameExpressionResolver);
+
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
@@ -937,7 +941,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             machineLearningExtension.get().useIlm(),
-            xContentRegistry
+            xContentRegistry,
+            services.projectResolver()
         );
         registry.initialize();
 

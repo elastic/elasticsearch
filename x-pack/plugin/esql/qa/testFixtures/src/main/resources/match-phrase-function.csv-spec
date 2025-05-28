@@ -487,3 +487,11 @@ r:double           | author: text
 4.670000076293945  | Walter Scheps            
 4.559999942779541  | J.R.R. Tolkien           
 ;
+
+from books 
+| where match_phrase(title, "Lord Rings")
+| keep book_no
+;
+
+book_no:keyword
+;

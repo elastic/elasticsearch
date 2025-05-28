@@ -118,7 +118,7 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 > [!NOTE]
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,
 > a majority of transport actions are only ever invoked locally via the [NodeClient]. The two key features of a [TransportAction] are:
-> - Their constructor parameters are provided via dependency injection at runtime rather than direct instantiation.
+> - Their constructor parameters are provided via dependency injection (Guice) at runtime rather than direct instantiation.
 > - They represent a security boundary; we check that the calling user is authorized to call the action they're calling using action
 >   interceptors, which are described below.
 

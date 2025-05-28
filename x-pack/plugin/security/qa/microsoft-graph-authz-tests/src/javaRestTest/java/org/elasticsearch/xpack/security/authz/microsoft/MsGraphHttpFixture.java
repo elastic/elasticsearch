@@ -36,14 +36,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class MsGraphHttpFixture extends ExternalResource {
 

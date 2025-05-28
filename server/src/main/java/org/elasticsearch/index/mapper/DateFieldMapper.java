@@ -821,6 +821,51 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
         }
 
+        /**
+         * When the date value is already fully parsed and available as a long, use this method to skip parsing.
+         */
+        public Query equalityQuery(Long value, @Nullable SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, context);
+        }
+
+        /**
+         * When the date value is already fully parsed and available as a long, use this method to skip parsing.
+         */
+        public Query rangeQuery(
+            Long lowerTerm,
+            Long upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = (includeLower == false) ? lowerTerm + 1 : lowerTerm;
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
+            }
+            Query query;
+            if (isIndexed()) {
+                query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+            } else {
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
+            if (hasDocValues() && context.indexSortedOnField(name())) {
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            }
+            return query;
+        }
+
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);

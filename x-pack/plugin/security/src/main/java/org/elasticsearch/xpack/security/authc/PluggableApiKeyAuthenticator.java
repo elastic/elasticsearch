@@ -33,12 +33,14 @@ public class PluggableApiKeyAuthenticator implements Authenticator {
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
-        authenticator.authenticate(
-            authenticationToken,
-            ActionListener.wrap(
-                listener::onResponse,
-                ex -> listener.onFailure(context.getRequest().exceptionProcessingRequest(ex, authenticationToken))
-            )
-        );
+        authenticator.authenticate(authenticationToken, ActionListener.wrap(response -> {
+            if (response.isAuthenticated()) {
+                listener.onResponse(response);
+            } else if (response.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                listener.onFailure(context.getRequest().exceptionProcessingRequest(response.getException(), authenticationToken));
+            } else if (response.getStatus() == AuthenticationResult.Status.CONTINUE) {
+                listener.onResponse(AuthenticationResult.notHandled());
+            }
+        }, ex -> listener.onFailure(context.getRequest().exceptionProcessingRequest(ex, authenticationToken))));
     }
 }

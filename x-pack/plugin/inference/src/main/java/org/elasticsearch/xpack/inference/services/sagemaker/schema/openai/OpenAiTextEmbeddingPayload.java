@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
@@ -64,14 +63,18 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 
     @Override
     public SageMakerStoredTaskSchema apiTaskSettings(Map<String, Object> taskSettings, ValidationException validationException) {
-        return ApiTaskSettings.fromMap(taskSettings, validationException);
+        return SageMakerOpenAiTaskSettings.fromMap(taskSettings, validationException);
     }
 
     @Override
     public Stream<NamedWriteableRegistry.Entry> namedWriteables() {
         return Stream.of(
             new NamedWriteableRegistry.Entry(SageMakerStoredServiceSchema.class, ApiServiceSettings.NAME, ApiServiceSettings::new),
-            new NamedWriteableRegistry.Entry(SageMakerStoredTaskSchema.class, ApiTaskSettings.NAME, ApiTaskSettings::new)
+            new NamedWriteableRegistry.Entry(
+                SageMakerStoredTaskSchema.class,
+                SageMakerOpenAiTaskSettings.NAME,
+                SageMakerOpenAiTaskSettings::new
+            )
         );
     }
 
@@ -88,7 +91,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     @Override
     public SdkBytes requestBytes(SageMakerModel model, SageMakerInferenceRequest request) throws Exception {
         if (model.apiServiceSettings() instanceof ApiServiceSettings apiServiceSettings
-            && model.apiTaskSettings() instanceof ApiTaskSettings apiTaskSettings) {
+            && model.apiTaskSettings() instanceof SageMakerOpenAiTaskSettings apiTaskSettings) {
             try (var builder = JsonXContent.contentBuilder()) {
                 builder.startObject();
                 if (request.query() != null) {
@@ -176,54 +179,6 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         @Override
         public SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
             return new ApiServiceSettings(dimensions, false);
-        }
-    }
-
-    record ApiTaskSettings(@Nullable String user) implements SageMakerStoredTaskSchema {
-        private static final String NAME = "sagemaker_openai_text_embeddings_task_settings";
-        private static final String USER_FIELD = "user";
-
-        ApiTaskSettings(StreamInput in) throws IOException {
-            this(in.readOptionalString());
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_SAGEMAKER;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(user);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return user != null ? builder.field(USER_FIELD, user) : builder;
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return user == null;
-        }
-
-        @Override
-        public ApiTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            var validationException = new ValidationException();
-            var newTaskSettings = fromMap(newSettings, validationException);
-            validationException.throwIfValidationErrorsExist();
-
-            return new ApiTaskSettings(newTaskSettings.user() != null ? newTaskSettings.user() : user);
-        }
-
-        static ApiTaskSettings fromMap(Map<String, Object> map, ValidationException exception) {
-            var user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, exception);
-            return new ApiTaskSettings(user);
         }
     }
 }

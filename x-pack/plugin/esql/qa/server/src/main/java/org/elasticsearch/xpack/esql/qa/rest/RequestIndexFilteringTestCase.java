@@ -195,7 +195,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     public void testIndicesDontExist() throws IOException {
-        int docsTest1 = 0; // we are interested only in the created index, not necessarily that it has data
+        int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo"))));
@@ -208,7 +208,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1"))));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
@@ -231,7 +231,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
-    private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
+    protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
         return requestObjectBuilder().filter(b -> {
             b.startObject("range");
             {

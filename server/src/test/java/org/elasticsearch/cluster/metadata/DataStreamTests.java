@@ -2606,13 +2606,18 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .put("index.setting2", "dataStreamValue")
             .put("index.setting3", (String) null) // This one gets removed from the effective settings
             .build();
-        DataStream dataStream = createDataStream(dataStreamSettings, DataStream.EMPTY_MAPPINGS);
+        CompressedXContent dataStreamMappings = new CompressedXContent(
+            Map.of("properties", Map.of("field2", Map.of("type", "text"), "field3", Map.of("type", "keyword")))
+        );
+        DataStream dataStream = createDataStream(dataStreamSettings, dataStreamMappings);
         Settings templateSettings = Settings.builder()
             .put("index.setting1", "templateValue")
             .put("index.setting3", "templateValue")
             .put("index.setting4", "templateValue")
             .build();
-        CompressedXContent templateMappings = randomMappings();
+        CompressedXContent templateMappings = new CompressedXContent(
+            Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"), "field2", Map.of("type", "keyword"))))
+        );
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
@@ -2626,7 +2631,44 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .put("index.setting2", "dataStreamValue")
             .put("index.setting4", "templateValue")
             .build();
-        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
+        CompressedXContent mergedMappings = new CompressedXContent(
+            Map.of(
+                "properties",
+                Map.of("field1", Map.of("type", "keyword"), "field2", Map.of("type", "text"), "field3", Map.of("type", "keyword"))
+            )
+        );
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(mergedMappings);
+        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(expectedTemplateBuilder)
+            .build();
+        assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
+    }
+
+    public void testGetEffectiveMappingsNoMatchingTemplate() {
+        // No matching template, so we expect an IllegalArgumentException
+        DataStream dataStream = createTestInstance();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build()));
+    }
+
+    public void testGetEffectiveIndexTemplateDataStreamMappingsOnly() throws IOException {
+        // We only have mappings from the data stream, so we expect to get only those back in the effective template
+        CompressedXContent dataStreamMappings = randomMappings();
+        DataStream dataStream = createDataStream(Settings.EMPTY, dataStreamMappings);
+        Settings templateSettings = Settings.EMPTY;
+        CompressedXContent templateMappings = new CompressedXContent(Map.of("_doc", Map.of()));
+        ;
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(templateSettings).mappings(dataStreamMappings);
         ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

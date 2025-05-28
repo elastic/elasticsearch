@@ -306,7 +306,7 @@ testMatchPhraseDateNanosFieldAsString
 required_capability: match_phrase_function
 
 from date_nanos
-| where match(nanos, "2023-10-23T13:55:01.543123456Z")
+| where match_phrase(nanos, "2023-10-23T13:55:01.543123456Z")
 | keep nanos;
 
 nanos:date_nanos

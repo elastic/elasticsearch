@@ -180,7 +180,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * The budget (estimation) for a merge task is the disk space (still) required for it to complete. As the merge progresses,
      * its budget decreases (as the bytes already written have been incorporated into the filesystem stats about the used disk space).
      */
-    private final MergeTaskPriorityBlockingQueue queuedMergeTasks;
+    private final MergeTaskPriorityBlockingQueue queuedMergeTasks = new MergeTaskPriorityBlockingQueue();
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
      * These are tracked notably in order to be able to update their disk IO throttle rate, after they have started, while executing.
@@ -208,33 +208,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         NodeEnvironment nodeEnvironment
     ) {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
-            MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
-            // start monitoring the available disk space, and update the available budget for running merge tasks
-            // Note: this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
-            // available disk space. In this case, merges will NOT be blocked for shards on data paths with insufficient available
-            // disk space, as long as a single data path has enough available disk space to run merges for any shards that it stores
-            // (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
-            // (but nothing blows up either, if using multiple data paths))
-            AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
-                nodeEnvironment.dataPaths(),
-                threadPool,
-                clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
-                clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
-                clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
-                (availableDiskSpaceByteSize) -> mergeTaskPriorityBlockingQueue.updateBudget(availableDiskSpaceByteSize.getBytes())
-            );
-            clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
-                availableDiskSpacePeriodicMonitor::setHighStageWatermark
-            );
-            clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
-                availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
-            );
-            clusterSettings.addSettingsUpdateConsumer(
-                INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-                availableDiskSpacePeriodicMonitor::setCheckInterval
-            );
             // owns and closes the disk space monitor
             return new ThreadPoolMergeExecutorService(threadPool, mergeTaskPriorityBlockingQueue, availableDiskSpacePeriodicMonitor);
         } else {
@@ -251,7 +224,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     private ThreadPoolMergeExecutorService(
         ThreadPool threadPool,
         MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue,
-        AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
     ) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
@@ -259,8 +233,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
-        this.queuedMergeTasks = mergeTaskPriorityBlockingQueue;
-        this.availableDiskSpacePeriodicMonitor = availableDiskSpacePeriodicMonitor;
+        this.availableDiskSpacePeriodicMonitor = startDiskSpaceMonitoring(
+            threadPool,
+            nodeEnvironment.dataPaths(),
+            clusterSettings,
+            (availableDiskSpaceByteSize) -> mergeTaskPriorityBlockingQueue.updateBudget(availableDiskSpaceByteSize.getBytes())
+        );
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -406,6 +384,43 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
             mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
         }
+    }
+
+    /**
+     * Start monitoring the available disk space, and update the available budget for running merge tasks
+     * Note: this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
+     * available disk space. In this case, merges will NOT be blocked for shards on data paths with insufficient available
+     * disk space, as long as a single data path has enough available disk space to run merges for any shards that it stores
+     * (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
+     * (but nothing blows up either, if using multiple data paths))
+     */
+    static AvailableDiskSpacePeriodicMonitor startDiskSpaceMonitoring(
+        ThreadPool threadPool,
+        NodeEnvironment.DataPath[] dataPaths,
+        ClusterSettings clusterSettings,
+        Consumer<ByteSizeValue> updateConsumer
+    ) {
+        AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
+            dataPaths,
+            threadPool,
+            clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
+            clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
+            clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
+            updateConsumer
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+            availableDiskSpacePeriodicMonitor::setHighStageWatermark
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+            availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            availableDiskSpacePeriodicMonitor::setCheckInterval
+        );
+        return availableDiskSpacePeriodicMonitor;
     }
 
     static class AvailableDiskSpacePeriodicMonitor implements Closeable {
@@ -650,11 +665,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         private record Wrap<E>(E element) {}
     }
 
-    @Override
-    public void close() throws IOException {
-        availableDiskSpacePeriodicMonitor.close();
-    }
-
     private static long newTargetIORateBytesPerSec(
         long currentTargetIORateBytesPerSec,
         int currentlySubmittedIOThrottledMergeTasks,
@@ -739,5 +749,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     // exposed for tests
     int getMaxConcurrentMerges() {
         return maxConcurrentMerges;
+    }
+
+    @Override
+    public void close() throws IOException {
+        availableDiskSpacePeriodicMonitor.close();
     }
 }

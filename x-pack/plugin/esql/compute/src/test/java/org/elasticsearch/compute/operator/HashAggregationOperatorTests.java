@@ -15,7 +15,6 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.LongTopNBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -113,14 +112,16 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         var aggregatorChannels = List.of(1);
 
         try (
-            var operator = new HashAggregationOperator(
+            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, 3))),
+                mode,
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
-                () -> new LongTopNBlockHash(groupChannel, ascOrder, false, 3, blockFactory()),
-                driverContext()
-            )
+                randomPageSize(),
+                null
+            ).get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(
@@ -188,14 +189,16 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         var aggregatorChannels = List.of(1);
 
         try (
-            var operator = new HashAggregationOperator(
+            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, true, 3))),
+                mode,
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
-                () -> new LongTopNBlockHash(groupChannel, ascOrder, true, 3, blockFactory()),
-                driverContext()
-            )
+                randomPageSize(),
+                null
+            ).get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(

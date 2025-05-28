@@ -31,8 +31,7 @@ import java.util.BitSet;
 /**
  * Maps a {@link LongBlock} column to group ids, keeping only the top N values.
  */
-// TODO: package-private instead of public?
-public final class LongTopNBlockHash extends BlockHash {
+final class LongTopNBlockHash extends BlockHash {
     private final int channel;
     private final boolean asc;
     private final boolean nullsFirst;

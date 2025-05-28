@@ -43,6 +43,49 @@ IMPORTANT: Users building custom docker images based on this Dockerfile may have
 See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
 
 [discrete]
+[[es-connectors-release-notes-8-17-7]]
+=== 8.17.7
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-6]]
+=== 8.17.6
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-5]]
+=== 8.17.5
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-4]]
+=== 8.17.4
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-3]]
+=== 8.17.3
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-2]]
+=== 8.17.2
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-1]]
+=== 8.17.1
+
+* Fixed an issue where full syncs could delete newly ingested documents if the document ID from the third-party source was numeric.
+See https://github.com/elastic/connectors/pull/3031[*PR 3031*]
+
+[discrete]
 [[es-connectors-release-notes-8-17-0]]
 === 8.17.0
 

@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -554,7 +555,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 relativeTimeSupplier,
                 null,
                 MapperMetrics.NOOP,
-                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+                MergeMetrics.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

@@ -149,6 +149,8 @@ public final class EngineConfig {
 
     private final EngineResetLock engineResetLock;
 
+    private final MergeMetrics mergeMetrics;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -181,7 +183,8 @@ public final class EngineConfig {
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
         MapperService mapperService,
-        EngineResetLock engineResetLock
+        EngineResetLock engineResetLock,
+        MergeMetrics mergeMetrics
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -229,6 +232,7 @@ public final class EngineConfig {
         // always use compound on flush - reduces # of file-handles on refresh
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
+        this.mergeMetrics = mergeMetrics;
     }
 
     /**
@@ -476,5 +480,9 @@ public final class EngineConfig {
 
     public EngineResetLock getEngineResetLock() {
         return engineResetLock;
+    }
+
+    public MergeMetrics getMergeMetrics() {
+        return mergeMetrics;
     }
 }

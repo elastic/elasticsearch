@@ -97,7 +97,7 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         super.testExistentIndexWithoutWildcard();
     }
 
-    private static boolean checkVersion(org.elasticsearch.Version version) {
+    private static boolean checkVersion(Version version) {
         return version.onOrAfter(Version.fromString("9.1.0"))
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }

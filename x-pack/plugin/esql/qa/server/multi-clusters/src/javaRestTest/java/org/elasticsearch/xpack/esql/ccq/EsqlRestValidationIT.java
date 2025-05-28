@@ -97,13 +97,13 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         super.testExistentIndexWithoutWildcard();
     }
 
-    private static boolean checkVersion(Version version) {
-        return version.onOrAfter(Version.fromString("9.1.0"))
-            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
-    }
-
     @Before
     public void skipTestOnOldVersions() {
-        assumeTrue("skip on old versions", checkVersion(Clusters.localClusterVersion()));
+        Version version = Clusters.localClusterVersion();
+        assumeTrue(
+            "skip on old versions",
+            version.onOrAfter(Version.fromString("9.1.0"))
+                || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")))
+        );
     }
 }

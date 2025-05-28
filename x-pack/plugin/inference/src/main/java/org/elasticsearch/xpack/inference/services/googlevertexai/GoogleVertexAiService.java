@@ -90,6 +90,7 @@ public class GoogleVertexAiService extends SenderService {
     private final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
         "Google VertexAI chat completion"
     );
+
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.CHAT_COMPLETION);

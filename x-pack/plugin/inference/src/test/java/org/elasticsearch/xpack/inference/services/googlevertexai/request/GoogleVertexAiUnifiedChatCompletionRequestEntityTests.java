@@ -638,6 +638,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         }
 
     }
+
     public void testParseFunctionCallWithEmptyStringContent() throws IOException {
         String requestJson = """
             {

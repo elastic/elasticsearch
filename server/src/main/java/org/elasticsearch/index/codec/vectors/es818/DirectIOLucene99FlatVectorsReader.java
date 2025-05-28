@@ -36,6 +36,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.ReadAdvice;
@@ -86,7 +87,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     }
 
     public static boolean shouldUseDirectIO(SegmentReadState state) {
-        return USE_DIRECT_IO && state.directory instanceof DirectIOIndexInputSupplier;
+        return USE_DIRECT_IO && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -126,7 +127,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         // use direct IO for accessing raw vector data for searches
-        IndexInput in = USE_DIRECT_IO && state.directory instanceof DirectIOIndexInputSupplier did
+        IndexInput in = USE_DIRECT_IO && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier did
             ? did.openInputDirect(fileName, context)
             : state.directory.openInput(fileName, context);
         boolean success = false;

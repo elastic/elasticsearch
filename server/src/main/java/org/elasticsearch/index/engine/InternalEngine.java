@@ -1825,7 +1825,7 @@ public class InternalEngine extends Engine {
             } else {
                 // TODO
                 indexWriter.softUpdateDocument(new Term(IdFieldMapper.NAME, delete.uid()), doc, softDeletesField);
-                
+
             }
             return new DeleteResult(
                 plan.versionOfDeletion,

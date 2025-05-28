@@ -234,13 +234,9 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest(indexName);
         int numDocs = randomIntBetween(16, 256);
         for (int j = 0; j < numDocs; j++) {
-            var indexRequest = new IndexRequest(indexName)
-                .opType(DocWriteRequest.OpType.INDEX)
-                .id("id-" + j);
+            var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.INDEX).id("id-" + j);
             indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + j),
+                DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -254,7 +250,6 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             flush(indexName, randomBoolean());
         }
 
-
         var searchRequest = new SearchRequest(indexName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
@@ -267,10 +262,7 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
         }
 
-        assertThat(
-            client().prepareSearch(indexName).get().getHits().getTotalHits().value(),
-            equalTo(0)
-        );
+        assertThat(client().prepareSearch(indexName).get().getHits().getTotalHits().value(), equalTo(0));
     }
 
     private void createTemplate(String dataStreamName) throws IOException {

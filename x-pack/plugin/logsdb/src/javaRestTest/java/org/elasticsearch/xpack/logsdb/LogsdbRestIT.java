@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -421,37 +420,27 @@ public class LogsdbRestIT extends ESRestTestCase {
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
-
         var getRequest = new Request("GET", "/" + indexName + "/_doc/" + "some_id_4");
-       var getResponse = client().performRequest(getRequest);
+        var getResponse = client().performRequest(getRequest);
         logger.info(getRequest);
         assertOK(getResponse);
 
-
-
-
-
-
-
-
-
-
-//        var searchRequest = new Request("POST", "/" + indexName + "/_search");
-//
-//        searchRequest.setJsonEntity("""
-//            {
-//                "query": {
-//                    "match": {
-//                        "_id": "some_id_5"
-//                    }
-//                }
-//            }
-//            """);
-//        var searchResponse = client().performRequest(searchRequest);
-//        assertOK(searchResponse);
-//        var searchResponseBody = responseAsMap(searchResponse);
-//        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
-//        assertThat(totalHits, equalTo(1));
+        // var searchRequest = new Request("POST", "/" + indexName + "/_search");
+        //
+        // searchRequest.setJsonEntity("""
+        // {
+        // "query": {
+        // "match": {
+        // "_id": "some_id_5"
+        // }
+        // }
+        // }
+        // """);
+        // var searchResponse = client().performRequest(searchRequest);
+        // assertOK(searchResponse);
+        // var searchResponseBody = responseAsMap(searchResponse);
+        // int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
+        // assertThat(totalHits, equalTo(1));
     }
 
 }

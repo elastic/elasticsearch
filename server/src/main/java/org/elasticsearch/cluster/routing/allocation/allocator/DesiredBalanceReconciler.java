@@ -634,7 +634,7 @@ public class DesiredBalanceReconciler {
             Set<String> desiredNodeIds,
             BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
         ) {
-            // First sort by allocation ordering so we distributed relocated shards evenly
+            // First sort by allocation ordering so we distribute relocated shards evenly
             final List<String> allocationPreference = allocationOrdering.sort(desiredNodeIds);
             for (final var nodeId : allocationPreference) {
                 // TODO consider ignored nodes here too?

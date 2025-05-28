@@ -609,6 +609,8 @@ public class Constants {
         "indices:data/write/reindex",
         "indices:data/write/update",
         "indices:data/write/update/byquery",
+        "indices:monitor/data_stream/mappings/get",
+        "indices:monitor/data_stream/mappings/update",
         "indices:monitor/data_stream/settings/get",
         "indices:monitor/data_stream/settings/update",
         "indices:monitor/data_stream/stats",

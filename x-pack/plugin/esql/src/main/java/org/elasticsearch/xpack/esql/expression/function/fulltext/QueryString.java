@@ -113,14 +113,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
             @Example(file = "qstr-function", tag = "qstr-with-options") },
         appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.GA,
-                version = "9.1"
-            ),
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.PREVIEW,
-                version = "9.0"
-            ) }
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0") }
     )
     public QueryString(
         Source source,

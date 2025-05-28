@@ -269,10 +269,10 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public List<Mapper> getSourceFields() {
+    public List<Mapper> getSourceFieldMappers() {
         List<Mapper> fields = new ArrayList<>();
         for (Mapper mapper : mappers.values()) {
-            fields.addAll(mapper.getSourceFields());
+            fields.addAll(mapper.getSourceFieldMappers());
         }
         return fields;
     }

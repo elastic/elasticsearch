@@ -121,7 +121,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public List<Mapper> getSourceFields() {
+    public List<Mapper> getSourceFieldMappers() {
         return List.of(this);
     }
 

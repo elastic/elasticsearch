@@ -242,14 +242,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public List<Mapper> getSourceFields() {
+    public List<Mapper> getSourceFieldMappers() {
         List<Mapper> fields = new ArrayList<>();
         fields.add(this);
         for (Mapper mapper : mappers.values()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 fields.add(fieldMapper);
             } else if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
-                fields.addAll(passThroughObjectMapper.getSourceFields());
+                fields.addAll(passThroughObjectMapper.getSourceFieldMappers());
             }
         }
         return fields;

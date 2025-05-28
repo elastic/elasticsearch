@@ -91,10 +91,6 @@ public class LongBucketedSort implements Releasable {
      * </p>
      */
     public void collect(long value, int bucket) {
-        if (bucketSize == 0) {
-            return;
-        }
-
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
@@ -148,51 +144,6 @@ public class LongBucketedSort implements Releasable {
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
         return Tuple.tuple(start, end);
-    }
-
-    /**
-     * Returns the amount of elements in the given bucket.
-     */
-    public int getBucketCount(int bucket) {
-        long rootIndex = (long) bucket * bucketSize;
-        if (rootIndex >= values.size()) {
-            // We've never seen this bucket.
-            return 0;
-        }
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
-
-        return (int) (end - start);
-    }
-
-    /**
-     * Returns the worst value in the given bucket.
-     * <p>
-     *     This method shouldn't be called if the bucket is empty.
-     * </p>
-     * <p>
-     *     This method is O(1) if the bucket is full; O(n) otherwise.
-     * </p>
-     */
-    public long getWorstValue(int bucket) {
-        assert getBucketCount(bucket) > 0 : "Cannot get the worst value of an empty bucket";
-
-        long rootIndex = (long) bucket * bucketSize;
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
-
-        if (inHeapMode(bucket)) {
-            return values.get(start);
-        }
-
-        long worstValue = values.get(start);
-        for (long i = start + 1; i < end; i++) {
-            if (betterThan(worstValue, values.get(i))) {
-                worstValue = values.get(i);
-            }
-        }
-
-        return worstValue;
     }
 
     /**

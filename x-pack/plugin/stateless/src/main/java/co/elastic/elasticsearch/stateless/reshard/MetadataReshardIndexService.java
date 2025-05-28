@@ -53,6 +53,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -95,6 +96,9 @@ public class MetadataReshardIndexService {
         if (indexMetadata.getReshardingMetadata() != null) {
             return ValidationError.ALREADY_RESHARDING;
         }
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            return ValidationError.CLOSED;
+        }
 
         return null;
     }
@@ -103,7 +107,8 @@ public class MetadataReshardIndexService {
         INDEX_NOT_FOUND,
         SYSTEM_INDEX,
         DATA_STREAM_INDEX,
-        ALREADY_RESHARDING;
+        ALREADY_RESHARDING,
+        CLOSED;
 
         public RuntimeException intoException(Index index) {
             return switch (this) {
@@ -113,6 +118,7 @@ public class MetadataReshardIndexService {
                     "resharding an index " + index + " that is part of a data stream is not supported"
                 );
                 case ALREADY_RESHARDING -> new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
+                case CLOSED -> new IndexClosedException(index);
             };
         }
     }

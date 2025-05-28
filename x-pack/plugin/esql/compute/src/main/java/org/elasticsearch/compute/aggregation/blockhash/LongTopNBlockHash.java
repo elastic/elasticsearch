@@ -48,8 +48,7 @@ final class LongTopNBlockHash extends BlockHash {
      */
     private boolean hasNull;
 
-    // TODO: package-private instead of public?
-    public LongTopNBlockHash(int channel, boolean asc, boolean nullsFirst, int limit, BlockFactory blockFactory) {
+    LongTopNBlockHash(int channel, boolean asc, boolean nullsFirst, int limit, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
         this.asc = asc;
@@ -272,7 +271,6 @@ final class LongTopNBlockHash extends BlockHash {
         int nullOffset = hasNull ? 1 : 0;
         final int[] ids = new int[topValues.getCount() + nullOffset];
         int idsIndex = nullOffset;
-        // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
         for (int i = 1; i < hash.size() + 1; i++) {
             long value = hash.get(i - 1);
             if (isInTop(value)) {
@@ -284,11 +282,10 @@ final class LongTopNBlockHash extends BlockHash {
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        BitArray seenGroups = new BitArray(111, bigArrays);
+        BitArray seenGroups = new BitArray(1, bigArrays);
         if (hasNull) {
             seenGroups.set(0);
         }
-        // TODO: Can we instead iterate the top and take the ids from the hash? To avoid checking unused values
         for (int i = 1; i < hash.size() + 1; i++) {
             long value = hash.get(i - 1);
             if (isInTop(value)) {

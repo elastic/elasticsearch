@@ -544,7 +544,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + "This role grants monitor_ml cluster privileges, read access to the .ml-notifications and .ml-anomalies* indices "
                         + "(which store machine learning results), and write access to .ml-annotations* indices. "
                         + "Machine learning users also need index privileges for source and destination indices "
-                        + "and roles that grant access to Kibana. "
+                        + "and roles that grant access to Kibana."
                 )
             ),
             entry(

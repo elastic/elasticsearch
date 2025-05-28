@@ -8,13 +8,8 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
@@ -34,7 +29,6 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -369,23 +363,6 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.SHAPE, ignoreMalformed);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return v -> asWKT((BytesRef) v);
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        // Synthetic source is currently not supported.
-        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
     }
 
     @Override

@@ -303,6 +303,49 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
+     * Load {@code float}s from {@code _source}.
+     */
+    public static class DenseVectorBlockLoader extends SourceBlockLoader {
+        private final int dimensions;
+
+        public DenseVectorBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
+            super(fetcher, lookup);
+            this.dimensions = dimensions;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.denseVectors(expectedCount, dimensions);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new DenseVectors(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "DenseVectors";
+        }
+    }
+
+    private static class DenseVectors extends BlockSourceReader {
+        DenseVectors(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.FloatBuilder) builder).appendFloat(((Number) v).floatValue());
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.DenseVectors";
+        }
+    }
+
+    /**
      * Load {@code int}s from {@code _source}.
      */
     public static class IntsBlockLoader extends SourceBlockLoader {

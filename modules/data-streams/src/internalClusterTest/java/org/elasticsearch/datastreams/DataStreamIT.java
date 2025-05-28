@@ -201,8 +201,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
-        verifyDocs("metrics-bar", numDocsBar, 1, 1);
-        verifyDocs("metrics-foo", numDocsFoo, 1, 1);
+        verifyDocs("metrics-bar", numDocsBar);
+        verifyDocs("metrics-foo", numDocsFoo);
 
         RolloverResponse fooRolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
         assertThat(fooRolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-foo", 2));
@@ -233,8 +233,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo2 = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo2);
 
-        verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
-        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
+        verifyDocs("metrics-bar", numDocsBar + numDocsBar2);
+        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2);
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "metrics-*");
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
@@ -468,7 +468,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs);
-        verifyDocs(dataStreamName, numDocs, 1, 1);
+        verifyDocs(dataStreamName, numDocs);
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -502,7 +502,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs2 = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs2);
-        verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
+        verifyDocs(dataStreamName, numDocs + numDocs2);
 
         getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
@@ -947,7 +947,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndex = getDataStreamBackingIndexNames(dataStreamName).get(0);
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(backingIndex).aliases("first_gen");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
@@ -2035,11 +2035,8 @@ public class DataStreamIT extends ESIntegTestCase {
         });
     }
 
-    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
-        List<String> expectedIndices = new ArrayList<>();
-        for (long k = minGeneration; k <= maxGeneration; k++) {
-            expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
-        }
+    static void verifyDocs(String dataStream, long expectedNumHits) {
+        List<String> expectedIndices = getDataStreamBackingIndexNames(dataStream);
         verifyDocs(dataStream, expectedNumHits, expectedIndices);
     }
 

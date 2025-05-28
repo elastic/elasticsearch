@@ -377,7 +377,7 @@ class DatafeedJob {
                 extractedData = result.data();
                 searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
+                LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.

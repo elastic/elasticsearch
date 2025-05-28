@@ -1338,7 +1338,7 @@ public class TokenService {
                                 );
                         } else {
                             logger.info(
-                                "failed to update the original token document [{}] after all retries, the update result was [{}]. ",
+                                "failed to update the original token document [{}] after all retries, the update result was [{}].",
                                 tokenDoc.id(),
                                 updateResponse.getResult()
                             );

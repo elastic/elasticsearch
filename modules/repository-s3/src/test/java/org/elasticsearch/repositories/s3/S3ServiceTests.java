@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
 import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointProvider;
@@ -23,8 +24,10 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class S3ServiceTests extends ESTestCase {
@@ -183,5 +186,58 @@ public class S3ServiceTests extends ESTestCase {
                     to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node""")
             );
         }
+    }
+
+    public void testEndpointOverrideSchemeDefaultsToHttpsWhenNotSpecified() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(Settings.builder().put("s3.client." + clientName + ".endpoint", endpointWithoutScheme), clientName),
+            equalTo(URI.create("https://" + endpointWithoutScheme))
+        );
+    }
+
+    public void testEndpointOverrideSchemeUsesHttpsIfHttpsProtocolSpecified() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(
+                Settings.builder()
+                    .put("s3.client." + clientName + ".endpoint", endpointWithoutScheme)
+                    .put("s3.client." + clientName + ".protocol", "https"),
+                clientName
+            ),
+            equalTo(URI.create("https://" + endpointWithoutScheme))
+        );
+        assertCriticalWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release.""", clientName));
+    }
+
+    public void testEndpointOverrideSchemeUsesHttpIfHttpProtocolSpecified() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var clientName = randomIdentifier();
+        assertThat(
+            getEndpointUri(
+                Settings.builder()
+                    .put("s3.client." + clientName + ".endpoint", endpointWithoutScheme)
+                    .put("s3.client." + clientName + ".protocol", "http"),
+                clientName
+            ),
+            equalTo(URI.create("http://" + endpointWithoutScheme))
+        );
+        assertCriticalWarnings(Strings.format("""
+            [s3.client.%s.protocol] setting was deprecated in Elasticsearch and will be removed in a future release.""", clientName));
+    }
+
+    private static URI getEndpointUri(Settings.Builder settings, String clientName) {
+        return new S3Service(
+            mock(Environment.class),
+            Settings.EMPTY,
+            mock(ResourceWatcherService.class),
+            () -> Region.of(randomIdentifier())
+        ).buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))
+            .serviceClientConfiguration()
+            .endpointOverride()
+            .get();
     }
 }

@@ -438,7 +438,9 @@ Vector Search::
 
 Infra/Core::
 * Bump major version for feature migration system indices {es-pull}117243[#117243]
-* Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager. {es-pull}125073[#125073]
+* Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since
+Java 17, and it is now completely disabled in Java 24. In order to retain a similar level of protection, {es}
+implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager. {es-pull}125073[#125073]
 * Update ASM 9.7 -> 9.7.1 to support JDK 24 {es-pull}118094[#118094]
 
 Machine Learning::
@@ -457,3 +459,35 @@ Search::
 Watcher::
 * Script for migrating `.watches` and `.triggered_watches` indices {es-pull}120371[#120371]
 
+[discrete]
+[[known-issues-8.18.0]]
+=== Known issues
+
+Infra/Core::
+* {es} on Windows might fail to start, or might forbid some file-related operations, when referencing paths
+with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the
+filesystem stores them with case. Entitlements, the new security system used by {es}, treat all paths as
+case-sensitive, and can therefore prevent access to a path that should be accessible.
++
+For example: If {es} is installed in  `C:\ELK\elasticsearch`, and you try to launch it as
+`c:\elk\elasticsearch\bin\elasticsearch.bat`, you will get a `NotEntitledException` while booting. This is because
+{es} blocks access to `c:\elk\elasticsearch`, because does not match `C:\ELK\elasticsearch`.
+This issue will be fixed in a future patch release (see {es-pull}126990[#126990]).
++
+As a workaround, make sure that all paths you specify have the same casing as the paths stored in the filesystem.
+Files and directory names should be entered as they appear in Windows Explorer or in a command prompt. This applies
+to paths specified in the command line, config files, environment variables and secure settings.
+
+* Active Directory authentication is blocked by default. Entitlements, the new security system used by {es},
+has a policy for the `x-pack-core` module that is too restrictive, and does not allow the LDAP library used for AD
+authentication to perform outbound network connections. This issue will be fixed in a future patch release
+(see {es-pull}126992[#126992]).
++
+As a workaround, you can temporarily patch the policy using a JVM option:
+
+1. Create a file called `${ES_CONF_PATH}/jvm.options.d/workaround-127061.options`.
+2. Add the following line to the new file:
++
+     -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr
++
+For information about editing your JVM settings, refer to <<set-jvm-options>>.

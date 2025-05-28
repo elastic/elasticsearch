@@ -110,9 +110,8 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
-
-        FetchContext fetchContext = new FetchContext(context);
-        SourceLoader sourceLoader = context.newSourceLoader();
+        SourceLoader sourceLoader = context.newSourceLoader(null);
+        FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();

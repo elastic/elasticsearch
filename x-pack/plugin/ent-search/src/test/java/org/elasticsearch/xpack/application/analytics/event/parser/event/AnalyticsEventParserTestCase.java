@@ -84,7 +84,7 @@ public abstract class AnalyticsEventParserTestCase extends ESTestCase {
 
                 try (XContentParser xContentParser = createXContentParser(json)) {
                     Exception e = expectThrows(IllegalArgumentException.class, () -> parser().parse(xContentParser, context));
-                    assertEquals(Strings.format("Required one of fields [%s], but none were specified. ", field), e.getMessage());
+                    assertEquals(Strings.format("Required one of fields [%s], but none were specified.", field), e.getMessage());
                 }
             }
         }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -17,7 +16,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -87,21 +85,18 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+                || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                    executionInfo,
+                    clusterAlias,
+                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                    e
+                );
                 l.onResponse(List.of());
-            } else if (configuration.allowPartialResults()
-                && (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
-                    EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                        executionInfo,
-                        clusterAlias,
-                        EsqlExecutionInfo.Cluster.Status.PARTIAL,
-                        e
-                    );
-                    l.onResponse(List.of());
-                } else {
-                    l.onFailure(e);
-                }
+            } else {
+                l.onFailure(e);
+            }
         });
         ExchangeService.openExchange(
             transportService,
@@ -272,6 +267,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        "remote_reduce",
                         clusterAlias,
                         List.of(),
                         configuration,

@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQ
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -151,10 +152,10 @@ public class CrossClusterAsyncQueryIT extends AbstractCrossClusterTestCase {
 
             } else {
                 assertThat(resp.columns().size(), equalTo(4));
-                assertThat(resp.columns().contains(new ColumnInfoImpl("const", "long")), is(true));
-                assertThat(resp.columns().contains(new ColumnInfoImpl("id", "keyword")), is(true));
-                assertThat(resp.columns().contains(new ColumnInfoImpl("tag", "keyword")), is(true));
-                assertThat(resp.columns().contains(new ColumnInfoImpl("v", "long")), is(true));
+                assertThat(resp.columns(), hasItem(new ColumnInfoImpl("const", "long", null)));
+                assertThat(resp.columns(), hasItem(new ColumnInfoImpl("id", "keyword", null)));
+                assertThat(resp.columns(), hasItem(new ColumnInfoImpl("tag", "keyword", null)));
+                assertThat(resp.columns(), hasItem(new ColumnInfoImpl("v", "long", null)));
                 assertThat(resp.values().hasNext(), is(false));  // values should be empty list
 
                 assertNotNull(executionInfo);

@@ -1176,3 +1176,48 @@ setup:
   - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.embeddings
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.start_offset: 20 }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 35 }
+
+---
+"inference endpoint late creation":
+  - do:
+      indices.create:
+        index: new-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: new_inference_endpoint
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: new_inference_endpoint
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      index:
+        index: new-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: new-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+

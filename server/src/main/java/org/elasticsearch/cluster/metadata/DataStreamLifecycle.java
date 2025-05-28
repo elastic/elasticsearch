@@ -36,19 +36,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Holds the data stream lifecycle metadata that are configuring how a data stream is managed. Currently, it supports the following
- * configurations:
- * - enabled
- * - data retention
- * - downsampling
+ * Holds the data stream lifecycle configuration that defines how the data stream indices of a data stream are managed. The lifecycle also
+ * has a type that determines the type of index component it can manage. Currently, we support data and failures.
+ * Lifecycle supports the following configurations:
+ * - enabled, applicable to data and failures
+ * - data retention, applicable to data and failures
+ * - downsampling, applicable only to data
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
@@ -66,6 +70,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         "true"
     );
     public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+    private static final String DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE =
+        "Failure store lifecycle does not support downsampling, please remove the downsampling configuration.";
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -87,6 +93,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     );
 
     public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = DataStreamLifecycle.createDataLifecycle(null, null, null);
+    public static final DataStreamLifecycle DEFAULT_FAILURE_LIFECYCLE = DataStreamLifecycle.createFailuresLifecycle(null, null);
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -98,10 +105,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamLifecycle, LifecycleType> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
+        (args, lt) -> new DataStreamLifecycle(lt, (Boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
     );
 
     static {
@@ -121,22 +128,34 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return null;
             } else {
-                return AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent);
+                return AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent);
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
     }
 
+    private final LifecycleType lifecycleType;
     private final boolean enabled;
     @Nullable
     private final TimeValue dataRetention;
     @Nullable
     private final List<DownsamplingRound> downsampling;
 
-    // Visible for testing, preferably use the factory methods that are specialised by lifecycle type,
-    // for example for the data component.
-    DataStreamLifecycle(@Nullable Boolean enabled, @Nullable TimeValue dataRetention, @Nullable List<DownsamplingRound> downsampling) {
+    /**
+     * This constructor is visible for testing, please use {@link DataStreamLifecycle#createDataLifecycle(Boolean, TimeValue, List)} or
+     * {@link DataStreamLifecycle#createFailuresLifecycle(Boolean, TimeValue)}.
+     */
+    DataStreamLifecycle(
+        LifecycleType lifecycleType,
+        @Nullable Boolean enabled,
+        @Nullable TimeValue dataRetention,
+        @Nullable List<DownsamplingRound> downsampling
+    ) {
+        this.lifecycleType = lifecycleType;
         this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
+        if (lifecycleType == LifecycleType.FAILURES && downsampling != null) {
+            throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
+        }
         DownsamplingRound.validateRounds(downsampling);
         this.downsampling = downsampling;
     }
@@ -150,7 +169,15 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Nullable TimeValue dataRetention,
         @Nullable List<DownsamplingRound> downsampling
     ) {
-        return new DataStreamLifecycle(enabled, dataRetention, downsampling);
+        return new DataStreamLifecycle(LifecycleType.DATA, enabled, dataRetention, downsampling);
+    }
+
+    /**
+     * This factory method creates a lifecycle applicable for the failures index component of a data stream. This
+     * means it supports only enabling and retention.
+     */
+    public static DataStreamLifecycle createFailuresLifecycle(@Nullable Boolean enabled, @Nullable TimeValue dataRetention) {
+        return new DataStreamLifecycle(LifecycleType.FAILURES, enabled, dataRetention, null);
     }
 
     /**
@@ -158,6 +185,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     public boolean enabled() {
         return enabled;
+    }
+
+    /**
+     * @return true if the lifecycle manages the failure store, false otherwise
+     */
+    public boolean targetsFailureStore() {
+        return lifecycleType == LifecycleType.FAILURES;
+    }
+
+    public String getLifecycleType() {
+        return lifecycleType.label;
     }
 
     /**
@@ -195,7 +233,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (dataRetention() == null) {
             return globalRetention.defaultRetention() != null
-                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                ? Tuple.tuple(
+                    globalRetention.defaultRetention(),
+                    targetsFailureStore() ? RetentionSource.DEFAULT_FAILURES_RETENTION : RetentionSource.DEFAULT_GLOBAL_RETENTION
+                )
                 : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
         if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataRetention().getMillis()) {
@@ -272,14 +313,15 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (o == null || getClass() != o.getClass()) return false;
 
         final DataStreamLifecycle that = (DataStreamLifecycle) o;
-        return Objects.equals(dataRetention, that.dataRetention)
+        return lifecycleType == that.lifecycleType
+            && Objects.equals(dataRetention, that.dataRetention)
             && Objects.equals(downsampling, that.downsampling)
             && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, dataRetention, downsampling);
+        return Objects.hash(lifecycleType, enabled, dataRetention, downsampling);
     }
 
     @Override
@@ -299,6 +341,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 writeLegacyOptionalValue(downsampling, out, StreamOutput::writeCollection);
             }
             out.writeBoolean(enabled());
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+            lifecycleType.writeTo(out);
         }
     }
 
@@ -323,6 +368,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             downsampling = null;
             enabled = true;
         }
+        lifecycleType = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+            ? LifecycleType.read(in)
+            : LifecycleType.DATA;
     }
 
     /**
@@ -368,7 +416,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return "DataStreamLifecycle{"
+            + "lifecycleTarget="
+            + lifecycleType
+            + ", enabled="
+            + enabled
+            + ", dataRetention="
+            + dataRetention
+            + ", downsampling="
+            + downsampling
+            + '}';
     }
 
     @Override
@@ -418,13 +475,23 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * This method deserialises XContent format as it was generated ONLY by {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}.
-     * It does not support the output of
+     * This method de-serialises a data lifecycle as it was generated ONLY by
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}. It does not support the output of
      * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
-     * this output is enriched with derived fields we do not handle in this deserialisation.
+     * this output is enriched with derived fields we do not handle in this de-serialisation.
      */
-    public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static DataStreamLifecycle dataLifecycleFromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, LifecycleType.DATA);
+    }
+
+    /**
+     * This method de-serialises a failures lifecycle as it was generated ONLY by
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}. It does not support the output of
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
+     * this output is enriched with derived fields we do not handle in this de-serialisation.
+     */
+    public static DataStreamLifecycle failureLifecycleFromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, LifecycleType.FAILURES);
     }
 
     /**
@@ -442,7 +509,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public enum RetentionSource {
         DATA_STREAM_CONFIGURATION,
         DEFAULT_GLOBAL_RETENTION,
-        MAX_GLOBAL_RETENTION;
+        MAX_GLOBAL_RETENTION,
+        DEFAULT_FAILURES_RETENTION;
 
         public String displayName() {
             return this.toString().toLowerCase(Locale.ROOT);
@@ -548,20 +616,36 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
     }
 
+    /**
+     * This factory method creates a lifecycle template applicable for the data index component of a data stream. This
+     * means it supports all configuration applicable for backing indices.
+     */
     public static Template createDataLifecycleTemplate(
         boolean enabled,
         TimeValue dataRetention,
         List<DataStreamLifecycle.DownsamplingRound> downsampling
     ) {
-        return new Template(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+        return new Template(LifecycleType.DATA, enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
     }
 
+    /**
+     * This factory method creates a lifecycle template applicable for the data index component of a data stream. This
+     * means it supports all configuration applicable for backing indices.
+     */
     public static Template createDataLifecycleTemplate(
         boolean enabled,
         ResettableValue<TimeValue> dataRetention,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) {
-        return new Template(enabled, dataRetention, downsampling);
+        return new Template(LifecycleType.DATA, enabled, dataRetention, downsampling);
+    }
+
+    /**
+     * This factory method creates a lifecycle template applicable for the failures index component of a data stream. This
+     * means it supports only setting the enabled and the retention.
+     */
+    public static Template createFailuresLifecycleTemplate(boolean enabled, TimeValue dataRetention) {
+        return new Template(LifecycleType.FAILURES, enabled, ResettableValue.create(dataRetention), ResettableValue.undefined());
     }
 
     /**
@@ -569,32 +653,43 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * to allow value reset during template composition.
      */
     public record Template(
+        LifecycleType lifecycleType,
         boolean enabled,
         ResettableValue<TimeValue> dataRetention,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) implements ToXContentObject, Writeable {
 
-        Template(boolean enabled, TimeValue dataRetention, List<DataStreamLifecycle.DownsamplingRound> downsampling) {
-            this(enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+        Template(
+            LifecycleType lifecycleType,
+            boolean enabled,
+            TimeValue dataRetention,
+            List<DataStreamLifecycle.DownsamplingRound> downsampling
+        ) {
+            this(lifecycleType, enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
         }
 
         public Template {
+            if (lifecycleType == LifecycleType.FAILURES && downsampling.get() != null) {
+                throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
+            }
             if (downsampling.isDefined() && downsampling.get() != null) {
                 DownsamplingRound.validateRounds(downsampling.get());
             }
         }
 
         public static final DataStreamLifecycle.Template DATA_DEFAULT = new DataStreamLifecycle.Template(
+            LifecycleType.DATA,
             true,
             ResettableValue.undefined(),
             ResettableValue.undefined()
         );
 
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<DataStreamLifecycle.Template, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<DataStreamLifecycle.Template, LifecycleType> PARSER = new ConstructingObjectParser<>(
             "lifecycle_template",
             false,
-            (args, unused) -> new DataStreamLifecycle.Template(
+            (args, lt) -> new DataStreamLifecycle.Template(
+                lt,
                 args[0] == null || (boolean) args[0],
                 args[1] == null ? ResettableValue.undefined() : (ResettableValue<TimeValue>) args[1],
                 args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2]
@@ -613,7 +708,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                     return ResettableValue.reset();
                 } else {
-                    return ResettableValue.create(AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent));
+                    return ResettableValue.create(AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent));
                 }
             }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         }
@@ -635,6 +730,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
                 }
                 out.writeBoolean(enabled);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+                lifecycleType.writeTo(out);
             }
         }
 
@@ -693,11 +791,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 }
                 enabled = in.readBoolean();
             }
-            return new Template(enabled, dataRetention, downsampling);
+            var lifecycleTarget = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                ? LifecycleType.read(in)
+                : LifecycleType.DATA;
+            return new Template(lifecycleTarget, enabled, dataRetention, downsampling);
         }
 
-        public static Template fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+        public static Template dataLifecycleTemplateFromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, LifecycleType.DATA);
+        }
+
+        public static Template failuresLifecycleTemplateFromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, LifecycleType.FAILURES);
         }
 
         /**
@@ -737,12 +842,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle toDataStreamLifecycle() {
-            return new DataStreamLifecycle(enabled, dataRetention.get(), downsampling.get());
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this, true, true);
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsampling.get());
         }
     }
 
@@ -754,35 +854,53 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return new Builder(template);
     }
 
+    /**
+     * This builder factory initialises a builder of a data lifecycle, meaning when it builds we will either get a data lifecycle or a
+     * data lifecycle template.
+     */
     public static Builder dataLifecycleBuilder() {
-        return new Builder();
+        return new Builder(LifecycleType.DATA);
+    }
+
+    /**
+     * This builder factory initialises a builder of a failures lifecycle, meaning when it builds we will either get a failures lifecycle or
+     * a failures lifecycle template, if downsampling is not null the final "building" will throw an exception.
+     */
+    public static Builder failuresLifecycleBuilder() {
+        return new Builder(LifecycleType.FAILURES);
     }
 
     /**
      * Builds and composes the data stream lifecycle or the respective template.
      */
     public static class Builder {
+        private final LifecycleType lifecycleType;
         private boolean enabled = true;
         @Nullable
         private TimeValue dataRetention = null;
         @Nullable
         private List<DownsamplingRound> downsampling = null;
 
-        private Builder() {}
+        private Builder(LifecycleType lifecycleType) {
+            this.lifecycleType = lifecycleType;
+        }
 
         private Builder(DataStreamLifecycle.Template template) {
+            lifecycleType = template.lifecycleType();
             enabled = template.enabled();
             dataRetention = template.dataRetention().get();
             downsampling = template.downsampling().get();
         }
 
         private Builder(DataStreamLifecycle lifecycle) {
+            lifecycleType = lifecycle.lifecycleType;
             enabled = lifecycle.enabled();
             dataRetention = lifecycle.dataRetention();
             downsampling = lifecycle.downsampling();
         }
 
         public Builder composeTemplate(DataStreamLifecycle.Template template) {
+            assert lifecycleType == template.lifecycleType() : "Trying to compose templates with different lifecycle types";
             enabled(template.enabled());
             dataRetention(template.dataRetention());
             downsampling(template.downsampling());
@@ -819,11 +937,39 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(enabled, dataRetention, downsampling);
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention, downsampling);
         }
 
         public Template buildTemplate() {
-            return new Template(enabled, dataRetention, downsampling);
+            return new Template(lifecycleType, enabled, dataRetention, downsampling);
+        }
+    }
+
+    /**
+     * Defines the target index component managed by the lifecycle. Currently, it supports data and failures.
+     * Visible for testing
+     */
+    enum LifecycleType implements Writeable {
+        DATA("data", (byte) 0),
+        FAILURES("failures", (byte) 1);
+
+        private final String label;
+        private final byte id;
+        private static final Map<Byte, LifecycleType> REGISTRY = Arrays.stream(LifecycleType.values())
+            .collect(Collectors.toMap(l -> l.id, Function.identity()));
+
+        LifecycleType(String label, byte id) {
+            this.label = label;
+            this.id = id;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.write(id);
+        }
+
+        public static LifecycleType read(StreamInput in) throws IOException {
+            return REGISTRY.get(in.readByte());
         }
     }
 }

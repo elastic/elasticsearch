@@ -78,7 +78,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
@@ -554,10 +554,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Wraps the listener to avoid sending StackTraces back to the coordinating
-     * node if the `error_trace` header is set to {@code false}. Upon reading we
-     * default to {@code true} to maintain the same behavior as before the change,
-     * due to older nodes not being able to specify whether it needs stack traces.
+     * Wraps the listener to ensure errors are logged and to avoid sending
+     * StackTraces back to the coordinating node if the `error_trace` header is
+     * set to {@code false}. Upon reading, we default to {@code true} to maintain
+     * the same behavior as before the change, due to older nodes not being able
+     * to specify whether they need stack traces.
      *
      * @param <T>            the type of the response
      * @param listener       the action listener to be wrapped
@@ -568,7 +569,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
-    static <T> ActionListener<T> maybeWrapListenerForStackTrace(
+    static <T> ActionListener<T> wrapListenerForErrorHandling(
         ActionListener<T> listener,
         TransportVersion version,
         String nodeId,
@@ -576,36 +577,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         long taskId,
         ThreadPool threadPool
     ) {
-        boolean header = true;
+        final boolean header;
         if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
             header = Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
+        } else {
+            header = true;
         }
-        if (header == false) {
-            return listener.delegateResponse((l, e) -> {
-                org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
-                    "[%s]%s: failed to execute search request for task [%d]",
-                    nodeId,
-                    shardId,
-                    taskId
-                );
-                // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
-                if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
-                    logger.debug(messageSupplier, e);
-                } else {
-                    logger.warn(messageSupplier, e);
-                }
+        return listener.delegateResponse((l, e) -> {
+            org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
+                "[%s]%s: failed to execute search request for task [%d]",
+                nodeId,
+                shardId,
+                taskId
+            );
+            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
+            if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+                logger.debug(messageSupplier, e);
+            } else {
+                logger.warn(messageSupplier, e);
+            }
+
+            if (header == false) {
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
                     err.setStackTrace(EMPTY_STACK_TRACE_ARRAY);
                     return false;
                 });
-                l.onFailure(e);
-            });
-        }
-        return listener;
+            }
+
+            l.onFailure(e);
+        });
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        listener = maybeWrapListenerForStackTrace(
+        listener = wrapListenerForErrorHandling(
             listener,
             request.getChannelVersion(),
             clusterService.localNode().getId(),
@@ -650,7 +654,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(
+        ActionListener<SearchPhaseResult> finalListener = wrapListenerForErrorHandling(
             listener,
             request.getChannelVersion(),
             clusterService.localNode().getId(),
@@ -860,7 +864,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
-        listener = maybeWrapListenerForStackTrace(
+        listener = wrapListenerForErrorHandling(
             listener,
             shardSearchRequest.getChannelVersion(),
             clusterService.localNode().getId(),
@@ -917,7 +921,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TransportVersion version
     ) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
-        listener = maybeWrapListenerForStackTrace(
+        listener = wrapListenerForErrorHandling(
             listener,
             version,
             clusterService.localNode().getId(),
@@ -974,7 +978,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
-        listener = maybeWrapListenerForStackTrace(
+        listener = wrapListenerForErrorHandling(
             listener,
             version,
             clusterService.localNode().getId(),

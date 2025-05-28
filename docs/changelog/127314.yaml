@@ -1,0 +1,5 @@
+pr: 127314
+summary: "[Failure store] Introduce dedicated failure store lifecycle configuration"
+area: Data streams
+type: enhancement
+issues: []

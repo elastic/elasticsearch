@@ -27,6 +27,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -42,6 +43,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
@@ -84,9 +87,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);
 
             var taskSettingsMap = getTaskSettingsMap(config);
-            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+            var taskSettings = TestRerankingServiceExtension.TestTaskSettings.fromMap(taskSettingsMap);
 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+        }
+
+        @Override
+        protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+            return TestRerankingServiceExtension.TestTaskSettings.fromMap(taskSettingsMap);
         }
 
         @Override
@@ -107,13 +115,15 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             @Nullable Integer topN,
             List<String> input,
             boolean stream,
-            Map<String, Object> taskSettings,
+            Map<String, Object> taskSettingsMap,
             InputType inputType,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
+
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, RERANK -> listener.onResponse(makeResults(input));
+                case ANY, RERANK -> listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -151,7 +161,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             );
         }
 
-        private RankedDocsResults makeResults(List<String> input) {
+        private RankedDocsResults makeResults(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
             int totalResults = input.size();
             try {
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
@@ -161,17 +171,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
             } catch (NumberFormatException ex) {
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
-                float minScore = random.nextFloat(-1f, 1f);
-                float resultDiff = 0.2f;
+
+                float minScore = taskSettings.minScore();
+                float resultDiff = taskSettings.resultDiff();
                 for (int i = 0; i < input.size(); i++) {
-                    results.add(
-                        new RankedDocsResults.RankedDoc(
-                            totalResults - 1 - i,
-                            minScore + resultDiff * (totalResults - i),
-                            input.get(totalResults - 1 - i)
-                        )
-                    );
+                    float relevanceScore = minScore + resultDiff * (totalResults - i);
+                    String inputText = input.get(totalResults - 1 - i);
+                    if (taskSettings.useTextLength()) {
+                        relevanceScore = 1f / inputText.length();
+                    }
+                    results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, relevanceScore, inputText));
                 }
+                // Ensure result are sorted by descending score
+                results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
                 return new RankedDocsResults(results);
             }
         }
@@ -204,6 +216,77 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                         .setConfigurations(configurationMap)
                         .build();
                 }
+            );
+        }
+    }
+
+    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff) implements TaskSettings {
+
+        static final String NAME = "test_reranking_task_settings";
+
+        public static TestTaskSettings fromMap(Map<String, Object> map) {
+            boolean useTextLength = false;
+            float minScore = random.nextFloat(-1f, 1f);
+            float resultDiff = 0.2f;
+
+            if (map.containsKey("use_text_length")) {
+                useTextLength = Boolean.parseBoolean(map.remove("use_text_length").toString());
+            }
+
+            if (map.containsKey("min_score")) {
+                minScore = Float.parseFloat(map.remove("min_score").toString());
+            }
+
+            if (map.containsKey("result_diff")) {
+                resultDiff = Float.parseFloat(map.remove("result_diff").toString());
+            }
+
+            return new TestTaskSettings(useTextLength, minScore, resultDiff);
+        }
+
+        public TestTaskSettings(StreamInput in) throws IOException {
+            this(in.readBoolean(), in.readFloat(), in.readFloat());
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return false;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(useTextLength);
+            out.writeFloat(minScore);
+            out.writeFloat(resultDiff);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("use_text_length", useTextLength);
+            builder.field("min_score", minScore);
+            builder.field("result_diff", resultDiff);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
+            TestTaskSettings newSettingsObject = fromMap(Map.copyOf(newSettingsMap));
+            return new TestTaskSettings(
+                newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
+                newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
+                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff
             );
         }
     }

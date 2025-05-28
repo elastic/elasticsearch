@@ -16,9 +16,9 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
@@ -104,6 +104,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
@@ -232,6 +233,9 @@ public class EsqlDataTypeConverter {
             }
             if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
+            }
+            if (DataType.isSpatialGeo(to)) {
+                return EsqlConverter.STRING_TO_GEO;
             }
             if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
@@ -544,6 +548,10 @@ public class EsqlDataTypeConverter {
         return UNSPECIFIED.wkbToWkt(field);
     }
 
+    public static BytesRef stringToGeo(String field) {
+        return GEO.wktToWkb(field);
+    }
+
     public static BytesRef stringToSpatial(String field) {
         return UNSPECIFIED.wktToWkb(field);
     }
@@ -689,16 +697,16 @@ public class EsqlDataTypeConverter {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 
-    public static String aggregateMetricDoubleBlockToString(CompositeBlock compositeBlock, int index) {
+    public static String aggregateMetricDoubleBlockToString(AggregateMetricDoubleBlock aggBlock, int index) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
-                var block = compositeBlock.getBlock(metric.getIndex());
+                var block = aggBlock.getMetricBlock(metric.getIndex());
                 if (block.isNull(index) == false) {
                     builder.field(metric.getLabel(), ((DoubleBlock) block).getDouble(index));
                 }
             }
-            var countBlock = compositeBlock.getBlock(Metric.COUNT.getIndex());
+            var countBlock = aggBlock.getMetricBlock(Metric.COUNT.getIndex());
             if (countBlock.isNull(index) == false) {
                 builder.field(Metric.COUNT.getLabel(), ((IntBlock) countBlock).getInt(index));
             }
@@ -776,6 +784,7 @@ public class EsqlDataTypeConverter {
         STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
         STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
         STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
+        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo((String) x)),
         STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
 
         private static final String NAME = "esql-converter";

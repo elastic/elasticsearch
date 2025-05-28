@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
@@ -176,7 +177,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, @Nullable DataType inputDataType);
 
     /**
      * Build the response.
@@ -192,7 +193,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block block,
-        DataType inputDataType
+        @Nullable DataType inputDataType
     ) {
         if (inputDataType == null) {
             return QueryList.rawTermQueryList(field, searchExecutionContext, block);
@@ -329,6 +330,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(outputOperator);
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
+                "enrich",
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,
@@ -401,7 +403,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         return new ValuesSourceReaderOperator(
             driverContext.blockFactory(),
             fields,
-            List.of(new ValuesSourceReaderOperator.ShardContext(shardContext.searcher().getIndexReader(), shardContext::newSourceLoader)),
+            List.of(
+                new ValuesSourceReaderOperator.ShardContext(
+                    shardContext.searcher().getIndexReader(),
+                    shardContext::newSourceLoader,
+                    EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
+                )
+            ),
             0
         );
     }

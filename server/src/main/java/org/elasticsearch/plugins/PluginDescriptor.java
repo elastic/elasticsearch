@@ -46,8 +46,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
-    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
-
     private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersions.V_7_11_0;
     private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
     private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;

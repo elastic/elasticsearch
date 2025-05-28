@@ -75,7 +75,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             RolloverConfiguration rolloverConfiguration = null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
-            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention, globalRetention);
             String serialized = Strings.toString(builder);
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
         }
@@ -92,6 +92,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             null,
             Map.of(),
             randomBoolean(),
+            null,
             null
         );
     }

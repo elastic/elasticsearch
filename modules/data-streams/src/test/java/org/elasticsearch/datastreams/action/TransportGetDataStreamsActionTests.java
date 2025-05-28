@@ -23,7 +23,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
@@ -173,6 +176,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -205,6 +209,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -257,6 +262,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(
@@ -302,6 +308,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
 
@@ -349,10 +356,11 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), nullValue());
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+        assertThat(response.getDataGlobalRetention(), nullValue());
+        DataStreamGlobalRetention dataGlobalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
@@ -361,9 +369,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
-                        globalRetention.defaultRetention()
+                        dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -375,9 +383,12 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             withGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), equalTo(globalRetention));
+        assertThat(response.getDataGlobalRetention(), equalTo(dataGlobalRetention));
+        // We used the default failures retention here which is greater than the max
+        assertThat(response.getFailuresGlobalRetention(), equalTo(new DataStreamGlobalRetention(null, dataGlobalRetention.maxRetention())));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {
@@ -403,6 +414,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -432,6 +444,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
@@ -467,9 +480,58 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                         .build()
                 )
             ),
+            new IndexSettingProviders(Set.of()),
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().get(0).isFailureStoreEffectivelyEnabled(), is(true));
+    }
+
+    public void testProvidersAffectMode() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(
+                Set.of(
+                    (
+                        indexName,
+                        dataStreamName,
+                        templateIndexMode,
+                        metadata,
+                        resolvedAt,
+                        indexTemplateAndCreateRequestSettings,
+                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
+                )
+            ),
+            null
+        );
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("lookup"));
+        assertThat(
+            response.getDataStreams()
+                .get(0)
+                .getIndexSettingsValues()
+                .values()
+                .stream()
+                .findFirst()
+                .map(GetDataStreamAction.Response.IndexProperties::indexMode)
+                .orElse("bad"),
+            equalTo("standard")
+        );
     }
 }

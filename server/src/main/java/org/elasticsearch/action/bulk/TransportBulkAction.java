@@ -284,7 +284,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, Boolean> indexExistence = new HashMap<>();
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
-        boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
+        boolean lazyRolloverFailureStoreFeature = featureService.clusterHasFeature(state, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
@@ -606,9 +606,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      */
     // Visibility for testing
     Boolean resolveFailureInternal(String indexName, Metadata metadata, long epochMillis) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return null;
-        }
         var resolution = resolveFailureStoreFromMetadata(indexName, metadata, epochMillis);
         if (resolution != null) {
             return resolution;

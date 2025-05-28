@@ -16,7 +16,7 @@ More information on CCR/CCS can be found in the [Distributed architecture guide]
 ### Handler registration
 
 All REST handlers exposed by Elasticsearch are registered in [ActionModule#initRestHandlers]. This method registers all the
-rest actions with the [RestController] using [#registerHandler(...)][RestController#registerHandler]. These registrations populate
+REST actions with the [RestController] using [#registerHandler(...)][RestController#registerHandler]. These registrations populate
 a map of [routes][RestHandler#routes] to [RestHandler]s to allow routing of incoming HTTP requests to their respective handlers.
 There are many built-in REST endpoints configured statically in [ActionModule][ActionModule#initRestHandlers], and additional
 endpoints can be contributed by [ActionPlugin]s by implementing the [getRestHandlers] method.

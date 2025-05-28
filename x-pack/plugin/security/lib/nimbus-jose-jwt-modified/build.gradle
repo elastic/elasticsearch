@@ -20,6 +20,7 @@ tasks.named('shadowJar').configure {
     // The original library uses this and it gets stripped by shadowJar
     attributes 'Automatic-Module-Name': 'com.nimbusds.jose.jwt'
   }
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 ['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit', 'licenseHeaders'].each {

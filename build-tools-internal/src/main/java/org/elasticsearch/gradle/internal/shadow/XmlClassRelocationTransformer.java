@@ -10,11 +10,11 @@
 package org.elasticsearch.gradle.internal.shadow;
 
 //import com.github.jengelman.gradle.plugins.shadow.ShadowStats;
-import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
+
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator;
-import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransformer;
+import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.tools.zip.ZipEntry;
@@ -27,7 +27,6 @@ import org.w3c.dom.NodeList;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -74,7 +73,6 @@ public class XmlClassRelocationTransformer implements ResourceTransformer {
 
     private static String getRelocatedClass(String className, TransformerContext context) {
         Set<Relocator> relocators = context.getRelocators();
-//        ShadowStats stats = context.getStats();
         if (className != null && className.length() > 0 && relocators != null) {
             for (Relocator relocator : relocators) {
                 if (relocator.canRelocateClass(className)) {
@@ -113,7 +111,9 @@ public class XmlClassRelocationTransformer implements ResourceTransformer {
     @Override
     public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         ZipEntry entry = new ZipEntry(resource);
-        entry.setTime(TransformerContext.getEntryTimestamp(preserveFileTimestamps, entry.getTime()));
+        if (preserveFileTimestamps) {
+            entry.setTime(entry.getTime());
+        }
 
         try {
             // Write the content back to the XML file

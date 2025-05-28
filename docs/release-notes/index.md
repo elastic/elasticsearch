@@ -409,6 +409,8 @@ Machine Learning:
 * Support mTLS for the Elastic Inference Service integration inside the inference API [#119679](https://github.com/elastic/elasticsearch/pull/119679)
 * [Inference API] Add node-local rate limiting for the inference API [#120400](https://github.com/elastic/elasticsearch/pull/120400)
 * [Inference API] fix spell words: covertToString to convertToString [#119922](https://github.com/elastic/elasticsearch/pull/119922)
+* Update Linux build images to Rocky Linux 8 with gcc 13.3 [#2773](https://github.com/elastic/ml-cpp/pull/2773)
+
 
 Mapping:
 * Add Optional Source Filtering to Source Loaders [#113827](https://github.com/elastic/elasticsearch/pull/113827)

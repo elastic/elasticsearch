@@ -53,7 +53,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -2562,9 +2561,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()));
     }
 
-    public void testGetEffectiveIndexTemplateTemplateSettingsOnly() throws IOException {
-        // We only have settings from the template, so the effective template will just be the original template
-        DataStream dataStream = createDataStream(Settings.EMPTY);
+    public void testGetEffectiveIndexTemplateTemplateNoOverrides() throws IOException {
+        // We only have settings and mappings from the template, so the effective template will just be the original template
+        DataStream dataStream = createDataStream(Settings.EMPTY, DataStream.EMPTY_MAPPINGS);
         Settings templateSettings = randomSettings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings());
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
@@ -2580,7 +2579,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() throws IOException {
         // We only have settings from the data stream, so we expect to get only those back in the effective template
         Settings dataStreamSettings = randomSettings();
-        DataStream dataStream = createDataStream(dataStreamSettings);
+        DataStream dataStream = createDataStream(dataStreamSettings, DataStream.EMPTY_MAPPINGS);
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = randomMappings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
@@ -2607,7 +2606,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .put("index.setting2", "dataStreamValue")
             .put("index.setting3", (String) null) // This one gets removed from the effective settings
             .build();
-        DataStream dataStream = createDataStream(dataStreamSettings);
+        DataStream dataStream = createDataStream(dataStreamSettings, DataStream.EMPTY_MAPPINGS);
         Settings templateSettings = Settings.builder()
             .put("index.setting1", "templateValue")
             .put("index.setting3", "templateValue")
@@ -2636,9 +2635,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
+    private static CompressedXContent randomMappings() {
+        try {
+            return new CompressedXContent("{\"_doc\": {\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}}");
+        } catch (IOException e) {
+            fail("got an IO exception creating fake mappings: " + e);
+            return null;
+        }
+    }
+
     private DataStream createDataStream(Settings settings) {
         DataStream dataStream = createTestInstance();
         return dataStream.copy().setSettings(settings).build();
+    }
+
+    private DataStream createDataStream(CompressedXContent mappings) {
+        DataStream dataStream = createTestInstance();
+        return dataStream.copy().setMappings(mappings).build();
+    }
+
+    private DataStream createDataStream(Settings settings, CompressedXContent mappings) {
+        DataStream dataStream = createTestInstance();
+        return dataStream.copy().setSettings(settings).setMappings(mappings).build();
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {

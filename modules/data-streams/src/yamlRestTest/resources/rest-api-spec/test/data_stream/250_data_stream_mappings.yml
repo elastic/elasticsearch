@@ -19,6 +19,10 @@ setup:
             settings:
               number_of_replicas: 0
               lifecycle.name: my-policy
+            mappings:
+              properties:
+                field1:
+                  type: keyword
 
   - do:
       indices.create_data_stream:
@@ -34,7 +38,7 @@ setup:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
-  - match: { data_streams.0.effective_mappings: {} }
+  - length: { data_streams.0.effective_mappings.properties: 1 }
 
   - do:
       indices.get_data_stream:
@@ -71,6 +75,7 @@ setup:
       indices.get_data_stream_mappings:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
   - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
 

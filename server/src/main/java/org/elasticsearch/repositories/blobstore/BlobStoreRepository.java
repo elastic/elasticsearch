@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -195,6 +196,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private static final Logger shutdownLogger = LogManager.getLogger(ShutdownLogger.class);
     }
 
+    private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
 
     protected final ThreadPool threadPool;
@@ -485,6 +487,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
@@ -492,6 +495,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RecoverySettings recoverySettings,
         final BlobPath basePath
     ) {
+        this.projectId = projectId;
         this.metadata = metadata;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
@@ -523,6 +527,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     @Override

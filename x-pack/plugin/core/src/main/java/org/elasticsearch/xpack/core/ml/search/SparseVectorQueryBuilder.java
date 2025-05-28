@@ -351,6 +351,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     private TokenPruningConfig getTokenPruningConfigForQuery(MappedFieldType ft, SearchExecutionContext context) {
+        // if we do not have an index reader, there can be no token pruning
+        if (context.getIndexReader() == null) {
+            return null;
+        }
+
         // if we are not on a supported index version, do not prune by default
         // nor do we check the index options
         if (context.indexVersionCreated().onOrAfter(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT) == false

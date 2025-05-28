@@ -42,10 +42,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -72,13 +70,11 @@ public class S3ClientsManagerTests extends ESTestCase {
     private ClusterService clusterService;
     private S3Service s3Service;
     private S3ClientsManager s3ClientsManager;
-    private final AtomicReference<CountDownLatch> clientRefsCloseLatchRef = new AtomicReference<>();
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         s3SecretsIdGenerators = ConcurrentCollections.newConcurrentMap();
-        clientRefsCloseLatchRef.set(null);
         clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
 
         final Settings.Builder builder = Settings.builder();
@@ -294,6 +290,25 @@ public class S3ClientsManagerTests extends ESTestCase {
 
         s3Service.onBlobStoreClose(projectId);
         assertFalse(projectClient.hasReferences());
+    }
+
+    public void testClientsHolderAfterManagerClosed() {
+        final ProjectId projectId = randomUniqueProjectId();
+        final String clientName = randomFrom(clientNames);
+
+        s3ClientsManager.close();
+        // New holder can be added after the manager is closed, but no actual client can be created
+        updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
+        try (var clientsHolder = s3ClientsManager.getClientsHolders().get(projectId)) {
+            assertNotNull(clientsHolder);
+            assertFalse(clientsHolder.isClosed());
+
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))
+            );
+            assertThat(e.getMessage(), containsString("s3 clients manager is closed"));
+        }
     }
 
     public void testProjectClientsDisabled() {

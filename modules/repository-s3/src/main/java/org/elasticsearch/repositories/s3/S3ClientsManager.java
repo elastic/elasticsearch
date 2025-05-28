@@ -53,6 +53,7 @@ public class S3ClientsManager implements ClusterStateApplier {
     private final Settings nodeS3Settings;
     private final Function<S3ClientSettings, AmazonS3Reference> clientBuilder;
     private final Executor executor;
+    private final AtomicBoolean managerClosed = new AtomicBoolean(false);
     // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
     private final Map<ProjectId, ClientsHolder<?>> clientsHolders;
 
@@ -211,7 +212,12 @@ public class S3ClientsManager implements ClusterStateApplier {
      * Shutdown the manager by closing all clients holders. This is called when the node is shutting down.
      */
     void close() {
-        IOUtils.closeWhileHandlingException(clientsHolders.values());
+        if (managerClosed.compareAndSet(false, true)) {
+            // Close all clients holders, they will close their cached clients.
+            // It's OK if a new clients holder is added concurrently or after this point because
+            // no new client will be created once the manager is closed, i.e. nothing to release.
+            IOUtils.closeWhileHandlingException(clientsHolders.values());
+        }
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, S3ClientSettings> currentClientSettings) {
@@ -291,6 +297,11 @@ public class S3ClientsManager implements ClusterStateApplier {
                 if (closed.get()) {
                     // Not adding a new client once the manager is closed since there won't be anything to close it
                     throw new IllegalStateException("Project [" + projectId() + "] clients holder is closed");
+                }
+                if (managerClosed.get()) {
+                    // This clients holder must be added after the manager is closed. It must have no cached clients.
+                    assert clientsCache.isEmpty() : "expect empty cache, but got " + clientsCache;
+                    throw new IllegalStateException("s3 clients manager is closed");
                 }
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
                 // The clearCache() will clear the newly added client.

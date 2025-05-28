@@ -719,7 +719,7 @@ public abstract class DocumentParserContext {
         IndexableField idField = doc.getParent().getField(IdFieldMapper.NAME);
         if (idField != null) {
             if (indexSettings().getMode() == IndexMode.LOGSDB) {
-                doc.add(new SortedDocValuesField(IdFieldMapper.NAME, idField.binaryValue()));
+                doc.add(SortedDocValuesField.indexedField(IdFieldMapper.NAME, idField.binaryValue()));
             } else {
                 // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
                 // delete it when the root document is deleted too.

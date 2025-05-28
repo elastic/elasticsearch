@@ -179,9 +179,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * The budget (estimation) for a merge task is the disk space (still) required for it to complete. As the merge progresses,
      * its budget decreases (as the bytes already written have been incorporated into the filesystem stats about the used disk space).
      */
-    private final PriorityBlockingQueueWithBudget<MergeTask> queuedMergeTasks = new PriorityBlockingQueueWithBudget<>(
-        MergeTask::estimatedRemainingMergeSize
-    );
+    private final MergeTaskPriorityBlockingQueue queuedMergeTasks;
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
      * These are tracked notably in order to be able to update their disk IO throttle rate, after they have started, while executing.
@@ -209,24 +207,35 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         NodeEnvironment nodeEnvironment
     ) {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = new ThreadPoolMergeExecutorService(
+            MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
+            // start monitoring the available disk space, and update the available budget for running merge tasks
+            // Note: this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
+            // available disk space. In this case, merges will NOT be blocked for shards on data paths with insufficient available
+            // disk space, as long as a single data path has enough available disk space to run merges for any shards that it stores
+            // (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
+            // (but nothing blows up either, if using multiple data paths))
+            AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
+                nodeEnvironment.dataPaths(),
                 threadPool,
-                clusterSettings,
-                nodeEnvironment
+                clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
+                clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
+                clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
+                (availableDiskSpaceByteSize) -> mergeTaskPriorityBlockingQueue.updateBudget(availableDiskSpaceByteSize.getBytes())
             );
             clusterSettings.addSettingsUpdateConsumer(
                 INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
-                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setHighStageWatermark
+                availableDiskSpacePeriodicMonitor::setHighStageWatermark
             );
             clusterSettings.addSettingsUpdateConsumer(
                 INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
-                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setHighStageMaxHeadroom
+                availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
             );
             clusterSettings.addSettingsUpdateConsumer(
                 INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
-                threadPoolMergeExecutorService.getAvailableDiskSpacePeriodicMonitor()::setCheckInterval
+                availableDiskSpacePeriodicMonitor::setCheckInterval
             );
-            return threadPoolMergeExecutorService;
+            // owns and closes the disk space monitor
+            return new ThreadPoolMergeExecutorService(threadPool, mergeTaskPriorityBlockingQueue, availableDiskSpacePeriodicMonitor);
         } else {
             // register no-op setting update consumers so that setting validations work properly
             // (some validations are bypassed if there are no update consumers registered),
@@ -238,27 +247,19 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private ThreadPoolMergeExecutorService(ThreadPool threadPool, ClusterSettings clusterSettings, NodeEnvironment nodeEnvironment) {
+    private ThreadPoolMergeExecutorService(
+        ThreadPool threadPool,
+        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue,
+        AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor
+    ) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
         // the intent here is to throttle down whenever we submit a task and no other task is running
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
-        // start monitoring the available disk space, and update the available budget for running merge tasks
-        // Note: this doesn't work correctly for nodes with multiple data paths, as it only considers the data path with the MOST
-        // available disk space. In this case, merges will NOT be blocked for shards on data paths with insufficient available
-        // disk space, as long as a single data path has enough available disk space to run merges for any shards that it stores
-        // (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
-        // (but nothing blows up either, if using multiple data paths))
-        this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
-            nodeEnvironment.dataPaths(),
-            threadPool,
-            clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
-            clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
-            clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
-            (availableDiskSpaceByteSize) -> queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
-        );
+        this.queuedMergeTasks = mergeTaskPriorityBlockingQueue;
+        this.availableDiskSpacePeriodicMonitor = availableDiskSpacePeriodicMonitor;
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -305,10 +306,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         enqueueMergeTask(mergeTask);
     }
 
-    AvailableDiskSpacePeriodicMonitor getAvailableDiskSpacePeriodicMonitor() {
-        return this.availableDiskSpacePeriodicMonitor;
-    }
-
     private void enqueueMergeTask(MergeTask mergeTask) {
         // To ensure that for a given merge onMergeQueued is called before onMergeAborted or onMergeCompleted, we call onMergeQueued
         // before adding the merge task to the queue. Adding to the queue should not fail.
@@ -318,7 +315,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     public boolean allDone() {
-        return queuedMergeTasks.isEmpty() && runningMergeTasks.isEmpty() && ioThrottledMergeTasksCount.get() == 0L;
+        return queuedMergeTasks.isQueueEmpty() && runningMergeTasks.isEmpty() && ioThrottledMergeTasksCount.get() == 0L;
     }
 
     /**
@@ -361,7 +358,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             assert schedule == BACKLOG;
                             // The merge task is backlogged by the merge scheduler, try to get the next smallest one.
                             // It's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when
-                            // itself decides that the merge task could be run.
+                            // itself decides that the merge task could be run. Note that it is possible that this merge
+                            // task is re-enqueued and re-took before the budget hold-up here is released below.
                         }
                     } finally {
                         // releases any budget that is still being allocated for the merge task
@@ -516,6 +514,19 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
+    static class MergeTaskPriorityBlockingQueue extends PriorityBlockingQueueWithBudget<MergeTask> {
+        MergeTaskPriorityBlockingQueue() {
+            // start with unlimited budget (so this will behave like a regular priority queue until {@link #updateBudget} is invoked)
+            // use the "remaining" merge size as the budget function so that the "budget" of taken elements is updated according
+            // to the remaining disk space requirements of currently running merge tasks
+            super(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * Similar to a regular priority queue, but the {@link #take()} operation will also block if the smallest element
+     * (according to the specified "budget" function) is larger than an updatable limit budget.
+     */
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
         private final PriorityQueue<E> enqueuedByBudget;
@@ -524,17 +535,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         private final Condition elementAvailable;
         private long availableBudget;
 
-        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction) {
-            this(budgetFunction, Long.MAX_VALUE);
-        }
-
-        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long availableBudget) {
+        PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long initialAvailableBudget) {
             this.budgetFunction = budgetFunction;
             this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(budgetFunction));
             this.unreleasedBudgetPerElement = new IdentityHashMap<>();
             this.lock = new ReentrantLock();
             this.elementAvailable = lock.newCondition();
-            this.availableBudget = availableBudget;
+            this.availableBudget = initialAvailableBudget;
         }
 
         boolean enqueue(E e) {
@@ -549,21 +556,33 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             return true;
         }
 
+        /**
+         * Dequeues the smallest element (according to the specified "budget" function) if its budget is below the available limit.
+         * This method invocation blocks if the queue is empty or the element's budget is above the available limit.
+         */
         ElementWithReleasableBudget take() throws InterruptedException {
             final ReentrantLock lock = this.lock;
             lock.lockInterruptibly();
             try {
                 E peek;
                 long peekBudget;
+                // blocks until the smallest budget element fits the currently available budget
                 while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget) {
                     elementAvailable.await();
                 }
+                // deducts and holds up that element's budget from the available budget
                 return new ElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
             } finally {
                 lock.unlock();
             }
         }
 
+        /**
+         * Updates the available budged given the passed-in argument, from which it deducts the budget hold up by taken elements
+         * that are still in use. The budget of in-use elements is also updated (by re-applying the budget function).
+         * The newly updated budget is used to potentially block {@link #take()} operations if the smallest-budget enqueued element
+         * is over this newly computed available budget.
+         */
         void updateBudget(long availableBudget) {
             final ReentrantLock lock = this.lock;
             lock.lock();
@@ -579,11 +598,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
         }
 
-        boolean isEmpty() {
+        boolean isQueueEmpty() {
             return enqueuedByBudget.isEmpty();
         }
 
-        int size() {
+        int queueSize() {
             return enqueuedByBudget.size();
         }
 
@@ -591,6 +610,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             private final Wrap<E> wrappedElement;
 
             private ElementWithReleasableBudget(E element, long budget) {
+                // Wrap the element in a brand-new instance that's used as the key in the
+                // {@link PriorityBlockingQueueWithBudget#unreleasedBudgetPerElement} identity map.
+                // This allows the same exact "element" instance to hold budgets multiple times concurrently.
+                // This way we allow to re-enqueue and re-take an element before a previous take completed and
+                // released the budget.
                 this.wrappedElement = new Wrap<>(element);
                 assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
                 // the taken element holds up some budget
@@ -600,13 +624,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 assert availableBudget >= 0L;
             }
 
+            /**
+             * Must be invoked when the caller is done with the element that it took from the queue.
+             */
             @Override
             public void close() {
                 final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
                 lock.lock();
                 try {
                     assert unreleasedBudgetPerElement.containsKey(wrappedElement);
-                    // when the taken element is not used anymore, the budget it hold is released
+                    // when the taken element is not used anymore, the budget it holds is released
                     availableBudget += unreleasedBudgetPerElement.remove(wrappedElement);
                     elementAvailable.signalAll();
                 } finally {
@@ -700,7 +727,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     // exposed for tests
     int getMergeTasksQueueLength() {
-        return queuedMergeTasks.size();
+        return queuedMergeTasks.queueSize();
     }
 
     // exposed for tests and stats

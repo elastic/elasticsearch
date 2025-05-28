@@ -61,6 +61,11 @@ import java.util.function.Function;
  *         where {@code a >= 100}.
  *     </li>
  * </ul>
+ * <p>
+ *     IMPORTANT: Runners make no effort to deduplicate the results from multiple
+ *     queries. If you need to only see each document one time then make sure the
+ *     queries are mutually exclusive.
+ * </p>
  */
 public final class LuceneSliceQueue {
     /**

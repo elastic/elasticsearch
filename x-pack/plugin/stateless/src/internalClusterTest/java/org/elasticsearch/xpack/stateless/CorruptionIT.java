@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -450,7 +451,15 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         ) {
             return Collections.singletonMap(
                 TYPE,
-                metadata -> new SlowMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new SlowMockRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }
@@ -460,6 +469,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         private final Tuple<Long, Long> OBJECT_STORE_LATENCY = TEST_HARDER ? tuple(0L, 2000L) : tuple(0L, 10L);
 
         public SlowMockRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -467,7 +477,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override

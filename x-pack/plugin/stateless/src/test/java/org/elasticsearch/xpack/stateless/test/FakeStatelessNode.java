@@ -64,6 +64,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -242,7 +243,7 @@ public class FakeStatelessNode implements Closeable {
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
             transport = localCloseables.add(new MockTransport());
-            clusterService = localCloseables.add(ClusterServiceUtils.createClusterService(threadPool));
+            clusterService = localCloseables.add(createClusterService());
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
@@ -305,7 +306,7 @@ public class FakeStatelessNode implements Closeable {
         return new RepositoriesService(
             nodeSettings,
             clusterService,
-            Map.of(FsRepository.TYPE, metadata -> createFsRepository(xContentRegistry, metadata)),
+            Map.of(FsRepository.TYPE, (projectId, metadata) -> createFsRepository(xContentRegistry, projectId, metadata)),
             Map.of(),
             threadPool,
             client,
@@ -313,8 +314,9 @@ public class FakeStatelessNode implements Closeable {
         );
     }
 
-    protected FsRepository createFsRepository(NamedXContentRegistry xContentRegistry, RepositoryMetadata metadata) {
+    protected FsRepository createFsRepository(NamedXContentRegistry xContentRegistry, ProjectId projectId, RepositoryMetadata metadata) {
         return new FsRepository(
+            projectId,
             metadata,
             environment,
             xContentRegistry,
@@ -523,6 +525,17 @@ public class FakeStatelessNode implements Closeable {
         IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
         when(routingTable.shardId()).thenReturn(shardId);
         return Optional.of(routingTable);
+    }
+
+    protected ClusterService createClusterService() {
+        // TODO: stateless enabled should be part of nodeSettings
+        final Settings settings = Settings.builder().put(nodeSettings).put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+        return ClusterServiceUtils.createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 
     protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {

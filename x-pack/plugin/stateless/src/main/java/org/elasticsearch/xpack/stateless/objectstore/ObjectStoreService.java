@@ -312,7 +312,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             final var projectSettings = event.state().metadata().getProject(projectId).settings();
             try {
                 final RepositoryMetadata repositoryMetadata = getRepositoryMetadata(projectSettings);
-                final var repository = repositoriesService.createRepository(repositoryMetadata);
+                final var repository = repositoriesService.createRepository(projectId, repositoryMetadata);
                 assert repository instanceof BlobStoreRepository;
                 final var projectObjectStore = (BlobStoreRepository) repository;
                 final var previous = projectObjectStores.put(projectId, projectObjectStore);
@@ -493,7 +493,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
         assert objectStore == null;
         assert projectObjectStores == null;
-        Repository repository = repositoriesService.createRepository(getRepositoryMetadata(settings));
+        Repository repository = repositoriesService.createNonProjectRepository(getRepositoryMetadata(settings));
         assert repository instanceof BlobStoreRepository;
         this.objectStore = (BlobStoreRepository) repository;
         if (projectResolver.supportsMultipleProjects()) {

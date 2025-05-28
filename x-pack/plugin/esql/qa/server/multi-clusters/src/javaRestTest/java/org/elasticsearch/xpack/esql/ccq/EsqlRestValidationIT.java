@@ -81,8 +81,29 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         return remoteClient;
     }
 
+    protected boolean isSkipUnavailable() {
+        return true;
+    }
+
+    @Override
+    public void testAlias() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testAlias();
+    }
+
+    @Override
+    public void testExistentIndexWithoutWildcard() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testExistentIndexWithoutWildcard();
+    }
+
+    private static boolean checkVersion(org.elasticsearch.Version version) {
+        return version.onOrAfter(Version.fromString("9.1.0"))
+            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
     @Before
     public void skipTestOnOldVersions() {
-        assumeTrue("skip on old versions", Clusters.localClusterVersion().equals(Version.V_8_19_0));
+        assumeTrue("skip on old versions", checkVersion(Clusters.localClusterVersion()));
     }
 }

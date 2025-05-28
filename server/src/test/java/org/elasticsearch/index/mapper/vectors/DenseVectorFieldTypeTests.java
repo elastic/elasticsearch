@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
@@ -478,7 +479,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
-            assertThat(query, instanceOf(KnnByteVectorQuery.class));
+            assertThat(query, instanceOf(ESKnnByteVectorQuery.class));
         }
     }
 
@@ -577,16 +578,20 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         if (elementType == BYTE) {
-            KnnByteVectorQuery knnByteVectorQuery = (KnnByteVectorQuery) knnQuery;
-            assertThat(knnByteVectorQuery.getK(), is(100));
-            if (knnByteVectorQuery instanceof ESKnnByteVectorQuery esKnnByteVectorQuery) {
-                assertThat(esKnnByteVectorQuery.kParam(), is(10));
+            if (knnQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
+                assertThat(patienceKnnVectorQuery.getK(), is(100));
+            } else {
+                ESKnnByteVectorQuery knnByteVectorQuery = (ESKnnByteVectorQuery) knnQuery;
+                assertThat(knnByteVectorQuery.getK(), is(100));
+                assertThat(knnByteVectorQuery.kParam(), is(10));
             }
         } else {
-            KnnFloatVectorQuery knnFloatVectorQuery = (KnnFloatVectorQuery) knnQuery;
-            assertThat(knnFloatVectorQuery.getK(), is(100));
-            if (knnFloatVectorQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
-                assertThat(esKnnFloatVectorQuery.kParam(), is(10));
+            if (knnQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
+                assertThat(patienceKnnVectorQuery.getK(), is(100));
+            } else {
+                ESKnnFloatVectorQuery knnFloatVectorQuery = (ESKnnFloatVectorQuery) knnQuery;
+                assertThat(knnFloatVectorQuery.getK(), is(100));
+                assertThat(knnFloatVectorQuery.kParam(), is(10));
             }
         }
     }
@@ -635,7 +640,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
-        assertTrue(query instanceof KnnFloatVectorQuery);
+        assertTrue(query instanceof ESKnnFloatVectorQuery);
 
         // verify we can override a `0` to a positive number
         fieldType = new DenseVectorFieldType(
@@ -738,11 +743,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-        KnnFloatVectorQuery knnQuery = (KnnFloatVectorQuery) rescoreQuery.innerQuery();
-        assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
-        assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
-        if (knnQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
-            assertThat("Unexpected k parameter", esKnnFloatVectorQuery.kParam(), equalTo(expectedK));
+        Query innerQuery = rescoreQuery.innerQuery();
+        if (innerQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
+            assertThat("Unexpected candidates", patienceKnnVectorQuery.getK(), equalTo(expectedCandidates));
+        } else {
+            ESKnnFloatVectorQuery knnQuery = (ESKnnFloatVectorQuery) innerQuery;
+            assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
+            assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
+            assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
         }
     }
 }

@@ -117,7 +117,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
+
+    // early termination configuration
     private static final String EARLY_EXIT_PARAM_NAME = "early_exit";
+    private static final boolean DEFAULT_EARLY_EXIT = false;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -1426,7 +1429,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
                 if (earlyExitNode == null) {
-                    earlyExitNode = true;
+                    earlyExitNode = DEFAULT_EARLY_EXIT;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
@@ -1704,7 +1707,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return false;
+            return DEFAULT_EARLY_EXIT;
         }
     }
 
@@ -1737,7 +1740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return false;
+            return DEFAULT_EARLY_EXIT;
         }
 
         @Override
@@ -1758,7 +1761,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean earlyExit;
 
         Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
-            this(m, efConstruction, confidenceInterval, rescoreVector, true);
+            this(m, efConstruction, confidenceInterval, rescoreVector, DEFAULT_EARLY_EXIT);
         }
 
         Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector, boolean earlyExit) {
@@ -1896,7 +1899,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return false;
+            return DEFAULT_EARLY_EXIT;
         }
 
     }
@@ -1908,7 +1911,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean earlyExit;
 
         public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
-            this(m, efConstruction, confidenceInterval, rescoreVector, true);
+            this(m, efConstruction, confidenceInterval, rescoreVector, DEFAULT_EARLY_EXIT);
         }
 
         public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector, boolean earlyExit) {
@@ -2002,7 +2005,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean earlyExit;
 
         HnswIndexOptions(int m, int efConstruction) {
-            this(m, efConstruction, true);
+            this(m, efConstruction, DEFAULT_EARLY_EXIT);
         }
 
         HnswIndexOptions(int m, int efConstruction, boolean earlyExit) {

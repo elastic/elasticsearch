@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.security.role;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
@@ -21,7 +23,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class PutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
         Map<String, Object> responseMap = upsertRoles("""
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
@@ -337,6 +339,7 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", badRoleName)));
 
         assertThat(exception.getMessage(), containsString("unknown index privilege [foobar]"));
+        assertEquals(400, exception.getResponse().getStatusLine().getStatusCode());
         assertRoleDoesNotExist(badRoleName);
     }
 

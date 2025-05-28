@@ -50,14 +50,22 @@ final class LongTopNBlockHash extends BlockHash {
 
     LongTopNBlockHash(int channel, boolean asc, boolean nullsFirst, int limit, BlockFactory blockFactory) {
         super(blockFactory);
+        assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
         this.channel = channel;
         this.asc = asc;
         this.nullsFirst = nullsFirst;
         this.limit = limit;
-        this.hash = new LongHash(1, blockFactory.bigArrays());
-        this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
 
-        assert limit > 0 : "LongTopNBlockHash requires a limit greater than 0";
+        boolean success = false;
+        try {
+            this.hash = new LongHash(1, blockFactory.bigArrays());
+            this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
+
     }
 
     @Override

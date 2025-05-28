@@ -64,6 +64,9 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -1242,6 +1245,27 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         // then do the check only for the path that leads to sensitive code (by looking at the `type` parameter).
         if ("LDAP".equals(type)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    ) {
+        check$java_nio_channels_SelectableChannel$register(callerClass, that, sel, ops);
+    }
+
+    @Override
+    public void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops) {
+        if ((ops & SelectionKey.OP_CONNECT) != 0) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+        if ((ops & SelectionKey.OP_ACCEPT) != 0) {
+            policyManager.checkInboundNetworkAccess(callerClass);
         }
     }
 

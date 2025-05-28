@@ -53,6 +53,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -584,6 +586,16 @@ public interface EntitlementChecker {
      * classes. When you see a check on a sun_nio_ch class/method, this means the matching method on the public class is abstract
      * (not instrumentable).
      */
+
+    void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    );
+
+    void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops);
 
     // bind
 

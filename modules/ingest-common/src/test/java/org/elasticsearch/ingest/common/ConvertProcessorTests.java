@@ -466,6 +466,30 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
+    public void testConvertStringIntegralDoubleBillion() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Map<String, Double> expectedResult = new HashMap<>();
+        double billion = 1e9;
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, billion);
+        expectedResult.put(fieldName, billion);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.STRING, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo("1000000000"));
+    }
+
+    public void testConvertStringIntegralFloatTenMillion() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Map<String, Float> expectedResult = new HashMap<>();
+        float tenMillion = (float) 1e7;
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, tenMillion);
+        expectedResult.put(fieldName, tenMillion);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.STRING, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo("10000000"));
+    }
+
     public void testConvertNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());

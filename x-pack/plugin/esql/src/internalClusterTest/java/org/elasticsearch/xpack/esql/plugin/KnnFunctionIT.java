@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -63,8 +62,6 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
                 var score = (Double) row.get(2);
                 assertNotNull(score);
                 assertTrue(score > 0.0);
-                // dense_vector is null for now
-                assertNull(row.get(3));
             }
         }
     }

@@ -1081,7 +1081,6 @@ public class VerifierTests extends ESTestCase {
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
-    }
 
         assertThat(
             error("FROM tests | STATS max(network.bytes_in)", tsdb),

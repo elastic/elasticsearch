@@ -110,7 +110,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         }
 
         return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"))
-            .and(isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+            .and(isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector"));
     }
 
     @Override

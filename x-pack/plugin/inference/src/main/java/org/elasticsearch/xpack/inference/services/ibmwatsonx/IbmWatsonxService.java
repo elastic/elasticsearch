@@ -30,7 +30,10 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -40,14 +43,18 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -56,7 +63,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.EMBEDDING_MAX_BATCH_SIZE;
@@ -67,7 +73,15 @@ public class IbmWatsonxService extends SenderService {
     public static final String NAME = "watsonxai";
 
     private static final String SERVICE_NAME = "IBM Watsonx";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
+    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
+        "ibm watsonx chat completions",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
 
     public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -145,6 +159,14 @@ public class IbmWatsonxService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
+                secretSettings,
+                context
+            );
+            case CHAT_COMPLETION, COMPLETION -> new IbmWatsonxChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
                 secretSettings,
                 context
             );
@@ -237,6 +259,11 @@ public class IbmWatsonxService extends SenderService {
     }
 
     @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof IbmWatsonxEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
@@ -291,7 +318,24 @@ public class IbmWatsonxService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throwUnsupportedUnifiedCompletionOperation(NAME);
+        if (model instanceof IbmWatsonxChatCompletionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        IbmWatsonxChatCompletionModel ibmWatsonxChatCompletionModel = (IbmWatsonxChatCompletionModel) model;
+        var overriddenModel = IbmWatsonxChatCompletionModel.of(ibmWatsonxChatCompletionModel, inputs.getRequest());
+        var manager = new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            overriddenModel,
+            UNIFIED_CHAT_COMPLETION_HANDLER,
+            unifiedChatInput -> new IbmWatsonxChatCompletionRequest(unifiedChatInput, overriddenModel),
+            UnifiedChatInput.class
+        );
+        var errorMessage = IbmWatsonxActionCreator.buildErrorMessage(TaskType.CHAT_COMPLETION, model.getInferenceEntityId());
+        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
+
+        action.execute(inputs, timeout, listener);
     }
 
     @Override

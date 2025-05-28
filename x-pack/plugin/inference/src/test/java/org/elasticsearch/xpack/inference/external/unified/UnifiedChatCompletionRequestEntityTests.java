@@ -293,6 +293,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         String randomStop = "stop" + random.nextInt(1000);
         float randomTemperature = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
         float randomTopP = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
+        int randomTimeLimit = random.nextInt(1000);
 
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(randomContent),

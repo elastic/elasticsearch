@@ -70,7 +70,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         NAME,
         false,
         args -> {
-            List<LinearRetrieverComponent> retrieverComponents = (List<LinearRetrieverComponent>) args[0];
+            List<LinearRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<LinearRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
             String normalizer = (String) args[3];

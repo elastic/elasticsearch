@@ -143,6 +143,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }
+        // TODO
         return idField.termsQuery(new ArrayList<>(ids), context);
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -340,4 +341,117 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertNull(settings.get("index.mapping.source.mode"));
         assertEquals("true", settings.get(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey()));
     }
+
+    public void testGetById() throws IOException {
+        String mappings = """
+            {
+                "runtime": {
+                    "message_length": {
+                        "type": "long"
+                    },
+                    "log.offset": {
+                        "type": "long"
+                    }
+                },
+                "dynamic": false,
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "log" : {
+                        "properties": {
+                            "level": {
+                                "type": "keyword"
+                            },
+                            "file": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        String indexName = "test-foo";
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
+
+        int numDocs = 10;
+        var sb = new StringBuilder();
+        var now = Instant.now();
+
+        var expectedMinTimestamp = now;
+        for (int i = 0; i < numDocs; i++) {
+            String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
+            String msg = randomAlphaOfLength(20);
+            String path = randomAlphaOfLength(8);
+            String messageLength = Integer.toString(msg.length());
+            String offset = Integer.toString(randomNonNegativeInt());
+            sb.append("{ \"index\": { \"_id\": \"$id\" } }".replace("$id", "some_id_" + i)).append('\n');
+            if (randomBoolean()) {
+                sb.append(
+                    """
+                        {"@timestamp":"$now","message":"$msg","message_length":$l,"file":{"level":"$level","offset":5,"file":"$path"}}
+                        """.replace("$now", formatInstant(now))
+                        .replace("$level", level)
+                        .replace("$msg", msg)
+                        .replace("$path", path)
+                        .replace("$l", messageLength)
+                        .replace("$o", offset)
+                );
+            } else {
+                sb.append("""
+                    {"@timestamp": "$now", "message": "$msg", "message_length": $l}
+                    """.replace("$now", formatInstant(now)).replace("$msg", msg).replace("$l", messageLength));
+            }
+            sb.append('\n');
+            if (i != numDocs - 1) {
+                now = now.plusSeconds(1);
+            }
+        }
+        var expectedMaxTimestamp = now;
+
+        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(sb.toString());
+        bulkRequest.addParameter("refresh", "true");
+        var bulkResponse = client().performRequest(bulkRequest);
+        var bulkResponseBody = responseAsMap(bulkResponse);
+        assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+
+        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        forceMergeRequest.addParameter("max_num_segments", "1");
+        var forceMergeResponse = client().performRequest(forceMergeRequest);
+        assertOK(forceMergeResponse);
+
+
+        var getRequest = new Request("GET", "/" + indexName + "/_doc/" + "some_id_4");
+       var getResponse = client().performRequest(getRequest);
+        logger.info(getRequest);
+        assertOK(getResponse);
+
+
+
+
+
+
+
+
+
+
+//        var searchRequest = new Request("POST", "/" + indexName + "/_search");
+//
+//        searchRequest.setJsonEntity("""
+//            {
+//                "query": {
+//                    "match": {
+//                        "_id": "some_id_5"
+//                    }
+//                }
+//            }
+//            """);
+//        var searchResponse = client().performRequest(searchRequest);
+//        assertOK(searchResponse);
+//        var searchResponseBody = responseAsMap(searchResponse);
+//        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
+//        assertThat(totalHits, equalTo(1));
+    }
+
 }

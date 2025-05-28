@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -223,6 +225,52 @@ public class LogsIdIT extends ESSingleNodeTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
             assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("message"), equalTo("pod-" + i));
         }
+    }
+
+    public void testDeleteByProvidedID() throws Exception {
+        var indexName = "test-name";
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build());
+        Instant time = Instant.now();
+        BulkRequest bulkRequest = new BulkRequest(indexName);
+        int numDocs = randomIntBetween(16, 256);
+        for (int j = 0; j < numDocs; j++) {
+            var indexRequest = new IndexRequest(indexName)
+                .opType(DocWriteRequest.OpType.INDEX)
+                .id("id-" + j);
+            indexRequest.source(
+                DOC.replace("$time", formatInstant(time))
+                    .replace("$uuid", UUID.randomUUID().toString())
+                    .replace("$pod", "pod-" + j),
+                XContentType.JSON
+            );
+            bulkRequest.add(indexRequest);
+            time = time.plusMillis(1);
+        }
+        var bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.hasFailures(), is(false));
+        client().admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
+
+        if (randomBoolean()) {
+            flush(indexName, randomBoolean());
+        }
+
+
+        var searchRequest = new SearchRequest(indexName);
+        searchRequest.source().trackTotalHits(true);
+        assertResponse(client().search(searchRequest), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // test get with the provided IDs
+        for (int i = 0; i < numDocs; i++) {
+            DeleteResponse deleteResponse = client().prepareDelete(indexName, "id-" + i).get();
+            assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
+        }
+
+        assertThat(
+            client().prepareSearch(indexName).get().getHits().getTotalHits().value(),
+            equalTo(0)
+        );
     }
 
     private void createTemplate(String dataStreamName) throws IOException {

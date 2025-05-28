@@ -182,6 +182,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
             final Bits liveDocs = context.reader().getLiveDocs();
             int docID = DocIdSetIterator.NO_MORE_DOCS;
+            // TODO can we use skippers here?
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             for (int doc = idDocValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = idDocValues.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(doc) == false) {

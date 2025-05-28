@@ -1591,6 +1591,7 @@ public class InternalEngine extends Engine {
     }
 
     private void updateDocs(final BytesRef uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
+        // TODO
         final Term uidTerm = new Term(IdFieldMapper.NAME, uid);
         if (docs.size() > 1) {
             indexWriter.softUpdateDocuments(uidTerm, docs, softDeletesField);
@@ -1822,7 +1823,9 @@ public class InternalEngine extends Engine {
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {
+                // TODO
                 indexWriter.softUpdateDocument(new Term(IdFieldMapper.NAME, delete.uid()), doc, softDeletesField);
+                
             }
             return new DeleteResult(
                 plan.versionOfDeletion,
@@ -3460,6 +3463,7 @@ public class InternalEngine extends Engine {
                 continue;
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
+            // TODO
             final IdStoredFieldLoader idFieldLoader = new IdStoredFieldLoader(leaf.reader());
             final DocIdSetIterator iterator = scorer.iterator();
             int docId;

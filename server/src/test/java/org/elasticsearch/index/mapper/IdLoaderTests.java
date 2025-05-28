@@ -58,7 +58,7 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(indexReader.leaves(), hasSize(1));
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(3));
-            var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
+            var leaf = idLoader.leaf(null, null, leafReader, new int[] { 0, 1, 2 });
             // NOTE: time series data is ordered by (tsid, timestamp)
             assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2), routingHash)));
             assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0), routingHash)));
@@ -108,7 +108,7 @@ public class IdLoaderTests extends ESTestCase {
             {
                 LeafReader leafReader = indexReader.leaves().get(0).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs1.size()));
-                var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs1.size()).toArray());
+                var leaf = idLoader.leaf(null, null, leafReader, IntStream.range(0, docs1.size()).toArray());
                 for (int i = 0; i < docs1.size(); i++) {
                     assertThat(leaf.getId(i), equalTo(expectedId(docs1.get(i), routingHash)));
                 }
@@ -116,21 +116,21 @@ public class IdLoaderTests extends ESTestCase {
             {
                 LeafReader leafReader = indexReader.leaves().get(1).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs2.size()));
-                var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 3 });
+                var leaf = idLoader.leaf(null, null, leafReader, new int[] { 0, 3 });
                 assertThat(leaf.getId(0), equalTo(expectedId(docs2.get(0), routingHash)));
                 assertThat(leaf.getId(3), equalTo(expectedId(docs2.get(3), routingHash)));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs3.size()));
-                var leaf = idLoader.leaf(null, leafReader, new int[] { 1, 2 });
+                var leaf = idLoader.leaf(null, null, leafReader, new int[] { 1, 2 });
                 assertThat(leaf.getId(1), equalTo(expectedId(docs3.get(1), routingHash)));
                 assertThat(leaf.getId(2), equalTo(expectedId(docs3.get(2), routingHash)));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs3.size()));
-                var leaf = idLoader.leaf(null, leafReader, new int[] { 3 });
+                var leaf = idLoader.leaf(null, null, leafReader, new int[] { 3 });
                 expectThrows(IllegalArgumentException.class, () -> leaf.getId(0));
             }
         };
@@ -168,7 +168,7 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(indexReader.leaves(), hasSize(1));
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(randomDocs.size()));
-            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, randomDocs.size()).toArray());
+            var leaf = idLoader.leaf(null, null, leafReader, IntStream.range(0, randomDocs.size()).toArray());
             for (int i = 0; i < randomDocs.size(); i++) {
                 String actualId = leaf.getId(i);
                 assertTrue("docId=" + i + " id=" + actualId, expectedIDs.remove(actualId));

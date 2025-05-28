@@ -72,7 +72,9 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -400,7 +402,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
-        // assertAcked(indicesAdmin().prepareClose(indexName));
         assertBusy(() -> closeIndices(indexName));
         expectThrows(
             IndexClosedException.class,
@@ -415,6 +416,83 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(1)
+        );
+    }
+
+    public void testReshardWithConcurrentIndexClose() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        // Close an index concurrently with resharding.
+        // Either the close or the reshard should fail here since close logic
+        // validates that index is not being concurrently resharded.
+        AtomicBoolean success = new AtomicBoolean(false);
+        runInParallel(2, i -> {
+            if (i == 0) {
+                Consumer<Exception> assertCloseException = e -> {
+                    if (e instanceof IllegalArgumentException ia) {
+                        assertTrue(
+                            "Unexpected exception from index close operation: " + e,
+                            ia.getMessage().contains("Cannot close indices that are being resharded")
+                        );
+                    } else if (e instanceof IllegalStateException is) {
+                        assertTrue(
+                            "Unexpected exception from index close operation: " + e,
+                            is.getMessage().contains("index is being resharded in the meantime")
+                        );
+                    } else {
+                        fail("Unexpected exception from index close operation: " + e);
+                    }
+                };
+
+                try {
+                    Thread.sleep(randomIntBetween(0, 200));
+
+                    var response = indicesAdmin().prepareClose(indexName).get();
+                    assertEquals(1, response.getIndices().size());
+                    var indexResponse = response.getIndices().get(0);
+                    assertEquals(indexName, indexResponse.getIndex().getName());
+                    if (indexResponse.hasFailures()) {
+                        assertCloseException.accept(indexResponse.getException());
+                    }
+                } catch (Exception e) {
+                    assertCloseException.accept(e);
+                }
+            } else {
+                try {
+                    Thread.sleep(randomIntBetween(0, 200));
+
+                    client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+                    success.set(true);
+                } catch (Exception e) {
+                    // IndexNotFoundException is possible if closed index is already removed from the node at this time.
+                    boolean isExpectedException = e instanceof IndexClosedException || e instanceof IndexNotFoundException;
+                    assertTrue("Unexpected error while resharding an index: " + e, isExpectedException);
+                }
+            }
+        });
+
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        var expectedNumberOfShards = success.get() ? 2 : 1;
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(expectedNumberOfShards)
         );
     }
 

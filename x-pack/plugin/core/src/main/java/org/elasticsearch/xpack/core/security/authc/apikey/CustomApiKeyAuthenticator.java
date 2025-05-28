@@ -14,6 +14,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
+/**
+ * An extension point to provide a custom API key authenticator implementation.
+ * The implementation is wrapped by a core Authenticator class and included in the authenticator chain _before_ the
+ * default API key authenticator.
+ */
 public interface CustomApiKeyAuthenticator {
     String name();
 

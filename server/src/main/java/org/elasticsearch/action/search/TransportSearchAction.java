@@ -188,7 +188,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
         SearchTransportService.registerRequestHandler(transportService, searchService);
-        SearchQueryThenFetchAsyncAction.registerNodeSearchAction(searchTransportService, searchService, searchPhaseController);
+        SearchQueryThenFetchAsyncAction.registerNodeSearchAction(searchTransportService, searchService, searchPhaseController,
+            namedWriteableRegistry);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
@@ -409,8 +410,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
                         && rewritten.source().aggregations() != null
-                            ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
-                            : null;
+                        ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
+                        : null;
                     SearchResponse.Clusters clusters = new SearchResponse.Clusters(
                         resolvedIndices.getLocalIndices(),
                         resolvedIndices.getRemoteClusterIndices(),

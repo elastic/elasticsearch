@@ -225,6 +225,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME_8_19 = def(8_841_0_34);
     public static final TransportVersion RERANKER_FAILURES_ALLOWED_8_19 = def(8_841_0_35);
     public static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19 = def(8_841_0_36);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION_8_19 = def(8_841_0_37);
 
     /*
      * STOP! READ THIS FIRST! No, really,

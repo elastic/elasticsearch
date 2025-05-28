@@ -63,19 +63,19 @@ index_options
 
 Parameters for `index_options` are:
 
-`prune`
-:   (Optional, boolean) [preview] Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
+`prune` {applies_to}`stack: preview 9.1`
+:   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
 
-`pruning_config`
-:   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false, an exception will occur.
+`pruning_config` {applies_to}`stack: preview 9.1`
+:   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false, an exception will occur.
 
     Parameters for `pruning_config` include:
 
-    `tokens_freq_ratio_threshold`
-    :   (Optional, integer) [preview] Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+    `tokens_freq_ratio_threshold` {applies_to}`stack: preview 9.1`
+    :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
 
-    `tokens_weight_threshold`
-    :   (Optional, float) [preview] Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+    `tokens_weight_threshold` {applies_to}`stack: preview 9.1`
+    :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
 
     ::::{note}
     The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.

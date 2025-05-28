@@ -1923,7 +1923,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | stats count(*) where match(job_positions, "Data Scientist") by gender
             """;
-        var analyzer = makeAnalyzer("mapping-default.json");
+        var analyzer = makeAnalyzer("mapping-default.json", new EnrichResolution());
         var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
         var plan = plannerOptimizer.plan(query);
 

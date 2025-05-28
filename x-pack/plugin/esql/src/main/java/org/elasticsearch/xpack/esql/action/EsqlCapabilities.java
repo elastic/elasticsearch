@@ -1128,7 +1128,12 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Enable support for index aliases in lookup joins
+         */
+        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled());
 
         private final boolean enabled;
 

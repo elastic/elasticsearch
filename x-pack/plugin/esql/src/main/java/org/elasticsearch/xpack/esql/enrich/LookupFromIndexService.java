@@ -190,12 +190,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (indexPattern.equals(shardId.getIndexName()) == false
-                && out.getTransportVersion().before(TransportVersions.JOIN_ON_ALIASES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+                out.writeString(indexPattern);
+            } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 // TODO can we throw exceptions here?
                 throw new VerificationException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
             }
-            out.writeString(indexPattern);
 
             out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);

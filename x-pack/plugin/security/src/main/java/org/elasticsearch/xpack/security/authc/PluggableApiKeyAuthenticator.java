@@ -37,7 +37,12 @@ public class PluggableApiKeyAuthenticator implements Authenticator {
             if (response.isAuthenticated()) {
                 listener.onResponse(response);
             } else if (response.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                listener.onFailure(context.getRequest().exceptionProcessingRequest(response.getException(), authenticationToken));
+                final Exception ex = response.getException();
+                if (ex == null) {
+                    listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
+                } else {
+                    listener.onFailure(context.getRequest().exceptionProcessingRequest(ex, authenticationToken));
+                }
             } else if (response.getStatus() == AuthenticationResult.Status.CONTINUE) {
                 listener.onResponse(AuthenticationResult.notHandled());
             }

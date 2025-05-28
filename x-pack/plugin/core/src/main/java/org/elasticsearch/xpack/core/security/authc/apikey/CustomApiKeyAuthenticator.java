@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
  * An extension point to provide a custom API key authenticator implementation.
- * The implementation is wrapped by a core Authenticator class and included in the authenticator chain _before_ the
+ * The implementation is wrapped by a core `Authenticator` class and included in the authenticator chain _before_ the
  * default API key authenticator.
  */
 public interface CustomApiKeyAuthenticator {
@@ -27,7 +27,7 @@ public interface CustomApiKeyAuthenticator {
     void authenticate(@Nullable AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<Authentication>> listener);
 
     /**
-     * A no-op implementation of {@link CustomApiKeyAuthenticator} that does nothing and is effectively skipped in the authenticator chain.
+     * A no-op implementation of {@link CustomApiKeyAuthenticator} that is effectively skipped in the authenticator chain.
      */
     class Noop implements CustomApiKeyAuthenticator {
         @Override

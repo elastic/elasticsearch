@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
@@ -27,42 +29,39 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * An optimization rule that pushes down field extractions to occur at the lowest filter, limit, or topN in the time-series source plan.
- * For example:
- * `TS index | WHERE host = 'a' AND cluster = 'b' | STATS max(rate(counter)) BY host, bucket(1minute)`
- * In this query, the extraction of the `host` and `cluster` fields will be pushed down to the time-series source,
- * while the extraction of the `counter` field will occur later. In such cases, the `doc_ids` still need to be returned
- * for the later extraction. However, if the filter (`host = 'a' AND cluster = 'b'`) is pushed down to Lucene, all field extractions
- * (e.g., `host` and `counter`) will be pushed down to the time-series source, and `doc_ids` will not be returned.
+ * An optimization rule vertically partitions the time-series into three parts: time-series source, field extraction,
+ * and time-series aggregation so that they can run parallel to speed up time-series query.
+ * For the field-extraction part, it will use a specialized version for time-series indices.
  */
-public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    PhysicalPlan,
+public class ParallelizeTimeSeriesSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    TimeSeriesAggregateExec,
     LocalPhysicalOptimizerContext> {
 
     @Override
-    public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+    public PhysicalPlan rule(TimeSeriesAggregateExec plan, LocalPhysicalOptimizerContext context) {
+        if (plan.getMode().isInputPartial()) {
+            return plan;
+        }
         if (plan.anyMatch(p -> p instanceof EsQueryExec q && q.indexMode() == IndexMode.TIME_SERIES) == false) {
             return plan;
         }
         final List<FieldExtractExec> pushDownExtracts = new ArrayList<>();
-        final Holder<Boolean> keepDocIds = new Holder<>(Boolean.FALSE);
         plan.forEachDown(p -> {
             if (p instanceof FieldExtractExec) {
                 pushDownExtracts.add((FieldExtractExec) p);
             } else if (stopPushDownExtract(p)) {
                 if (pushDownExtracts.isEmpty() == false) {
-                    keepDocIds.set(Boolean.TRUE);
                     pushDownExtracts.clear();
                 }
             }
         });
         final Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
-        return plan.transformUp(PhysicalPlan.class, p -> {
+        PhysicalPlan newChild = plan.child().transformUp(PhysicalPlan.class, p -> {
             if (aborted.get()) {
                 return p;
             }
             if (p instanceof EsQueryExec q && q.indexMode() == IndexMode.TIME_SERIES) {
-                return addFieldExtract(context, q, keepDocIds.get(), pushDownExtracts);
+                return addFieldExtract(context, q, pushDownExtracts);
             }
             if (stopPushDownExtract(p)) {
                 aborted.set(Boolean.TRUE);
@@ -73,18 +72,14 @@ public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizer
             }
             return p;
         });
+        return plan.replaceChild(new ParallelExec(plan.source(), newChild));
     }
 
     private static boolean stopPushDownExtract(PhysicalPlan p) {
         return p instanceof FilterExec || p instanceof TopNExec || p instanceof LimitExec;
     }
 
-    private PhysicalPlan addFieldExtract(
-        LocalPhysicalOptimizerContext context,
-        EsQueryExec query,
-        boolean keepDocAttribute,
-        List<FieldExtractExec> extracts
-    ) {
+    private PhysicalPlan addFieldExtract(LocalPhysicalOptimizerContext context, EsQueryExec query, List<FieldExtractExec> extracts) {
         Set<Attribute> docValuesAttributes = new HashSet<>();
         Set<Attribute> boundsAttributes = new HashSet<>();
         List<Attribute> attributesToExtract = new ArrayList<>();
@@ -94,22 +89,14 @@ public class PushDownFieldExtractionToTimeSeriesSource extends PhysicalOptimizer
             attributesToExtract.addAll(extract.attributesToExtract());
         }
         List<Attribute> attrs = query.attrs();
-        if (keepDocAttribute == false) {
-            attrs = attrs.stream().filter(a -> EsQueryExec.isSourceAttribute(a) == false).toList();
-        }
-        var tsSource = new TimeSeriesSourceExec(
+        var tsSource = new TimeSeriesSourceExec(query.source(), attrs, query.query(), query.limit(), query.estimatedRowSize());
+        return new TimeSeriesFieldExtractExec(
             query.source(),
-            attrs,
-            query.query(),
-            query.limit(),
+            new ParallelExec(query.source(), tsSource),
+            attributesToExtract,
             context.configuration().pragmas().fieldExtractPreference(),
             docValuesAttributes,
-            boundsAttributes,
-            attributesToExtract,
-            query.estimatedRowSize()
+            boundsAttributes
         );
-        // Use a separate driver for the time-series source to split the pipeline to increase parallelism,
-        // since the time-series source must be executed with a single driver at the shard level.
-        return new ParallelExec(query.source(), tsSource);
     }
 }

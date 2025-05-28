@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
+import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,6 +224,76 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             topResults[rank].rank = rank + 1;
         }
         return topResults;
+    }
+
+    @Override
+    protected boolean doRewrite(QueryRewriteContext ctx) {
+        boolean modified = false;
+
+        ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
+        if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
+            // Using the simplified query format
+            if (query == null || query.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] [" + QUERY_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
+                );
+            }
+
+            if (normalizer == null || normalizer.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] [" + NORMALIZER_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
+                );
+            }
+            ScoreNormalizer fieldsNormalizer = ScoreNormalizer.valueOf(normalizer);
+
+            if (innerRetrievers.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] does not support [" + RETRIEVERS_FIELD.getPreferredName() + "] and the simplified query format combined"
+                );
+            }
+
+            var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
+            if (localIndicesMetadata.size() > 1) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] does not support the simplified query format when querying multiple indices"
+                );
+            }
+
+            List<RetrieverBuilder> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+                fields,
+                query,
+                localIndicesMetadata.values(),
+                r -> {
+                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
+                    float[] weights = new float[r.size()];
+                    ScoreNormalizer[] normalizers = new ScoreNormalizer[r.size()];
+
+                    int index = 0;
+                    for (var weightedRetriever : r) {
+                        retrievers.add(weightedRetriever.retrieverSource());
+                        weights[index] = weightedRetriever.weight();
+                        normalizers[index] = fieldsNormalizer;
+                        index++;
+                    }
+
+                    return new LinearRetrieverBuilder(retrievers, rankWindowSize, weights, normalizers);
+                },
+                w -> {
+                    if (w < 0) {
+                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+                    }
+                }
+            );
+            fieldsInnerRetrievers.forEach(this::addChild);
+            // TODO: Set weight and normalizer for each child retriever added
+
+            // Clear fields and query to indicate that this stage of the rewrite process is complete
+            fields = List.of();
+            query = null;
+            modified = true;
+        }
+
+        return modified;
     }
 
     @Override

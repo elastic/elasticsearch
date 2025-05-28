@@ -36,9 +36,7 @@ final class HdfsBlobStore implements BlobStore {
     HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly, boolean haEnabled, Short replicationFactor)
         throws IOException {
         this.fileContext = fileContext;
-        // Only restrict permissions if not running with HA
-        boolean restrictPermissions = (haEnabled == false);
-        this.securityContext = new HdfsSecurityContext(fileContext.getUgi(), restrictPermissions);
+        this.securityContext = new HdfsSecurityContext(fileContext.getUgi());
         this.bufferSize = bufferSize;
         this.replicationFactor = replicationFactor;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
@@ -103,10 +101,8 @@ final class HdfsBlobStore implements BlobStore {
         if (closed) {
             throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }
-        return securityContext.doPrivilegedOrThrow(() -> {
-            securityContext.ensureLogin();
-            return operation.run(fileContext);
-        });
+        securityContext.ensureLogin();
+        return operation.run(fileContext);
     }
 
     @Override

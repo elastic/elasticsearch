@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -94,6 +96,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -569,12 +572,15 @@ public class EsqlSession {
     }
 
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
-        if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
-            // no explicit columns selection, for example "from employees"
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
+        Set<Aggregate> inlinestatsAggs = new HashSet<>();
+        for (var i : inlinestats) {
+            inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
-        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
+        if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
+            // no explicit columns selection, for example "from employees"
+            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
@@ -585,6 +591,33 @@ public class EsqlSession {
             }
             projectAll.set(true);
         });
+
+        if (projectAll.get()) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+
+        Holder<Boolean> projectAfterFork = new Holder<>(false);
+        Holder<Boolean> hasFork = new Holder<>(false);
+
+        parsed.forEachDown(plan -> {
+            if (projectAll.get()) {
+                return;
+            }
+
+            if (hasFork.get() == false && shouldCollectReferencedFields(plan, inlinestatsAggs)) {
+                projectAfterFork.set(true);
+            }
+
+            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
+                hasFork.set(true);
+                fork.children().forEach(child -> {
+                    if (child.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                        projectAll.set(true);
+                    }
+                });
+            }
+        });
+
         if (projectAll.get()) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
@@ -606,11 +639,7 @@ public class EsqlSession {
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                // remove other down-the-tree references to the extracted fields
-                for (Attribute extracted : re.extractedFields()) {
-                    referencesBuilder.removeIf(attr -> matchByName(attr, extracted.name(), false));
-                }
-                // but keep the inputs needed by Grok/Dissect
+                // keep the inputs needed by Grok/Dissect
                 referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
@@ -658,22 +687,26 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && couldOverrideAliases(p)) {
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {
                 // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
                 // for example "from test | eval x = salary | stats max = max(x) by gender"
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+                // also remove other down-the-tree references to the extracted fields from "grok" and "dissect"
                 AttributeSet planRefs = p.references();
                 Set<String> fieldNames = planRefs.names();
-                p.forEachExpressionDown(Alias.class, alias -> {
-                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
-                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                    if (fieldNames.contains(alias.name())) {
+                p.forEachExpressionDown(NamedExpression.class, ne -> {
+                    if ((ne instanceof Alias || ne instanceof ReferenceAttribute) == false) {
                         return;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), shadowingRefsBuilder.contains(attr)));
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(ne.name())) {
+                        return;
+                    }
+                    referencesBuilder.removeIf(attr -> matchByName(attr, ne.name(), shadowingRefsBuilder.contains(attr)));
                 });
             }
         });
@@ -702,6 +735,13 @@ public class EsqlSession {
     }
 
     /**
+     * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
+     */
+    private static boolean shouldCollectReferencedFields(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false);
+    }
+
+    /**
      * Could a plan "accidentally" override aliases?
      * Examples are JOIN and ENRICH, that _could_ produce fields with the same
      * name of an existing alias, based on their index mapping.
@@ -724,7 +764,8 @@ public class EsqlSession {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof Rename
-            || p instanceof TopN) == false;
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

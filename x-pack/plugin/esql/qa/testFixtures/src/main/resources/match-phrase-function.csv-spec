@@ -284,7 +284,7 @@ testMatchPhraseIpField
 required_capability: match_phrase_function
 
 from sample_data
-| where match(client_ip, "172.21.0.5")
+| where match_phrase(client_ip, "172.21.0.5")
 | keep client_ip, message;
 
 client_ip:ip   | message:keyword
@@ -306,7 +306,7 @@ testMatchPhraseDateNanosFieldAsString
 required_capability: match_phrase_function
 
 from date_nanos
-| where match(nanos, "2023-10-23T13:55:01.543123456Z")
+| where match_phrase(nanos, "2023-10-23T13:55:01.543123456Z")
 | keep nanos;
 
 nanos:date_nanos
@@ -488,6 +488,7 @@ r:double           | author: text
 4.559999942779541  | J.R.R. Tolkien           
 ;
 
+testMatchPhraseRequiresExactPhraseMatch
 from books 
 | where match_phrase(title, "Lord Rings")
 | keep book_no

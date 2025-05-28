@@ -283,10 +283,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestGetDataStreamOptionsAction());
         handlers.add(new RestPutDataStreamOptionsAction());
         handlers.add(new RestDeleteDataStreamOptionsAction());
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
             handlers.add(new RestGetDataStreamSettingsAction());
             handlers.add(new RestUpdateDataStreamSettingsAction());
-        }
         return handlers;
     }
 

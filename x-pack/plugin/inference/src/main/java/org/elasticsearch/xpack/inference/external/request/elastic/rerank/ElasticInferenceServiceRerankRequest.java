@@ -28,7 +28,6 @@ import java.util.Objects;
 
 public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServiceRequest {
 
-    private final URI uri;
     private final String query;
     private final List<String> documents;
     private final TraceContextHandler traceContextHandler;
@@ -45,13 +44,12 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         this.query = query;
         this.documents = documents;
         this.model = Objects.requireNonNull(model);
-        this.uri = model.uri();
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
     public HttpRequestBase createHttpRequestBase() {
-        var httpPost = new HttpPost(uri);
+        var httpPost = new HttpPost(getURI());
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceRerankRequestEntity(
                 query,
@@ -81,7 +79,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
 
     @Override
     public URI getURI() {
-        return uri;
+        return model.uri();
     }
 
     @Override

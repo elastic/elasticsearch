@@ -209,7 +209,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     ) {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
             // owns and closes the disk space monitor
-            return new ThreadPoolMergeExecutorService(threadPool, mergeTaskPriorityBlockingQueue, availableDiskSpacePeriodicMonitor);
+            return new ThreadPoolMergeExecutorService(threadPool, clusterSettings, nodeEnvironment);
         } else {
             // register no-op setting update consumers so that setting validations work properly
             // (some validations are bypassed if there are no update consumers registered),
@@ -223,7 +223,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     private ThreadPoolMergeExecutorService(
         ThreadPool threadPool,
-        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue,
         ClusterSettings clusterSettings,
         NodeEnvironment nodeEnvironment
     ) {
@@ -237,7 +236,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             threadPool,
             nodeEnvironment.dataPaths(),
             clusterSettings,
-            (availableDiskSpaceByteSize) -> mergeTaskPriorityBlockingQueue.updateBudget(availableDiskSpaceByteSize.getBytes())
+            (availableDiskSpaceByteSize) -> this.queuedMergeTasks.updateBudget(availableDiskSpaceByteSize.getBytes())
         );
     }
 

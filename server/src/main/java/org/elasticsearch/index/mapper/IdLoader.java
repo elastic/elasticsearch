@@ -74,8 +74,8 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
             this.indexRouting = indexRouting;
         }
 
-        public IdLoader.Leaf leaf(
-            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public IdLoader.Leaf leaf(SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf)
+            throws IOException {
             IndexRouting.ExtractFromSource.Builder[] builders = null;
             if (indexRouting != null) {
                 builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
@@ -134,9 +134,8 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
     }
 
     final class LogsdbLoader implements IdLoader {
-        public IdLoader.Leaf leaf(
-            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf
-        ) throws IOException {
+        public IdLoader.Leaf leaf(SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf)
+            throws IOException {
             try {
                 SortedDocValues idDocValues = DocValues.getSorted(reader, IdFieldMapper.NAME);
                 return loadDocValues(idDocValues, docIdsInLeaf);
@@ -164,8 +163,8 @@ public sealed interface IdLoader permits IdLoader.LogsdbLoader, IdLoader.TsIdLoa
         public StoredIdLoader() {}
 
         @Override
-        public Leaf leaf(
-            SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public Leaf leaf(SourceLoader.Leaf leafSourceLoader, LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf)
+            throws IOException {
             return new StoredLeaf(loader);
         }
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * A mapper for the _id field.
@@ -73,9 +72,7 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            var bytesRefs = values.stream()
-                .map(LogsdbIdFieldType::encode)
-                .map(this::indexedValueForSearch).toList();
+            var bytesRefs = values.stream().map(LogsdbIdFieldType::encode).map(this::indexedValueForSearch).toList();
             return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
         }
 

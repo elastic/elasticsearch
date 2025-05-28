@@ -17,8 +17,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -40,14 +37,11 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.*;
 
@@ -120,9 +114,7 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         for (int j = 0; j < numDocs; j++) {
             var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + j),
+                DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -160,13 +152,9 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest(indexName);
         int numDocs = randomIntBetween(16, 256);
         for (int j = 0; j < numDocs; j++) {
-            var indexRequest = new IndexRequest(indexName)
-                .opType(DocWriteRequest.OpType.INDEX)
-                .id("id-" + j);
+            var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.INDEX).id("id-" + j);
             indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + j),
+                DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -215,13 +203,9 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest(indexName);
         int numDocs = randomIntBetween(16, 256);
         for (int j = 0; j < numDocs; j++) {
-            var indexRequest = new IndexRequest(indexName)
-                .opType(DocWriteRequest.OpType.INDEX)
-                .id("id-" + j);
+            var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.INDEX).id("id-" + j);
             indexRequest.source(
-                DOC.replace("$time", formatInstant(time))
-                    .replace("$uuid", UUID.randomUUID().toString())
-                    .replace("$pod", "pod-" + j),
+                DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
                 XContentType.JSON
             );
             bulkRequest.add(indexRequest);
@@ -258,7 +242,6 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
     }
-
 
     private void checkIndexSearchAndRetrieval(String dataStreamName, boolean routeOnSortFields) throws Exception {
         String[] uuis = {
@@ -331,9 +314,7 @@ public class LogsIdIT extends ESSingleNodeTestCase {
     public void flush(String index, boolean force) throws IOException, ExecutionException, InterruptedException {
         logger.info("flushing index {} force={}", index, force);
         FlushRequest flushRequest = new FlushRequest(index).force(force);
-        assertResponse(client().admin().indices().flush(flushRequest), response -> {
-            assertEquals(0, response.getFailedShards());
-        });
+        assertResponse(client().admin().indices().flush(flushRequest), response -> { assertEquals(0, response.getFailedShards()); });
     }
 
 }

@@ -1,0 +1,5 @@
+pr: 128213
+summary: Refactor `SourceProvider` creation to consistently use `MappingLookup`
+area: Mapping
+type: enhancement
+issues: []

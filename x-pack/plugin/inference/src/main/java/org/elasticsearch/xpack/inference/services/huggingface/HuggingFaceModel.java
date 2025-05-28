@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -33,6 +34,13 @@ public abstract class HuggingFaceModel extends RateLimitGroupingModel {
         super(configurations, secrets);
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+    }
+
+    protected HuggingFaceModel(HuggingFaceModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        apiKey = model.apiKey();
     }
 
     public HuggingFaceRateLimitServiceSettings rateLimitServiceSettings() {

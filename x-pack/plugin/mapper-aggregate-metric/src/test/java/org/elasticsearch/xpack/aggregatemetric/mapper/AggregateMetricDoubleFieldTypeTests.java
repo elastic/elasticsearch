@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -65,7 +66,7 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
         Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
-        assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
+        assertThat(query, equalTo(DoubleField.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {

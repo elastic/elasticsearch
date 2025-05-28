@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -114,13 +114,14 @@ public class BulkInferenceExecutor {
     private static class ThrottledInferenceRunner {
         private final InferenceRunner inferenceRunner;
         private final ExecutorService executorService;
-        private final BlockingQueue<AbstractRunnable> pendingRequests = ConcurrentCollections.newBlockingQueue();
+        private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
         private final Semaphore permits;
 
         private ThrottledInferenceRunner(InferenceRunner inferenceRunner, ExecutorService executorService, int maxRunningTasks) {
             this.executorService = executorService;
             this.permits = new Semaphore(maxRunningTasks);
             this.inferenceRunner = inferenceRunner;
+            this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks, true);
         }
 
         public static ThrottledInferenceRunner create(
@@ -138,7 +139,7 @@ public class BulkInferenceExecutor {
 
         private void executePendingRequests() {
             while (permits.tryAcquire()) {
-                AbstractRunnable task = pendingRequests.poll();
+                AbstractRunnable task = pendingRequestsQueue.poll();
 
                 if (task == null) {
                     permits.release();
@@ -156,7 +157,7 @@ public class BulkInferenceExecutor {
 
         private void enqueueTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
             try {
-                pendingRequests.add(createTask(request, listener));
+                pendingRequestsQueue.put(createTask(request, listener));
                 executePendingRequests();
             } catch (Exception e) {
                 listener.onFailure(new IllegalStateException("An error occurred while adding the inference request to the queue", e));

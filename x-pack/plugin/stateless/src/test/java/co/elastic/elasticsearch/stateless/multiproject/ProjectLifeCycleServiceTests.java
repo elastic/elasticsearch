@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -57,6 +58,7 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
             var repoPath = LuceneTestCase.createTempDir();
             var nodeSettings = Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), pathHome)
                 .put(PATH_REPO_SETTING.getKey(), repoPath)
                 .put(BUCKET_SETTING.getKey(), repoPath)
@@ -64,7 +66,14 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             var threadPool = new TestThreadPool("test", Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
             closeable.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-            var clusterService = closeable.add(ClusterServiceUtils.createClusterService(threadPool));
+            var clusterService = closeable.add(
+                ClusterServiceUtils.createClusterService(
+                    threadPool,
+                    DiscoveryNodeUtils.create("node", "node"),
+                    nodeSettings,
+                    clusterSettings
+                )
+            );
             var client = new NoOpNodeClient(threadPool);
             var environment = newEnvironment(nodeSettings);
             var xContentRegistry = xContentRegistry();
@@ -73,7 +82,8 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
                 clusterService,
                 Map.of(
                     FsRepository.TYPE,
-                    metadata -> new FsRepository(
+                    (projectId, metadata) -> new FsRepository(
+                        projectId,
                         metadata,
                         environment,
                         xContentRegistry,

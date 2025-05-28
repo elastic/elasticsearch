@@ -67,18 +67,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         entry(OVERSAMPLE_FIELD.getPreferredName(), FLOAT)
     );
 
-    @FunctionInfo(
-        returnType = "boolean",
-        preview = true,
-        description = """
-            Finds the k nearest vectors to a query vector, as measured by a similarity metric.
-            knn function finds nearest vectors through approximate search on indexed dense_vectors
-            """,
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT
-            ) }
-    )
+    @FunctionInfo(returnType = "boolean", preview = true, description = """
+        Finds the k nearest vectors to a query vector, as measured by a similarity metric.
+        knn function finds nearest vectors through approximate search on indexed dense_vectors
+        """, appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) })
     public Knn(Source source, Expression field, Expression query, Expression options) {
         this(source, field, query, options, null);
     }
@@ -88,7 +80,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         this.field = field;
         this.options = options;
     }
-
 
     public Expression field() {
         return field;
@@ -187,7 +178,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field, knn.field) && Objects.equals(query(), knn.query())
+        return Objects.equals(field, knn.field)
+            && Objects.equals(query(), knn.query())
             && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 

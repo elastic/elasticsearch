@@ -1397,6 +1397,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return f;
         }
+
         private static Expression processScalarOrGroupingFunction(
             org.elasticsearch.xpack.esql.core.expression.function.Function f,
             EsqlFunctionRegistry registry

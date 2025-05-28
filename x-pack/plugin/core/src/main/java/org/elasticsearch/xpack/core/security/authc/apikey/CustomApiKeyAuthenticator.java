@@ -26,6 +26,9 @@ public interface CustomApiKeyAuthenticator {
 
     void authenticate(@Nullable AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<Authentication>> listener);
 
+    /**
+     * A no-op implementation of {@link CustomApiKeyAuthenticator} that does nothing and is effectively skipped in the authenticator chain.
+     */
     class Noop implements CustomApiKeyAuthenticator {
         @Override
         public String name() {

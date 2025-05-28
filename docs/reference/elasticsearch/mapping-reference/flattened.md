@@ -90,7 +90,7 @@ Currently, flattened object fields can be used with the following query types:
 
 When querying, it is not possible to refer to field keys using wildcards, as in `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including `range`, treat the values as string keywords. Highlighting is not supported on `flattened` fields.
 
-It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
+It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
 
 Flattened object fields currently cannot be stored. It is not possible to specify the [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md) parameter in the mapping.
 

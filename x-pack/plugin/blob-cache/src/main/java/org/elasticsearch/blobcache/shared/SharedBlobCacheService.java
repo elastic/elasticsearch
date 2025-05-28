@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -94,6 +95,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "concurrent_evictions",
+        5,
+        1,
         Setting.Property.NodeScope
     );
 
@@ -283,6 +291,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
         int forceEvict(Predicate<K> cacheKeyPredicate);
+
+        void forceEvictAsync(Predicate<K> cacheKey);
     }
 
     private abstract static class CacheEntry<T> {
@@ -328,6 +338,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Runnable evictIncrementer;
 
     private final LongSupplier relativeTimeInNanosSupplier;
+    private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
@@ -388,6 +399,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.asyncEvictionsRunner = new ThrottledTaskRunner(
+            "shared_blob_cache_evictions",
+            SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
+            threadPool.generic()
+        );
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -500,6 +516,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ActionListener<Void> listener
     ) {
         int finalRegion = getEndingRegion(length);
+        // TODO freeRegionCount uses freeRegions.size() which is is NOT a constant-time operation. Can we do better?
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
             listener.onResponse(null);
@@ -571,7 +588,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -619,7 +636,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -690,7 +707,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         throw new AlreadyClosedException(message);
     }
 
-    // used by tests
+    /**
+     * NOTE: Method is package private mostly to allow checking the number of fee regions in tests.
+     * However, it is also used by {@link SharedBlobCacheService#maybeFetchFullEntry} but we should try
+     * to move away from that because calling "size" on a ConcurrentLinkedQueue is not a constant time operation.
+     */
     int freeRegionCount() {
         return freeRegions.size();
     }
@@ -721,6 +742,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
 
+    }
+
+    /**
+     * Evict entries from the cache that match the given predicate asynchronously
+     *
+     * @param cacheKeyPredicate
+     */
+    public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+        cache.forceEvictAsync(cacheKeyPredicate);
     }
 
     // used by tests
@@ -1623,6 +1653,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
+        }
+
+        @Override
+        public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+            asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        forceEvict(cacheKeyPredicate);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // should be impossible, GENERIC pool doesn't reject anything
+                    final String message = "unexpected failure evicting from shared blob cache";
+                    logger.error(message, e);
+                    assert false : new AssertionError(message, e);
+                }
+            });
         }
 
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {

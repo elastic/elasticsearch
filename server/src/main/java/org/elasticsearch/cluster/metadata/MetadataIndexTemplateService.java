@@ -83,7 +83,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -884,7 +884,12 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams().keySet();
+        final Set<String> dataStreams = project.dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<ProjectMetadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();

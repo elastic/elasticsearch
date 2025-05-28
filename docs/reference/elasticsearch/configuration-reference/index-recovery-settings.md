@@ -21,7 +21,7 @@ You can view a list of in-progress and completed recoveries using the [cat recov
 ## Recovery settings [recovery-settings]
 
 `indices.recovery.max_bytes_per_sec`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limits total inbound and outbound recovery traffic for each node. Applies to both peer recoveries as well as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb` unless the node is a dedicated [cold](docs-content://manage-data/lifecycle/data-tiers.md#cold-tier) or [frozen](docs-content://manage-data/lifecycle/data-tiers.md#frozen-tier) node, in which case the default relates to the total memory available to the node:
 
     | Total memory | Default recovery rate on cold and frozen nodes |
     | --- | --- |
@@ -44,19 +44,19 @@ You can view a list of in-progress and completed recoveries using the [cat recov
 You can use the following *expert* setting to manage resources for peer recoveries.
 
 `indices.recovery.max_concurrent_file_chunks`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of file chunks sent in parallel for each recovery. Defaults to `2`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Expert) Number of file chunks sent in parallel for each recovery. Defaults to `2`.
 
     You can increase the value of this setting when the recovery of a single shard is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`, up to a maximum of `8`.
 
 
 `indices.recovery.max_concurrent_operations`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of operations sent in parallel for each recovery. Defaults to `1`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Expert) Number of operations sent in parallel for each recovery. Defaults to `1`.
 
     Concurrently replaying operations during recovery can be very resource-intensive and may interfere with indexing, search, and other activities in your cluster. Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 
 
 `indices.recovery.use_snapshots`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Enables snapshot-based peer recoveries.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Expert) Enables snapshot-based peer recoveries.
 
     {{es}} recovers replicas and relocates primary shards using the *peer recovery* process, which involves constructing a new copy of a shard on the target node. When `indices.recovery.use_snapshots` is `false` {{es}} will construct this new copy by transferring the index data from the current primary. When this setting is `true` {{es}} will attempt to copy the index data from a recent snapshot first, and will only copy data from the primary if it cannot identify a suitable snapshot. Defaults to `true`.
 
@@ -66,13 +66,13 @@ You can use the following *expert* setting to manage resources for peer recoveri
 
 
 `indices.recovery.max_concurrent_snapshot_file_downloads`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests sent in parallel to the target node for each recovery. Defaults to `5`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests sent in parallel to the target node for each recovery. Defaults to `5`.
 
     Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 
 
 `indices.recovery.max_concurrent_snapshot_file_downloads_per_node`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests executed in parallel in the target node for all recoveries. Defaults to `25`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Expert) Number of snapshot file downloads requests executed in parallel in the target node for all recoveries. Defaults to `25`.
 
     Do not increase this setting without carefully verifying that your cluster has the resources available to handle the extra load that will result.
 
@@ -106,20 +106,20 @@ The service should determine values for the absolute maximum bandwidths settings
 :   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units) per second) The absolute maximum network throughput for a recovery-like workload on the node, which applies to both reads and writes. If set, `node.bandwidth.recovery.disk.read` and `node.bandwidth.recovery.disk.write` must also be set.
 
 `node.bandwidth.recovery.factor.read`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the maximum read bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor.read` is used. If no factor settings are set then the value `0.4` is used.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the maximum read bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor.read` is used. If no factor settings are set then the value `0.4` is used.
 
 `node.bandwidth.recovery.factor.write`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the maximum write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor.write` is used. If no factor settings are set then the value `0.4` is used.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the maximum write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor.write` is used. If no factor settings are set then the value `0.4` is used.
 
 `node.bandwidth.recovery.operator.factor.read`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the maximum read bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.read` are not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor` is used. If no factor settings are set then the value `0.4` is used. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the maximum read bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.read` are not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor` is used. If no factor settings are set then the value `0.4` is used. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 
 `node.bandwidth.recovery.operator.factor.write`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the maximum write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.write` are not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor` is used. If no factor settings are set then the value `0.4` is used. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the maximum write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.write` are not set. Must be greater than `0` and not greater than `1`. If not set, the value of `node.bandwidth.recovery.operator.factor` is used. If no factor settings are set then the value `0.4` is used. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 
 `node.bandwidth.recovery.operator.factor`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the maximum bandwidth that may be used for recoveries if neither `indices.recovery.max_bytes_per_sec` nor any other factor settings are set. Must be greater than `0` and not greater than `1`. Defaults to `0.4`. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the maximum bandwidth that may be used for recoveries if neither `indices.recovery.max_bytes_per_sec` nor any other factor settings are set. Must be greater than `0` and not greater than `1`. Defaults to `0.4`. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 
 `node.bandwidth.recovery.operator.factor.max_overcommit`
-:   (float, [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The proportion of the absolute maximum bandwidth that may be used for recoveries regardless of any other settings. Must be greater than `0`. Defaults to `100`. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The proportion of the absolute maximum bandwidth that may be used for recoveries regardless of any other settings. Must be greater than `0`. Defaults to `100`. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 

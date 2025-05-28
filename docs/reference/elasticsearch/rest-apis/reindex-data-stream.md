@@ -52,10 +52,10 @@ This api runs in the background because reindexing all indices in a large data s
 You can use the following settings to control the behavior of the reindex data stream API:
 
 $$$migrate_max_concurrent_indices_reindexed_per_data_stream-setting$$$
-`migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
+`migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
 
 $$$migrate_data_stream_reindex_max_request_per_second-setting$$$
-`migrate.data_stream_reindex_max_request_per_second` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The average maximum number of documents within a given backing index to reindex per second. Defaults to `1000`, though can be any decimal number greater than `0`. To remove throttling, set to `-1`. This setting can be used to throttle the reindex process and manage resource usage. Consult the [reindex throttle docs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex#docs-reindex-throttle) for more information.
+`migrate.data_stream_reindex_max_request_per_second` ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The average maximum number of documents within a given backing index to reindex per second. Defaults to `1000`, though can be any decimal number greater than `0`. To remove throttling, set to `-1`. This setting can be used to throttle the reindex process and manage resource usage. Consult the [reindex throttle docs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex#docs-reindex-throttle) for more information.
 
 
 ## {{api-examples-title}} [reindex-data-stream-api-example]

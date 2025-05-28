@@ -67,7 +67,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             switch (r) {
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
                 // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
-                case ReplaceStatsFilteredAggWithEval ignoredReplace -> {}
+                case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
+                }
                 default -> newRules.add(r);
             }
         }

@@ -28,7 +28,6 @@ import java.io.IOException;
 final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
 
     private final RangeNoGapsApproximation approximation;
-    private final NumericDocValues timestamps;
 
     private final long minTimestamp;
     private final long maxTimestamp;
@@ -42,14 +41,13 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
     ) {
         super(new RangeNoGapsApproximation(timestamps, timestampSkipper, primaryFieldSkipper, minTimestamp, maxTimestamp));
         this.approximation = (RangeNoGapsApproximation) approximation();
-        this.timestamps = timestamps;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
     }
 
     static final class RangeNoGapsApproximation extends DocIdSetIterator {
 
-        private final DocIdSetIterator innerApproximation;
+        private final NumericDocValues timestamps;
 
         final DocValuesSkipper timestampSkipper;
         final DocValuesSkipper primaryFieldSkipper;
@@ -64,13 +62,13 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
         int primaryFieldUpTo = -1;
 
         RangeNoGapsApproximation(
-            DocIdSetIterator innerApproximation,
+            NumericDocValues timestamps,
             DocValuesSkipper timestampSkipper,
             DocValuesSkipper primaryFieldSkipper,
             long minTimestamp,
             long maxTimestamp
         ) {
-            this.innerApproximation = innerApproximation;
+            this.timestamps = timestamps;
             this.timestampSkipper = timestampSkipper;
             this.primaryFieldSkipper = primaryFieldSkipper;
             this.minTimestamp = minTimestamp;
@@ -110,8 +108,8 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
                     case YES:
                         return doc = target;
                     case MAYBE:
-                        if (target > innerApproximation.docID()) {
-                            target = innerApproximation.advance(target);
+                        if (target > timestamps.docID()) {
+                            target = timestamps.advance(target);
                         }
                         if (target <= upTo) {
                             return doc = target;
@@ -150,7 +148,7 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
 
         @Override
         public long cost() {
-            return innerApproximation.cost();
+            return timestamps.cost();
         }
 
         Match match(int level) {
@@ -174,7 +172,7 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
         return switch (approximation.match) {
             case YES -> true;
             case MAYBE -> {
-                final long value = timestamps.longValue();
+                final long value = approximation.timestamps.longValue();
                 yield value >= minTimestamp && value <= maxTimestamp;
             }
             case NO_AND_SKIP, NO -> throw new IllegalStateException("Unpositioned approximation");

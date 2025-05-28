@@ -20,6 +20,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
@@ -253,19 +254,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
+                throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(
-                    factory.create(new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                    factory.create(projectId, new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
                 );
             }
         };

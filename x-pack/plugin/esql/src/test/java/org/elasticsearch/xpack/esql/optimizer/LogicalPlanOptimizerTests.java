@@ -2784,6 +2784,50 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var localRelation = as(limitBefore.child(), LocalRelation.class);
     }
 
+    /*
+     * EsqlProject[[emp_no{f}#9, first_name{f}#10, languages{f}#12, language_code{r}#3, language_name{r}#22]]
+     * \_Eval[[null[INTEGER] AS language_code#3, null[KEYWORD] AS language_name#22]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testPruneJoinOnNullMatchingField() {
+        var plan = optimizedPlan("""
+            from test
+            | eval language_code = null::integer
+            | keep emp_no, first_name, languages, language_code
+            | lookup join languages_lookup on language_code
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "languages", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /*
+     * EsqlProject[[emp_no{f}#15, first_name{f}#16, my_null{r}#3 AS language_code#9, language_name{r}#27]]
+     * \_Eval[[null[INTEGER] AS my_null#3, null[KEYWORD] AS language_name#27]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testPruneJoinOnNullAssignedMatchingField() {
+        var plan = optimizedPlan("""
+            from test
+            | eval my_null = null::integer
+            | rename languages as language_code
+            | eval language_code = my_null
+            | lookup join languages_lookup on language_code
+            | keep emp_no, first_name, language_code, language_name
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     private static List<String> orderNames(TopN topN) {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }

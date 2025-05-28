@@ -443,45 +443,43 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
     }
 
     public void testDynamicallyCalculateJvmSizeFromNativeMemorySize() {
-        // 1027 + 200 + 812 = 2039
-        // 40% of 2039 rounded down to lower multiple of 4 = 812
+        // A node of 2039MB results in: heap=812, direct=406, jvm=1218, os=200, ml=621.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1027).getBytes()),
-            is(ByteSizeValue.ofMb(812).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(621).getBytes()),
+            is(ByteSizeValue.ofMb(1218).getBytes())
         );
-        // 1028 + 200 + 812 = 2040
-        // 40% of 2040 rounded down to lower multiple of 4 = 812
+        // A node of 2046MB results in: heap=816, direct=408, jvm=1224, os=200, ml=622.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1028).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(622).getBytes()),
+            is(ByteSizeValue.ofMb(1224).getBytes())
         );
+        // A node of 2047MB results in: heap=816, direct=408, jvm=1224, os=200, ml=623.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1029).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(623).getBytes()),
+            is(ByteSizeValue.ofMb(1224).getBytes())
         );
+        // A node of 2048MB results in: heap=816, direct=408, jvm=1224, os=200, ml=624.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1030).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(624).getBytes()),
+            is(ByteSizeValue.ofMb(1224).getBytes())
         );
+        // A node of 2049MB results in: heap=816, direct=408, jvm=1224, os=200, ml=625.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1031).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(625).getBytes()),
+            is(ByteSizeValue.ofMb(1224).getBytes())
         );
+        // A node of 2056MB results in: heap=820, direct=410, jvm=1230, os=200, ml=626.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1032).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(626).getBytes()),
+            is(ByteSizeValue.ofMb(1230).getBytes())
         );
-        // 1033 + 200 + 816 = 2049
-        // 40% of 2049 rounded down to lower multiple of 4 = 816
+    }
+
+    public void testDynamicallyCalculateJvmSizeFromNativeMemorySize_largeNode() {
+        // A node of 40000MB results in: heap=8912, direct=4456, jvm=13368, os=200, ml=26432.
         assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1033).getBytes()),
-            is(ByteSizeValue.ofMb(816).getBytes())
-        );
-        // 1034 + 200 + 816 = 2050
-        // 40% of 2050 rounded down to lower multiple of 4 = 820
-        assertThat(
-            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1034).getBytes()),
-            is(ByteSizeValue.ofMb(820).getBytes())
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(26432).getBytes()),
+            is(ByteSizeValue.ofMb(13368).getBytes())
         );
     }
 

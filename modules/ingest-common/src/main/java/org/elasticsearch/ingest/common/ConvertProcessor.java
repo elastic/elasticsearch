@@ -103,12 +103,10 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 if (isExactIntegerDouble(value)) {
-                    Long l = Long.valueOf((long) ((Double) value).doubleValue());
-                    return l.toString();
+                    return String.valueOf(((Double) value).longValue());
                 }
                 if (isExactIntegerFloat(value)) {
-                    Long l = Long.valueOf((long) ((Float) value).floatValue());
-                    return l.toString();
+                    return String.valueOf(((Float) value).longValue());
                 }
                 return value.toString();
             }

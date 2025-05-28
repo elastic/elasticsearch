@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-watcher-transform-context.html
+products:
+  - id: painless
 ---
 
 # Watcher transform context [painless-watcher-transform-context]

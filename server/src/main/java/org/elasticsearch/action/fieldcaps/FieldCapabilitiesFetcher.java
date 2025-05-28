@@ -174,13 +174,13 @@ class FieldCapabilitiesFetcher {
         // populate with all types of mappers
         RootObjectMapper rootObjectMapper = context.getMappingLookup().getMapping().getRoot();
         List<Mapper> allMappers = new ArrayList<>();
-        allMappers.addAll(rootObjectMapper.getSourceFieldMappers());
+        allMappers.addAll(rootObjectMapper.getSourceMappers());
         allMappers.addAll(context.getMetadataFields());
 
         for (Mapper mapper : allMappers) {
             if (mapper instanceof PassThroughObjectMapper) {
                 // Handles PassThroughObjectMapper by processing its immediate child fields.
-                for (Mapper childMapper : mapper.getSourceFieldMappers()) {
+                for (Mapper childMapper : mapper.getSourceMappers()) {
                     addFieldToFieldCaps(
                         childMapper.leafName(),
                         context.getFieldType(childMapper.fullPath()),

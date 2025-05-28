@@ -224,43 +224,43 @@ public class LogsIdIT extends ESSingleNodeTestCase {
         }
     }
 
-//    public void testDeleteByProvidedID() throws Exception {
-//        var indexName = "test-name";
-//        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build());
-//        Instant time = Instant.now();
-//        BulkRequest bulkRequest = new BulkRequest(indexName);
-//        int numDocs = randomIntBetween(16, 256);
-//        for (int j = 0; j < numDocs; j++) {
-//            var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.INDEX).id("id-" + j);
-//            indexRequest.source(
-//                DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
-//                XContentType.JSON
-//            );
-//            bulkRequest.add(indexRequest);
-//            time = time.plusMillis(1);
-//        }
-//        var bulkResponse = client().bulk(bulkRequest).actionGet();
-//        assertThat(bulkResponse.hasFailures(), is(false));
-//        client().admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
-//
-//        if (randomBoolean()) {
-//            flush(indexName, randomBoolean());
-//        }
-//
-//        var searchRequest = new SearchRequest(indexName);
-//        searchRequest.source().trackTotalHits(true);
-//        assertResponse(client().search(searchRequest), searchResponse -> {
-//            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
-//        });
-//
-//        // test get with the provided IDs
-//        for (int i = 0; i < numDocs; i++) {
-//            DeleteResponse deleteResponse = client().prepareDelete(indexName, "id-" + i).get();
-//            assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
-//        }
-//
-//        assertThat(client().prepareSearch(indexName).get().getHits().getTotalHits().value(), equalTo(0));
-//    }
+    // public void testDeleteByProvidedID() throws Exception {
+    // var indexName = "test-name";
+    // createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build());
+    // Instant time = Instant.now();
+    // BulkRequest bulkRequest = new BulkRequest(indexName);
+    // int numDocs = randomIntBetween(16, 256);
+    // for (int j = 0; j < numDocs; j++) {
+    // var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.INDEX).id("id-" + j);
+    // indexRequest.source(
+    // DOC.replace("$time", formatInstant(time)).replace("$uuid", UUID.randomUUID().toString()).replace("$pod", "pod-" + j),
+    // XContentType.JSON
+    // );
+    // bulkRequest.add(indexRequest);
+    // time = time.plusMillis(1);
+    // }
+    // var bulkResponse = client().bulk(bulkRequest).actionGet();
+    // assertThat(bulkResponse.hasFailures(), is(false));
+    // client().admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
+    //
+    // if (randomBoolean()) {
+    // flush(indexName, randomBoolean());
+    // }
+    //
+    // var searchRequest = new SearchRequest(indexName);
+    // searchRequest.source().trackTotalHits(true);
+    // assertResponse(client().search(searchRequest), searchResponse -> {
+    // assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+    // });
+    //
+    // // test get with the provided IDs
+    // for (int i = 0; i < numDocs; i++) {
+    // DeleteResponse deleteResponse = client().prepareDelete(indexName, "id-" + i).get();
+    // assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
+    // }
+    //
+    // assertThat(client().prepareSearch(indexName).get().getHits().getTotalHits().value(), equalTo(0));
+    // }
 
     private void createTemplate(String dataStreamName) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");

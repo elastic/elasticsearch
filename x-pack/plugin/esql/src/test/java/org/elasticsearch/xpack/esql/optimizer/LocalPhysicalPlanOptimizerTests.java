@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -2210,6 +2211,33 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             var count = as(alias.child(), Count.class);
             var match = as(count.filter(), Match.class);
         }
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(aggExec.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        assertNull(esQuery.query());
+    }
+
+    public void testMatchFunctionWithStatsBy() {
+        String query = """
+            from test
+            | stats count(*) where match(job_positions, "Data Scientist") by gender
+            """;
+        var analyzer = makeAnalyzer("mapping-default.json");
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var grouping = as(agg.groupings().get(0), FieldAttribute.class);
+        assertEquals("gender", grouping.name());
+        var aggregateAlias = as(agg.aggregates().get(0), Alias.class);
+        assertEquals("count(*) where match(job_positions, \"Data Scientist\")", aggregateAlias.name());
+        var count = as(aggregateAlias.child(), Count.class);
+        var countFilter = as(count.filter(), Match.class);
+        assertEquals("Data Scientist", ((BytesRef) ((Literal) countFilter.query()).value()).utf8ToString());
+        var aggregateFieldAttr = as(agg.aggregates().get(1), FieldAttribute.class);
+        assertEquals("gender", aggregateFieldAttr.name());
         var exchange = as(agg.child(), ExchangeExec.class);
         var aggExec = as(exchange.child(), AggregateExec.class);
         var fieldExtract = as(aggExec.child(), FieldExtractExec.class);

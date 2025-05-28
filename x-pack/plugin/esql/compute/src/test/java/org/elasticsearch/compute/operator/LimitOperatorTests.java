@@ -33,10 +33,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         return new LimitOperator.Factory(100, 500);
     }
 
-    private LimitOperator.Factory limitOperator(int limit, int pageSize) {
-        return new LimitOperator.Factory(limit, pageSize);
-    }
-
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size));
@@ -44,7 +40,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("LimitOperator[limit = 100, pageSize = 500]");
+        return equalTo("LimitOperator[limit = 100]");
     }
 
     @Override

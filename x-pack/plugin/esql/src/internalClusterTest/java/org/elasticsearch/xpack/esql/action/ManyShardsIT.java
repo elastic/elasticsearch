@@ -227,12 +227,16 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run(request)) {
             List<DriverProfile> nodeReduce = resp.profile().drivers().stream().filter(s -> s.description().equals("node_reduce")).toList();
             for (DriverProfile driverProfile : nodeReduce) {
+                if (driverProfile.operators().size() == 2) {
+                    continue; // when the target node is also the coordinator node
+                }
                 assertThat(driverProfile.operators(), hasSize(3));
                 OperatorStatus exchangeSink = driverProfile.operators().get(2);
                 assertThat(exchangeSink.status(), instanceOf(ExchangeSinkOperator.Status.class));
-                ExchangeSinkOperator.Status status = (ExchangeSinkOperator.Status) exchangeSink.status();
-                assertThat(status.pagesReceived(), lessThanOrEqualTo(1));
+                ExchangeSinkOperator.Status exchangeStatus = (ExchangeSinkOperator.Status) exchangeSink.status();
+                assertThat(exchangeStatus.pagesReceived(), lessThanOrEqualTo(1));
             }
+            assertThat(resp.pages(), hasSize(1));
         }
     }
 

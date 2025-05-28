@@ -72,7 +72,7 @@ public class LimitOperator implements Operator {
 
         @Override
         public String describe() {
-            return "LimitOperator[limit = " + limiter.limit() + ", pageSize = " + pageSize + "]";
+            return "LimitOperator[limit = " + limiter.limit() + "]";
         }
     }
 

@@ -51,12 +51,12 @@ that require [operator privileges], populate the [audit logs] and perform some a
 
 ### HTTP server infrastructure
 
-HTTP traffic is handled by an implementation of a [HttpServerTransport]. The [HttpServerTransport] is responsible for binding to a
+HTTP traffic is handled by an implementation of a [HttpServerTransport]. The `HttpServerTransport` is responsible for binding to a
 port, handling REST client connections, parsing received requests into [RestRequest] instances and dispatching those
-requests to a [HttpServerTransport.Dispatcher]. The [RestController] is an implementation of [HttpServerTransport.Dispatcher].
-The [HttpServerTransport] is pluggable. There is only a single [Netty-based implementation][Netty4HttpServerTransport]
-of [HttpServerTransport], but some plugins such as `Security` supply instances of it with
-additional configuration to implement features such as IP filtering or TLS (see [Security#getHttpTransports]).
+requests to a [HttpServerTransport.Dispatcher]. The [RestController] is an implementation of `HttpServerTransport.Dispatcher`.
+The `HttpServerTransport` is pluggable. There is only a single [Netty-based implementation][Netty4HttpServerTransport]
+of `HttpServerTransport`, but some plugins, such as `Security`, supply instances of it with
+additional configuration to implement features like IP filtering or TLS (see [Security#getHttpTransports]).
 
 [ActionModule#initRestHandlers]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionModule.java#L814
 [ActionModule]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/ActionModule.java

@@ -21,7 +21,7 @@
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
+RUN apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.

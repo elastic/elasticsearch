@@ -310,7 +310,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
                     randomBoolean(),
                     List.of(ctx),
                     List.of(),
-                    unused -> query
+                    unused -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of()))
                 );
                 var driverContext = driverContext();
                 List<Page> results = new ArrayList<>();
@@ -449,7 +449,9 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
                 throw new IllegalArgumentException("Unknown field [" + name + "]");
             }
         };
-        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
+        );
 
         var fieldInfos = extractFields.stream()
             .map(

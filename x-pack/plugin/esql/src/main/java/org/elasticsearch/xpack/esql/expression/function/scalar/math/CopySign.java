@@ -65,12 +65,12 @@ public class CopySign extends EsqlScalarFunction {
         Source source,
         @Param(
             name = "magnitude",
-            type = { "double", "float" },
+            type = { "double", "float", "integer", "long" },
             description = "The expression providing the magnitude of the result. Must be a numeric type."
         ) Expression magnitude,
         @Param(
             name = "sign",
-            type = { "double", "float" },
+            type = { "double", "float", "integer", "long" },
             description = "The expression providing the sign of the result. Must be a numeric type."
         ) Expression sign
     ) {
@@ -122,24 +122,31 @@ public class CopySign extends EsqlScalarFunction {
         }
         var magnitude = children().get(0);
         var sign = children().get(1);
-        if (magnitude.dataType().isNumeric() == false || magnitude.dataType().isRationalNumber() == false) {
-            return new TypeResolution("Magnitude must be a float or double type");
+        if (magnitude.dataType().isNumeric() == false) {
+            return new TypeResolution("Magnitude must be a numeric type");
         }
-        if (sign.dataType().isNumeric() == false || sign.dataType().isRationalNumber() == false) {
-            return new TypeResolution("Sign must be a float or double type");
+        if (sign.dataType().isNumeric() == false) {
+            return new TypeResolution("Sign must be a numeric type");
         }
-        var commonType = EsqlDataTypeConverter.commonType(magnitude.dataType(), sign.dataType());
-        TypeResolution resolution = TypeResolutions.isType(
-            magnitude,
-            t -> t == commonType,
-            sourceText(),
-            TypeResolutions.ParamOrdinal.fromIndex(1),
-            magnitude.dataType().typeName()
-        );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        dataType = commonType;
+        dataType = EsqlDataTypeConverter.commonType(magnitude.dataType(), sign.dataType());
+//        TypeResolution resolution = TypeResolutions.isType(
+//            magnitude,
+//            t -> t == commonType,
+//            sourceText(),
+//            TypeResolutions.ParamOrdinal.fromIndex(1),
+//            magnitude.dataType().typeName()
+//        );
+//        if (resolution.unresolved()) {
+//            throw new EsqlIllegalArgumentException(
+//                "Magnitude [{}] is not compatible with sign [{}] for function [{}] - common type is [{}]",
+//                magnitude.dataType(),
+//                sign.dataType(),
+//                NAME
+//                ,commonType
+//            );
+////            return resolution;
+//        }
+//        dataType = commonType;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -167,5 +174,22 @@ public class CopySign extends EsqlScalarFunction {
     @Evaluator(extraName = "Double")
     static double processDouble(double magnitude, double sign) {
         return Math.copySign(magnitude, sign);
+    }
+
+    @Evaluator(extraName = "Long")
+    static long processLong(long magnitude, long sign) {
+        if (sign < 0) {
+            return -Math.abs(magnitude);
+        } else {
+            return Math.abs(magnitude);
+        }
+    }
+    @Evaluator(extraName = "Integer")
+    static int processInteger(int magnitude, int sign) {
+        if (sign < 0) {
+            return -Math.abs(magnitude);
+        } else {
+            return Math.abs(magnitude);
+        }
     }
 }

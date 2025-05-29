@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Test-only version of {@code EntitlementInitialization}
+ * Test-specific version of {@code EntitlementInitialization}
  */
 public class TestEntitlementInitialization {
 
@@ -76,7 +76,7 @@ public class TestEntitlementInitialization {
             var resource = TestEntitlementInitialization.class.getClassLoader().getResource(resourceName);
             if (resource != null) {
                 try (var inputStream = getStream(resource)) {
-                    descriptors.add(PluginDescriptor.readInternalDescriptor(inputStream));
+                    descriptors.add(PluginDescriptor.readInternalDescriptorFromStream(inputStream));
                 } catch (IOException e) {
                     throw new IllegalArgumentException(Strings.format("Cannot read descriptor for plugin [%s]", pluginName), e);
                 }

@@ -257,7 +257,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
-    public static PluginDescriptor readInternalDescriptor(InputStream stream) throws IOException {
+    public static PluginDescriptor readInternalDescriptorFromStream(InputStream stream) throws IOException {
         final Map<String, String> propsMap;
         {
             final Properties props = new Properties();

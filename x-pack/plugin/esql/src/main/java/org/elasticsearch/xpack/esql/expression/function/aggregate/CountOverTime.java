@@ -33,7 +33,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
         CountOverTime::new
     );
 
-    @FunctionInfo(returnType = { "integer", "long" }, description = "The count over time value of a field.", type = FunctionType.AGGREGATE)
+    @FunctionInfo(returnType = { "long" }, description = "The count over time value of a field.", type = FunctionType.AGGREGATE)
     public CountOverTime(
         Source source,
         @Param(

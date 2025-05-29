@@ -35,7 +35,7 @@ public class DistinctOverTime extends TimeSeriesAggregateFunction implements Opt
     private final Expression precision;
 
     @FunctionInfo(
-        returnType = { "integer", "long" },
+        returnType = { "long" },
         description = "The count of distinct values over time for a field.",
         type = FunctionType.AGGREGATE
     )

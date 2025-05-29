@@ -36,7 +36,23 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
     @FunctionInfo(returnType = { "integer", "long" }, description = "The count over time value of a field.", type = FunctionType.AGGREGATE)
     public CountOverTime(
         Source source,
-        @Param(name = "field", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field
+        @Param(
+            name = "field",
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
+        ) Expression field
     ) {
         this(source, field, Literal.TRUE);
     }

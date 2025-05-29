@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.qa.test;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
-import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -214,8 +213,8 @@ class NetworkAccessCheckActions {
     static void socketChannelOpenAddress() throws IOException {
         try {
             SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
-        } catch (BindException ex) {
-            // Expected, we are trying to connect to port 0
+        } catch (SocketException ex) {
+            // Some sort of SocketException is expected, we are trying to connect to port 0
         }
     }
 

@@ -72,6 +72,10 @@ public class UpdateDataStreamMappingsAction extends ActionType<UpdateDataStreamM
             return true;
         }
 
+        public boolean isDryRun() {
+            return dryRun;
+        }
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.dataStreamNames = in.readStringArray();

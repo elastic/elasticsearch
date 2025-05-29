@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -278,6 +279,34 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                             assertThat(availableDiskSpaceUpdates.size(), is(5));
                             // 1_000_000 (available) - 2% (indices.merge.disk.watermark.high) * 1_100_000 (total space)
                             assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(978_000L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // headroom takes priority over the default watermark of 95%
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.getKey(), "22222b")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(6));
+                            // 1_000_000 (available) - 22_222
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(977_778L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // watermark from routing allocation takes priority
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
+                            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "2b")
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.getKey(), "22222b")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(7));
+                            // 1_000_000 (available) - 1% (cluster.routing.allocation.disk.watermark.flood_stage) * 1_100_000 (total space)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(989_000L));
                         }
                     }, 5, TimeUnit.SECONDS);
                 }

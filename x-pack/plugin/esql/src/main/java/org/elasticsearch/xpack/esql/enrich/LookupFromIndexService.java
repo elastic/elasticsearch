@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +24,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -47,16 +50,20 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
+            indicesService,
             lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
             false,
@@ -83,11 +90,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected QueryList queryList(
         TransportRequest request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
         @Nullable DataType inputDataType,
         Warnings warnings
     ) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
+        return termQueryList(context.getFieldType(request.matchField), context, aliasFilter, inputBlock, inputDataType).onlySingleValues(
             warnings,
             "LOOKUP JOIN encountered multi-value"
         );

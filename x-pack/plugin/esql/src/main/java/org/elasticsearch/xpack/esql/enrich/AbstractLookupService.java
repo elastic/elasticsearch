@@ -14,6 +14,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -52,6 +54,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -122,8 +125,10 @@ import java.util.stream.IntStream;
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
     protected final ClusterService clusterService;
+    protected final IndicesService indicesService;
     private final LookupShardContextFactory lookupShardContextFactory;
     protected final TransportService transportService;
+    IndexNameExpressionResolver indexNameExpressionResolver;
     protected final Executor executor;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -141,8 +146,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     AbstractLookupService(
         String actionName,
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         boolean mergePages,
@@ -150,8 +157,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.lookupShardContextFactory = lookupShardContextFactory;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
@@ -181,6 +190,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected abstract QueryList queryList(
         T request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
         @Nullable DataType inputDataType,
         Warnings warnings
@@ -199,13 +209,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected static QueryList termQueryList(
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
         Block block,
         @Nullable DataType inputDataType
     ) {
         return switch (inputDataType) {
-            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
-            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, (LongBlock) block);
-            case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
+            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, (BytesRefBlock) block);
+            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
+            case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, aliasFilter, block);
         };
     }
 
@@ -265,6 +276,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
+
+            ProjectMetadata projMeta = clusterService.state().metadata().getProject();
+            AliasFilter aliasFilter = indicesService.buildAliasFilter(
+                clusterService.state().projectState(),
+                request.shardId.getIndex().getName(),
+                indexNameExpressionResolver.resolveExpressions(projMeta, request.indexPattern)
+            );
+
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release);
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
@@ -310,7 +329,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
-            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType, warnings);
+            QueryList queryList = queryList(
+                request,
+                shardContext.executionContext,
+                aliasFilter,
+                inputBlock,
+                request.inputDataType,
+                warnings
+            );
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,

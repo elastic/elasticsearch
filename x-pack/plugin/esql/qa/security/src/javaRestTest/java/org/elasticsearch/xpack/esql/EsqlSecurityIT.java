@@ -637,7 +637,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        // user has permission on the alias, but can't read the key (doc level security)
+        // user has permission on the alias, but can't read the key (doc level security at role level)
         resp = runESQLCommand(
             "metadata1_alias_read2",
             "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
@@ -654,6 +654,31 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(row.size(), is(2));
         assertThat(row.get(0), is(32.0));
         assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that doesn't allow to see the value
+        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        values = (List<?>) respMap.get("values");
+        assertThat(values.size(), is(1));
+        row = (List<?>) values.get(0);
+        assertThat(row.size(), is(2));
+        assertThat(row.get(0), is(12.0));
+        assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that allows to see the value
+        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
     }
 
     @SuppressWarnings("unchecked")

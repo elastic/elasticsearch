@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.data.Block;
@@ -114,7 +113,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
 
     public LuceneMaxFactory(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,
         String fieldName,

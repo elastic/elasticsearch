@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -78,6 +81,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -633,6 +637,63 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testSubstituteDateTruncInEvalWithRoundTo() {
+        var plan = plan("""
+              from test
+              | sort hire_date
+              | eval x = date_trunc(1 day, hire_date)
+              | keep emp_no, hire_date, x
+              | limit 5
+            """);
+
+        // create a SearchStats with min and max millis
+        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
+        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
+        SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+
+        LogicalPlan localPlan = localPlan(plan, searchStats);
+        Project project = as(localPlan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Eval eval = as(topN.child(), Eval.class);
+        List<Alias> fields = eval.fields();
+        assertEquals(1, fields.size());
+        Alias a = fields.get(0);
+        assertEquals("x", a.name());
+        RoundTo roundTo = as(a.child(), RoundTo.class);
+        FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
+        assertEquals("hire_date", fa.name());
+        assertEquals(DATETIME, fa.dataType());
+        assertEquals(4, roundTo.points().size()); // 4 days
+        EsRelation relation = as(eval.child(), EsRelation.class);
+    }
+
+    public void testSubstituteDateTruncInAggWithRoundTo() {
+        var plan = plan("""
+              from test
+              | stats count(*) by x = date_trunc(1 day, hire_date)
+            """);
+
+        // create a SearchStats with min and max millis
+        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
+        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
+        SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+
+        LogicalPlan localPlan = localPlan(plan, searchStats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        List<Alias> fields = eval.fields();
+        assertEquals(1, fields.size());
+        Alias a = fields.get(0);
+        assertEquals("x", a.name());
+        RoundTo roundTo = as(a.child(), RoundTo.class);
+        FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
+        assertEquals("hire_date", fa.name());
+        assertEquals(DATETIME, fa.dataType());
+        assertEquals(4, roundTo.points().size()); // 4 days
+        EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
     private IsNotNull isNotNull(Expression field) {

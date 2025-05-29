@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAg
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.SubstituteSurrogateExpressionsWithSearchStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -41,7 +42,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 new ReplaceTopNWithLimitAndSort(),
                 new ReplaceFieldWithConstantOrNull(),
                 new InferIsNotNull(),
-                new InferNonNullAggConstraint()
+                new InferNonNullAggConstraint(),
+                new SubstituteSurrogateExpressionsWithSearchStats()
             ),
             operators(),
             cleanup()

@@ -68,7 +68,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {

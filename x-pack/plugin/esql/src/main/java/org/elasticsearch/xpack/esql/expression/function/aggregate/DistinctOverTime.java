@@ -84,10 +84,10 @@ public class DistinctOverTime extends TimeSeriesAggregateFunction implements Opt
 
     @Override
     public DistinctOverTime replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() > 2) {
-            return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        if (newChildren.size() < 3) {
+            return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1), null);
         }
-        return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override

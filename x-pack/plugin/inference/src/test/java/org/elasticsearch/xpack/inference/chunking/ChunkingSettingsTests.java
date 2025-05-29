@@ -27,6 +27,9 @@ public class ChunkingSettingsTests extends ESTestCase {
             case SENTENCE -> {
                 return new SentenceBoundaryChunkingSettings(randomIntBetween(20, 300), randomBoolean() ? 0 : 1);
             }
+            case RECURSIVE -> {
+                return new RecursiveChunkingSettings(randomIntBetween(10, 300), null);
+            }
             default -> throw new IllegalArgumentException("Unsupported random strategy [" + randomStrategy + "]");
         }
     }
@@ -45,6 +48,9 @@ public class ChunkingSettingsTests extends ESTestCase {
             }
             case SENTENCE -> {
                 chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), randomIntBetween(20, 300));
+            }
+            case RECURSIVE -> {
+                chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), randomIntBetween(10, 300));
             }
             default -> {
             }

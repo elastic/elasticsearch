@@ -102,11 +102,6 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
                     )
                 );
             }
-
-            // this check is crucial for security: ES|QL would use the concrete indices, so it would bypass the security on the alias
-            if (esr.concreteIndices().contains(esr.indexPattern()) == false) {
-                failures.add(fail(this, "Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", esr.indexPattern()));
-            }
         });
     }
 }

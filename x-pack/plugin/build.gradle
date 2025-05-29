@@ -133,6 +133,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
   task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
   task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
+  task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
 })
 
 tasks.named('yamlRestCompatTest').configure {

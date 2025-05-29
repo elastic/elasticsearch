@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -105,16 +107,39 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, List<String> fields, String query, int rankWindowSize, int rankConstant) {
-        // Use a mutable list for childRetrievers so that we can add more child retrievers during rewrite
+        // Use a mutable list for childRetrievers so that we can use addChild
         super(childRetrievers == null ? new ArrayList<>() : new ArrayList<>(childRetrievers), rankWindowSize);
         this.fields = fields == null ? List.of() : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;
+
+        // TODO: Validate simplified query format args here?
+        // Otherwise some of the validation is skipped when creating the retriever programmatically.
     }
 
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
+        validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
+        return SimplifiedInnerRetrieverUtils.validateSimplifiedFormatParams(
+            innerRetrievers,
+            fields,
+            query,
+            getName(),
+            RETRIEVERS_FIELD.getPreferredName(),
+            FIELDS_FIELD.getPreferredName(),
+            QUERY_FIELD.getPreferredName(),
+            validationException
+        );
     }
 
     @Override
@@ -187,20 +212,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         RRFRetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
-        if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
+        if (resolvedIndices != null && query != null) {
             // Using the simplified query format
-            if (query == null || query.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] [" + QUERY_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
-                );
-            }
-
-            if (innerRetrievers.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support [" + RETRIEVERS_FIELD.getPreferredName() + "] and the simplified query format combined"
-                );
-            }
-
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.simplified;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.regex.Regex;
@@ -23,16 +24,67 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 public class SimplifiedInnerRetrieverUtils {
     private SimplifiedInnerRetrieverUtils() {}
 
     public record WeightedRetrieverSource(CompoundRetrieverBuilder.RetrieverSource retrieverSource, float weight) {}
+
+    public static ActionRequestValidationException validateSimplifiedFormatParams(
+        List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers,
+        List<String> fields,
+        @Nullable String query,
+        String retrieverName,
+        String retrieversParamName,
+        String fieldsParamName,
+        String queryParamName,
+        ActionRequestValidationException validationException
+    ) {
+        if (fields.isEmpty() == false || query != null) {
+            // Using the simplified query format
+            if (query == null) {
+                // Return early here because the following validation checks assume a query param value is provided
+                return addValidationError(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] [%s] must be provided when [%s] is specified",
+                        retrieverName,
+                        queryParamName,
+                        fieldsParamName
+                    ),
+                    validationException
+                );
+            }
+
+            if (query.isEmpty()) {
+                validationException = addValidationError(
+                    String.format(Locale.ROOT, "[%s] [%s] cannot be empty", retrieverName, queryParamName),
+                    validationException
+                );
+            }
+
+            if (innerRetrievers.isEmpty() == false) {
+                validationException = addValidationError(
+                    String.format(Locale.ROOT, "[%s] cannot combine [%s] and [%s]", retrieverName, retrieversParamName, queryParamName),
+                    validationException
+                );
+            }
+        } else if (innerRetrievers.isEmpty()) {
+            validationException = addValidationError(
+                String.format(Locale.ROOT, "[%s] must provide [%s] or [%s]", retrieverName, retrieversParamName, queryParamName),
+                validationException
+            );
+        }
+
+        return validationException;
+    }
 
     public static List<RetrieverBuilder> generateInnerRetrievers(
         List<String> fieldsAndWeights,

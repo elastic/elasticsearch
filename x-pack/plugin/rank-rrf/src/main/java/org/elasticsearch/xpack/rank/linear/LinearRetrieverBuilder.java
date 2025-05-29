@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
@@ -32,8 +33,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
@@ -63,7 +66,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private final ScoreNormalizer[] normalizers;
     private final List<String> fields;
     private final String query;
-    private final String normalizer;
+    private final ScoreNormalizer normalizer;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -73,7 +76,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             List<LinearRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<LinearRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
-            String normalizer = (String) args[3];
+            ScoreNormalizer normalizer = args[3] == null ? null : ScoreNormalizer.valueOf((String) args[3]);
             int rankWindowSize = args[4] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
 
             int index = 0;
@@ -140,12 +143,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         List<RetrieverSource> innerRetrievers,
         List<String> fields,
         String query,
-        String normalizer,
+        ScoreNormalizer normalizer,
         int rankWindowSize,
         float[] weights,
         ScoreNormalizer[] normalizers
     ) {
-        // Use a mutable list for innerRetrievers so that we can add more child retrievers during rewrite
+        // Use a mutable list for innerRetrievers so that we can use addChild
         super(innerRetrievers == null ? new ArrayList<>() : new ArrayList<>(innerRetrievers), rankWindowSize);
         if (weights.length != this.innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of weights must match the number of inner retrievers");
@@ -159,6 +162,55 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.normalizer = normalizer;
         this.weights = weights;
         this.normalizers = normalizers;
+
+        // TODO: Validate simplified query format args here?
+        // Otherwise some of the validation is skipped when creating the retriever programmatically.
+    }
+
+    @Override
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
+        validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
+        validationException = SimplifiedInnerRetrieverUtils.validateSimplifiedFormatParams(
+            innerRetrievers,
+            fields,
+            query,
+            getName(),
+            RETRIEVERS_FIELD.getPreferredName(),
+            FIELDS_FIELD.getPreferredName(),
+            QUERY_FIELD.getPreferredName(),
+            validationException
+        );
+
+        if (query != null && normalizer == null) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] [%s] must be provided when [%s] is specified",
+                    getName(),
+                    NORMALIZER_FIELD.getPreferredName(),
+                    QUERY_FIELD.getPreferredName()
+                ),
+                validationException
+            );
+        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] [%s] cannot be provided when [%s] is specified",
+                    getName(),
+                    NORMALIZER_FIELD.getPreferredName(),
+                    RETRIEVERS_FIELD.getPreferredName()
+                ),
+                validationException
+            );
+        }
+
+        return validationException;
     }
 
     @Override
@@ -233,27 +285,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         LinearRetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
-        if (resolvedIndices != null && (query != null || fields.isEmpty() == false)) {
+        if (resolvedIndices != null && query != null) {
             // Using the simplified query format
-            if (query == null || query.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] [" + QUERY_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
-                );
-            }
-
-            if (normalizer == null || normalizer.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] [" + NORMALIZER_FIELD.getPreferredName() + "] must be provided when using the simplified query format"
-                );
-            }
-            ScoreNormalizer fieldsNormalizer = ScoreNormalizer.valueOf(normalizer);
-
-            if (innerRetrievers.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support [" + RETRIEVERS_FIELD.getPreferredName() + "] and the simplified query format combined"
-                );
-            }
-
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
@@ -274,7 +307,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                     for (var weightedRetriever : r) {
                         retrievers.add(weightedRetriever.retrieverSource());
                         weights[index] = weightedRetriever.weight();
-                        normalizers[index] = fieldsNormalizer;
+                        normalizers[index] = normalizer;
                         index++;
                     }
 
@@ -291,7 +324,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             Arrays.fill(weights, DEFAULT_WEIGHT);
 
             ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
-            Arrays.fill(normalizers, fieldsNormalizer);
+            Arrays.fill(normalizers, normalizer);
 
             rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
         }
@@ -330,7 +363,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
         if (normalizer != null) {
-            builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer);
+            builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
         }
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);

@@ -44,7 +44,6 @@ public class L2ScoreNormalizer extends ScoreNormalizer {
         }
         double norm = Math.sqrt(sumOfSquares);
         if (norm < EPSILON) {
-            // Avoid division by zero, return original scores (or set all to zero if you prefer)
             return docs;
         }
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];

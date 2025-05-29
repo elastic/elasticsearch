@@ -63,7 +63,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
-        entry(OVERSAMPLE_FIELD.getPreferredName(), FLOAT)
+        entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
     );
 
     @FunctionInfo(returnType = "boolean", preview = true, description = """

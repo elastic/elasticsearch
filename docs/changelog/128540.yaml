@@ -1,0 +1,6 @@
+pr: 128540
+summary: Preserve integer-exact representation of numbers and allow conversion of
+  floating point values to integers
+area: Ingest Node
+type: enhancement
+issues: []

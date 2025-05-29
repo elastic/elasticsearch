@@ -263,15 +263,18 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 Each entry specifies the following parameters:
 
-* `retriever`:: (Required, a `retriever` object)
+`retriever`
+:   (Required, a `retriever` object)
 
     Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
 
-* `weight`:: (Optional, float)
+`weight`
+:   (Optional, float)
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-* `normalizer`:: (Optional, String)
+`normalizer`
+:   (Optional, String)
 
     Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
 
@@ -560,11 +563,11 @@ Refer to [*Semantic re-ranking*](docs-content://solutions/search/ranking/semanti
 
 ### Prerequisites [_prerequisites_15]
 
-To use `text_similarity_reranker` you must first set up an inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be set up with a machine learning model that can compute text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
+To use `text_similarity_reranker`, you can rely on the preconfigured `.rerank-v1-elasticsearch` inference endpoint, which uses the [Elastic Rerank model](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) and serves as the default if no `inference_id` is provided. This model is optimized for reranking based on text similarity. If you'd like to use a different model, you can set up a custom inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be configured with a machine learning model capable of computing text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
 
 You have the following options:
 
-* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service.
+* Use the built-in [Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) cross-encoder model via the inference API’s {{es}} service. See [this example](https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html#inference-example-elastic-reranker) for creating an endpoint using the Elastic Rerank model.
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
@@ -606,9 +609,9 @@ score = ln(score), if score < 0
 
 
 `inference_id`
-:   (Required, `string`)
+:   (Optional, `string`)
 
-    Unique identifier of the inference endpoint created using the {{infer}} API.
+    Unique identifier of the inference endpoint created using the {{infer}} API. If you don’t specify an inference endpoint, the `inference_id` field defaults to `.rerank-v1-elasticsearch`, a preconfigured endpoint for the elasticsearch `.rerank-v1` model.
 
 
 `inference_text`

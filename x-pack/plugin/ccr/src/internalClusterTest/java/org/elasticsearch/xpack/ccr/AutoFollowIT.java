@@ -118,7 +118,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("metrics-201901", leaderIndexSettings);
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
-        assertLongBusy(() -> { assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient())); });
+        ESIntegTestCase.awaitIndexExists("copy-logs-201901", followerClient());
         createLeaderIndex("transactions-201901", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();

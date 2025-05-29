@@ -3,12 +3,12 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-data-types.html
 ---
 
-# Data Types [sql-data-types]
+# Data types [sql-data-types]
 
-|     |     |     |     |
-| --- | --- | --- | --- |
+**Core types**
+
 | **{{es}} type** | **Elasticsearch SQL type** | **SQL type** | **SQL precision** |
-| Core types |
+| --- | --- | --- | --- |
 | [`null`](/reference/elasticsearch/mapping-reference/null-value.md) | `null` | NULL | 0 |
 | [`boolean`](/reference/elasticsearch/mapping-reference/boolean.md) | `boolean` | BOOLEAN | 1 |
 | [`byte`](/reference/elasticsearch/mapping-reference/number.md) | `byte` | TINYINT | 3 |
@@ -26,14 +26,22 @@ mapped_pages:
 | [`date`](/reference/elasticsearch/mapping-reference/date.md) | `datetime` | TIMESTAMP | 29 |
 | [`ip`](/reference/elasticsearch/mapping-reference/ip.md) | `ip` | VARCHAR | 39 |
 | [`version`](/reference/elasticsearch/mapping-reference/version.md) | `version` | VARCHAR | 32,766 |
-| Complex types |
+
+**Complex types**
+
+| **{{es}} type** | **Elasticsearch SQL type** | **SQL type** | **SQL precision** |
+| --- | --- | --- | --- |
 | [`object`](/reference/elasticsearch/mapping-reference/object.md) | `object` | STRUCT | 0 |
 | [`nested`](/reference/elasticsearch/mapping-reference/nested.md) | `nested` | STRUCT | 0 |
-| Unsupported types |
+
+**Unsupported types**
+
+| **{{es}} type** | **Elasticsearch SQL type** | **SQL type** | **SQL precision** |
+| --- | --- | --- | --- |
 | *types not mentioned above* | `unsupported` | OTHER | 0 |
 
 ::::{note}
-Most of {{es}} [data types](/reference/elasticsearch/mapping-reference/field-data-types.md) are available in Elasticsearch SQL, as indicated above. As one can see, all of {{es}} [data types](/reference/elasticsearch/mapping-reference/field-data-types.md) are mapped to the data type with the same name in Elasticsearch SQL, with the exception of **date** data type which is mapped to **datetime*** in Elasticsearch SQL. This is to avoid confusion with the ANSI SQL types ***DATE** (date only) and **TIME** (time only), which are also supported by Elasticsearch SQL in queries (with the use of [`CAST`](/reference/query-languages/sql/sql-functions-type-conversion.md#sql-functions-type-conversion-cast)/[`CONVERT`](/reference/query-languages/sql/sql-functions-type-conversion.md#sql-functions-type-conversion-convert)), but don’t correspond to an actual mapping in {{es}} (see the [`table`](#es-sql-only-types) below).
+Most of {{es}} [data types](/reference/elasticsearch/mapping-reference/field-data-types.md) are available in Elasticsearch SQL, as indicated above. As one can see, all of {{es}} [data types](/reference/elasticsearch/mapping-reference/field-data-types.md) are mapped to the data type with the same name in Elasticsearch SQL, with the exception of **date** data type which is mapped to **datetime** in Elasticsearch SQL. This is to avoid confusion with the ANSI SQL types **DATE** (date only) and **TIME** (time only), which are also supported by Elasticsearch SQL in queries (with the use of [`CAST`](/reference/query-languages/sql/sql-functions-type-conversion.md#sql-functions-type-conversion-cast)/[`CONVERT`](/reference/query-languages/sql/sql-functions-type-conversion.md#sql-functions-type-conversion-convert)), but don’t correspond to an actual mapping in {{es}} (see the [`table`](#es-sql-only-types) below).
 ::::
 
 
@@ -44,9 +52,8 @@ In addition to the types above, Elasticsearch SQL also supports at *runtime* SQL
 $$$es-sql-only-types$$$
 The table below indicates these types:
 
-|     |     |
-| --- | --- |
 | **SQL type** | **SQL precision** |
+| --- | --- |
 | `date` | 29 |
 | `time` | 18 |
 | `interval_year` | 7 |

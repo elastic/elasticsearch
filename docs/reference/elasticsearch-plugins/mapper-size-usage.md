@@ -72,7 +72,7 @@ GET my-index-000001/_search
 5. Uses a [script field](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#script-fields) to return the `_size` field in the search response.
 
 
-::::{admonition} Using `_size` in {kib}
+::::{admonition} Using _size in {{kib}}
 :class: note
 
 To use the `_size` field in {{kib}}, update the `metaFields` setting and add `_size` to the list of meta fields. `metaFields` can be configured in {{kib}} from the Advanced Settings page in Management.

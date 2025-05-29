@@ -29,6 +29,8 @@ import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,8 +66,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -91,6 +91,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestLogging(value = "org.elasticsearch.xpack.ml.utils.persistence:TRACE", reason = "")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
@@ -111,16 +113,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().stopNode(discoveryNode.getName());
             ensureStableCluster();
         });
-    }
-
-    @Before
-    public void setLogging() {
-        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
-    }
-
-    @After
-    public void unsetLogging() {
-        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {

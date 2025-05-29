@@ -84,12 +84,18 @@ public final class FetchPhase {
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
         } finally {
-            // Always finish profiling
-            ProfileResult profileResult = profiler.finish();
-            // Only set the shardResults if building search hits was successful
-            if (hits != null) {
-                context.fetchResult().shardResult(hits, profileResult);
-                hits.decRef();
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                    hits = null;
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
             }
         }
     }
@@ -105,9 +111,8 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
-
-        FetchContext fetchContext = new FetchContext(context);
-        SourceLoader sourceLoader = context.newSourceLoader();
+        SourceLoader sourceLoader = context.newSourceLoader(null);
+        FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();

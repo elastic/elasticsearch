@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
@@ -18,7 +19,7 @@ restResources {
 esplugin {
   name = 'x-pack-inference'
   description = 'Configuration and evaluation of inference models'
-  classname ='org.elasticsearch.xpack.inference.InferencePlugin'
+  classname = 'org.elasticsearch.xpack.inference.InferencePlugin'
   extendedPlugins = ['x-pack-core']
 }
 
@@ -57,9 +58,12 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation 'org.apache.commons:commons-text:1.4'
 
   /* AWS SDK v2 */
-  implementation ("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")
   api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
   api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
@@ -140,6 +144,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /json-utils.*/, to: 'aws-sdk-2'
   mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'
@@ -400,4 +405,3 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
 }
-

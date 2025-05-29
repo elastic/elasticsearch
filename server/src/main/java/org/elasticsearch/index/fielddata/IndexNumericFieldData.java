@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -46,7 +47,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        HALF_FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
         FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
         DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
 
@@ -95,11 +96,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
          * 3. We Aren't using max or min to resolve the duplicates.
          * 4. We have to cast the results to another type.
          */
-        if (sortRequiresCustomComparator()
-            || nested != null
+        boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-            || targetNumericType != getNumericType()) {
-            return new SortField(getFieldName(), source, reverse);
+            || targetNumericType != getNumericType();
+        if (sortRequiresCustomComparator() || requiresCustomComparator) {
+            SortField sortField = new SortField(getFieldName(), source, reverse);
+            sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && isIndexed());
+            return sortField;
         }
 
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
@@ -108,20 +111,18 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
 
-        // TODO: Now that numeric sort uses indexed points to skip over non-competitive documents,
-        // Lucene 9 requires that the same data/type is stored in points and doc values.
-        // We break this assumption in ES by using the wider numeric sort type for every field,
-        // (e.g. shorts use longs and floats use doubles). So for now we forbid the usage of
-        // points in numeric sort on field types that use a different sort type.
-        // We could expose these optimizations for all numeric types but that would require
-        // to rewrite the logic to handle types when merging results coming from different
-        // indices.
+        // TODO: enable sort optimization for BYTE, SHORT and INT types
+        // They can use custom comparator logic, similarly to HalfFloatValuesComparatorSource.
+        // The problem comes from the fact that we use SortField.Type.LONG for all these types.
+        // Investigate how to resolve this.
         switch (getNumericType()) {
             case DATE_NANOSECONDS:
             case DATE:
             case LONG:
             case DOUBLE:
-                // longs, doubles and dates use the same type for doc-values and points.
+            case FLOAT:
+                // longs, doubles and dates use the same type for doc-values and points
+                // floats uses longs for doc-values, but Lucene's FloatComparator::getValueForDoc converts long value to float
                 sortField.setOptimizeSortWithPoints(isIndexed());
                 break;
 
@@ -199,7 +200,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested
     ) {
         return switch (targetNumericType) {
-            case HALF_FLOAT, FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case HALF_FLOAT -> new HalfFloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
             case DATE -> dateComparatorSource(missingValue, sortMode, nested);
             case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);

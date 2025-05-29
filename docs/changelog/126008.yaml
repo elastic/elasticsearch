@@ -1,0 +1,6 @@
+pr: 126008
+summary: Accumulate compute() calls and iterations between convergences
+area: Allocation
+type: enhancement
+issues:
+ - 100850

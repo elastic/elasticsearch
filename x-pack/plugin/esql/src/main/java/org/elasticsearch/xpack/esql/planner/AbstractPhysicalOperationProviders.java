@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -97,7 +96,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -171,15 +171,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                context
             );
             // time-series aggregation
-            if (aggregateExec instanceof TimeSeriesAggregateExec) {
-                operatorFactory = new TimeSeriesAggregationOperator.Factory(
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
+                operatorFactory = timeSeriesAggregatorOperatorFactory(
+                    ts,
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize())
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    context
                 );
                 // ordinal grouping
             } else if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -269,7 +271,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         AggregatorMode mode,
         Layout layout,
         boolean grouping,
-        Consumer<AggFunctionSupplierContext> consumer
+        Consumer<AggFunctionSupplierContext> consumer,
+        LocalExecutionPlannerContext context
     ) {
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
@@ -329,7 +332,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
-                            layout
+                            layout,
+                            context.shardContexts()
                         );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }
@@ -376,6 +380,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,
+        LocalExecutionPlannerContext context
+    );
+
+    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
+        TimeSeriesAggregateExec ts,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context
     );
 }

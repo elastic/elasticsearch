@@ -34,10 +34,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -57,15 +60,25 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
+        private static final String ALIAS = "streaming_completion_test_service_alias";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+            TaskType.COMPLETION,
+            TaskType.CHAT_COMPLETION,
+            TaskType.SPARSE_EMBEDDING
+        );
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
         @Override
         public String name() {
             return NAME;
+        }
+
+        @Override
+        public List<String> aliases() {
+            return List.of(ALIAS);
         }
 
         @Override
@@ -115,7 +128,21 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeResults(input));
+                case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
+                case SPARSE_EMBEDDING -> {
+                    if (stream) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    } else {
+                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
+                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
+                        listener.onResponse(makeTextEmbeddingResults(input));
+                    }
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -143,7 +170,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
-        private StreamingChatCompletionResults makeResults(List<String> input) {
+        private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -160,6 +187,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+            for (int i = 0; i < input.size(); i++) {
+                var values = new float[5];
+                for (int j = 0; j < 5; j++) {
+                    values[j] = random.nextFloat();
+                }
+                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+            }
+            return new TextEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {
@@ -224,37 +263,24 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private InferenceServiceResults.Result unifiedCompletionChunk(String delta) {
-            return new InferenceServiceResults.Result() {
-                @Override
-                public String getWriteableName() {
-                    return "test_unifiedCompletionChunk";
-                }
-
-                @Override
-                public void writeTo(StreamOutput out) throws IOException {
-                    out.writeString(delta);
-                }
-
-                @Override
-                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-                    return ChunkedToXContentHelper.chunk(
-                        (b, p) -> b.startObject()
-                            .field("id", "id")
-                            .startArray("choices")
-                            .startObject()
-                            .startObject("delta")
-                            .field("content", delta)
-                            .endObject()
-                            .field("index", 0)
-                            .endObject()
-                            .endArray()
-                            .field("model", "gpt-4o-2024-08-06")
-                            .field("object", "chat.completion.chunk")
-                            .endObject()
-                    );
-                }
-            };
+        private StreamingUnifiedChatCompletionResults.Results unifiedCompletionChunk(String delta) {
+            return new StreamingUnifiedChatCompletionResults.Results(
+                DequeUtils.of(
+                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                        "id",
+                        List.of(
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(delta, null, null, null),
+                                null,
+                                0
+                            )
+                        ),
+                        "gpt-4o-2024-08-06",
+                        "chat.completion.chunk",
+                        null
+                    )
+                )
+            );
         }
 
         @Override

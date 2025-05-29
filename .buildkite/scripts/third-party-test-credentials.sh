@@ -7,6 +7,7 @@ set -euo pipefail
 # The second/lowercase export is what the tests expect/require
 
 if [[ "${USE_3RD_PARTY_AZURE_CREDENTIALS:-}" == "true" ]]; then
+  # These credentials expire periodically and must be manually renewed - the process is in the onboarding/process docs.
   json=$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_test_creds)
 
   AZURE_STORAGE_ACCOUNT_SECRET=$(echo "$json" | jq -r .data.account_id)
@@ -19,6 +20,7 @@ if [[ "${USE_3RD_PARTY_AZURE_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_3RD_PARTY_AZURE_SAS_CREDENTIALS:-}" == "true" ]]; then
+  # These credentials expire periodically and must be manually renewed - the process is in the onboarding/process docs.
   json=$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_sas_test_creds)
 
   AZURE_STORAGE_ACCOUNT_SECRET=$(echo "$json" | jq -r .data.account_id)

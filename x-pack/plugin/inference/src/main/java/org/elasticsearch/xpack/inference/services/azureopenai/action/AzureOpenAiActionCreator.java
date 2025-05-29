@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.inference.services.azureopenai.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiCompletionRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 

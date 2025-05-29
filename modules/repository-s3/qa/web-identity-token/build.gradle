@@ -1,0 +1,20 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  testImplementation project(':modules:repository-s3')
+  testImplementation project(':test:framework')
+  testImplementation project(':server')
+  testImplementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+}
+
+tasks.named("test").configure {
+  environment 'AWS_REGION', 'es-test-region'
+}

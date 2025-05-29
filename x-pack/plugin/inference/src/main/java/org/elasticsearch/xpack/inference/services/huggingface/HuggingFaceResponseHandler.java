@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceErrorResponseEntity;
 
 public class HuggingFaceResponseHandler extends BaseResponseHandler {
 

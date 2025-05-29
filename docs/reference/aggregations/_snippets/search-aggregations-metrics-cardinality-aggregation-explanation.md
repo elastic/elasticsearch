@@ -6,7 +6,7 @@ For a precision threshold of `c`, the implementation that we are using requires 
 
 The following chart shows how the error varies before and after the threshold:
 
-![cardinality error](/images/cardinality_error.png "")
+![cardinality error](/reference/query-languages/images/cardinality_error.png "")
 
 For all 3 thresholds, counts have been accurate up to the configured threshold. Although not guaranteed,
 this is likely to be the case. Accuracy in practice depends on the dataset in question. In general,

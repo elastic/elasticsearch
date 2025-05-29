@@ -30,7 +30,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RetrieverTelemetryIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";

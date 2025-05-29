@@ -28,6 +28,14 @@ public interface InferenceService extends Closeable {
     String name();
 
     /**
+     * The aliases that map to {@link #name()}. {@link InferenceServiceRegistry} allows users to create and use inference services by one
+     * of their aliases.
+     */
+    default List<String> aliases() {
+        return List.of();
+    }
+
+    /**
      * Parse model configuration from the {@code config map} from a request and return
      * the parsed {@link Model}. This requires that both the secrets and service settings be contained in the
      * {@code service_settings} field.
@@ -162,23 +170,12 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param unparsedModel The unparsed model configuration
+     * @param model The model configuration
      * @param listener The listener
      */
-    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+    default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
-
-    /**
-     * Optionally test the new model configuration in the inference service.
-     * This function should be called when the model is first created, the
-     * default action is to do nothing.
-     * @param model The new model
-     * @param listener The listener
-     */
-    default void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
-    };
 
     /**
      * Update a text embedding model's dimensions based on a provided embedding

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -145,6 +146,24 @@ public interface BlobContainer {
     ) throws IOException;
 
     /**
+     * Indicates if the implementation supports writing large blobs using concurrent multipart uploads.
+     * @return {@code true} if the implementation supports writing large blobs using concurrent multipart uploads, {@code false} otherwise
+     */
+    default boolean supportsConcurrentMultipartUploads() {
+        return false;
+    }
+
+    default void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
@@ -175,6 +194,32 @@ public interface BlobContainer {
         throws IOException {
         assert assertPurposeConsistency(purpose, blobName);
         writeBlobAtomic(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+    }
+
+    /**
+     * Copy a blob into this container from a source blob container and name.
+     * If copy is unavailable then throws UnsupportedOperationException.
+     * It may be unavailable either because the blob container has no copy implementation
+     * or because the target blob container is not on the same store as the source.
+     * If the destination blob already exists, this operation will overwrite it.
+     *
+     * @param purpose             The purpose of the operation
+     * @param sourceBlobContainer The blob container to copy the blob into
+     * @param sourceBlobName      The name of the blob to copy from
+     * @param blobName            The name of the blob to copy to
+     * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
+     *                            for very large blobs)
+     * @throws NoSuchFileException If the source blob does not exist
+     * @throws IOException        If the operation generates an IO error
+     */
+    default void copyBlob(
+        OperationPurpose purpose,
+        BlobContainer sourceBlobContainer,
+        String sourceBlobName,
+        String blobName,
+        long blobSize
+    ) throws IOException {
+        throw new UnsupportedOperationException("this blob container does not support copy");
     }
 
     /**

@@ -18,156 +18,182 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(21));
+        assertThat(services.size(), equalTo(23));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "deepseek",
-                "elastic",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "jinaai",
-                "mistral",
-                "openai",
-                "streaming_completion_test_service",
-                "test_reranking_service",
-                "test_service",
-                "text_embedding_test_service",
-                "voyageai",
-                "watsonxai"
-            ).toArray(),
-            providers
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "anthropic",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "deepseek",
+                    "elastic",
+                    "elasticsearch",
+                    "googleaistudio",
+                    "googlevertexai",
+                    "hugging_face",
+                    "jinaai",
+                    "mistral",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "test_reranking_service",
+                    "test_service",
+                    "text_embedding_test_service",
+                    "voyageai",
+                    "watsonxai",
+                    "amazon_sagemaker"
+                ).toArray()
+            )
         );
     }
 
     @SuppressWarnings("unchecked")
+    private Iterable<String> providers(List<Object> services) {
+        return services.stream().map(service -> {
+            var serviceConfig = (Map<String, Object>) service;
+            return (String) serviceConfig.get("service");
+        }).toList();
+    }
+
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(15));
+        assertThat(services.size(), equalTo(17));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "jinaai",
-                "mistral",
-                "openai",
-                "text_embedding_test_service",
-                "voyageai",
-                "watsonxai"
-            ).toArray(),
-            providers
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "elasticsearch",
+                    "googleaistudio",
+                    "googlevertexai",
+                    "hugging_face",
+                    "jinaai",
+                    "mistral",
+                    "openai",
+                    "text_embedding_test_service",
+                    "voyageai",
+                    "watsonxai",
+                    "amazon_sagemaker"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(7));
+        assertThat(services.size(), equalTo(9));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "jinaai", "test_reranking_service", "voyageai")
-                .toArray(),
-            providers
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "cohere",
+                    "custom",
+                    "elasticsearch",
+                    "googlevertexai",
+                    "jinaai",
+                    "test_reranking_service",
+                    "voyageai",
+                    "hugging_face"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(13));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "deepseek",
-                "googleaistudio",
-                "openai",
-                "streaming_completion_test_service"
-            ).toArray(),
-            providers
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "anthropic",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "deepseek",
+                    "googleaistudio",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(4));
+        assertThat(services.size(), equalTo(7));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service").toArray(), providers);
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "deepseek",
+                    "elastic",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "googlevertexai"
+                ).toArray()
+            )
+        );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(5));
+        assertThat(services.size(), equalTo(7));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
+        var providers = providers(services);
 
-        assertArrayEquals(
-            List.of("alibabacloud-ai-search", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
-            providers
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "custom",
+                    "elastic",
+                    "elasticsearch",
+                    "hugging_face",
+                    "streaming_completion_test_service",
+                    "test_service"
+                ).toArray()
+            )
         );
     }
 

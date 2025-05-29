@@ -95,6 +95,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
   task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
   task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
+  task.skipTest("esql/180_match_operator/match within eval", "Error message changed")
   task.skipTest("esql/40_unsupported_types/semantic_text declared in mapping", "The semantic text field format changed")
   task.skipTest("esql/190_lookup_join/Alias as lookup index", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/190_lookup_join/alias-repeated-alias", "LOOKUP JOIN does not support index aliases for now")
@@ -105,12 +106,18 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/130_spatial/values unsupported for geo_point", "Spatial types are now supported in VALUES aggregation")
   task.skipTest("esql/130_spatial/values unsupported for geo_point status code", "Spatial types are now supported in VALUES aggregation")
   // Expected deprecation warning to compat yaml tests:
-  task.addAllowedWarningRegex(".*rollup functionality will be removed in Elasticsearch.*")
+  task.addAllowedWarningRegex(
+    ".*rollup functionality will be removed in Elasticsearch.*",
+    // https://github.com/elastic/elasticsearch/issues/127911
+    "Index \\[\\.profiling-.*\\] name begins with a dot.* and will not be allowed in a future Elasticsearch version."
+  )
   task.skipTest("esql/40_tsdb/from doc with aggregate_metric_double", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_tsdb/stats on aggregate_metric_double", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+  task.skipTest("service_accounts/10_basic/Test service account tokens", "Enterprise Search service account removed, invalidating the current tests")
   task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
@@ -124,6 +131,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
   task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
   task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
+  task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
   task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
 })
 

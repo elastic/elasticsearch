@@ -15,6 +15,31 @@ esplugin {
   classname ='org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
+def patched = Attribute.of('patched', Boolean)
+
+configurations {
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+}
+
 dependencies {
 
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
@@ -65,6 +90,17 @@ dependencies {
   testImplementation project(':test:fixtures:ec2-imds-fixture')
 
   internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.awsv2sdk.Awsv2ClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+  }
 }
 
 tasks.named("dependencyLicenses").configure {

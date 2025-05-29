@@ -4,154 +4,33 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-known-issues.html
 ---
 
-# Elasticsearch known issues
+# Elasticsearch known issues [elasticsearch-known-issues]
+Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
-## Connector known issues [es-connectors-known-issues]
+## 9.0.0 [elasticsearch-9.0.0-known-issues]
+* Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.
 
-:::{important}
-Enterprise Search is not available in {{stack}} 9.0+.
-:::
+  For example: If Elasticsearch is installed in  `C:\ELK\elasticsearch`, and you try to launch it as `c:\elk\elasticsearch\bin\elasticsearch.bat`, you will get a `NotEntitledException` while booting. This is because Elasticsearch blocks access to `c:\elk\elasticsearch`, because does not match `C:\ELK\elasticsearch`. \
+This issue will be fixed in a future patch release (see [PR #126990](https://github.com/elastic/elasticsearch/pull/126990)).
 
-### Enterprise Search service: self-managed connectors [es-connectors-known-issues-enterprie-search-service]
+  As a workaround, make sure that all paths you specify have the same casing as the paths stored in the filesystem. Files and directory names should be entered as they appear in Windows Explorer or in a command prompt. This applies to paths specified in the command line, config files, environment variables and secure settings.
 
-As of **8.10.0** self-managed connectors no longer require the Enterprise Search service to be running on your Elastic deployment. However, if you are upgrading connectors from versions *earlier than 8.9*, you’ll need to run Enterprise Search once to migrate your connectors to the new format.
+* Active Directory authentication is blocked by default. Entitlements, the new security system used by Elasticsearch, has a policy for the `x-pack-core` module that is too restrictive, and does not allow the LDAP library used for AD authentication to perform outbound network connections. This issue will be fixed in a future patch release (see [PR #126992](https://github.com/elastic/elasticsearch/pull/126992)).
 
-Some points to note about this migration:
+  As a workaround, you can temporarily patch the policy using a JVM option:
 
-* This involves updating system indices that store configuration and sync history for your connectors.
-* This is an in-place operation, meaning no temporary or backup indices will be created.
-* Therefore, it is important to take a snapshot of the Elasticsearch cluster before upgrading— in the unlikely event of an index migration failure.
+  1. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-127061.options`.
+  2. Add the following line to the new file:
 
-If you have trouble with this migration, please contact support.
+     ```
+     -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr
+     ```
 
-::::{warning}
-To run self-managed connectors your self-deployed connector service version must match your Elasticsearch version. For example, if you’re running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x. Elastic does not support deployments running mismatched versions (except during upgrades).
+  For information about editing your JVM settings, refer to [JVM settings](https://www.elastic.co/docs/reference/elasticsearch/jvm-settings).
 
-::::
-
-
-
-### Connector service [es-connectors-known-issues-connector-service]
-
-The connector service has the following known issues:
-
-* **OOM errors when syncing large database tables**
-
-    Syncs after the initial sync can cause out-of-memory (OOM) errors when syncing large database tables. This occurs because database connectors load and store IDs in memory. For tables with millions of records, this can lead to memory exhaustion if the connector service has insufficient RAM.
-
-    To mitigate this issue, you can:
-
-    * **Increase RAM allocation**:
-
-        * **Elastic Cloud**: Upgrade the Enterprise Search instance to a larger size. Note that for Elastic managed connectors running on Elastic Cloud, the connector service runs on the Enterprise Search node. It only has access to up to 40% of the node’s RAM allocation.
-        * **Self-managed**: Increase RAM allocation for the machine/container running the connector service.
-
-            ::::{dropdown} RAM **sizing guidelines**
-            The following table shows the estimated RAM usage for loading IDs into memory.
-
-            |     |     |
-            | --- | --- |
-            | **Number of IDs** | **Memory Usage in MB (2X buffer)** |
-            | 1,000,000 | ≈ 45.78 MB |
-            | 10,000,000 | ≈ 457.76 MB |
-            | 50,000,000 | ≈ 2288.82 MB (≈ 2.29 GB) |
-            | 100,000,000 | ≈ 4577.64 MB (≈ 4.58 GB) |
-
-            ::::
-
-    * **Optimize** [**sync rules**](/reference/search-connectors/es-sync-rules.md):
-
-        * Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
-
-    * **Use a self-managed connector** instead of a managed connector:
-
-        * Because self-managed connectors run on your infrastructure, they are not subject to the same RAM limitations of the Enterprise Search node.
-
-* **Upgrades from deployments running on versions earlier than 8.9.0 can cause sync job failures**
-
-    Due to a bug, the `job_type` field mapping will be missing after upgrading from deployments running on versions earlier than 8.9.0. Sync jobs won’t be displayed in the Kibana UI (job history) and the connector service won’t be able to start new sync jobs. **This will only occur if you have previously scheduled sync jobs.**
-
-    To resolve this issue, you can manually add the missing field with the following command and trigger a sync job:
-
-    ```console
-    PUT .elastic-connectors-sync-jobs-v1/_mapping
-    {
-      "properties": {
-        "job_type": {
-          "type": "keyword"
-        }
-      }
-    }
-    ```
-
-* **The connector service will fail to sync when the connector tries to fetch more more than 2,147,483,647 (*2^31-1*) documents from a data source**
-
-    A workaround is to manually partition the data to be synced using multiple search indices.
-
-* **Custom scheduling might break when upgrading from version 8.6 or earlier.**
-
-    If you encounter the error `'custom_schedule_triggered': undefined method 'each' for nil:NilClass (NoMethodError)`, it means the custom scheduling feature migration failed. You can use the following manual workaround:
-
-    ```console
-    POST /.elastic-connectors/_update/connector-id
-    {
-      "doc": {
-        "custom_scheduling": {}
-      }
-    }
-    ```
-
-    This error can appear on Connectors or Crawlers that aren’t the cause of the issue. If the error continues, try running the above command for every document in the `.elastic-connectors` index.
-
-* **Connectors upgrading from 8.7 or earlier can be missing configuration fields**
-
-    A connector that was created prior to 8.8 can sometimes be missing configuration fields. This is a known issue for the MySQL connector but could also affect other connectors.
-
-    If the self-managed connector raises the error `Connector for <connector_id> has missing configuration fields: <field_a>, <field_b>...`, you can resolve the error by manually adding the missing configuration fields via the Dev Tools. Only the following two field properties are required, as the rest will be autopopulated by the self-managed connector:
-
-    * `type`: one of `str`, `int`, `bool`, or `list`
-    * `value`: any value, as long as it is of the correct `type` (`list` type values should be saved as comma-separated strings)
-
-        ```console
-        POST /.elastic-connectors/_update/connector_id
-        {
-          "doc" : {
-            "configuration": {
-              "field_a": {
-                "type": "str",
-                "value": ""
-              },
-              "field_b": {
-                "type": "bool",
-                "value": false
-              },
-              "field_c": {
-                "type": "int",
-                "value": 1
-              },
-              "field_d": {
-                "type": "list",
-                "value": "a,b"
-              }
-            }
-          }
-        }
-        ```
-
-* **Python connectors that upgraded from 8.7.1 will report document volumes in gigabytes (GB) instead of megabytes (MB)**
-
-    As a result, true document volume will be under-reported by a factor of 1024.
-
-* **The following Elastic managed connectors will not run correctly on Elastic Cloud in 8.9.0.** They are still available as self-managed connectors.
-
-    * Azure Blob Storage
-    * Confluence Cloud & Server
-    * Jira Cloud & Server
-    * Network drives
-
-
-
-## Individual connector known issues [es-connectors-known-issues-specific]
-
-Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.
-
+* Users upgrading from an Elasticsearch cluster that had previously been on a version between 7.10.0 and 7.12.1 may see that Watcher will not start on 9.x. The solution is to run the following commands in Kibana Dev Tools (or the equivalent using curl):
+     ```
+     DELETE _index_template/.triggered_watches
+     DELETE _index_template/.watches
+     POST /_watcher/_start
+     ```

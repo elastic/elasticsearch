@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -63,11 +64,11 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
-            Response response = new Response(List.of(explainIndex), null, null);
+            Response response = new Response(List.of(explainIndex), null, null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -133,10 +134,16 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new MinPrimaryShardDocsCondition(4L)
                 )
             );
+            DataStreamGlobalRetention dataGlobalRetention = DataStreamTestHelper.randomGlobalRetention();
+            DataStreamGlobalRetention failuresGlobalRetention = new DataStreamGlobalRetention(
+                randomTimeValue(1, 30, TimeUnit.DAYS),
+                dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention()
+            );
             Response response = new Response(
                 List.of(explainIndex),
                 new RolloverConfiguration(rolloverConditions),
-                DataStreamTestHelper.randomGlobalRetention()
+                dataGlobalRetention,
+                failuresGlobalRetention
             );
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -219,7 +226,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     )
                     : null
             );
-            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null);
+            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -241,13 +248,14 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     public void testChunkCount() {
         long now = System.currentTimeMillis();
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         Response response = new Response(
             List.of(
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle)
             ),
+            null,
             null,
             null
         );
@@ -297,8 +305,21 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
     }
 
     private Response randomResponse() {
+        var dataGlobalRetention = DataStreamGlobalRetention.create(
+            randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 10)) : null,
+            randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(10, 20)) : null
+        );
+        var failuresGlobalRetention = DataStreamGlobalRetention.create(
+            randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 10)) : null,
+            dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention()
+        );
         return new Response(
-            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
+            List.of(
+                createRandomIndexDataStreamLifecycleExplanation(
+                    System.nanoTime(),
+                    randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+                )
+            ),
             randomBoolean()
                 ? new RolloverConfiguration(
                     new RolloverConditions(
@@ -306,12 +327,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     )
                 )
                 : null,
-            randomBoolean()
-                ? new DataStreamGlobalRetention(
-                    TimeValue.timeValueDays(randomIntBetween(1, 10)),
-                    TimeValue.timeValueDays(randomIntBetween(10, 20))
-                )
-                : null
+            dataGlobalRetention,
+            failuresGlobalRetention
         );
     }
 }

@@ -105,6 +105,8 @@ public abstract class ElasticsearchInternalModel extends Model {
                         && statusException.getRootCause() instanceof ResourceAlreadyExistsException) {
                         // Deployment is already started
                         listener.onResponse(Boolean.TRUE);
+                    } else {
+                        listener.onFailure(e);
                     }
                     return;
                 }

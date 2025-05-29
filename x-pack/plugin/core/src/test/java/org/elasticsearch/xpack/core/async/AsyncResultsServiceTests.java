@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
 import org.junit.Before;
@@ -113,7 +113,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public class TestRequest extends TransportRequest {
+    public class TestRequest extends AbstractTransportRequest {
         private final String string;
 
         public TestRequest(String string) {

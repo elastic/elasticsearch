@@ -179,7 +179,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
-        assertBusy(() -> { assertTrue(indexExists("test")); });
+        awaitIndexExists("test");
         IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
@@ -420,7 +420,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
-        assertBusy(() -> assertTrue(indexExists("test")));
+        awaitIndexExists("test");
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -99,7 +97,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         ThreadPool threadPool = services.threadPool();
 
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
-        registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, services.xContentRegistry()));
+        registry.set(
+            new ProfilingIndexTemplateRegistry(
+                settings,
+                clusterService,
+                threadPool,
+                client,
+                services.xContentRegistry(),
+                services.projectResolver()
+            )
+        );
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
@@ -184,14 +191,14 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
-            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
-            new ActionHandler<>(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
+            new ActionHandler(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
+            new ActionHandler(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
+            new ActionHandler(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
         );
     }
 

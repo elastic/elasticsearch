@@ -1,0 +1,5 @@
+pr: 126644
+summary: Add block loader from stored field and source for ip field
+area: Mapping
+type: enhancement
+issues: []

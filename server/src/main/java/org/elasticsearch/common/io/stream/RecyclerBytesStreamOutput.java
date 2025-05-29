@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -37,7 +38,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
     private final Recycler<BytesRef> recycler;
     private final int pageSize;
     private int pageIndex = -1;
@@ -155,7 +156,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
         // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
@@ -214,6 +215,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // nothing to do
     }
 
+    @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
         int offsetInPage = (int) (position % pageSize);
@@ -236,11 +238,24 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public void close() {
-        try {
+        var pages = this.pages;
+        if (pages != null) {
+            this.pages = null;
             Releasables.close(pages);
-        } finally {
-            pages.clear();
         }
+    }
+
+    /**
+     * Move the contents written to this stream to a {@link ReleasableBytesReference}. Closing this instance becomes a noop after
+     * this method returns successfully and its buffers need to be released by releasing the returned bytes reference.
+     *
+     * @return a {@link ReleasableBytesReference} that must be released once no longer needed
+     */
+    public ReleasableBytesReference moveToBytesReference() {
+        var bytes = bytes();
+        var pages = this.pages;
+        this.pages = null;
+        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
     }
 
     /**

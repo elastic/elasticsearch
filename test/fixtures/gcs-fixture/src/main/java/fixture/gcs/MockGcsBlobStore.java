@@ -88,21 +88,31 @@ public class MockGcsBlobStore {
         }
     }
 
-    BlobVersion getBlob(String path, Long ifGenerationMatch) {
+    /**
+     * Get the blob at the specified path
+     *
+     * @param path The path
+     * @param ifGenerationMatch The ifGenerationMatch parameter value (if present)
+     * @param generation The generation parameter value (if present)
+     * @return The blob if it exists
+     * @throws BlobNotFoundException if there is no blob at the path, or its generation does not match the generation parameter
+     * @throws GcsRestException if the blob's generation does not match the ifGenerationMatch parameter
+     */
+    BlobVersion getBlob(String path, Long ifGenerationMatch, Long generation) {
         final BlobVersion blob = blobs.get(path);
         if (blob == null) {
             throw new BlobNotFoundException(path);
-        } else {
-            if (ifGenerationMatch != null) {
-                if (blob.generation != ifGenerationMatch) {
-                    throw new GcsRestException(
-                        RestStatus.PRECONDITION_FAILED,
-                        "Generation mismatch, expected " + ifGenerationMatch + " but got " + blob.generation
-                    );
-                }
-            }
-            return blob;
         }
+        if (generation != null && generation != blob.generation) {
+            throw new BlobNotFoundException(blob.path, blob.generation);
+        }
+        if (ifGenerationMatch != null && ifGenerationMatch != blob.generation) {
+            throw new GcsRestException(
+                RestStatus.PRECONDITION_FAILED,
+                "Generation mismatch, expected " + ifGenerationMatch + " but got " + blob.generation
+            );
+        }
+        return blob;
     }
 
     BlobVersion updateBlob(String path, Long ifGenerationMatch, BytesReference contents) {
@@ -323,6 +333,10 @@ public class MockGcsBlobStore {
 
         BlobNotFoundException(String path) {
             super(RestStatus.NOT_FOUND, "Blob not found: " + path);
+        }
+
+        BlobNotFoundException(String path, long generation) {
+            super(RestStatus.NOT_FOUND, "Blob not found: " + path + ", generation " + generation);
         }
     }
 

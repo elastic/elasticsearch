@@ -13,6 +13,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
@@ -58,6 +60,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -129,6 +133,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
+    public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
+        throw new UnsupportedOperationException("time-series source is not supported in CSV tests");
+    }
+
+    @Override
     public Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
         AggregateExec aggregateExec,
@@ -144,6 +153,24 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupElementType,
             context.bigArrays(),
             attrSource
+        );
+    }
+
+    @Override
+    public Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
+        TimeSeriesAggregateExec ts,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<BlockHash.GroupSpec> groupSpecs,
+        LocalExecutionPlannerContext context
+    ) {
+        return new TimeSeriesAggregationOperator.Factory(
+            ts.timeBucketRounding(context.foldCtx()),
+            false,
+            groupSpecs,
+            aggregatorMode,
+            aggregatorFactories,
+            context.pageSize(ts.estimatedRowSize())
         );
     }
 

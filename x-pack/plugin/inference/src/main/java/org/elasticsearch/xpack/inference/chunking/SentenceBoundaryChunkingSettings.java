@@ -147,12 +147,12 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SentenceBoundaryChunkingSettings that = (SentenceBoundaryChunkingSettings) o;
-        return Objects.equals(maxChunkSize, that.maxChunkSize);
+        return Objects.equals(maxChunkSize, that.maxChunkSize) && Objects.equals(sentenceOverlap, that.sentenceOverlap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxChunkSize);
+        return Objects.hash(maxChunkSize, sentenceOverlap);
     }
 
     @Override

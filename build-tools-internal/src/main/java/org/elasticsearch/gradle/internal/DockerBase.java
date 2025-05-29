@@ -14,36 +14,43 @@ package org.elasticsearch.gradle.internal;
  */
 public enum DockerBase {
     // "latest" here is intentional, since the image name specifies "9"
-    DEFAULT("docker.elastic.co/ubi9/ubi-minimal:latest", "", "microdnf"),
+    DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
-    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum"),
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
-    // This is usually updated via renovatebot
-    // spotless:off
-    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:29150cd940cc7f69407d978d5a19c86f4d9e67cf44e4d6ded787a497e8f27c9a",
+    WOLFI(
+        null,
         "-wolfi",
-        "apk"
+        "apk",
+        "dockerfiles/wolfi/Dockerfile"
     ),
-    FIPS("docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7@sha256:ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7", "-fips", "apk"),
-    // spotless:on
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
-    CLOUD_ESS(null, "-cloud-ess", "apk");
+    CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
+
+    CLOUD_ESS_FIPS(
+        null,
+        "-cloud-ess-fips",
+        "apk",
+        "dockerfiles/cloud_ess_fips/Dockerfile"
+    );
 
     private final String image;
     private final String suffix;
     private final String packageManager;
+    private final String dockerfile;
 
     DockerBase(String image, String suffix) {
-        this(image, suffix, "apt-get");
+        this(image, suffix, "apt-get", "dockerfile");
     }
 
-    DockerBase(String image, String suffix, String packageManager) {
+    DockerBase(String image, String suffix, String packageManager, String dockerfile) {
         this.image = image;
         this.suffix = suffix;
         this.packageManager = packageManager;
+        this.dockerfile = dockerfile;
     }
 
     public String getImage() {
@@ -56,5 +63,9 @@ public enum DockerBase {
 
     public String getPackageManager() {
         return packageManager;
+    }
+
+    public String getDockerfile() {
+        return dockerfile;
     }
 }

@@ -123,7 +123,6 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                 String text = textSupplier.get();
                 Predicate<String> predicate = t -> t.toLowerCase(Locale.ROOT).equals(text.toLowerCase(Locale.ROOT));
                 String different = escapeString.apply(randomValueOtherThanMany(predicate, textSupplier));
-                System.err.println("XXX text=" + text + " different=" + different);
                 return new TextAndPattern(text, different);
             }, true, false);
         }

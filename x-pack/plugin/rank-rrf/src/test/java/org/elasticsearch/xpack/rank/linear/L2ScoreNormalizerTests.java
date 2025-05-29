@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class L2ScoreNormalizerTests {
+public class L2ScoreNormalizerTests extends ESTestCase {
 
     @Test
     public void testNormalizeTypicalVector() {

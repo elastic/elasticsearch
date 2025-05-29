@@ -88,7 +88,7 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(IdFieldMapper.NAME);
+            return new BlockDocValuesReader.IdDocValuesBlockLoader(IdFieldMapper.NAME);
         }
 
         @Override

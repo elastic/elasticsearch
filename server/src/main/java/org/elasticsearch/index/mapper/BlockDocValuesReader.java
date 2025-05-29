@@ -549,6 +549,103 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    public static class IdDocValuesBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+
+        public IdDocValuesBlockLoader (String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public BytesRefBuilder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            SortedDocValues sorted = DocValues.getSorted(context.reader(), fieldName);
+            return new IdDocValuesReader(sorted);
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return true;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+            return DocValues.getSortedSet(context.reader(), fieldName);
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromOrds[" + fieldName + "]";
+        }
+    }
+
+    private static class IdDocValuesReader extends BlockDocValuesReader {
+        private final SortedDocValues values;
+
+        IdDocValuesReader(SortedDocValues values) {
+            this.values = values;
+        }
+
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (values.advanceExact(docId)) {
+                BytesRef v = values.lookupOrd(values.ordValue());
+                return factory.constantBytes(decode(v));
+            } else {
+                return factory.constantNulls();
+            }
+        }
+
+        private static BytesRef decode(BytesRef v) {
+            String s = Uid.decodeId(v.bytes, v.offset, v.length);
+            return new BytesRef(s);
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            if (docs.count() == 1) {
+                return readSingleDoc(factory, docs.get(0));
+            }
+            try (BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
+                for (int i = 0; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < values.docID()) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    if (values.advanceExact(doc)) {
+                        builder.appendBytesRef(decode(values.lookupOrd(values.ordValue())));
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            if (values.advanceExact(docId)) {
+                BytesRef encoded = values.lookupOrd(values.ordValue());
+                ((BytesRefBuilder) builder).appendBytesRef(decode(encoded));
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return values.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.IdDocValuesReader";
+        }
+    }
+
     private static class SingletonOrdinals extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 

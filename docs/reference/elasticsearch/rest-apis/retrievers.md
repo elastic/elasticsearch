@@ -285,7 +285,7 @@ Each entry specifies the following parameters:
         score = (score - min) / (max - min)
         ```
 
-    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores so that the L2 norm (Euclidean norm) of the score vector is 1. Each score is divided by the square root of the sum of squares of all scores:
+    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
         ```
         score = score / sqrt(sum(score_i^2))

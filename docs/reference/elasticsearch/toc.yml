@@ -95,6 +95,7 @@ toc:
             - file: rest-apis/reciprocal-rank-fusion.md
             - file: rest-apis/retrievers.md
             - file: rest-apis/reindex-data-stream.md
+            - file: rest-apis/reindex-indices.md
             - file: rest-apis/create-index-from-source.md
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/search-suggesters.md

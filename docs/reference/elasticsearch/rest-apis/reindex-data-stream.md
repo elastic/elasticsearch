@@ -1,62 +1,29 @@
 ---
-navigation_title: "Reindex data stream"
+navigation_title: "Reindex data streams"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/data-stream-reindex-api.html
-  # That link will 404 until 8.18 is current
-  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/data-stream-reindex-api.html)
 applies_to:
   stack: all
 ---
 
-# Reindex data stream API [data-stream-reindex-api]
+# Reindex data stream examples [data-stream-reindex-api]
 
-
-::::{admonition} New API reference
 For the most up-to-date API details, refer to [Migration APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-migration).
 
-::::
-
-
 ::::{tip}
-These APIs are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to upgrade from 8.17 to {{version}}. For upgrade instructions, refer to [Upgrading to Elastic {{version}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
+The reindex data stream API are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to perform upgrades. Refer to [](docs-content://deploy-manage/upgrade.md).
 ::::
-
 
 The reindex data stream API is used to upgrade the backing indices of a data stream to the most recent major version. It works by reindexing each backing index into a new index, then replacing the original backing index with its replacement and deleting the original backing index. The settings and mappings from the original backing indices are copied to the resulting backing indices.
 
-This api runs in the background because reindexing all indices in a large data stream is expected to take a large amount of time and resources. The endpoint will return immediately and a persistent task will be created to run in the background. The current status of the task can be checked with the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status). This status will be available for 24 hours after the task completes, whether it finished successfully or failed. If the status is still available for a task, the task must be cancelled before it can be re-run. A running or recently completed data stream reindex task can be cancelled using the [reindex cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex).
-
-## {{api-request-title}} [data-stream-reindex-api-request]
-
-`POST /_migration/reindex`
-
-
-## {{api-prereq-title}} [data-stream-reindex-api-prereqs]
-
-* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md#privileges-list-indices) for the data stream.
-
-
-## {{api-request-body-title}} [data-stream-reindex-body]
-
-`source`
-:   `index`
-:   (Required, string) The name of the data stream to upgrade.
-
-
-`mode`
-:   (Required, enum) Set to `upgrade` to upgrade the data stream in-place, using the same source and destination data stream. Each out-of-date backing index will be reindexed. Then the new backing index is swapped into the data stream and the old index is deleted. Currently, the only allowed value for this parameter is `upgrade`.
-
+This API runs in the background because reindexing all indices in a large data stream is expected to take a large amount of time and resources. The endpoint will return immediately and a persistent task will be created to run in the background. The current status of the task can be checked with the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status). This status will be available for 24 hours after the task completes, whether it finished successfully or failed. If the status is still available for a task, the task must be cancelled before it can be re-run. A running or recently completed data stream reindex task can be cancelled using the [reindex cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex).
 
 ## Settings [reindex-data-stream-api-settings]
 
-You can use the following settings to control the behavior of the reindex data stream API:
-
+You can use settings to control the behavior of the reindex data stream API.
+Refer to [](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md)
 $$$migrate_max_concurrent_indices_reindexed_per_data_stream-setting$$$
-`migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
-
 $$$migrate_data_stream_reindex_max_request_per_second-setting$$$
-`migrate.data_stream_reindex_max_request_per_second` ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The average maximum number of documents within a given backing index to reindex per second. Defaults to `1000`, though can be any decimal number greater than `0`. To remove throttling, set to `-1`. This setting can be used to throttle the reindex process and manage resource usage. Consult the [reindex throttle docs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex#docs-reindex-throttle) for more information.
-
 
 ## {{api-examples-title}} [reindex-data-stream-api-example]
 
@@ -66,7 +33,7 @@ Assume we have a data stream `my-data-stream` with the following backing indices
 * .ds-my-data-stream-2025.01.23-000002
 * .ds-my-data-stream-2025.01.23-000003
 
-Let’s also assume that `.ds-my-data-stream-2025.01.23-000003` is the write index. If {{es}} is version 8.x and we wish to upgrade to major version 9.x, the version 7.x indices must be upgraded in preparation. We can use this API to reindex a data stream with version 7.x backing indices and make them version 8 backing indices.
+Let's also assume that `.ds-my-data-stream-2025.01.23-000003` is the write index. If {{es}} is version 8.x and we wish to upgrade to major version 9.x, the version 7.x indices must be upgraded in preparation. We can use this API to reindex a data stream with version 7.x backing indices and make them version 8 backing indices.
 
 Start by calling the API:
 
@@ -84,7 +51,7 @@ POST _migration/reindex
 
 As this task runs in the background this API will return immediately. The task will do the following.
 
-First, the data stream is rolled over. So that no documents are lost during the reindex, we add [write blocks](/reference/elasticsearch/index-settings/index-block.md) to the existing backing indices before reindexing them. Since a data stream’s write index cannot have a write block, the data stream is must be rolled over. This will produce a new write index, `.ds-my-data-stream-2025.01.23-000004`; which has an 8.x version and thus does not need to be upgraded.
+First, the data stream is rolled over. So that no documents are lost during the reindex, we add [write blocks](/reference/elasticsearch/index-settings/index-block.md) to the existing backing indices before reindexing them. Since a data stream's write index cannot have a write block, the data stream is must be rolled over. This will produce a new write index, `.ds-my-data-stream-2025.01.23-000004`; which has an 8.x version and thus does not need to be upgraded.
 
 Once the data stream has a write index with an 8.x version we can proceed with reindexing the old indices. For each of the version 7.x indices, we now do the following:
 
@@ -97,7 +64,7 @@ Once the data stream has a write index with an 8.x version we can proceed with r
 * Replace the old index in the data stream with the new index, using the [modify data streams API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-modify-data-stream).
 * Finally, the old backing index is deleted.
 
-By default only one backing index will be processed at a time. This can be modified using the [`migrate_max_concurrent_indices_reindexed_per_data_stream-setting` setting](#migrate_max_concurrent_indices_reindexed_per_data_stream-setting).
+By default only one backing index will be processed at a time. This can be modified using the [`migrate_max_concurrent_indices_reindexed_per_data_stream-setting` setting](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md).
 
 While the reindex data stream task is running, we can inspect the current status using the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status):
 
@@ -126,11 +93,11 @@ For the above example, the following would be a possible status:
 }
 ```
 
-This output means that the first backing index, `.ds-my-data-stream-2025.01.23-000001`, is currently being processed, and none of the backing indices have yet completed. Notice that `total_indices_in_data_stream` has a value of `4`, because after the rollover, there are 4 indices in the data stream. But the new write index has an 8.x version, and thus doesn’t need to be reindexed, so `total_indices_requiring_upgrade` is only 3.
+This output means that the first backing index, `.ds-my-data-stream-2025.01.23-000001`, is currently being processed, and none of the backing indices have yet completed. Notice that `total_indices_in_data_stream` has a value of `4`, because after the rollover, there are 4 indices in the data stream. But the new write index has an 8.x version, and thus doesn't need to be reindexed, so `total_indices_requiring_upgrade` is only 3.
 
-### Cancelling and Restarting [reindex-data-stream-cancel-restart]
+### Cancelling and restarting [reindex-data-stream-cancel-restart]
 
-The [reindex datastream settings](#reindex-data-stream-api-settings) provide a few ways to control the performance and resource usage of a reindex task. This example shows how we can stop a running reindex task, modify the settings, and restart the task.
+The reindex datastream settings provide a few ways to control the performance and resource usage of a reindex task. This example shows how we can stop a running reindex task, modify the settings, and restart the task.
 
 Continuing with the above example, assume the reindexing task has not yet completed, and the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status) returns the following:
 
@@ -153,9 +120,9 @@ Continuing with the above example, assume the reindexing task has not yet comple
 }
 ```
 
-Let’s assume the task has been running for a long time. By default, we throttle how many requests the reindex operation can execute per second. This keeps the reindex process from consuming too many resources. But the default value of `1000` request per second will not be correct for all use cases. The [`migrate.data_stream_reindex_max_request_per_second` setting](#migrate_data_stream_reindex_max_request_per_second-setting) can be used to increase or decrease the number of requests per second, or to remove the throttle entirely.
+Let's assume the task has been running for a long time. By default, we throttle how many requests the reindex operation can execute per second. This keeps the reindex process from consuming too many resources. But the default value of `1000` request per second will not be correct for all use cases. The [`migrate.data_stream_reindex_max_request_per_second` setting](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md) can be used to increase or decrease the number of requests per second, or to remove the throttle entirely.
 
-Changing this setting won’t have an effect on the backing index that is currently being reindexed. For example, changing the setting won’t have an effect on `.ds-my-data-stream-2025.01.23-000002`, but would have an effect on the next backing index.
+Changing this setting won't have an effect on the backing index that is currently being reindexed. For example, changing the setting won't have an effect on `.ds-my-data-stream-2025.01.23-000002`, but would have an effect on the next backing index.
 
 But in the above status, `.ds-my-data-stream-2025.01.23-000002` has values of 1000 and 10M for the `reindexed_doc_count` and `total_doc_count`, respectively. This means it has only reindexed 0.01% of the documents in the index. It might be a good time to cancel the run and optimize some settings without losing much work. So we call the [cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex):
 
@@ -174,7 +141,7 @@ PUT /_cluster/settings
 }
 ```
 
-The [original reindex command](#reindex-data-stream-start) can now be used to restart reindexing. Because the first backing index, `.ds-my-data-stream-2025.01.23-000001`, has already been reindexed and thus is already version 8.x, it will be skipped. The task will start by reindexing `.ds-my-data-stream-2025.01.23-000002` again from the beginning.
+The original reindex command can now be used to restart reindexing. Because the first backing index, `.ds-my-data-stream-2025.01.23-000001`, has already been reindexed and thus is already version 8.x, it will be skipped. The task will start by reindexing `.ds-my-data-stream-2025.01.23-000002` again from the beginning.
 
 Later, once all the backing indices have finished, the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status) will return something like the following:
 
@@ -226,7 +193,7 @@ which returns:
 }
 ```
 
-Index `.ds-my-data-stream-2025.01.23-000004` is the write index and didn’t need to be upgraded because it was created with version 8.x. The other three backing indices are now prefixed with `.migrated` because they have been upgraded.
+Index `.ds-my-data-stream-2025.01.23-000004` is the write index and didn't need to be upgraded because it was created with version 8.x. The other three backing indices are now prefixed with `.migrated` because they have been upgraded.
 
 We can now check the indices and verify that they have version 8.x:
 
@@ -250,8 +217,7 @@ which returns:
 }
 ```
 
-
-### Handling Failures [reindex-data-stream-handling-failure]
+### Handling failures [reindex-data-stream-handling-failure]
 
 Since the reindex data stream API runs in the background, failure information can be obtained through the [reindex status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-migrate-reindex-status). For example, if the backing index `.ds-my-data-stream-2025.01.23-000002` was accidentally deleted by a user, we would see a status like the following:
 
@@ -273,4 +239,4 @@ Since the reindex data stream API runs in the background, failure information ca
 }
 ```
 
-Once the issue has been fixed, the failed reindex task can be re-run. First, the failed run’s status must be cleared using the [reindex cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex). Then the [original reindex command](#reindex-data-stream-start) can be called to pick up where it left off.
+Once the issue has been fixed, the failed reindex task can be re-run. First, the failed run's status must be cleared using the [reindex cancel API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex). Then the original reindex command can be called to pick up where it left off.

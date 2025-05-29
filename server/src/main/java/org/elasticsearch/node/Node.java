@@ -357,7 +357,6 @@ public class Node implements Closeable {
         clusterService.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
-        transportService.getTaskManager().setLocalNodeId(clusterService.localNode().getId());
         transportService.acceptIncomingRequests();
         /*
          * CoordinationDiagnosticsService expects to be able to send transport requests and use the cluster state, so it is important to

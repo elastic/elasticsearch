@@ -34,7 +34,7 @@ public record EsqlQueryStatus(AsyncExecutionId id) implements Task.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeWriteable(id);
+        id.writeTo(out);
     }
 
     @Override

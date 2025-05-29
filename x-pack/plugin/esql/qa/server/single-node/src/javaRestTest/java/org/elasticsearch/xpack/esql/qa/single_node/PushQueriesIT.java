@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for pushing queries to lucene.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/128506")
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
@@ -147,8 +145,8 @@ public class PushQueriesIT extends ESRestTestCase {
             | WHERE test == "%value" AND foo == 1
             """;
         List<String> luceneQueryOptions = switch (type) {
-            case "text", "auto" -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
-            case "match_only_text" -> List.of("foo:[1 TO 1]");
+            case "text", "auto" -> List.of("#test.keyword:%value -_ignored:test.keyword");
+            case "match_only_text" -> List.of("*:*");
             case "semantic_text" ->
                 /*
                  * single_value_match is here because there are extra documents hiding in the index

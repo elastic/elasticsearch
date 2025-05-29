@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.mistral.MistralCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.MistralEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.MistralChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Map;
@@ -38,7 +38,7 @@ public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
     static final String USER_ROLE = "user";
-    static final ResponseHandler COMPLETION_HANDLER = new MistralChatCompletionResponseHandler(
+    static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
         "mistral completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );

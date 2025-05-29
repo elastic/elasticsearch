@@ -5,24 +5,25 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.mistral;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 
 /**
- * Handles non-streaming chat completion responses for Mistral models, extending the OpenAI chat completion response handler.
+ * Handles non-streaming completion responses for Mistral models, extending the OpenAI completion response handler.
  * This class is specifically designed to handle Mistral's error response format.
  */
-public class MistralChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class MistralCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
 
     /**
-     * Constructs a MistralChatCompletionResponseHandler with the specified request type and response parser.
+     * Constructs a MistralCompletionResponseHandler with the specified request type and response parser.
      *
-     * @param requestType The type of request being handled (e.g., "mistral chat completions").
+     * @param requestType The type of request being handled (e.g., "mistral completions").
      * @param parseFunction The function to parse the response.
      */
-    public MistralChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
+    public MistralCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, MistralErrorResponseEntity::fromResponse);
     }
 }

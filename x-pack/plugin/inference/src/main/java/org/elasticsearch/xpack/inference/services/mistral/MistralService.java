@@ -99,15 +99,15 @@ public class MistralService extends SenderService {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
         switch (model) {
-            case MistralEmbeddingsModel mistralEmbeddingsModel -> {
-                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(inputs, timeout, listener);
-            }
-            case MistralChatCompletionModel mistralChatCompletionModel -> {
-                var action = mistralChatCompletionModel.accept(actionCreator);
-                action.execute(inputs, timeout, listener);
-            }
-            default -> listener.onFailure(createInvalidModelException(model));
+            case MistralEmbeddingsModel mistralEmbeddingsModel:
+                mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
+                break;
+            case MistralChatCompletionModel mistralChatCompletionModel:
+                mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+                break;
+            default:
+                listener.onFailure(createInvalidModelException(model));
+                break;
         }
     }
 
@@ -292,27 +292,23 @@ public class MistralService extends SenderService {
         String failureMessage,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new MistralEmbeddingsModel(
-                modelId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case CHAT_COMPLETION, COMPLETION -> new MistralChatCompletionModel(
-                modelId,
-                taskType,
-                NAME,
-                serviceSettings,
-                secretSettings,
-                context
-            );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        };
+        switch (taskType) {
+            case TEXT_EMBEDDING:
+                return new MistralEmbeddingsModel(
+                    modelId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    chunkingSettings,
+                    secretSettings,
+                    context
+                );
+            case CHAT_COMPLETION, COMPLETION:
+                return new MistralChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
+            default:
+                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        }
     }
 
     private MistralModel createModelFromPersistent(

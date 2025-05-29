@@ -201,7 +201,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
                 }
                 """,
             ElasticsearchStatusException.class,
-            "Model configuration contains settings [{hello=there}] unknown to the [service] service"
+            "Configuration contains settings [{hello=there}] unknown to the [service] service"
         );
     }
 
@@ -222,7 +222,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
                 }
                 """,
             ElasticsearchStatusException.class,
-            "Model configuration contains settings [{hello=there}] unknown to the [service] service"
+            "Configuration contains settings [{hello=there}] unknown to the [service] service"
         );
     }
 

@@ -227,7 +227,7 @@ public abstract class AbstractServiceTests extends ESTestCase {
             service.parseRequestConfig("id", parseRequestConfigTestConfig.taskType, config, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("Model configuration contains settings [{extra_key=value}]"));
+            assertThat(exception.getMessage(), containsString("Configuration contains settings [{extra_key=value}]"));
         }
     }
 
@@ -246,7 +246,7 @@ public abstract class AbstractServiceTests extends ESTestCase {
             service.parseRequestConfig("id", parseRequestConfigTestConfig.taskType, config, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("Model configuration contains settings [{extra_key=value}]"));
+            assertThat(exception.getMessage(), containsString("Configuration contains settings [{extra_key=value}]"));
         }
     }
 
@@ -265,7 +265,7 @@ public abstract class AbstractServiceTests extends ESTestCase {
             service.parseRequestConfig("id", parseRequestConfigTestConfig.taskType, config, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("Model configuration contains settings [{extra_key=value}]"));
+            assertThat(exception.getMessage(), containsString("Configuration contains settings [{extra_key=value}]"));
         }
     }
 
@@ -284,7 +284,7 @@ public abstract class AbstractServiceTests extends ESTestCase {
             service.parseRequestConfig("id", parseRequestConfigTestConfig.taskType, config, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("Model configuration contains settings [{extra_key=value}]"));
+            assertThat(exception.getMessage(), containsString("Configuration contains settings [{extra_key=value}]"));
         }
     }
 

@@ -498,7 +498,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         assertThat(
             exception.getMessage(),
             is(
-                "Model configuration contains unknown settings [{key=value}] while parsing field [request]"
+                "Configuration contains unknown settings [{key=value}] while parsing field [request]"
                     + " for settings [custom_service_settings]"
             )
         );
@@ -543,7 +543,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         assertThat(
             exception.getMessage(),
             is(
-                "Model configuration contains unknown settings [{key=value}] while parsing field [json_parser]"
+                "Configuration contains unknown settings [{key=value}] while parsing field [json_parser]"
                     + " for settings [custom_service_settings]"
             )
         );
@@ -585,7 +585,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         assertThat(
             exception.getMessage(),
             is(
-                "Model configuration contains unknown settings [{key=value}] while parsing field [response]"
+                "Configuration contains unknown settings [{key=value}] while parsing field [response]"
                     + " for settings [custom_service_settings]"
             )
         );
@@ -625,7 +625,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         assertThat(
             exception.getMessage(),
             is(
-                "Model configuration contains unknown settings [{key=value}] while parsing field [error_parser]"
+                "Configuration contains unknown settings [{key=value}] while parsing field [error_parser]"
                     + " for settings [custom_service_settings]"
             )
         );

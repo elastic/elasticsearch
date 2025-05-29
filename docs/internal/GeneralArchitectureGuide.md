@@ -119,8 +119,8 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,
 > a majority of transport actions are only ever invoked locally via the [NodeClient]. The two key features of a [TransportAction] are:
 > - Their constructor parameters are provided via dependency injection (Guice) at runtime rather than direct instantiation.
-> - They represent a security boundary; we check that the calling user is authorized to call the action they're calling using action
->   interceptors, which are described below.
+> - They represent a security boundary; we check that the calling user is authorized to call the action they're calling using
+> [TransportInterceptor]s, which are described below.
 
 ### Action invocation
 The [NodeClient] executes all actions locally on the invoking node using the [NodeClient#executeLocally] method. This method invokes
@@ -140,7 +140,7 @@ updates in stateful Elasticsearch.
 - [TransportSingleShardAction]: Executes a read operation on a specific shard, the base class contains logic for locating an available copy
 of the nominated shard and delegating to the relevant node to execute the action. On a failure, the action is retried on a different copy.
 
-### Action interceptors
+### Transport interceptors
 
 The transport action infrastructure allows the configuration of interceptors which can implement cross-cutting concerns like security around
 action invocations. Implementations of [TransportInterceptor] interface are able to intercept action requests by wrapping

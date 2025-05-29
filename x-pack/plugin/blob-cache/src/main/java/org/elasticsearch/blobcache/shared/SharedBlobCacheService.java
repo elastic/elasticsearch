@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -94,6 +95,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "concurrent_evictions",
+        5,
+        1,
         Setting.Property.NodeScope
     );
 
@@ -283,6 +291,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
         int forceEvict(Predicate<K> cacheKeyPredicate);
+
+        void forceEvictAsync(Predicate<K> cacheKey);
     }
 
     private abstract static class CacheEntry<T> {
@@ -328,6 +338,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Runnable evictIncrementer;
 
     private final LongSupplier relativeTimeInNanosSupplier;
+    private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
@@ -388,6 +399,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.asyncEvictionsRunner = new ThrottledTaskRunner(
+            "shared_blob_cache_evictions",
+            SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
+            threadPool.generic()
+        );
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -644,20 +660,53 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    /**
+     * Wraps the given {@link RangeMissingHandler} to adjust the position of the data read from the blob store
+     * (NB: the relativePos parameter in
+     * {@link RangeMissingHandler#fillCacheRange(SharedBytes.IO, int, SourceInputStreamFactory, int, int, IntConsumer, ActionListener)})
+     * relative to the beginning of the region we're reading from.
+     *
+     * This is useful so that we can read the input stream we open for reading from the blob store
+     * from the beginning (i.e. position 0 <b>in the input stream</b>).
+     *
+     * For example, if we want to read 2000 bytes the blob store starting at position 1000, the writer here will
+     * adjust the relative position we read to be 0, the offset being 1000, and the input stream we open to
+     * read from the blob store will start streaming from position 1000 (but we adjusted the relative read position
+     * to 0 so we consume the input stream from the beginning).
+     */
     private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, int writeOffset) {
         if (writeOffset == 0) {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
             return writer;
         }
-        return (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
-            channel,
-            channelPos,
-            streamFactory,
-            relativePos - writeOffset,
-            len,
-            progressUpdater,
-            completionListener
-        );
+
+        return new RangeMissingHandler() {
+            @Override
+            public void fillCacheRange(
+                SharedBytes.IO channel,
+                int channelPos,
+                SourceInputStreamFactory streamFactory,
+                int relativePos,
+                int length,
+                IntConsumer progressUpdater,
+                ActionListener<Void> completionListener
+            ) throws IOException {
+                writer.fillCacheRange(
+                    channel,
+                    channelPos,
+                    streamFactory,
+                    relativePos - writeOffset,
+                    length,
+                    progressUpdater,
+                    completionListener
+                );
+            }
+
+            @Override
+            public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                return writer.sharedInputStreamFactory(gaps);
+            }
+        };
     }
 
     // used by tests
@@ -707,6 +756,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
 
+    }
+
+    /**
+     * Evict entries from the cache that match the given predicate asynchronously
+     *
+     * @param cacheKeyPredicate
+     */
+    public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+        cache.forceEvictAsync(cacheKeyPredicate);
     }
 
     // used by tests
@@ -1609,6 +1667,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
+        }
+
+        @Override
+        public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+            asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        forceEvict(cacheKeyPredicate);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // should be impossible, GENERIC pool doesn't reject anything
+                    final String message = "unexpected failure evicting from shared blob cache";
+                    logger.error(message, e);
+                    assert false : new AssertionError(message, e);
+                }
+            });
         }
 
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {

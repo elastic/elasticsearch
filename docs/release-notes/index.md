@@ -20,6 +20,68 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+```{applies_to}
+stack: coming 9.0.2
+```
+## 9.0.2 [elasticsearch-9.0.2-release-notes]
+
+### Features and enhancements [elasticsearch-9.0.2-features-enhancements]
+
+Authentication:
+* Http proxy support in JWT realm [#127337](https://github.com/elastic/elasticsearch/pull/127337) (issue: [#114956](https://github.com/elastic/elasticsearch/issues/114956))
+
+ES|QL:
+* Limit Replace function memory usage [#127924](https://github.com/elastic/elasticsearch/pull/127924)
+
+### Fixes [elasticsearch-9.0.2-fixes]
+
+Aggregations:
+* Fix a bug in `significant_terms` [#127975](https://github.com/elastic/elasticsearch/pull/127975)
+
+Audit:
+* Handle streaming request body in audit log [#127798](https://github.com/elastic/elasticsearch/pull/127798)
+
+Data streams:
+* Fix system data streams incorrectly showing up in the list of template validation problems [#128161](https://github.com/elastic/elasticsearch/pull/128161)
+
+Downsampling:
+* Downsampling does not consider passthrough fields as dimensions [#127752](https://github.com/elastic/elasticsearch/pull/127752) (issue: [#125156](https://github.com/elastic/elasticsearch/issues/125156))
+
+ES|QL:
+* Don't push down filters on the right hand side of an inlinejoin [#127383](https://github.com/elastic/elasticsearch/pull/127383)
+* ESQL: Avoid unintended attribute removal [#127563](https://github.com/elastic/elasticsearch/pull/127563) (issue: [#127468](https://github.com/elastic/elasticsearch/issues/127468))
+* ESQL: Fix alias removal in regex extraction with JOIN [#127687](https://github.com/elastic/elasticsearch/pull/127687) (issue: [#127467](https://github.com/elastic/elasticsearch/issues/127467))
+* ESQL: Keep `DROP` attributes when resolving field names [#127009](https://github.com/elastic/elasticsearch/pull/127009) (issue: [#126418](https://github.com/elastic/elasticsearch/issues/126418))
+* Ensure ordinal builder emit ordinal blocks [#127949](https://github.com/elastic/elasticsearch/pull/127949)
+* Fix union types in CCS [#128111](https://github.com/elastic/elasticsearch/pull/128111)
+
+Infra/Core:
+* Add missing `outbound_network` entitlement to x-pack-core [#126992](https://github.com/elastic/elasticsearch/pull/126992) (issue: [#127003](https://github.com/elastic/elasticsearch/issues/127003))
+* Check hidden frames in entitlements [#127877](https://github.com/elastic/elasticsearch/pull/127877)
+
+Infra/Scripting:
+* Avoid nested docs in painless execute api [#127991](https://github.com/elastic/elasticsearch/pull/127991) (issue: [#41004](https://github.com/elastic/elasticsearch/issues/41004))
+
+Machine Learning:
+* Append all data to Chat Completion buffer [#127658](https://github.com/elastic/elasticsearch/pull/127658)
+* Fix services API Google Vertex AI Rerank location field requirement [#127856](https://github.com/elastic/elasticsearch/pull/127856)
+
+Relevance:
+* Fix: Add `NamedWriteable` for `RuleQueryRankDoc` [#128153](https://github.com/elastic/elasticsearch/pull/128153) (issue: [#126071](https://github.com/elastic/elasticsearch/issues/126071))
+
+Security:
+* Remove dangling spaces wherever found [#127475](https://github.com/elastic/elasticsearch/pull/127475)
+
+Snapshot/Restore:
+* Add missing entitlement to `repository-azure` [#128047](https://github.com/elastic/elasticsearch/pull/128047) (issue: [#128046](https://github.com/elastic/elasticsearch/issues/128046))
+
+TSDB:
+* Skip the validation when retrieving the index mode during reindexing a time series data stream [#127824](https://github.com/elastic/elasticsearch/pull/127824)
+
+Vector Search:
+* [9.x] Revert "Enable madvise by default for all builds" [#127921](https://github.com/elastic/elasticsearch/pull/127921)
+
+
 ## 9.0.1 [elasticsearch-9.0.1-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.1-features-enhancements]
@@ -347,6 +409,8 @@ Machine Learning:
 * Support mTLS for the Elastic Inference Service integration inside the inference API [#119679](https://github.com/elastic/elasticsearch/pull/119679)
 * [Inference API] Add node-local rate limiting for the inference API [#120400](https://github.com/elastic/elasticsearch/pull/120400)
 * [Inference API] fix spell words: covertToString to convertToString [#119922](https://github.com/elastic/elasticsearch/pull/119922)
+* Update Linux build images to Rocky Linux 8 with gcc 13.3 [#2773](https://github.com/elastic/ml-cpp/pull/2773)
+
 
 Mapping:
 * Add Optional Source Filtering to Source Loaders [#113827](https://github.com/elastic/elasticsearch/pull/113827)

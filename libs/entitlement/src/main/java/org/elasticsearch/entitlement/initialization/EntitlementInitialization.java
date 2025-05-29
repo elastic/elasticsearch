@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.lang.instrument.Instrumentation;
@@ -64,6 +66,16 @@ public class EntitlementInitialization {
         checker = initChecker(inst, createPolicyManager());
     }
 
+    private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        return new PolicyCheckerImpl(
+            bootstrapArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            bootstrapArgs.pathLookup()
+        );
+    }
+
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
@@ -77,9 +89,7 @@ public class EntitlementInitialization {
             pluginPolicies,
             EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            ENTITLEMENTS_MODULE,
-            pathLookup,
-            bootstrapArgs.suppressFailureLogPackages()
+            pathLookup
         );
     }
 
@@ -102,6 +112,7 @@ public class EntitlementInitialization {
     }
 
     static ElasticsearchEntitlementChecker initChecker(Instrumentation inst, PolicyManager policyManager) throws Exception {
+        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
             Runtime.version().feature()
@@ -109,14 +120,14 @@ public class EntitlementInitialization {
 
         Constructor<?> constructor;
         try {
-            constructor = clazz.getConstructor(PolicyManager.class);
+            constructor = clazz.getConstructor(PolicyChecker.class);
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
         }
 
         ElasticsearchEntitlementChecker checker;
         try {
-            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }

@@ -35,18 +35,19 @@ import java.util.stream.Collectors;
 public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware {
 
     public static final String FORK_FIELD = "_fork";
-    List<Attribute> lazyOutput;
+    private final List<Attribute> output;
 
-    public Fork(Source source, List<LogicalPlan> children) {
+    public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         if (children.size() < 2) {
             throw new IllegalArgumentException("requires more than two subqueries, got:" + children.size());
         }
+        this.output = output;
     }
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren);
+        return new Fork(source(), newChildren, output);
     }
 
     @Override
@@ -65,7 +66,8 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             return false;
         }
 
-        if (children().stream().anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME))) {
+        if (children().stream()
+            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
             return false;
         }
 
@@ -85,26 +87,23 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fork::new, children());
+        return NodeInfo.create(this, Fork::new, children(), output);
     }
 
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans);
+        return new Fork(source(), subPlans, output);
     }
 
     @Override
     public List<Attribute> output() {
-        if (lazyOutput == null) {
-            lazyOutput = lazyOutput();
-        }
-        return lazyOutput;
+        return output;
     }
 
-    private List<Attribute> lazyOutput() {
+    public static List<Attribute> outputUnion(List<LogicalPlan> subplans) {
         List<Attribute> output = new ArrayList<>();
         Set<String> names = new HashSet<>();
 
-        for (var subPlan : children()) {
+        for (var subPlan : subplans) {
             for (var attr : subPlan.output()) {
                 if (names.contains(attr.name()) == false && attr.name().equals(Analyzer.NO_FIELDS_NAME) == false) {
                     names.add(attr.name());

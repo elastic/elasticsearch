@@ -54,7 +54,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -93,7 +93,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -143,7 +143,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openai",
                     "streaming_completion_test_service",
                     "hugging_face",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -158,7 +158,15 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         assertThat(
             providers,
             containsInAnyOrder(
-                List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face", "sagemaker", "googlevertexai").toArray()
+                List.of(
+                    "deepseek",
+                    "elastic",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "googlevertexai"
+                ).toArray()
             )
         );
     }

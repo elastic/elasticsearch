@@ -126,24 +126,4 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
         mockLog.assertAllExpectationsMatched();
     }
-
-    @TestLogging(
-        value = "org.elasticsearch.transport.ClusterConnectionManager:WARN",
-        reason = "to ensure we log cluster manager disconnect events on WARN level"
-    )
-    public void testExceptionalDisconnectLoggingInClusterConnectionManager() throws Exception {
-        mockLog.addExpectation(
-            new MockLog.PatternSeenEventExpectation(
-                "cluster connection manager exceptional disconnect log",
-                ClusterConnectionManager.class.getCanonicalName(),
-                Level.WARN,
-                "transport connection to \\[.*\\] closed (by remote )?with exception .*"
-            )
-        );
-
-        final String nodeName = internalCluster().startNode();
-        internalCluster().restartNode(nodeName);
-
-        mockLog.assertAllExpectationsMatched();
-    }
 }

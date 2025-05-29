@@ -483,10 +483,6 @@ public class TransportService extends AbstractLifecycleComponent
         return isLocalNode(node) || connectionManager.nodeConnected(node);
     }
 
-    public void retainConnectionHistory(List<DiscoveryNode> nodes) {
-        connectionManager.retainConnectionHistory(nodes);
-    }
-
     /**
      * Connect to the specified node with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.

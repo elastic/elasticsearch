@@ -18,7 +18,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -120,16 +119,6 @@ public class StubbableConnectionManager implements ConnectionManager {
     @Override
     public void closeNoBlock() {
         delegate.closeNoBlock();
-    }
-
-    @Override
-    public void retainConnectionHistory(List<DiscoveryNode> nodes) {
-        delegate.retainConnectionHistory(nodes);
-    }
-
-    @Override
-    public int connectionHistorySize() {
-        return delegate.connectionHistorySize();
     }
 
     @Override

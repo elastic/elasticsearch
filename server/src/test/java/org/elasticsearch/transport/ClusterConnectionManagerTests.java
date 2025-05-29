@@ -210,14 +210,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 )
             );
             mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
-                    "reconnection after regular close",
-                    ClusterConnectionManager.class.getCanonicalName(),
-                    Level.WARN,
-                    "transport connection reopened to node with same ephemeralId \\[.*" + localClose.getEphemeralId() + ".*\\]$"
-                )
-            );
-            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
@@ -240,23 +232,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "locally-triggered close message with exception",
                     ClusterConnectionManager.class.getCanonicalName(),
-                    Level.WARN,
-                    "transport connection to ["
+                    Level.DEBUG,
+                    "closing unused transport connection to ["
                         + localException.descriptionWithoutAttributes()
-                        + "] closed with exception [java.lang.RuntimeException]; "
-                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                        + "], exception [java.lang.RuntimeException]"
                 )
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "reconnection after exceptional close logs exception",
-                    ClusterConnectionManager.class.getCanonicalName(),
-                    Level.WARN,
-                    "transport connection reopened to node with same ephemeralId ["
-                        + localException.descriptionWithoutAttributes()
-                        + "], close exception:"
-                )
-            );
+
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "remotely-triggered close message with exception",
@@ -268,32 +250,14 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "connection history trimmed to size",
-                    ClusterConnectionManager.class.getCanonicalName(),
-                    Level.TRACE,
-                    "Connection history garbage-collected from 2 to 0 entries"
-                )
-            );
 
             Releasables.close(localConnectionRef);
-            assertTrue("localConnection should be listed", connectionManager.connectionHistorySize() == 1);
-            safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(x -> null)));
-            assertTrue("localConnection should be removed on successful reconnect", connectionManager.connectionHistorySize() == 0);
 
             Releasables.close(localExceptionRef);
-            assertTrue("localException should be listed", connectionManager.connectionHistorySize() == 1);
             safeAwait(l -> connectionManager.connectToNode(localException, connectionProfile, validator, l.map(x -> null)));
-            assertTrue("localException should be removed", connectionManager.connectionHistorySize() == 0);
 
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.disconnectFromNode(remoteException);
-            assertTrue("recent disconnects should be listed", connectionManager.connectionHistorySize() == 2);
-
-            connectionManager.retainConnectionHistory(Collections.emptyList());
-            assertTrue("connection history should be emptied", connectionManager.connectionHistorySize() == 0);
-
             connectionManager.close();
 
             mockLog.assertAllExpectationsMatched();

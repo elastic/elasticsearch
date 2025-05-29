@@ -205,15 +205,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         delegate.closeNoBlock();
     }
 
-    @Override
-    public void retainConnectionHistory(List<DiscoveryNode> nodes) {
-        delegate.retainConnectionHistory(nodes);
-    }
-
-    public int connectionHistorySize() {
-        return delegate.connectionHistorySize();
-    }
-
     /**
      * This method returns a remote cluster alias for the given transport connection if it targets a node in the remote cluster.
      * This method will return an optional empty in case the connection targets the local node or the node in the local cluster.

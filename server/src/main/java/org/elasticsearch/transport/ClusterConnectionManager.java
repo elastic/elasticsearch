@@ -27,15 +27,11 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class manages node connections within a cluster. The connection is opened by the underlying transport.
@@ -50,10 +46,6 @@ public class ClusterConnectionManager implements ConnectionManager {
     private final ConcurrentMap<DiscoveryNode, SubscribableListener<Transport.Connection>> pendingConnections = ConcurrentCollections
         .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
-
-    record NodeConnectionHistory(String ephemeralId, Exception disconnectCause) {}
-
-    private final ConcurrentMap<String, NodeConnectionHistory> nodeHistory = ConcurrentCollections.newConcurrentMap();
 
     private final Transport transport;
     private final ThreadContext threadContext;
@@ -234,29 +226,6 @@ public class ClusterConnectionManager implements ConnectionManager {
                         } else {
                             logger.debug("connected to node [{}]", node);
                             managerRefs.mustIncRef();
-
-                            // log case where the remote node has same ephemeralId as its previous connection
-                            // (the network was disrupted, but not the remote process)
-                            final DiscoveryNode connNode = conn.getNode();
-                            NodeConnectionHistory hist = nodeHistory.remove(connNode.getId());
-                            if (hist != null && hist.ephemeralId.equals(connNode.getEphemeralId())) {
-                                if (hist.disconnectCause != null) {
-                                    logger.warn(
-                                        () -> format(
-                                            "transport connection reopened to node with same ephemeralId [%s], close exception:",
-                                            node.descriptionWithoutAttributes()
-                                        ),
-                                        hist.disconnectCause
-                                    );
-                                } else {
-                                    logger.warn(
-                                        """
-                                            transport connection reopened to node with same ephemeralId [{}]""",
-                                        node.descriptionWithoutAttributes()
-                                    );
-                                }
-                            }
-
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
@@ -265,20 +234,6 @@ public class ClusterConnectionManager implements ConnectionManager {
                                     connectionListener.onNodeDisconnected(node, conn);
                                     managerRefs.decRef();
                                 }));
-
-                                conn.addCloseListener(new ActionListener<Void>() {
-                                    @Override
-                                    public void onResponse(Void ignored) {
-                                        final NodeConnectionHistory hist = new NodeConnectionHistory(node.getEphemeralId(), null);
-                                        nodeHistory.put(conn.getNode().getId(), hist);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        final NodeConnectionHistory hist = new NodeConnectionHistory(node.getEphemeralId(), e);
-                                        nodeHistory.put(conn.getNode().getId(), hist);
-                                    }
-                                });
 
                                 conn.addCloseListener(new ActionListener<Void>() {
                                     @Override
@@ -314,13 +269,10 @@ public class ClusterConnectionManager implements ConnectionManager {
                                                 ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                                             );
                                         } else {
-                                            logger.warn(
-                                                """
-                                                    transport connection to [{}] closed with exception [{}]; \
-                                                    if unexpected, see [{}] for troubleshooting guidance""",
+                                            logger.debug(
+                                                "closing unused transport connection to [{}], exception [{}]",
                                                 node.descriptionWithoutAttributes(),
-                                                e,
-                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                                e
                                             );
                                         }
                                     }
@@ -345,21 +297,6 @@ public class ClusterConnectionManager implements ConnectionManager {
                 }
             )
         );
-    }
-
-    @Override
-    public void retainConnectionHistory(List<DiscoveryNode> nodes) {
-        List<String> nodeIds = nodes.stream().map(node -> node.getId()).collect(Collectors.toList());
-
-        final int startSize = nodeHistory.size();
-        // the keyset propagates changes to the underlying map
-        nodeHistory.keySet().retainAll(nodeIds);
-        logger.trace("Connection history garbage-collected from {} to {} entries", startSize, nodeHistory.size());
-    }
-
-    @Override
-    public int connectionHistorySize() {
-        return nodeHistory.size();
     }
 
     /**

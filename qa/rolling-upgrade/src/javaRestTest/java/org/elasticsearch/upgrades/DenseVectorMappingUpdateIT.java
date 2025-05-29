@@ -86,16 +86,13 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             String indexName = "test_index";
             if (isOldCluster()) {
                 Request createIndex = new Request("PUT", "/" + indexName);
-                XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
-                    .startObject()
-                    .startObject("mappings");
+                XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().startObject("mappings");
                 if (randomBoolean() && getOldClusterTestVersion().after(Version.V_8_12_0.toString())) {
                     mappings = mappings.startObject("_source");
                     mappings.field("mode", "synthetic");
                     mappings.endObject();
                 }
-                mappings = mappings
-                    .startObject("properties")
+                mappings = mappings.startObject("properties")
                     .startObject("embedding")
                     .field("type", "dense_vector")
                     .field("index", "true")

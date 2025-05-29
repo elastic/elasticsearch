@@ -489,6 +489,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test124CanRestartContainerWithStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128121
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
+  method: testSymlinkUpdateTriggerReload
+  issue: https://github.com/elastic/elasticsearch/issues/128619
 
 # Examples:
 #

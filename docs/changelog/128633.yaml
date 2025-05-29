@@ -1,5 +1,5 @@
 pr: 128633
 summary: Simplified linear and RRF retrievers
-area: "Relevance, Search"
+area: Search
 type: enhancement
 issues: []

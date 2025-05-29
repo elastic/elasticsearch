@@ -1,5 +1,5 @@
 pr: 125699
-summary: Adding `NormalizeToOTelProcessor`
+summary: Adding `NormalizeForStreamProcessor`
 area: Ingest Node
 type: feature
 issues: []

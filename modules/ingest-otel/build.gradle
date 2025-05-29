@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description = 'Ingest processor that normalizes ECS documents to OpenTelemetry-compatible namespaces'
-  classname ='org.elasticsearch.ingest.otel.NormalizeToOTelPlugin'
+  classname ='org.elasticsearch.ingest.otel.NormalizeForStreamPlugin'
 }
 
 restResources {

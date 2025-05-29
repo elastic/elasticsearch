@@ -1,13 +1,16 @@
 ---
-navigation_title: "Normalize to OTel"
+navigation_title: "Normalize for Stream"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/normalize-to-otel-processor.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/normalize-for-stream-processor.html
 ---
 
-# Normalize-to-OTel processor [normalize-to-otel-processor]
+# Normalize-for-Stream processor [normalize-for-stream-processor]
 
 
-Detects whether a document is OpenTelemetry-compliant and if not - normalizes it as described below. The resulting document can be queried seamlessly by clients that expect either [ECS](https://www.elastic.co/guide/en/ecs/current/index.html) or OpenTelemetry-[Semantic-Conventions](https://github.com/open-telemetry/semantic-conventions) formats.
+Detects whether a document is OpenTelemetry-compliant and if not -
+normalizes it as described below. If used in combination with the OTel-related
+mappings such as the ones defined in `logs-otel@template`, the resulting
+document can be queried seamlessly by clients that expect either [ECS](https://www.elastic.co/guide/en/ecs/current/index.html) or OpenTelemetry-[Semantic-Conventions](https://github.com/open-telemetry/semantic-conventions) formats.
 
 ::::{note}
 This processor is in tech preview and is not available in our serverless offering.

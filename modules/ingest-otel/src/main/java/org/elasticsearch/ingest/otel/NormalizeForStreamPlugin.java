@@ -15,10 +15,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
-public class NormalizeToOTelPlugin extends Plugin implements IngestPlugin {
+public class NormalizeForStreamPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(NormalizeToOTelProcessor.TYPE, new NormalizeToOTelProcessor.Factory());
+        return Map.of(NormalizeForStreamProcessor.TYPE, new NormalizeForStreamProcessor.Factory());
     }
 }

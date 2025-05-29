@@ -18,14 +18,14 @@ import java.util.Map;
 
 import static java.util.Map.entry;
 
-public class NormalizeToOTelProcessorTests extends ESTestCase {
+public class NormalizeForStreamProcessorTests extends ESTestCase {
 
-    private final NormalizeToOTelProcessor processor = new NormalizeToOTelProcessor("test", "test processor");
+    private final NormalizeForStreamProcessor processor = new NormalizeForStreamProcessor("test", "test processor");
 
     public void testIsOTelDocument_validMinimalOTelDocument() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", new HashMap<>());
-        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertTrue(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_validOTelDocumentWithScopeAndAttributes() {
@@ -33,20 +33,20 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("attributes", new HashMap<>());
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
-        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertTrue(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_missingResource() {
         Map<String, Object> source = new HashMap<>();
         source.put("scope", new HashMap<>());
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_resourceNotMap() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", "not a map");
         source.put("scope", new HashMap<>());
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidResourceAttributes() {
@@ -55,14 +55,14 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", resource);
         source.put("scope", new HashMap<>());
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_scopeNotMap() {
         Map<String, Object> source = new HashMap<>();
         source.put("resource", new HashMap<>());
         source.put("scope", "not a map");
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidAttributes() {
@@ -70,7 +70,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("attributes", "not a map");
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBody() {
@@ -78,7 +78,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", "not a map");
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBodyText() {
@@ -88,7 +88,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_invalidBodyStructured() {
@@ -98,7 +98,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertFalse(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertFalse(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testIsOTelDocument_validBody() {
@@ -109,7 +109,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("resource", new HashMap<>());
         source.put("scope", new HashMap<>());
         source.put("body", body);
-        assertTrue(NormalizeToOTelProcessor.isOTelDocument(source));
+        assertTrue(NormalizeForStreamProcessor.isOTelDocument(source));
     }
 
     public void testExecute_validOTelDocument() {
@@ -213,7 +213,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("trace", trace);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeToOTelProcessor.renameSpecialKeys(document);
+        NormalizeForStreamProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -232,7 +232,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("message", "this is a message");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeToOTelProcessor.renameSpecialKeys(document);
+        NormalizeForStreamProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -255,7 +255,7 @@ public class NormalizeToOTelProcessorTests extends ESTestCase {
         source.put("span.id", "topLevelSpanIdValue");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeToOTelProcessor.renameSpecialKeys(document);
+        NormalizeForStreamProcessor.renameSpecialKeys(document);
 
         Map<String, Object> result = document.getSource();
         // nested form should take precedence

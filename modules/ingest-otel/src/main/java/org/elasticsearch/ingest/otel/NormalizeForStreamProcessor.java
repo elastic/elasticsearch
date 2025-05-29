@@ -39,9 +39,9 @@ import static java.util.Map.entry;
  * <p>If a document is identified as OpenTelemetry-compatible, no transformation is performed.
  * @see org.elasticsearch.ingest.AbstractProcessor
  */
-public class NormalizeToOTelProcessor extends AbstractProcessor {
+public class NormalizeForStreamProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "normalize_to_otel";
+    public static final String TYPE = "normalize_for_stream";
 
     /**
      * Mapping of ECS field names to their corresponding OpenTelemetry-compatible counterparts.
@@ -83,7 +83,7 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
     private static final String TEXT_KEY = "text";
     private static final String STRUCTURED_KEY = "structured";
 
-    NormalizeToOTelProcessor(String tag, String description) {
+    NormalizeForStreamProcessor(String tag, String description) {
         super(tag, description);
     }
 
@@ -270,7 +270,7 @@ public class NormalizeToOTelProcessor extends AbstractProcessor {
             Map<String, Object> config,
             ProjectId projectId
         ) {
-            return new NormalizeToOTelProcessor(tag, description);
+            return new NormalizeForStreamProcessor(tag, description);
         }
     }
 }

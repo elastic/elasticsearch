@@ -2,25 +2,25 @@
 setup:
   - do:
       ingest.put_pipeline:
-        id: "normalize_to_otel_pipeline"
+        id: "normalize_for_stream_pipeline"
         body:
           processors:
-            - normalize_to_otel: {}
+            - normalize_for_stream: {}
 
 ---
 teardown:
   - do:
       ingest.delete_pipeline:
-        id: "normalize_to_otel_pipeline"
+        id: "normalize_for_stream_pipeline"
         ignore: 404
 
 ---
 "Test attributes namespacing":
   - do:
       index:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "nested_and_flat_attributes"
-        pipeline: "normalize_to_otel_pipeline"
+        pipeline: "normalize_for_stream_pipeline"
         body: {
           "agent.name": "agentNameValue",
           "agent": {
@@ -74,7 +74,7 @@ teardown:
 
   - do:
       get:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "nested_and_flat_attributes"
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
@@ -110,9 +110,9 @@ teardown:
 "Test rename special keys":
   - do:
       index:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "rename_special_keys"
-        pipeline: "normalize_to_otel_pipeline"
+        pipeline: "normalize_for_stream_pipeline"
         body: {
           "span": {
             "id": "nestedSpanIdValue"
@@ -128,7 +128,7 @@ teardown:
 
   - do:
       get:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "rename_special_keys"
   - match: { _source.span_id: "nestedSpanIdValue" }
   - match: { _source.severity_text: "topLevelLogLevelValue" }
@@ -145,9 +145,9 @@ teardown:
 "Test valid OTel document":
   - do:
       index:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "valid_otel_document"
-        pipeline: "normalize_to_otel_pipeline"
+        pipeline: "normalize_for_stream_pipeline"
         body: {
           "resource": {
             "attributes": {
@@ -172,7 +172,7 @@ teardown:
 
   - do:
       get:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "valid_otel_document"
   - match: { _source.resource.attributes.foo: "bar" }
   - match: { _source.scope.foo: "bar" }
@@ -188,9 +188,9 @@ teardown:
 "Test invalid body field":
   - do:
       index:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "invalid_body_field"
-        pipeline: "normalize_to_otel_pipeline"
+        pipeline: "normalize_for_stream_pipeline"
         body: {
           "resource": {},
           "scope": {
@@ -210,7 +210,7 @@ teardown:
 
   - do:
       get:
-        index: normalize_to_otel_test
+        index: normalize_for_stream_test
         id: "invalid_body_field"
   - match: { _source.attributes.body\.text: 123 }
   - match: { _source.attributes.body\.structured\.foo: "bar" }

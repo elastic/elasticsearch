@@ -41,14 +41,25 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -57,6 +68,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
@@ -183,8 +195,27 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     }
 
     public void testSimpleOffHeapSize() throws IOException {
+        try (Directory dir = newDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeFSDir() throws IOException {
+        var config = newIndexWriterConfig().setUseCompoundFile(false); // avoid compound files to allow directIO
+        try (Directory dir = newFSDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, config, false);
+        }
+    }
+
+    public void testSimpleOffHeapSizeMMapDir() throws IOException {
+        try (Directory dir = newMMapDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        try (IndexWriter w = new IndexWriter(dir, config)) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
             w.addDocument(doc);
@@ -198,11 +229,36 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
                     assertTrue(offHeap.get("veb") > 0L);
+                    if (expectVecOffHeap) {
+                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    }
                 }
             }
         }
+    }
+
+    static Directory newMMapDirectory() throws IOException {
+        Directory dir = new MMapDirectory(createTempDir("ES818BinaryQuantizedVectorsFormatTests"));
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
+    }
+
+    private Directory newFSDirectory() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
+        Files.createDirectories(tempDir);
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
+        Directory dir = (new FsDirectoryFactory()).newDirectory(idxSettings, path);
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
     }
 }

@@ -12,5 +12,4 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
  * from multi values to dense_vector field types, so parameters are actually
  * processed as dense_vectors in vector functions
  */
-public interface VectorFunction {
-}
+public interface VectorFunction {}

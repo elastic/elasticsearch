@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.microsoft;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -40,6 +41,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateException;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,19 +57,23 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     private static final String USERNAME = "Thor";
     private static final String EXPECTED_GROUP = "test_group";
 
+    private static final List<TestUser> TEST_USERS = List.of(
+        new TestUser(
+            USERNAME,
+            "Thor Odinson",
+            "thor@oldap.test.elasticsearch.com",
+            List.of("unmapped-group-1", "unmapped-group-2", "unmapped-group-3", EXPECTED_GROUP),
+            List.of("microsoft_graph_user")
+        ),
+        new TestUser("User2", "User 2", "user2@example.com", List.of(EXPECTED_GROUP), List.of("microsoft_graph_user")),
+        new TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
+    );
+
     private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(
         TENANT_ID,
         CLIENT_ID,
         CLIENT_SECRET,
-        List.of(
-            new TestUser(
-                USERNAME,
-                "Thor Odinson",
-                "thor@oldap.test.elasticsearch.com",
-                new String[] { "unmapped-group-1", "unmapped-group-2", "unmapped-group-3", EXPECTED_GROUP },
-                new String[] { "microsoft_graph_user" }
-            )
-        ),
+        TEST_USERS,
         3
     );
 
@@ -140,11 +146,6 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
                     .startArray("all")
                     .startObject()
                     .startObject("field")
-                    .field("username", USERNAME)
-                    .endObject()
-                    .endObject()
-                    .startObject()
-                    .startObject("field")
                     .field("realm.name", "microsoft_graph1")
                     .endObject()
                     .endObject()
@@ -183,13 +184,31 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     public void testAuthenticationSuccessful() throws Exception {
-        final var listener = new PlainActionFuture<Response>();
+        final var listener = new PlainActionFuture<Map<String, Object>>();
         samlAuthWithMicrosoftGraphAuthz(USERNAME, getSamlAssertionJsonBodyString(USERNAME), listener);
-        final var resp = entityAsMap(listener.get());
+        final var resp = listener.get();
         List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
         assertThat(resp.get("username"), equalTo(USERNAME));
         assertThat(roles, contains("microsoft_graph_user"));
         assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml1"));
+    }
+
+    public void testConcurrentAuthentication() throws Exception {
+        final var resultsListener = new PlainActionFuture<Collection<Map<String, Object>>>();
+        final var groupedListener = new GroupedActionListener<>(TEST_USERS.size(), resultsListener);
+        for (var user : TEST_USERS) {
+            samlAuthWithMicrosoftGraphAuthz(user.username(), getSamlAssertionJsonBodyString(user.username()), groupedListener);
+        }
+        final var responses = resultsListener.get();
+
+        assertThat(responses.size(), equalTo(TEST_USERS.size()));
+        for (var user : TEST_USERS) {
+            var response = responses.stream().filter(r -> r.get("username").equals(user.username())).findFirst();
+            assertTrue(response.isPresent());
+            final List<String> roles = new XContentTestUtils.JsonMapView(response.get()).get("authentication.roles");
+            assertThat(roles, equalTo(user.roles()));
+            assertThat(ObjectPath.evaluate(response.get(), "authentication.authentication_realm.name"), equalTo("saml1"));
+        }
     }
 
     private String getSamlAssertionJsonBodyString(String username) throws Exception {
@@ -206,10 +225,10 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         return Strings.toString(JsonXContent.contentBuilder().map(body));
     }
 
-    private void samlAuthWithMicrosoftGraphAuthz(String username, String samlAssertion, ActionListener<Response> listener) {
+    private void samlAuthWithMicrosoftGraphAuthz(String username, String samlAssertion, ActionListener<Map<String, Object>> listener) {
         var req = new Request("POST", "_security/saml/authenticate");
         req.setJsonEntity(samlAssertion);
-        client().performRequestAsync(req, ActionTestUtils.wrapAsRestResponseListener(listener));
+        client().performRequestAsync(req, ActionTestUtils.wrapAsRestResponseListener(listener.map(ESRestTestCase::entityAsMap)));
     }
 
 }

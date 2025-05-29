@@ -7,4 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-public record TestUser(String username, String displayName, String email, String[] groups, String[] roles) {}
+import java.util.List;
+
+public record TestUser(String username, String displayName, String email, List<String> groups, List<String> roles) {}

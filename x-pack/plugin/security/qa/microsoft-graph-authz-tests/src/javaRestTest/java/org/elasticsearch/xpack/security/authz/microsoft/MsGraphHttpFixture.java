@@ -234,15 +234,17 @@ public class MsGraphHttpFixture extends ExternalResource {
                 return;
             }
 
-            var nextLink = getBaseUrl() + exchange.getRequestURI().toString() + "&$skiptoken=" + skipToken;
+            String nextLink = null;
             Object[] groups;
 
             // return multiple pages of results, to ensure client correctly supports paging
             if (exchange.getRequestURI().getQuery().contains("$skiptoken")) {
-                groups = Arrays.stream(user.groups()).skip(groupsPageSize).map(id -> Map.of("id", id)).toArray();
-                nextLink = null;
+                groups = user.groups().stream().skip(groupsPageSize).map(id -> Map.of("id", id)).toArray();
             } else {
-                groups = Arrays.stream(user.groups()).limit(groupsPageSize).map(id -> Map.of("id", id)).toArray();
+                groups = user.groups().stream().limit(groupsPageSize).map(id -> Map.of("id", id)).toArray();
+                if (user.groups().size() > groupsPageSize) {
+                    nextLink = getBaseUrl() + exchange.getRequestURI().toString() + "&$skiptoken=" + skipToken;
+                }
             }
 
             final var groupMembership = XContentBuilder.builder(XContentType.JSON.xContent());

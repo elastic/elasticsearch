@@ -220,15 +220,21 @@ public class EsqlCCSUtils {
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (fatalErrorMessage == null) {
-                    fatalErrorMessage = error;
-                } else {
-                    fatalErrorMessage += "; " + error;
+                if (executionInfo.isSkipUnavailable(c) == false) {
+                    if (fatalErrorMessage == null) {
+                        fatalErrorMessage = error;
+                    } else {
+                        fatalErrorMessage += "; " + error;
+                    }
                 }
                 if (filter == null) {
-                    // Not very useful since we don't send metadata on errors now, but may be useful in the future
                     // We check for filter since the filter may be the reason why the index is missing, and then it's ok
-                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.FAILED, new VerificationException(error));
+                    markClusterWithFinalStateAndNoShards(
+                        executionInfo,
+                        c,
+                        executionInfo.isSkipUnavailable(c) ? Cluster.Status.SKIPPED : Cluster.Status.FAILED,
+                        new VerificationException(error)
+                    );
                 }
             } else {
                 if (indexResolution.isValid()) {
@@ -363,11 +369,7 @@ public class EsqlCCSUtils {
      * We will ignore the error if it's remote unavailable and the cluster is marked to skip unavailable.
      */
     public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
-        if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
-            return false;
-        }
-
-        return ExceptionsHelper.isRemoteUnavailableException(e);
+        return executionInfo.isSkipUnavailable(clusterAlias);
     }
 
     /**

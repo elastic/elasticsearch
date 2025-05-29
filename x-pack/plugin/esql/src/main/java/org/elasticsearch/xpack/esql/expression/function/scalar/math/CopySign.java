@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -129,24 +128,24 @@ public class CopySign extends EsqlScalarFunction {
             return new TypeResolution("Sign must be a numeric type");
         }
         dataType = EsqlDataTypeConverter.commonType(magnitude.dataType(), sign.dataType());
-//        TypeResolution resolution = TypeResolutions.isType(
-//            magnitude,
-//            t -> t == commonType,
-//            sourceText(),
-//            TypeResolutions.ParamOrdinal.fromIndex(1),
-//            magnitude.dataType().typeName()
-//        );
-//        if (resolution.unresolved()) {
-//            throw new EsqlIllegalArgumentException(
-//                "Magnitude [{}] is not compatible with sign [{}] for function [{}] - common type is [{}]",
-//                magnitude.dataType(),
-//                sign.dataType(),
-//                NAME
-//                ,commonType
-//            );
-////            return resolution;
-//        }
-//        dataType = commonType;
+        // TypeResolution resolution = TypeResolutions.isType(
+        // magnitude,
+        // t -> t == commonType,
+        // sourceText(),
+        // TypeResolutions.ParamOrdinal.fromIndex(1),
+        // magnitude.dataType().typeName()
+        // );
+        // if (resolution.unresolved()) {
+        // throw new EsqlIllegalArgumentException(
+        // "Magnitude [{}] is not compatible with sign [{}] for function [{}] - common type is [{}]",
+        // magnitude.dataType(),
+        // sign.dataType(),
+        // NAME
+        // ,commonType
+        // );
+        //// return resolution;
+        // }
+        // dataType = commonType;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -184,6 +183,7 @@ public class CopySign extends EsqlScalarFunction {
             return Math.abs(magnitude);
         }
     }
+
     @Evaluator(extraName = "Integer")
     static int processInteger(int magnitude, int sign) {
         if (sign < 0) {

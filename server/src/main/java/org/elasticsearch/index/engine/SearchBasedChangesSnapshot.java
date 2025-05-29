@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, Closeable {
     public static final int DEFAULT_BATCH_SIZE = 1024;
 
-    private final IndexVersion indexVersionCreated;
+    private final IndexSettings indexSettings;
     private final IndexSearcher indexSearcher;
     private final ValueFetcher sourceMetadataFetcher;
     private final Closeable onClose;
@@ -97,7 +97,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             }
         };
 
-        this.indexVersionCreated = indexVersionCreated;
+        this.indexSettings = mapperService.getIndexSettings();
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
@@ -109,7 +109,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.searchBatchSize = (int) Math.min(requestingSize, searchBatchSize);
 
         this.accessStats = accessStats;
-        this.totalHits = accessStats ? indexSearcher.count(rangeQuery(fromSeqNo, toSeqNo, indexVersionCreated)) : -1;
+        this.totalHits = accessStats ? indexSearcher.count(rangeQuery(indexSettings, fromSeqNo, toSeqNo)) : -1;
         this.sourceMetadataFetcher = createSourceMetadataValueFetcher(mapperService, indexSearcher);
     }
 
@@ -183,7 +183,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @return TopDocs instance containing the documents in the current batch.
      */
     protected TopDocs nextTopDocs() throws IOException {
-        Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
+        Query rangeQuery = rangeQuery(indexSettings, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
 
         TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(new Sort(sortBySeqNo), searchBatchSize, afterDoc, 0);
@@ -241,9 +241,10 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         return new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
     }
 
-    static Query rangeQuery(long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated) {
-        return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
-            .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST)
+    static Query rangeQuery(IndexSettings indexSettings, long fromSeqNo, long toSeqNo) {
+        Query seqNoQuery = SeqNoFieldMapper.rangeQueryForSeqNo(indexSettings.seqNoIndexOptions(), fromSeqNo, toSeqNo);
+        return new BooleanQuery.Builder().add(seqNoQuery, BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()), BooleanClause.Occur.MUST)
             .build();
     }
 

@@ -43,38 +43,38 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.unknown_field_mapping_update_error_message"
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
-    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature(
-        "mapper.ivf_format_cluster_feature"
-    );
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        HashSet<NodeFeature> features = new HashSet<>(Set.of(
-            RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
-            IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
-            SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
-            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
-            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
-            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
-            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
-            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-            SPARSE_VECTOR_STORE_SUPPORT,
-            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
-            DYNAMIC_HANDLING_IN_COPY_TO,
-            TSDB_NESTED_FIELD_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
-            DOC_VALUES_SKIPPER,
-            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
-            DateFieldMapper.INVALID_DATE_FIX,
-            NPE_ON_DIMS_UPDATE_FIX,
-            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
-            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ
-        ));
+        HashSet<NodeFeature> features = new HashSet<>(
+            Set.of(
+                RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
+                IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
+                SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+                SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
+                IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+                IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+                MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+                DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+                CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
+                META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+                SPARSE_VECTOR_STORE_SUPPORT,
+                COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+                SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+                DYNAMIC_HANDLING_IN_COPY_TO,
+                TSDB_NESTED_FIELD_SUPPORT,
+                SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+                ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+                UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+                DOC_VALUES_SKIPPER,
+                RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+                DateFieldMapper.INVALID_DATE_FIX,
+                NPE_ON_DIMS_UPDATE_FIX,
+                RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
+                USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ
+            )
+        );
         if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
             features.add(IVF_FORMAT_CLUSTER_FEATURE);
         }

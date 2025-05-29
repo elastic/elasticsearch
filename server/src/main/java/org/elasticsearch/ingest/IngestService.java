@@ -57,6 +57,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -125,6 +126,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final FailureStoreMetrics failureStoreMetrics;
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+    private final FeatureService featureService;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
@@ -197,7 +199,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Client client,
         MatcherWatchdog matcherWatchdog,
         DocumentParsingProvider documentParsingProvider,
-        FailureStoreMetrics failureStoreMetrics
+        FailureStoreMetrics failureStoreMetrics,
+        FeatureService featureService
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -220,6 +223,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
         this.failureStoreMetrics = failureStoreMetrics;
+        this.featureService = featureService;
     }
 
     /**
@@ -237,6 +241,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
+        this.featureService = ingestService.featureService;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -785,6 +790,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
+        // Adapt handler to ensure node features during ingest logic
+        final Function<String, Boolean> adaptedResolveFailureStore = wrapResolverWithFeatureCheck(resolveFailureStore);
+
         executor.execute(new AbstractRunnable() {
 
             @Override
@@ -870,7 +878,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(pipelines, indexRequest, ingestDocument, resolveFailureStore, documentListener);
+                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
                         assert actionRequest.index() != null;
 
                         i++;
@@ -878,6 +886,28 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         });
+    }
+
+    /**
+     * Adapts failure store resolver function so that if the failure store node feature is not present on every node it reverts to the
+     * old ingest behavior.
+     * @param resolveFailureStore Function that surfaces if failures for an index should be redirected to failure store.
+     * @return An adapted function that mutes the original if the cluster does not have the node feature universally applied.
+     */
+    private Function<String, Boolean> wrapResolverWithFeatureCheck(Function<String, Boolean> resolveFailureStore) {
+        final boolean clusterHasFailureStoreFeature = featureService.clusterHasFeature(
+            clusterService.state(),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE
+        );
+        return (indexName) -> {
+            if (clusterHasFailureStoreFeature) {
+                return resolveFailureStore.apply(indexName);
+            } else {
+                // If we get a non-null result but the cluster is not yet fully updated with required node features,
+                // force the result null to maintain old logic until all nodes are updated
+                return null;
+            }
+        };
     }
 
     /**

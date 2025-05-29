@@ -15,7 +15,6 @@ import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -68,14 +67,12 @@ public class GceMetadataService extends AbstractLifecycleComponent {
         try {
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            headers = Access.doPrivileged(HttpHeaders::new);
-            GenericUrl genericUrl = Access.doPrivileged(() -> new GenericUrl(urlMetadataNetwork));
+            headers = new HttpHeaders();
+            GenericUrl genericUrl = new GenericUrl(urlMetadataNetwork);
 
             // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
             headers.put("Metadata-Flavor", "Google");
-            HttpResponse response = Access.doPrivilegedIOException(
-                () -> getGceHttpTransport().createRequestFactory().buildGetRequest(genericUrl).setHeaders(headers).execute()
-            );
+            HttpResponse response = getGceHttpTransport().createRequestFactory().buildGetRequest(genericUrl).setHeaders(headers).execute();
             String metadata = response.parseAsString();
             logger.debug("metadata found [{}]", metadata);
             return metadata;

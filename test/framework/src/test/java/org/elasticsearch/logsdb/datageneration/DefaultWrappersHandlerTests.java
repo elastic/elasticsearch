@@ -9,8 +9,8 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DefaultWrappersHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DefaultWrappersHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

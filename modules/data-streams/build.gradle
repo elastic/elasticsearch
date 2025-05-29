@@ -15,7 +15,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities', 'reindex'
   }
 }
 
@@ -23,6 +23,7 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:reindex')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
@@ -34,12 +35,6 @@ if (buildParams.inFipsJvm){
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
-}
-
-if (buildParams.snapshotBuild == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
@@ -84,4 +79,5 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after an ingest failure", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after a shard failure", "Rolling over a data stream using target_failure_store is no longer supported.")
   task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store without conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/240_failure_store_info/Get failure store info from explicitly enabled failure store and disabled lifecycle", "failure store lifecycle is not using anymore the data stream lifecycle")
 })

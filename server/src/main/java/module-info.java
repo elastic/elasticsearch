@@ -23,7 +23,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
@@ -479,4 +478,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.inference.configuration;
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
+    exports org.elasticsearch.index.codec.perfield;
 }

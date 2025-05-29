@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.regex.Regex;
@@ -26,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ClientHelper.LOGS_PATTERN_USAGE_ORIGIN;
 import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.LOGS_PATTERN;
 
 /**
@@ -70,7 +72,7 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
     volatile Scheduler.Cancellable cancellable;
 
     LogsPatternUsageService(Client client, Settings nodeSettings, ThreadPool threadPool, Supplier<Metadata> metadataSupplier) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, LOGS_PATTERN_USAGE_ORIGIN);
         this.nodeSettings = nodeSettings;
         this.threadPool = threadPool;
         this.metadataSupplier = metadataSupplier;
@@ -155,11 +157,11 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
                 hasPriorLogsUsage = true;
                 cancellable = null;
             } else {
-                LOGGER.debug(() -> "unexpected response [" + LOGSDB_PRIOR_LOGS_USAGE.getKey() + "]");
+                LOGGER.debug(() -> "unexpected response [" + LOGSDB_PRIOR_LOGS_USAGE.getKey() + "], retrying...");
                 scheduleNext(TimeValue.ONE_MINUTE);
             }
         }, e -> {
-            LOGGER.debug(() -> "Failed to update [" + LOGSDB_PRIOR_LOGS_USAGE.getKey() + "]", e);
+            LOGGER.warn(() -> "Failed to update [" + LOGSDB_PRIOR_LOGS_USAGE.getKey() + "], retrying...", e);
             scheduleNext(TimeValue.ONE_MINUTE);
         }));
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -95,6 +97,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -134,6 +137,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
+
+    public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
@@ -204,6 +209,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private MinimalServiceSettings resolvedModelSettings;
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
@@ -283,29 +289,38 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
 
-            if (modelSettings.get() == null) {
+            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && modelSettings.get() == null) {
                 try {
-                    var resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
+                    /*
+                     * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
+                     * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
+                     * a mapping update during the first ingestion.
+                     * This approach allows mappings to reference inference endpoints that may not yet exist.
+                     * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
+                     */
+                    resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
                     if (resolvedModelSettings != null) {
-                        modelSettings.setValue(resolvedModelSettings);
+                        validateServiceSettings(resolvedModelSettings, null);
                     }
                 } catch (ResourceNotFoundException exc) {
-                    // We allow the inference ID to be unregistered at this point.
-                    // This will delay the creation of sub-fields, so indexing and querying for this field won't work
-                    // until the corresponding inference endpoint is created.
+                    /* We allow the inference ID to be unregistered at this point.
+                     * This will delay the creation of sub-fields, so indexing and querying for this field won't work
+                     * until the corresponding inference endpoint is created.
+                     */
+                    logger.warn(
+                        "The field [{}] references an unknown inference ID [{}]. "
+                            + "Indexing and querying this field will not work correctly until the corresponding "
+                            + "inference endpoint is created.",
+                        leafName(),
+                        inferenceId.get()
+                    );
                 }
+            } else {
+                resolvedModelSettings = modelSettings.get();
             }
 
             if (modelSettings.get() != null) {
-                validateServiceSettings(modelSettings.get());
-            } else {
-                logger.warn(
-                    "The field [{}] references an unknown inference ID [{}]. "
-                        + "Indexing and querying this field will not work correctly until the corresponding "
-                        + "inference endpoint is created.",
-                    leafName(),
-                    inferenceId.get()
-                );
+                validateServiceSettings(modelSettings.get(), resolvedModelSettings);
             }
 
             final String fullName = context.buildFullName(leafName());
@@ -333,7 +348,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             );
         }
 
-        private void validateServiceSettings(MinimalServiceSettings settings) {
+        private void validateServiceSettings(MinimalServiceSettings settings, MinimalServiceSettings resolved) {
             switch (settings.taskType()) {
                 case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
                 }
@@ -346,6 +361,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         + SPARSE_EMBEDDING
                         + ", got "
                         + settings.taskType().name()
+                );
+            }
+
+            if (resolved != null && settings.canMergeWith(resolved) == false) {
+                throw new IllegalArgumentException(
+                    "Mismatch between provided and registered inference model settings. "
+                        + "Provided: ["
+                        + settings
+                        + "], Expected: ["
+                        + resolved
+                        + "]."
                 );
             }
         }
@@ -1056,10 +1082,28 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
+                DenseVectorFieldMapper.IndexOptions defaultIndexOptions = null;
+                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X)) {
+                    defaultIndexOptions = defaultSemanticDenseIndexOptions();
+                }
+                if (defaultIndexOptions != null
+                    && defaultIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)) {
+                    denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
+                }
+
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");
         };
+    }
+
+    static DenseVectorFieldMapper.IndexOptions defaultSemanticDenseIndexOptions() {
+        // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
+        // options outside of dense_vector defaults
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

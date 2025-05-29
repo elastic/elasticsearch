@@ -11,15 +11,20 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -37,12 +42,18 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,8 +67,10 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -106,7 +119,15 @@ public class EvalBenchmark {
             "long_equal_to_int",
             "mv_min",
             "mv_min_ascending",
-            "rlike" }
+            "round_to_4_via_case",
+            "round_to_2",
+            "round_to_3",
+            "round_to_4",
+            "rlike",
+            "to_lower",
+            "to_lower_ords",
+            "to_upper",
+            "to_upper_ords" }
     )
     public String operation;
 
@@ -213,6 +234,75 @@ public class EvalBenchmark {
                 FieldAttribute keywordField = keywordField();
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
+            }
+            case "round_to_4_via_case" -> {
+                FieldAttribute f = longField();
+
+                Expression ltkb = new LessThan(Source.EMPTY, f, kb());
+                Expression ltmb = new LessThan(Source.EMPTY, f, mb());
+                Expression ltgb = new LessThan(Source.EMPTY, f, gb());
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Case(Source.EMPTY, ltkb, List.of(b(), ltmb, kb(), ltgb, mb(), gb())),
+                    layout(f)
+                ).get(driverContext);
+                String desc = "CaseLazyEvaluator";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
+            }
+            case "round_to_2" -> {
+                FieldAttribute f = longField();
+
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new RoundTo(Source.EMPTY, f, List.of(b(), kb())),
+                    layout(f)
+                ).get(driverContext);
+                String desc = "RoundToLong2";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
+            }
+            case "round_to_3" -> {
+                FieldAttribute f = longField();
+
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb())),
+                    layout(f)
+                ).get(driverContext);
+                String desc = "RoundToLong3";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
+            }
+            case "round_to_4" -> {
+                FieldAttribute f = longField();
+
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb(), gb())),
+                    layout(f)
+                ).get(driverContext);
+                String desc = "RoundToLong4";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
+            }
+            case "to_lower", "to_lower_ords" -> {
+                FieldAttribute keywordField = keywordField();
+                ToLower toLower = new ToLower(Source.EMPTY, keywordField, configuration());
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toLower, layout(keywordField)).get(driverContext);
+            }
+            case "to_upper", "to_upper_ords" -> {
+                FieldAttribute keywordField = keywordField();
+                ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
             }
             default -> throw new UnsupportedOperationException();
         };
@@ -366,13 +456,101 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "round_to_4_via_case", "round_to_4" -> {
+                long b = 1;
+                long kb = ByteSizeUnit.KB.toBytes(1);
+                long mb = ByteSizeUnit.MB.toBytes(1);
+                long gb = ByteSizeUnit.GB.toBytes(1);
+
+                LongVector f = actual.<LongBlock>getBlock(0).asVector();
+                LongVector result = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = f.getLong(i);
+                    if (expected < kb) {
+                        expected = b;
+                    } else if (expected < mb) {
+                        expected = kb;
+                    } else if (expected < gb) {
+                        expected = mb;
+                    } else {
+                        expected = gb;
+                    }
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "round_to_3" -> {
+                long b = 1;
+                long kb = ByteSizeUnit.KB.toBytes(1);
+                long mb = ByteSizeUnit.MB.toBytes(1);
+
+                LongVector f = actual.<LongBlock>getBlock(0).asVector();
+                LongVector result = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = f.getLong(i);
+                    if (expected < kb) {
+                        expected = b;
+                    } else if (expected < mb) {
+                        expected = kb;
+                    } else {
+                        expected = mb;
+                    }
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "round_to_2" -> {
+                long b = 1;
+                long kb = ByteSizeUnit.KB.toBytes(1);
+
+                LongVector f = actual.<LongBlock>getBlock(0).asVector();
+                LongVector result = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = f.getLong(i);
+                    if (expected < kb) {
+                        expected = b;
+                    } else {
+                        expected = kb;
+                    }
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "to_lower" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
+            case "to_lower_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
+            case "to_upper" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
+            case "to_upper_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
             default -> throw new UnsupportedOperationException(operation);
+        }
+    }
+
+    private static void checkBytes(String operation, Page actual, boolean expectOrds, BytesRef[] expectedVals) {
+        BytesRef scratch = new BytesRef();
+        BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            BytesRef expected = expectedVals[i % 2];
+            BytesRef b = v.getBytesRef(i, scratch);
+            if (b.equals(expected) == false) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + b + "]");
+            }
+        }
+        if (expectOrds) {
+            if (v.asOrdinals() == null) {
+                throw new IllegalArgumentException("expected ords but got " + v);
+            }
+        } else {
+            if (v.asOrdinals() != null) {
+                throw new IllegalArgumentException("expected non-ords but got " + v);
+            }
         }
     }
 
     private static Page page(String operation) {
         return switch (operation) {
-            case "abs", "add", "date_trunc", "equal_to_const" -> {
+            case "abs", "add", "date_trunc", "equal_to_const", "round_to_4_via_case", "round_to_2", "round_to_3", "round_to_4" -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
@@ -448,8 +626,38 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build().asBlock());
             }
+            case "to_lower_ords", "to_upper_ords" -> {
+                var bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                bytes.appendBytesRef(new BytesRef("foo"));
+                bytes.appendBytesRef(new BytesRef("bar"));
+                var ordinals = blockFactory.newIntVectorFixedBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    ordinals.appendInt(i % 2);
+                }
+                yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
+            }
             default -> throw new UnsupportedOperationException();
         };
+    }
+
+    private static Literal b() {
+        return lit(1L);
+    }
+
+    private static Literal kb() {
+        return lit(ByteSizeUnit.KB.toBytes(1));
+    }
+
+    private static Literal mb() {
+        return lit(ByteSizeUnit.MB.toBytes(1));
+    }
+
+    private static Literal gb() {
+        return lit(ByteSizeUnit.GB.toBytes(1));
+    }
+
+    private static Literal lit(long v) {
+        return new Literal(Source.EMPTY, v, DataType.LONG);
     }
 
     @Benchmark
@@ -469,5 +677,22 @@ public class EvalBenchmark {
             // We only check the last one
             checkExpected(operation, output);
         }
+    }
+
+    private static Configuration configuration() {
+        return new Configuration(
+            ZoneOffset.UTC,
+            Locale.ROOT,
+            null,
+            null,
+            null,
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+            null,
+            false,
+            Map.of(),
+            0,
+            false
+        );
     }
 }

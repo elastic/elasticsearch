@@ -4,6 +4,14 @@
 <titleabbrev>Set up CORs</titleabbrev>
 ++++
 
+++++
+<style>
+  div#url-to-v3 {
+    display: none !important;
+  }
+</style>
+++++
+
 Behavioral Analytics sends events directly to the {es} API.
 This means that the browser makes requests to the {es} API directly.
 {es} supports https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Cross-Origin Resource Sharing (CORS)^], but this feature is disabled by default.

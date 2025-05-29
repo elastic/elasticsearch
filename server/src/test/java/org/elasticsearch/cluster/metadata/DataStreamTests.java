@@ -48,14 +48,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomGlobalRetention;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonEmptyIndexInstances;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -140,11 +139,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
+                : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
-            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
+            case 11 -> dataStreamOptions = dataStreamOptions.isEmpty()
+                ? new DataStreamOptions(DataStreamFailureStoreTests.randomFailureStore())
                 : randomBoolean() ? DataStreamOptions.EMPTY
-                : new DataStreamOptions(new DataStreamFailureStore(dataStreamOptions.failureStore().enabled() == false));
+                : new DataStreamOptions(
+                    randomValueOtherThan(dataStreamOptions.failureStore(), DataStreamFailureStoreTests::randomFailureStore)
+                );
             case 12 -> {
                 rolloverOnWrite = rolloverOnWrite == false;
                 isReplicated = rolloverOnWrite == false && isReplicated;
@@ -1364,148 +1366,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testGetBackingIndicesPastRetention() {
-        String dataStreamName = "metrics-foo";
-        long now = System.currentTimeMillis();
-
-        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
-            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
-            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
-            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
-            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
-            DataStreamMetadata.dataStreamMetadata(now, null)
-        );
-
-        {
-            {
-                // no lifecycle configured so we expect an empty list
-                Metadata.Builder builder = Metadata.builder();
-                DataStream dataStream = createDataStream(
-                    builder,
-                    dataStreamName,
-                    creationAndRolloverTimes,
-                    settings(IndexVersion.current()),
-                    null
-                );
-                Metadata metadata = builder.build();
-
-                assertThat(
-                    dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention()).isEmpty(),
-                    is(true)
-                );
-            }
-        }
-
-        Metadata.Builder builder = Metadata.builder();
-        AtomicReference<TimeValue> retention = new AtomicReference<>();
-        DataStream dataStream = createDataStream(
-            builder,
-            dataStreamName,
-            creationAndRolloverTimes,
-            settings(IndexVersion.current()),
-            new DataStreamLifecycle(null, null, null) {
-                public TimeValue dataRetention() {
-                    return retention.get();
-                }
-            }
-        );
-        Metadata metadata = builder.build();
-
-        {
-            // Mix of indices younger and older than retention, data stream retention is effective retention
-            retention.set(TimeValue.timeValueSeconds(2500));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(
-                metadata::index,
-                () -> now,
-                randomBoolean() ? randomGlobalRetention() : null
-            );
-            assertThat(backingIndices.size(), is(2));
-            for (int i = 0; i < backingIndices.size(); i++) {
-                assertThat(backingIndices.get(i).getName(), is(dataStream.getIndices().get(i).getName()));
-            }
-        }
-
-        {
-            // All indices past retention, but we keep the write index
-            retention.set(TimeValue.timeValueSeconds(0));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(backingIndices.size(), is(4));
-            for (int i = 0; i < backingIndices.size(); i++) {
-                assertThat(backingIndices.get(i).getName(), is(dataStream.getIndices().get(i).getName()));
-            }
-        }
-
-        {
-            // All indices younger than retention
-            retention.set(TimeValue.timeValueSeconds(6000));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(backingIndices.isEmpty(), is(true));
-        }
-
-        {
-            // Test predicate that influences which indices are candidates for a retention check
-            Function<String, IndexMetadata> indexMetadataWithSomeLifecycleSupplier = indexName -> {
-                IndexMetadata indexMetadata = metadata.index(indexName);
-                if (indexName.endsWith("00003") || indexName.endsWith("00005")) {
-                    return indexMetadata;
-                }
-                return IndexMetadata.builder(indexMetadata)
-                    .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "some-policy").build())
-                    .build();
-            };
-            retention.set(TimeValue.timeValueSeconds(0));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(indexMetadataWithSomeLifecycleSupplier, () -> now, null);
-            assertThat(backingIndices.size(), is(1));
-            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(2).getName()));
-        }
-
-        {
-            // no retention configured but we have default retention
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-                TimeValue.timeValueSeconds(2500),
-                randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(2500, 5000)) : null
-            );
-            retention.set(null);
-
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, globalRetention);
-            assertThat(backingIndices.size(), is(2));
-            for (int i = 0; i < backingIndices.size(); i++) {
-                assertThat(backingIndices.get(i).getName(), is(dataStream.getIndices().get(i).getName()));
-            }
-        }
-
-        {
-            // no retention or too large retention configured and we have max retention
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, TimeValue.timeValueSeconds(2500));
-            retention.set(randomBoolean() ? TimeValue.timeValueDays(6000) : null);
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, globalRetention);
-            assertThat(backingIndices.size(), is(2));
-            for (int i = 0; i < backingIndices.size(); i++) {
-                assertThat(backingIndices.get(i).getName(), is(dataStream.getIndices().get(i).getName()));
-            }
-        }
-
-        {
-            // no indices are returned as even though all pass retention age none are managed by data stream lifecycle
-            Metadata.Builder builderWithIlm = Metadata.builder();
-            DataStream dataStreamWithIlm = createDataStream(
-                builderWithIlm,
-                dataStreamName,
-                creationAndRolloverTimes,
-                settings(IndexVersion.current()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
-                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
-            );
-            Metadata metadataWithIlm = builderWithIlm.build();
-
-            List<Index> backingIndices = dataStreamWithIlm.getBackingIndicesPastRetention(
-                metadataWithIlm::index,
-                () -> now,
-                randomGlobalRetention()
-            );
-            assertThat(backingIndices.isEmpty(), is(true));
-        }
+        testIndicesPastRetention(false);
     }
 
     public void testGetFailureIndicesPastRetention() {
+        testIndicesPastRetention(true);
+    }
+
+    private void testIndicesPastRetention(boolean failureStore) {
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
 
@@ -1519,72 +1387,73 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             {
-                // no lifecycle configured so we expect an empty list
+                // No lifecycle or disabled for data and only disabled lifecycle for failures should result in empty list.
                 Metadata.Builder builder = Metadata.builder();
+                var disabledLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().enabled(false).build();
                 DataStream dataStream = createDataStream(
                     builder,
                     dataStreamName,
                     creationAndRolloverTimes,
                     settings(IndexVersion.current()),
-                    null
+                    randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build() : null,
+                    new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), disabledLifecycle))
                 );
                 Metadata metadata = builder.build();
 
                 assertThat(
-                    dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention()).isEmpty(),
+                    dataStream.getIndicesPastRetention(metadata::index, () -> now, TimeValue.ZERO, failureStore).isEmpty(),
                     is(true)
                 );
             }
         }
 
         Metadata.Builder builder = Metadata.builder();
-        AtomicReference<TimeValue> retention = new AtomicReference<>();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle(null, null, null) {
-                public TimeValue dataRetention() {
-                    return retention.get();
-                }
-            }
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
         );
         Metadata metadata = builder.build();
+        Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
 
         {
-            // Mix of indices younger and older than retention, data stream retention is effective retention
-            retention.set(TimeValue.timeValueSeconds(2500));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(
+            // Mix of indices younger and older than retention
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
                 metadata::index,
                 () -> now,
-                randomBoolean() ? randomGlobalRetention() : null
+                TimeValue.timeValueSeconds(2500),
+                failureStore
             );
-            assertThat(failureIndices.size(), is(2));
-            for (int i = 0; i < failureIndices.size(); i++) {
-                assertThat(failureIndices.get(i).getName(), is(dataStream.getFailureIndices().get(i).getName()));
+            assertThat(indicesPastRetention.size(), is(2));
+            for (int i = 0; i < indicesPastRetention.size(); i++) {
+                assertThat(indicesPastRetention.get(i).getName(), is(indicesSupplier.get().get(i).getName()));
             }
         }
 
         {
             // All indices past retention, but we keep the write index
-            retention.set(TimeValue.timeValueSeconds(0));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(failureIndices.size(), is(4));
-            for (int i = 0; i < failureIndices.size(); i++) {
-                assertThat(failureIndices.get(i).getName(), is(dataStream.getFailureIndices().get(i).getName()));
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(metadata::index, () -> now, TimeValue.ZERO, failureStore);
+            assertThat(indicesPastRetention.size(), is(4));
+            for (int i = 0; i < indicesPastRetention.size(); i++) {
+                assertThat(indicesPastRetention.get(i).getName(), is(indicesSupplier.get().get(i).getName()));
             }
         }
 
         {
             // All indices younger than retention
-            retention.set(TimeValue.timeValueSeconds(6000));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(failureIndices.isEmpty(), is(true));
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+                metadata::index,
+                () -> now,
+                TimeValue.timeValueSeconds(6000),
+                failureStore
+            );
+            assertThat(indicesPastRetention.isEmpty(), is(true));
         }
 
         {
-            // Test predicate that influences which indices are candidates for a retention check
+            // Test ILM managed indices are excluded
             Function<String, IndexMetadata> indexMetadataWithSomeLifecycleSupplier = indexName -> {
                 IndexMetadata indexMetadata = metadata.index(indexName);
                 if (indexName.endsWith("00003") || indexName.endsWith("00005")) {
@@ -1594,91 +1463,26 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "some-policy").build())
                     .build();
             };
-            retention.set(TimeValue.timeValueSeconds(0));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(indexMetadataWithSomeLifecycleSupplier, () -> now, null);
-            assertThat(failureIndices.size(), is(1));
-            assertThat(failureIndices.get(0).getName(), is(dataStream.getFailureIndices().get(2).getName()));
-        }
-
-        {
-            // no retention configured but we have default retention
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-                TimeValue.timeValueSeconds(2500),
-                randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(2500, 5000)) : null
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+                indexMetadataWithSomeLifecycleSupplier,
+                () -> now,
+                TimeValue.ZERO,
+                failureStore
             );
-            retention.set(null);
-
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, globalRetention);
-            assertThat(failureIndices.size(), is(2));
-            for (int i = 0; i < failureIndices.size(); i++) {
-                assertThat(failureIndices.get(i).getName(), is(dataStream.getFailureIndices().get(i).getName()));
-            }
-        }
-
-        {
-            // no retention or too large retention configured and we have max retention
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, TimeValue.timeValueSeconds(2500));
-            retention.set(randomBoolean() ? TimeValue.timeValueDays(6000) : null);
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, globalRetention);
-            assertThat(failureIndices.size(), is(2));
-            for (int i = 0; i < failureIndices.size(); i++) {
-                assertThat(failureIndices.get(i).getName(), is(dataStream.getFailureIndices().get(i).getName()));
-            }
+            assertThat(indicesPastRetention.size(), is(1));
+            assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(2).getName()));
         }
     }
 
     public void testBackingIndicesPastRetentionWithOriginationDate() {
-        // First, build an ordinary data stream:
-        String dataStreamName = "metrics-foo";
-        long now = System.currentTimeMillis();
-        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
-            DataStreamMetadata.dataStreamMetadata(now - 5000, now - 4000),
-            DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
-            DataStreamMetadata.dataStreamMetadata(now - 3000, now - 2000),
-            DataStreamMetadata.dataStreamMetadata(now - 2000, now - 1000),
-            DataStreamMetadata.dataStreamMetadata(now, null, now - 8000), // origination date older than retention
-            DataStreamMetadata.dataStreamMetadata(now, null, now - 1000), // origination date within retention
-            DataStreamMetadata.dataStreamMetadata(now, null)
-        );
-        Metadata.Builder metadataBuilder = Metadata.builder();
-        AtomicReference<TimeValue> testRetentionReference = new AtomicReference<>(null);
-        DataStream dataStream = createDataStream(
-            metadataBuilder,
-            dataStreamName,
-            creationAndRolloverTimes,
-            settings(IndexVersion.current()),
-            new DataStreamLifecycle(null, null, null) {
-                public TimeValue dataRetention() {
-                    return testRetentionReference.get();
-                }
-            }
-        );
-        Metadata metadata = metadataBuilder.build();
-        {
-            // no retention configured so we expect an empty list
-            testRetentionReference.set(null);
-            assertThat(dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, null).isEmpty(), is(true));
-        }
-
-        {
-            // retention period where first and second index is too old, and 5th has old origination date.
-            testRetentionReference.set(TimeValue.timeValueMillis(2500));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(backingIndices.size(), is(3));
-            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
-            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
-            assertThat(backingIndices.get(2).getName(), is(dataStream.getIndices().get(5).getName()));
-        }
-
-        {
-            // no index matches the retention age
-            testRetentionReference.set(TimeValue.timeValueMillis(9000));
-            List<Index> backingIndices = dataStream.getBackingIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(backingIndices.isEmpty(), is(true));
-        }
+        testIndicesPastRetentionWithOriginationDate(false);
     }
 
     public void testFailureIndicesPastRetentionWithOriginationDate() {
+        testIndicesPastRetentionWithOriginationDate(true);
+    }
+
+    private void testIndicesPastRetentionWithOriginationDate(boolean failureStore) {
         // First, build an ordinary data stream:
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
@@ -1692,40 +1496,43 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamMetadata.dataStreamMetadata(now, null)
         );
         Metadata.Builder metadataBuilder = Metadata.builder();
-        AtomicReference<TimeValue> testRetentionReference = new AtomicReference<>(null);
         DataStream dataStream = createDataStream(
             metadataBuilder,
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle(null, null, null) {
-                public TimeValue dataRetention() {
-                    return testRetentionReference.get();
-                }
-            }
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
         );
         Metadata metadata = metadataBuilder.build();
+        Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         {
             // no retention configured so we expect an empty list
-            testRetentionReference.set(null);
-            assertThat(dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, null).isEmpty(), is(true));
+            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now, null, failureStore).isEmpty(), is(true));
         }
 
         {
             // retention period where first and second index is too old, and 5th has old origination date.
-            testRetentionReference.set(TimeValue.timeValueMillis(2500));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(failureIndices.size(), is(3));
-            assertThat(failureIndices.get(0).getName(), is(dataStream.getFailureIndices().get(0).getName()));
-            assertThat(failureIndices.get(1).getName(), is(dataStream.getFailureIndices().get(1).getName()));
-            assertThat(failureIndices.get(2).getName(), is(dataStream.getFailureIndices().get(5).getName()));
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+                metadata::index,
+                () -> now,
+                TimeValue.timeValueMillis(2500),
+                failureStore
+            );
+            assertThat(indicesPastRetention.size(), is(3));
+            assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(0).getName()));
+            assertThat(indicesPastRetention.get(1).getName(), is(indicesSupplier.get().get(1).getName()));
+            assertThat(indicesPastRetention.get(2).getName(), is(indicesSupplier.get().get(5).getName()));
         }
 
         {
             // no index matches the retention age
-            testRetentionReference.set(TimeValue.timeValueMillis(9000));
-            List<Index> failureIndices = dataStream.getFailureIndicesPastRetention(metadata::index, () -> now, null);
-            assertThat(failureIndices.isEmpty(), is(true));
+            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+                metadata::index,
+                () -> now,
+                TimeValue.timeValueMillis(9000),
+                failureStore
+            );
+            assertThat(indicesPastRetention.isEmpty(), is(true));
         }
     }
 
@@ -1749,7 +1556,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1809,7 +1616,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 // no TSDB settings
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.builder()
+                DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
                             new DataStreamLifecycle.DownsamplingRound(
@@ -1875,7 +1682,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.builder().build()
+                DataStreamLifecycle.dataLifecycleBuilder().build()
             );
             Metadata metadata = builder.build();
 
@@ -1907,7 +1714,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
         Metadata metadata = builder.build();
 
@@ -1986,12 +1793,44 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testFailuresLifecycle() {
+        DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
+        assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());
+
+        assertThat(noFailureStoreDs.getFailuresLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+        assertThat(noFailureStoreDs.getFailuresLifecycle(randomBoolean() ? false : null), nullValue());
+
+        DataStream withFailureIndices = DataStream.builder("with-fs-indices", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build()
+            )
+            .build();
+        assertThat(withFailureIndices.getFailuresLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE));
+
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomFailuresLifecycle();
+        DataStream withFailuresLifecycle = DataStream.builder("with-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID())))
+            .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
+            .build();
+        assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
     private DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         List<DataStreamMetadata> creationAndRolloverTimes,
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle lifecycle
+    ) {
+        return createDataStream(builder, dataStreamName, creationAndRolloverTimes, backingIndicesSettings, lifecycle, null);
+    }
+
+    private DataStream createDataStream(
+        Metadata.Builder builder,
+        String dataStreamName,
+        List<DataStreamMetadata> creationAndRolloverTimes,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamOptions dataStreamOptions
     ) {
         int backingIndicesCount = creationAndRolloverTimes.size();
         final List<Index> backingIndices = createDataStreamIndices(
@@ -2010,7 +1849,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             backingIndicesCount,
             true
         );
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices, dataStreamOptions);
     }
 
     private static List<Index> createDataStreamIndices(
@@ -2068,6 +1907,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (failureStore) {
             failureIndices = randomNonEmptyIndexInstances();
         }
+        var failuresLifecycle = randomBoolean() ? null : DataStreamLifecycleTests.randomFailuresLifecycle();
 
         DataStreamLifecycle lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
         boolean isSystem = randomBoolean();
@@ -2082,7 +1922,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
-            new DataStreamOptions(new DataStreamFailureStore(failureStore)),
+            new DataStreamOptions(new DataStreamFailureStore(failureStore, failuresLifecycle)),
             failureIndices,
             false,
             null
@@ -2102,8 +1942,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
             if (dataStream.isInternal() == false
                 && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
@@ -2269,7 +2107,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2287,7 +2125,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2312,7 +2150,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),
@@ -2336,7 +2174,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_DISABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2358,7 +2196,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             List.of(),
             replicated == false && randomBoolean(),
@@ -2389,7 +2227,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             system,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
-            DataStreamLifecycleTests.randomLifecycle(),
+            DataStreamLifecycleTests.randomDataLifecycle(),
             DataStreamOptions.FAILURE_STORE_ENABLED,
             failureIndices,
             replicated == false && randomBoolean(),

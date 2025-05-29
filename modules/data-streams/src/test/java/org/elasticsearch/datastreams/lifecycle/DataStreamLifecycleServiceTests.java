@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
@@ -207,13 +208,18 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
+        DataStreamLifecycle zeroRetentionDataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStreamLifecycle zeroRetentionFailuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(TimeValue.ZERO)
+            .build();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
+            zeroRetentionDataLifecycle,
+            zeroRetentionFailuresLifecycle,
             now
         );
         builder.put(dataStream);
@@ -276,7 +282,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             numFailureIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            null,
             now
         );
         builder.put(dataStream);
@@ -309,7 +316,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStream.copy()
                 .setName(dataStreamName)
                 .setGeneration(dataStream.getGeneration() + 1)
-                .setLifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build())
+                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build())
                 .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
@@ -346,7 +353,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStream.copy()
                 .setName(dataStreamName)
                 .setGeneration(dataStream.getGeneration() + 1)
-                .setLifecycle(DataStreamLifecycle.builder().build())
+                .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().build())
                 .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
@@ -378,7 +385,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueMillis(0)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueMillis(0)).build(),
             now
         );
         builder.put(dataStream);
@@ -458,7 +465,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build(),
             now
         );
         builder.put(dataStream);
@@ -547,7 +554,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         // all backing indices are in the error store
@@ -585,7 +592,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             ilmManagedDataStreamName,
             3,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         // all backing indices are in the error store
@@ -598,7 +605,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamWithBackingIndicesInErrorState,
             5,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
         // put all backing indices in the error store
@@ -649,7 +656,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -760,7 +767,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -932,7 +939,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -1124,7 +1131,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.MAX_VALUE).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
         builder.put(dataStream);
@@ -1203,7 +1210,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
-            DataStreamLifecycle.builder()
+            DataStreamLifecycle.dataLifecycleBuilder()
                 .downsampling(
                     List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                 )
@@ -1339,7 +1346,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
-            DataStreamLifecycle.builder()
+            DataStreamLifecycle.dataLifecycleBuilder()
                 .downsampling(
                     List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                 )
@@ -1497,6 +1504,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numFailureIndices,
             settings(IndexVersion.current()),
             DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null,
             now
         ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled
         builder.put(dataStream);
@@ -1526,25 +1534,31 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
+            null,
+            null,
             now
-        ).copy().setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED).build(); // failure store is managed even when disabled
+        ).copy()
+            .setDataStreamOptions(
+                new DataStreamOptions(
+                    DataStreamFailureStore.builder()
+                        .enabled(false)
+                        .lifecycle(DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(TimeValue.ZERO).build())
+                        .build()
+                )
+            )
+            .build(); // failure store is managed even when disabled
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(3));
-        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
-        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
-        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
-        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(clientSeenRequests.size(), is(2));
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
         assertThat(
             rolloverFailureIndexRequest.getRolloverTarget(),
             is(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.FAILURES))
         );
-        assertThat(((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
+        assertThat(((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
     }
 
     public void testMaybeExecuteRetentionSuccessfulDownsampledIndex() {
@@ -1552,9 +1566,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(dataStreamName, SUCCESS);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
     }
 
@@ -1562,10 +1583,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, STARTED);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, empty());
     }
 
@@ -1574,9 +1601,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(dataStreamName, UNKNOWN);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
-        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            clusterService.state(),
+            dataStream,
+            dataRetention,
+            null,
+            Set.of()
+        );
         assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
     }
 
@@ -1589,7 +1623,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             2,
             settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp"),
-            DataStreamLifecycle.builder()
+            DataStreamLifecycle.dataLifecycleBuilder()
                 .downsampling(
                     List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                 )

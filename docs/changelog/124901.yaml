@@ -1,0 +1,5 @@
+pr: 124901
+summary: Calculate concurrent node limit
+area: ES|QL
+type: feature
+issues: []

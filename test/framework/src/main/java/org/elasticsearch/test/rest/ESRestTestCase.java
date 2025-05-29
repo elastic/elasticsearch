@@ -2052,8 +2052,34 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "0");
+        request.addParameter("level", "indices");
+        try {
+            final var response = client().performRequest(request);
+            @SuppressWarnings("unchecked")
+            final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
+            return indices.containsKey(index);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    protected static void awaitIndexExists(String index) throws IOException {
+        awaitIndexExists(index, SAFE_AWAIT_TIMEOUT);
+    }
+
+    protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
+        assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**

@@ -148,6 +148,7 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "maintenance",
     "manage",
     "manage_data_stream_lifecycle",
+    "manage_failure_store",
     "manage_follow_index",
     "manage_ilm",
     "manage_leader_index",
@@ -155,6 +156,7 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "none",
     "read",
     "read_cross_cluster",
+    "read_failure_store",
     "view_index_metadata",
     "write"
   ],

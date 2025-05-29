@@ -348,7 +348,7 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
                         "Please provide the GCP region where the Vertex AI API(s) is enabled. "
                             + "For more information, refer to the {geminiVertexAIDocs}."
                     )

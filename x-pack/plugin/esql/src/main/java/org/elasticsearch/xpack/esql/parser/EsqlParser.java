@@ -14,6 +14,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
+import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -45,6 +47,45 @@ public class EsqlParser {
      * that the world just isn't that big.
      */
     public static final int MAX_LENGTH = 1_000_000;
+
+    private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
+        for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
+            String symName = symbolicNames[i];
+            if (symName != null) {
+                String replacement = symbolReplacements.get(symName);
+                if (replacement != null && literalNames[i] == null) {
+                    // literals are single quoted
+                    literalNames[i] = "'" + replacement + "'";
+                    replacements--;
+                }
+            }
+        }
+    }
+
+    /**
+     * Add the literal name to a number of tokens that due to ANTLR internals/ATN
+     * have their symbolic name returns instead during error reporting.
+     * When reporting token errors, ANTLR uses the Vocabulary class to get the displayName
+     * (if set), otherwise falls back to the literal one and eventually uses the symbol name.
+     * Since the Vocabulary is static and not pluggable, this code modifies the underlying
+     * arrays by setting the literal string manually based on the token index.
+     * This is needed since some symbols, especially around setting up the mode, end up losing
+     * their literal representation.
+     * NB: this code is highly dependent on the ANTLR internals and thus will likely break
+     * during upgrades.
+     * NB: Can't use this for replacing DEV_ since the Vocabular is static while DEV_ replacement occurs per runtime configuration
+     */
+    static {
+        Map<String, String> symbolReplacements = Map.of("LP", "(", "OPENING_BRACKET", "[");
+
+        // the vocabularies have the same content however are different instances
+        // for extra reliability, perform the replacement for each map
+        VocabularyImpl parserVocab = (VocabularyImpl) EsqlBaseParser.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, parserVocab.getLiteralNames(), parserVocab.getSymbolicNames());
+
+        VocabularyImpl lexerVocab = (VocabularyImpl) EsqlBaseLexer.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
+    }
 
     private EsqlConfig config = new EsqlConfig();
 

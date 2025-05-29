@@ -579,8 +579,8 @@ steps:
         env:
           BWC_VERSION: 8.15.5
 
-      - label: "{{matrix.image}} / 8.16.7 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.7
+      - label: "{{matrix.image}} / 8.16.6 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.6
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -593,10 +593,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.16.7
+          BWC_VERSION: 8.16.6
 
-      - label: "{{matrix.image}} / 8.17.6 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.6
+      - label: "{{matrix.image}} / 8.17.7 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.7
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -609,10 +609,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.17.6
+          BWC_VERSION: 8.17.7
 
-      - label: "{{matrix.image}} / 8.18.0 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.0
+      - label: "{{matrix.image}} / 8.18.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -625,7 +625,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.18.0
+          BWC_VERSION: 8.18.3
 
       - label: "{{matrix.image}} / 8.19.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.0
@@ -654,6 +654,7 @@ steps:
             image:
               - windows-2019
               - windows-2022
+              - windows-2025
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

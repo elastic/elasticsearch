@@ -364,7 +364,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(filter.child(), EsRelation.class);
 
         assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
-        assertThat(Expressions.names(agg.aggregates()), contains("emp_no"));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));
@@ -2723,6 +2723,45 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private static List<String> orderNames(TopN topN) {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
+    }
+
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     */
+    public void testEvalAfterStats() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo)
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
+    }
+
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Aggregate[[foo{r}#3],[foo{r}#3 AS x]]
+     *     \_LocalRelation[[foo{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     */
+    public void testEvalAfterGroupBy() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo) by foo
+            | KEEP x
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var localRelation = as(aggregate.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {

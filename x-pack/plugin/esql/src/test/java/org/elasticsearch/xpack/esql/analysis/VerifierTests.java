@@ -85,7 +85,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
@@ -962,6 +962,33 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterNonBoolField() {
         assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [KEYWORD]",
+            error("from test | where concat(first_name, \"foobar\")")
+        );
+    }
+
+    public void testFilterNullField() {
+        // `where null` should return empty result set
+        query("from test | where null");
+
+        // Value null of type `BOOLEAN`
+        query("from test | where null::boolean");
+
+        // Provide `NULL` type in `EVAL`
+        query("from t | EVAL x = null | where x");
+
+        // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
+        query("from t | where to_string(null) == \"abc\"");
+
+        // Other DataTypes can contain null values
+        assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where null::integer"));
+        assertEquals(
+            "1:45: Condition expression needs to be boolean, found [DATETIME]",
+            error("from test | EVAL x = null::datetime | where x")
+        );
     }
 
     public void testFilterDateConstant() {
@@ -1183,9 +1210,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE commands\n"
+            "1:36: [:] operator is only supported in WHERE and STATS commands\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
@@ -1345,12 +1371,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
+        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
+        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS commands", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
 
@@ -1370,23 +1396,15 @@ public class VerifierTests extends ESTestCase {
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertEquals(
-            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
             error("from test | eval y = " + functionInvocation)
         );
         assertEquals(
-            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
             error("from test | sort " + functionInvocation + " asc")
         );
         assertEquals(
-            "1:23: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
-            error("from test | STATS c = " + functionInvocation + " BY first_name")
-        );
-        assertEquals(
-            "1:50: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
-            error("from test | stats max_salary = max(salary) where " + functionInvocation)
-        );
-        assertEquals(
-            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
             error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
     }
@@ -2296,6 +2314,26 @@ public class VerifierTests extends ESTestCase {
             containsString(
                 "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
             )
+        );
+    }
+
+    public void testFullTextFunctionsInStats() {
+        checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
+        checkFullTextFunctionsInStats("last_name : \"Smith\"");
+        checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
+        checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");
+    }
+
+    private void checkFullTextFunctionsInStats(String functionInvocation) {
+
+        query("from test | stats c = max(salary) where " + functionInvocation);
+        query("from test | stats c = max(salary) where " + functionInvocation + " or length(first_name) > 10");
+        query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)");
+        query("from test metadata _score |  where " + functionInvocation + " or length(first_name) > 10 | stats c = max(_score)");
+
+        assertThat(
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation),
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
     }
 

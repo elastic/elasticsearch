@@ -44,8 +44,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // Awaiting fixes
         "estimated row size \\[0\\] wasn't set", // https://github.com/elastic/elasticsearch/issues/121739
         "unknown physical plan node \\[OrderExec\\]", // https://github.com/elastic/elasticsearch/issues/120817
-        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741
-        //
+        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        "only supports KEYWORD or TEXT values, found expression", // https://github.com/elastic/elasticsearch/issues/126017
+        "token recognition error at: '``", // https://github.com/elastic/elasticsearch/issues/125870
+                                           // https://github.com/elastic/elasticsearch/issues/127167
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 

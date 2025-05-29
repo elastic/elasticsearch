@@ -30,11 +30,14 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -94,6 +97,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        if (requestObject.allowPartialResults() != null) {
+            assumeTrue(
+                "require allow_partial_results on local cluster",
+                clusterHasCapability("POST", "/_query", List.of(), List.of("support_partial_results")).orElse(false)
+            );
+        }
         requestObject.includeCCSMetadata(true);
         return super.runEsql(requestObject);
     }
@@ -138,4 +147,32 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         assertMap(result, matcher);
     }
 
+    private static boolean checkVersion(org.elasticsearch.Version version) {
+        return version.onOrAfter(Version.fromString("9.1.0"))
+            || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
+    // We need a separate test since remote missing indices and local missing indices now work differently
+    public void testIndicesDontExistRemote() throws IOException {
+        // Exclude old versions
+        assumeTrue("Only works with latest support_unavailable logic", checkVersion(Clusters.localClusterVersion()));
+        int docsTest1 = randomIntBetween(1, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+
+        Map<String, Object> result = runEsql(
+            timestampFilter("gte", "2020-01-01").query("FROM *:foo,*:test1 METADATA _index | SORT id1 | KEEP _index, id*")
+        );
+        @SuppressWarnings("unchecked")
+        var columns = (List<List<Object>>) result.get("columns");
+        assertThat(
+            columns,
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+        );
+        @SuppressWarnings("unchecked")
+        var values = (List<List<Object>>) result.get("values");
+        // TODO: for now, we return empty result, but eventually it should return records from test1
+        assertThat(values, hasSize(0));
+
+    }
 }

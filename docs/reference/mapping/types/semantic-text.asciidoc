@@ -81,7 +81,7 @@ PUT my-index-000003
 ==== Parameters for `semantic_text` fields
 
 `inference_id`::
-(Required, string)
+(Optional, string)
 {infer-cap} endpoint that will be used to generate embeddings for the field.
 By default, `.elser-2-elasticsearch` is used.
 This parameter cannot be updated.
@@ -222,8 +222,10 @@ In these cases - when you use `sparse_vector` or `dense_vector` field types inst
 [[update-script]]
 ==== Updates to `semantic_text` fields
 
-Updates that use scripts are not supported for an index contains a `semantic_text` field.
-Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
+For indices containing `semantic_text` fields, updates that use scripts have the following behavior:
+
+* Are supported through the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update[Update API].
+* Are not supported through the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1[Bulk API] and will fail. Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 [discrete]
 [[copy-to-support]]
@@ -285,3 +287,4 @@ PUT test-index
 
 * `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
 * `semantic_text` fields can't currently be set as part of <<dynamic-templates>>.
+* `semantic_text` fields are currently not supported with Cross-Cluster Search (CCS) or Cross-Cluster Replication (CCR).

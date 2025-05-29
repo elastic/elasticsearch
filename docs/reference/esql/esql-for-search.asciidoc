@@ -211,5 +211,5 @@ Refer to <<esql-limitations-full-text-search, {esql} limitations>> for a list of
 [[esql-for-search-blogs]]
 ===== Related blog posts
 
-// TODO* https://www.elastic.co/blog/esql-you-know-for-search-scoring-semantic-search[ES|QL, you know for Search]: Introducing scoring and semantic search
+* https://www.elastic.co/search-labs/blog/esql-introducing-scoring-semantic-search[ES|QL, you know for Search]: Introducing scoring and semantic search
 * https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL]: Overview of text filtering capabilities

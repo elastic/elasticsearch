@@ -17,6 +17,8 @@ org.apache.httpcomponents.httpcore.nio:
 org.apache.httpcomponents.httpasyncclient:
   - manage_threads
 unboundid.ldapsdk:
+  - set_https_connection_properties # TODO: review if we need this once we have proper test coverage
+  - outbound_network
   - manage_threads
   - write_system_properties:
       properties:

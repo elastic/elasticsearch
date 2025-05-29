@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -56,11 +58,20 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -331,15 +342,13 @@ public class EsqlSession {
         }).<PreAnalysisResult>andThen((l, result) -> {
             // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
             // invalid index resolution to updateExecutionInfo
-            if (result.indices.isValid()) {
-                // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                if (allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
-            }
+            // If we run out of clusters to search due to unavailability we can stop the analysis right here
+            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
             // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
             l.onResponse(result);
         }).<PreAnalysisResult>andThen((l, result) -> {
             // first attempt (maybe the only one) at analyzing the plan
-            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, logicalPlanListener, l);
+            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
             assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
 
@@ -350,6 +359,10 @@ public class EsqlSession {
             LOGGER.debug("Analyzing the plan (second attempt, without filter)");
             LogicalPlan plan;
             try {
+                // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -443,6 +456,7 @@ public class EsqlSession {
 
     /**
      * Check if there are any clusters to search.
+     *
      * @return true if there are no clusters to search, false otherwise
      */
     private boolean allCCSClustersSkipped(
@@ -451,11 +465,11 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
         if (executionInfo.isCrossClusterSearch() && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
+            LOGGER.debug("No more clusters to search, ending analysis stage");
             logicalPlanListener.onFailure(new NoClustersToSearchException());
             return true;
         }
@@ -467,6 +481,7 @@ public class EsqlSession {
         Function<PreAnalysisResult, LogicalPlan> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
         ActionListener<LogicalPlan> logicalPlanListener,
         ActionListener<PreAnalysisResult> l
     ) {
@@ -476,6 +491,11 @@ public class EsqlSession {
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
 
         try {
+            if (result.indices.isValid() || requestFilter != null) {
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
+            }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {
             if (e instanceof VerificationException ve) {
@@ -536,19 +556,23 @@ public class EsqlSession {
         }
 
         var referencesBuilder = AttributeSet.builder();
-        // "keep" attributes are special whenever a wildcard is used in their name
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
+        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
+        // to remove if their name matches one of these wildcards.
+        //
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        var keepCommandRefsBuilder = AttributeSet.builder();
+        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        //
+        // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
+        var shadowingRefsBuilder = AttributeSet.builder();
         var keepJoinRefsBuilder = AttributeSet.builder();
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
+        boolean[] canRemoveAliases = new boolean[] { true };
+
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                // remove other down-the-tree references to the extracted fields
-                for (Attribute extracted : re.extractedFields()) {
-                    referencesBuilder.removeIf(attr -> matchByName(attr, extracted.name(), false));
-                }
-                // but keep the inputs needed by Grok/Dissect
+                // keep the inputs needed by Grok/Dissect
                 referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
@@ -561,12 +585,12 @@ public class EsqlSession {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinRefsBuilder.addAll(usingJoinType.columns());
                 }
-                if (keepCommandRefsBuilder.isEmpty()) {
+                if (shadowingRefsBuilder.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(keepCommandRefsBuilder);
+                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
                 }
             } else {
                 referencesBuilder.addAll(p.references());
@@ -578,29 +602,48 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    if (p instanceof Keep) {
-                        keepCommandRefsBuilder.add(ua);
-                    }
+                    shadowingRefsBuilder.add(ua);
                 });
                 if (p instanceof Keep) {
-                    keepCommandRefsBuilder.addAll(p.references());
+                    shadowingRefsBuilder.addAll(p.references());
                 }
             }
 
-            // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
-            // for example "from test | eval x = salary | stats max = max(x) by gender"
-            // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
-            AttributeSet planRefs = p.references();
-            Set<String> fieldNames = planRefs.names();
-            p.forEachExpressionDown(Alias.class, alias -> {
-                // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
-                // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (fieldNames.contains(alias.name())) {
-                    return;
-                }
-                referencesBuilder.removeIf(attr -> matchByName(attr, alias.name(), keepCommandRefsBuilder.contains(attr)));
-            });
+            // If the current node in the tree is of type JOIN (lookup join, inlinestats) or ENRICH or other type of
+            // command that we may add in the future which can override already defined Aliases with EVAL
+            // (for example
+            //
+            // from test
+            // | eval ip = 123
+            // | enrich ips_policy ON hostname
+            // | rename ip AS my_ip
+            //
+            // and ips_policy enriches the results with the same name ip field),
+            // these aliases should be kept in the list of fields.
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
+                canRemoveAliases[0] = false;
+            }
+            if (canRemoveAliases[0]) {
+                // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
+                // for example "from test | eval x = salary | stats max = max(x) by gender"
+                // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+                // also remove other down-the-tree references to the extracted fields from "grok" and "dissect"
+                AttributeSet planRefs = p.references();
+                Set<String> fieldNames = planRefs.names();
+                p.forEachExpressionDown(NamedExpression.class, ne -> {
+                    if ((ne instanceof Alias || ne instanceof ReferenceAttribute) == false) {
+                        return;
+                    }
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(ne.name())) {
+                        return;
+                    }
+                    referencesBuilder.removeIf(attr -> matchByName(attr, ne.name(), shadowingRefsBuilder.contains(attr)));
+                });
+            }
         });
+
         // Add JOIN ON column references afterward to avoid Alias removal
         referencesBuilder.addAll(keepJoinRefsBuilder);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
@@ -622,6 +665,30 @@ public class EsqlSession {
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return result.withFieldNames(fieldNames);
         }
+    }
+
+    /**
+     * Could a plan "accidentally" override aliases?
+     * Examples are JOIN and ENRICH, that _could_ produce fields with the same
+     * name of an existing alias, based on their index mapping.
+     * Here we just have to consider commands where this information is not available before index resolution,
+     * eg. EVAL, GROK, DISSECT can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
+     */
+    private static boolean couldOverrideAliases(LogicalPlan p) {
+        return (p instanceof Aggregate
+            || p instanceof Drop
+            || p instanceof Eval
+            || p instanceof Filter
+            || p instanceof InlineStats
+            || p instanceof Keep
+            || p instanceof Limit
+            || p instanceof MvExpand
+            || p instanceof OrderBy
+            || p instanceof Project
+            || p instanceof RegexExtract
+            || p instanceof Rename
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

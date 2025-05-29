@@ -1502,3 +1502,137 @@ from *
 salary_change.long:double|foo:long
 5.0                      |1698069301543123456
 ;
+
+
+joinMaskingEval
+required_capability: join_lookup_v12
+required_capability: fix_join_masking_eval
+from languag* 
+| eval type = null 
+| rename language_name as message 
+| lookup join message_types_lookup on message 
+| rename type as message 
+| lookup join message_types_lookup on message 
+| keep `language.name`
+;
+
+ignoreOrder:true
+language.name:text
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+English
+French
+Spanish
+German
+;
+
+dropAgainWithWildcardAfterEval2
+required_capability: join_lookup_v12
+required_capability: drop_again_with_wildcard_after_eval
+from addresses,cartesian_multipolygons,hosts
+| rename city.name as message 
+| lookup join message_types_lookup on message 
+| eval  card = -6013949614291505456, hOntTwnVC = null, PQAF = null, DXkxCFXyw = null, number = -7336429038807752405 
+| eval  dewAwHC = -1186293612, message = null 
+| sort number ASC, street ASC, ip0 DESC, name ASC NULLS FIRST, host ASC 
+| drop number, host_group, *umber, `city.country.continent.name`, dewAwHC, `zip_code`, `message`, city.country.continent.planet.name, `name`, `ip1`, message, zip_code 
+| drop description, *e, id 
+| keep `hOntTwnVC`, city.country.continent.planet.galaxy, street
+| limit 5
+;
+
+hOntTwnVC:null  | city.country.continent.planet.galaxy:keyword  | street:keyword
+null            | Milky Way                                     | Kearny St
+null            | Milky Way                                     | Keizersgracht
+null            | Milky Way                                     | Marunouchi
+null            | null                                          | null
+null            | null                                          | null
+;
+
+
+joinMaskingRegex
+// https://github.com/elastic/elasticsearch/issues/127467
+required_capability: union_types
+required_capability: join_lookup_v12
+required_capability: fix_join_masking_regex_extract
+from books,message_*,ul* 
+| enrich languages_policy on status 
+| drop `language_name`, `bytes_out`, `id`, id 
+| dissect book_no "%{type}" 
+| dissect author.keyword "%{HZicfARaID}" 
+| mv_expand `status` 
+| sort HZicfARaID, year DESC NULLS LAST, publisher DESC NULLS FIRST, description DESC, type NULLS LAST, message ASC NULLS LAST, title NULLS FIRST, status NULLS LAST 
+| enrich languages_policy on book_no 
+| grok message "%{WORD:DiLNyZKNDu}" 
+| limit 7972
+| rename year as language_code 
+| lookup join languages_lookup on language_code 
+| limit 13966 
+| stats  rcyIZnSOb = min(language_code), `ratings` = min(@timestamp), dgDxwMeFYrD = count(`@timestamp`), ifyZfXigqVN = count(*), qTXdrzSpY = min(language_code) by author.keyword
+| rename author.keyword as message 
+| lookup join message_types_lookup on message 
+| stats  `ratings` = count(*) by type 
+| stats  `type` = count(type), `ratings` = count(*) 
+| keep `ratings`, ratings
+;
+
+ratings:long
+1
+;
+
+joinMaskingDissect
+// https://github.com/elastic/elasticsearch/issues/127467
+required_capability: join_lookup_v12
+required_capability: fix_join_masking_regex_extract
+from sample_data
+| dissect message "%{type}" 
+| drop type
+| lookup join message_types_lookup on message
+| stats count = count(*) by type
+| keep count
+| sort count
+;
+count:long
+1
+3
+3
+;
+
+
+joinMaskingGrok
+// https://github.com/elastic/elasticsearch/issues/127467
+required_capability: join_lookup_v12
+required_capability: fix_join_masking_regex_extract
+from sample_data
+| grok message "%{WORD:type}"
+| drop type
+| lookup join message_types_lookup on message
+| stats max = max(event_duration) by type
+| keep max
+| sort max
+;
+
+max:long
+1232382
+3450233
+8268153
+;

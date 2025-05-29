@@ -22,7 +22,6 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
@@ -36,17 +35,16 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        BiFunction<String, String, String> evaluatorName = (s, f) -> "ToIntegerFrom" + s + "Evaluator[" + f + "=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryInt(suppliers, read, DataType.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean", "bool"), DataType.INTEGER, b -> b ? 1 : 0, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName("Boolean", "bool"), DataType.INTEGER, b -> b ? 1 : 0, List.of());
 
         // datetimes that fall within Integer's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long", "lng"),
+            evaluatorName("Long", "lng"),
             dateCases(0, Integer.MAX_VALUE),
             DataType.INTEGER,
             l -> Long.valueOf(((Instant) l).toEpochMilli()).intValue(),
@@ -55,7 +53,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // datetimes that fall outside Integer's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long", "lng"),
+            evaluatorName("Long", "lng"),
             dateCases(Integer.MAX_VALUE + 1L, Long.MAX_VALUE),
             DataType.INTEGER,
             l -> null,
@@ -69,7 +67,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // random strings that don't look like an Integer
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            evaluatorName.apply("String", "in"),
+            evaluatorName("String", "in"),
             DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
@@ -82,7 +80,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from doubles within Integer's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double", "dbl"),
+            evaluatorName("Double", "dbl"),
             DataType.INTEGER,
             d -> safeToInt(Math.round(d)),
             Integer.MIN_VALUE,
@@ -92,7 +90,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from doubles outside Integer's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double", "dbl"),
+            evaluatorName("Double", "dbl"),
             DataType.INTEGER,
             d -> null,
             Double.NEGATIVE_INFINITY,
@@ -105,7 +103,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from doubles outside Integer's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double", "dbl"),
+            evaluatorName("Double", "dbl"),
             DataType.INTEGER,
             d -> null,
             Integer.MAX_VALUE + 1d,
@@ -119,7 +117,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from unsigned_long within Integer's range
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong", "ul"),
+            evaluatorName("UnsignedLong", "ul"),
             DataType.INTEGER,
             BigInteger::intValue,
             BigInteger.ZERO,
@@ -129,7 +127,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from unsigned_long outside Integer's range
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong", "ul"),
+            evaluatorName("UnsignedLong", "ul"),
             DataType.INTEGER,
             ul -> null,
             BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE),
@@ -144,7 +142,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from long, within Integer's range
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long", "lng"),
+            evaluatorName("Long", "lng"),
             DataType.INTEGER,
             l -> (int) l,
             Integer.MIN_VALUE,
@@ -154,7 +152,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from long, outside Integer's range, negative
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long", "lng"),
+            evaluatorName("Long", "lng"),
             DataType.INTEGER,
             l -> null,
             Long.MIN_VALUE,
@@ -168,7 +166,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // from long, outside Integer's range, positive
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long", "lng"),
+            evaluatorName("Long", "lng"),
             DataType.INTEGER,
             l -> null,
             Integer.MAX_VALUE + 1L,
@@ -182,7 +180,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // strings of random ints within Integer's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String", "in"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -200,7 +198,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles within Integer's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String", "in"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -218,7 +216,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside Integer's range, negative
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String", "in"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Integer.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
@@ -241,7 +239,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside Integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String", "in"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Integer.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
@@ -272,6 +270,11 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        String read = "Attribute[channel=0]";
+        return "ToIntegerFrom" + inner + "Evaluator[" + next + "=" + read + "]";
     }
 
     @Override

@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;

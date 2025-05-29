@@ -197,7 +197,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
                     throw new IllegalStateException("can't load source here");
-                })),
+                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
@@ -227,6 +227,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             DriverContext driverContext = driverContext();
             try (
                 var driver = new Driver(
+                    "test",
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),

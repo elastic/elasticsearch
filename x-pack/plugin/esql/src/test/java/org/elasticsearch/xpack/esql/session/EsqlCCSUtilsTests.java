@@ -28,7 +28,6 @@ import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -54,6 +53,7 @@ import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.shouldIgnoreRunt
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
@@ -365,18 +365,18 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
 
         // No remotes had matching indices from field-caps call: 1) remote1 because it was unavailable, 2) remote2 was available,
-        // but had no matching indices and since a concrete index was requested, a VerificationException is thrown
+        // but had no matching indices. remote2 is set to skipped since it has skip_unavailable by default.
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*"));
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
+                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2*", randomBoolean())
             );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
+                "logs*,remote2:mylogs1,remote2:mylogs2*,remote1:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
             );
@@ -384,11 +384,26 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
-            );
-            assertThat(ve.getDetailedMessage(), containsString("Unknown index [remote2:mylogs1,mylogs2,logs*]"));
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
+            // since remote1 is in the unavailable Map (passed to IndexResolution.valid), it's status will not be changed
+            // by updateExecutionInfoWithClustersWithNoMatchingIndices (it is handled in updateExecutionInfoWithUnavailableClusters)
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(remote2Cluster.getTotalShards(), equalTo(0));
+            assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
+            assertThat(remote2Cluster.getFailedShards(), equalTo(0));
+            assertThat(remote2Cluster.getFailures(), hasSize(1));
+            assertThat(remote2Cluster.getFailures().get(0).reason(), containsString("Unknown index [remote2:mylogs1,mylogs2*]"));
         }
 
         // test where remote2 is already marked as SKIPPED so no modifications or exceptions should be thrown
@@ -779,8 +794,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new IllegalStateException("Unable to open any connections")),
             is(true)
         );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new TaskCancelledException("task cancelled")), is(false));
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new ElasticsearchException("something is wrong")), is(false));
+        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new TaskCancelledException("task cancelled")), is(true));
+        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new ElasticsearchException("something is wrong")), is(true));
         // remote2: skip_unavailable=false, so should not ignore any errors
         assertThat(
             shouldIgnoreRuntimeError(executionInfo, REMOTE2_ALIAS, new IllegalStateException("Unable to open any connections")),

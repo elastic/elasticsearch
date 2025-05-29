@@ -293,6 +293,43 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source.
+For example:
+[source,console,id=synthetic-source-keyword-example-null-values]
+----
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["NA", "bar", "foo"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
 
 include::constant-keyword.asciidoc[]
 

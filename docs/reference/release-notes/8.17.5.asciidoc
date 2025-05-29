@@ -1,0 +1,27 @@
+[[release-notes-8.17.5]]
+== {es} version 8.17.5
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.5]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Fix NPE for missing Content Type header in OIDC Authenticator {es-pull}126191[#126191]
+
+ES|QL::
+* Fix `ReplaceMissingFieldsWithNull` {es-pull}125764[#125764] (issues: {es-issue}126036[#126036], {es-issue}121754[#121754], {es-issue}126030[#126030])
+* Fix usage of already released null block in `ValueSourceReaderOperator` {es-pull}126411[#126411] (issue: {es-issue}125850[#125850])
+
+Machine Learning::
+* Fixing bedrock event executor terminated cache issue {es-pull}118177[#118177] (issue: {es-issue}117916[#117916])
+
+Search::
+* Re-enable parallel collection for field sorted top hits {es-pull}125916[#125916]
+* Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version. {es-pull}125389[#125389]
+
+TLS::
+* Set `keyUsage` for generated HTTP certificates and self-signed CA {es-pull}126376[#126376] (issue: {es-issue}117769[#117769])
+
+

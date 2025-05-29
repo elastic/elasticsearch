@@ -420,9 +420,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testThrottleStats
   issue: https://github.com/elastic/elasticsearch/issues/126359
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
-  method: testTaskCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/128009
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055

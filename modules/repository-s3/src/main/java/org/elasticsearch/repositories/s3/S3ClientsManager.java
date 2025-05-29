@@ -312,7 +312,7 @@ public class S3ClientsManager implements ClusterStateApplier {
                     return existing;
                 }
                 if (closed.get()) {
-                    // Not adding a new client once the manager is closed since there won't be anything to close it
+                    // Not adding a new client once the clients holder is closed since there won't be anything to close it
                     throw new IllegalStateException("Project [" + projectId() + "] clients holder is closed");
                 }
                 if (managerClosed.get()) {
@@ -321,7 +321,7 @@ public class S3ClientsManager implements ClusterStateApplier {
                     throw new IllegalStateException("s3 clients manager is closed");
                 }
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
-                // The clearCache() will clear the newly added client.
+                // The close method calls clearCache() which will clear the newly added client.
                 final var newClientReference = clientBuilder.apply(settings);
                 clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientKey, newClientReference);
                 return newClientReference;
@@ -329,7 +329,7 @@ public class S3ClientsManager implements ClusterStateApplier {
         }
 
         /**
-         * Clear the cache by closing and clear out all clients. Subsequent {@link #client(RepositoryMetadata)} calls will recreate
+         * Clear the cache by closing and clearing out all clients. Subsequent {@link #client(RepositoryMetadata)} calls will recreate
          * the clients and populate the cache again.
          */
         final synchronized void clearCache() {

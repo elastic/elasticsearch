@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -41,24 +41,10 @@ import static org.mockito.Mockito.mock;
 
 public class S3ServiceTests extends ESTestCase {
 
-    private TestThreadPool threadPool;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        threadPool.close();
-    }
-
     public void testCachedClientsAreReleased() throws IOException {
         final S3Service s3Service = new S3Service(
             mock(Environment.class),
-            ClusterServiceUtils.createClusterService(threadPool),
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of("es-test-region")
@@ -115,7 +101,7 @@ public class S3ServiceTests extends ESTestCase {
         try (
             var s3Service = new S3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(threadPool),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> {
@@ -153,7 +139,7 @@ public class S3ServiceTests extends ESTestCase {
         try (
             var s3Service = new S3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(threadPool),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> {
@@ -211,7 +197,7 @@ public class S3ServiceTests extends ESTestCase {
         try (
             var s3Service = new S3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(threadPool),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> {
@@ -246,7 +232,7 @@ public class S3ServiceTests extends ESTestCase {
         try (
             var s3Service = new S3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(threadPool),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> {
@@ -317,7 +303,7 @@ public class S3ServiceTests extends ESTestCase {
     private URI getEndpointUri(Settings.Builder settings, String clientName) {
         return new S3Service(
             mock(Environment.class),
-            ClusterServiceUtils.createClusterService(threadPool),
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of(randomIdentifier())

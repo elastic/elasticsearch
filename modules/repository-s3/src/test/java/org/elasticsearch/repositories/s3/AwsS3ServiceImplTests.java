@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -235,10 +235,9 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testEndPointAndRegionOverrides() throws IOException {
         try (
-            TestThreadPool threadPool = new TestThreadPool(getTestName());
             S3Service s3Service = new S3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(threadPool),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> Region.of("es-test-region")
@@ -253,7 +252,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
             reference.close();
-            s3Service.doClose();
         }
     }
 

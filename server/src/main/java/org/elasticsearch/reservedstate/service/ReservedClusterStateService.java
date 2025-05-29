@@ -27,6 +27,8 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -66,9 +68,9 @@ public class ReservedClusterStateService {
     public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
-    private final Map<String, ReservedClusterStateHandler<?, ?>> allHandlers;
-    private final Map<String, ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers;
-    private final Map<String, ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers;
+    private final Map<String, ReservedStateHandler<?>> allHandlers;
+    private final Map<String, ReservedClusterStateHandler<?>> clusterHandlers;
+    private final Map<String, ReservedProjectStateHandler<?>> projectHandlers;
     private final ClusterService clusterService;
     private final ReservedStateUpdateTaskExecutor updateTaskExecutor;
     private final ReservedStateErrorTaskExecutor errorTaskExecutor;
@@ -87,9 +89,7 @@ public class ReservedClusterStateService {
         }
     );
 
-    private static <T> ReservedClusterStateHandler<ClusterState, T> adaptForDefaultProject(
-        ReservedClusterStateHandler<ProjectMetadata, T> handler
-    ) {
+    private static <T> ReservedClusterStateHandler<T> adaptForDefaultProject(ReservedProjectStateHandler<T> handler) {
         return new ProjectClusterStateHandlerAdapter<>(Metadata.DEFAULT_PROJECT_ID, handler);
     }
 
@@ -107,15 +107,15 @@ public class ReservedClusterStateService {
     public ReservedClusterStateService(
         ClusterService clusterService,
         RerouteService rerouteService,
-        List<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlerList,
-        List<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlerList
+        List<ReservedClusterStateHandler<?>> clusterHandlerList,
+        List<ReservedProjectStateHandler<?>> projectHandlerList
     ) {
         this.clusterService = clusterService;
         this.updateTaskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
         this.errorTaskExecutor = new ReservedStateErrorTaskExecutor();
 
         allHandlers = Stream.concat(clusterHandlerList.stream(), projectHandlerList.stream())
-            .collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity(), (v1, v2) -> {
+            .collect(Collectors.toMap(ReservedStateHandler::name, Function.identity(), (v1, v2) -> {
                 throw new IllegalArgumentException("Duplicate handler name: [" + v1.name() + "]");
             }));
         // project handlers also need to be cluster state handlers for the default project,
@@ -124,10 +124,10 @@ public class ReservedClusterStateService {
             clusterHandlerList.stream(),
             projectHandlerList.stream().map(ReservedClusterStateService::adaptForDefaultProject)
         ).collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
-        projectHandlers = projectHandlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
+        projectHandlers = projectHandlerList.stream().collect(Collectors.toMap(ReservedStateHandler::name, Function.identity()));
 
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
-            ReservedClusterStateHandler<?, ?> handler = allHandlers.get(name);
+            ReservedStateHandler<?> handler = allHandlers.get(name);
             if (handler == null) {
                 throw new IllegalStateException("Missing handler definition for content key [" + name + "]");
             }
@@ -447,7 +447,10 @@ public class ReservedClusterStateService {
         }
 
         ClusterState state = clusterService.state();
+        // use an empty project if it doesn't exist, this is then added to ClusterState below.
         ProjectMetadata projectMetadata = getPotentiallyNewProject(state, projectId);
+        state = ClusterState.builder(state).putProjectMetadata(projectMetadata).build();
+
         ReservedStateMetadata existingMetadata = projectMetadata.reservedStateMetadata().get(namespace);
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
@@ -458,7 +461,7 @@ public class ReservedClusterStateService {
         }
 
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
-        var trialRunErrors = trialRun(namespace, projectMetadata, reservedStateChunk, orderedHandlers);
+        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
         var error = checkAndReportError(Optional.of(projectId), namespace, trialRunErrors, reservedStateVersion, versionCheck);
 
@@ -635,37 +638,72 @@ public class ReservedClusterStateService {
      * @return Any errors that occurred
      */
     List<String> trialRun(
+        ProjectId projectId,
         String namespace,
-        ProjectMetadata currentState,
+        ClusterState currentState,
         ReservedStateChunk stateChunk,
         SequencedSet<String> orderedHandlers
     ) {
-        return trialRun(currentState.reservedStateMetadata().get(namespace), currentState, stateChunk, projectHandlers, orderedHandlers);
+        return trialRun(
+            projectId,
+            currentState.metadata().reservedStateMetadata().get(namespace),
+            currentState,
+            stateChunk,
+            projectHandlers,
+            orderedHandlers
+        );
     }
 
-    private static <S> List<String> trialRun(
+    private static List<String> trialRun(
+        ProjectId projectId,
         ReservedStateMetadata existingMetadata,
-        S currentMetadata,
+        ClusterState currentState,
         ReservedStateChunk stateChunk,
-        Map<String, ReservedClusterStateHandler<S, ?>> handlers,
+        Map<String, ReservedProjectStateHandler<?>> handlers,
         SequencedSet<String> orderedHandlers
     ) {
         Map<String, Object> reservedState = stateChunk.state();
 
         List<String> errors = new ArrayList<>();
 
-        S metadata = currentMetadata;
-
         for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<S, ?> handler = handlers.get(handlerName);
+            ReservedProjectStateHandler<?> handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
-                TransformState<S> transformState = transform(
+                TransformState transformState = transform(
+                    handler,
+                    projectId,
+                    reservedState.get(handlerName),
+                    new TransformState(currentState, existingKeys)
+                );
+            } catch (Exception e) {
+                errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+            }
+        }
+
+        return errors;
+    }
+
+    private static List<String> trialRun(
+        ReservedStateMetadata existingMetadata,
+        ClusterState clusterState,
+        ReservedStateChunk stateChunk,
+        Map<String, ReservedClusterStateHandler<?>> handlers,
+        SequencedSet<String> orderedHandlers
+    ) {
+        Map<String, Object> reservedState = stateChunk.state();
+
+        List<String> errors = new ArrayList<>();
+
+        for (var handlerName : orderedHandlers) {
+            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+            try {
+                Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
+                TransformState transformState = transform(
                     handler,
                     reservedState.get(handlerName),
-                    new TransformState<>(metadata, existingKeys)
+                    new TransformState(clusterState, existingKeys)
                 );
-                metadata = transformState.state();
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }
@@ -675,9 +713,19 @@ public class ReservedClusterStateService {
     }
 
     @SuppressWarnings("unchecked")
-    static <S, T> TransformState<S> transform(ReservedClusterStateHandler<S, T> handler, Object state, TransformState<S> transform)
+    static <S, T> TransformState transform(ReservedClusterStateHandler<T> handler, Object state, TransformState transform)
         throws Exception {
         return handler.transform((T) state, transform);
+    }
+
+    @SuppressWarnings("unchecked")
+    static <S, T> TransformState transform(
+        ReservedProjectStateHandler<T> handler,
+        ProjectId projectId,
+        Object state,
+        TransformState transformState
+    ) throws Exception {
+        return handler.transform(projectId, (T) state, transformState);
     }
 
     /**
@@ -713,7 +761,7 @@ public class ReservedClusterStateService {
     }
 
     private void addStateHandler(
-        Map<String, ? extends ReservedClusterStateHandler<?, ?>> handlers,
+        Map<String, ? extends ReservedStateHandler<?>> handlers,
         String key,
         Set<String> keys,
         SequencedSet<String> ordered,
@@ -735,7 +783,7 @@ public class ReservedClusterStateService {
         }
 
         visited.add(key);
-        ReservedClusterStateHandler<?, ?> handler = handlers.get(key);
+        ReservedStateHandler<?> handler = handlers.get(key);
 
         if (handler == null) {
             throw new IllegalStateException("Unknown handler type: " + key);
@@ -762,7 +810,7 @@ public class ReservedClusterStateService {
      * Adds additional {@link ReservedClusterStateHandler} to the handler registry
      * @param handler an additional reserved state handler to be added
      */
-    public void installClusterStateHandler(ReservedClusterStateHandler<ClusterState, ?> handler) {
+    public void installClusterStateHandler(ReservedClusterStateHandler<?> handler) {
         allHandlers.put(handler.name(), handler);
         clusterHandlers.put(handler.name(), handler);
     }
@@ -771,7 +819,7 @@ public class ReservedClusterStateService {
      * Adds additional {@link ReservedClusterStateHandler} to the handler registry
      * @param handler an additional reserved state handler to be added
      */
-    public void installProjectStateHandler(ReservedClusterStateHandler<ProjectMetadata, ?> handler) {
+    public void installProjectStateHandler(ReservedProjectStateHandler<?> handler) {
         allHandlers.put(handler.name(), handler);
         projectHandlers.put(handler.name(), handler);
         clusterHandlers.put(handler.name(), adaptForDefaultProject(handler));

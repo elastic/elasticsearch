@@ -114,6 +114,8 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
+
 public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
@@ -177,6 +179,10 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        if (CUSTOM_SERVICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
         );

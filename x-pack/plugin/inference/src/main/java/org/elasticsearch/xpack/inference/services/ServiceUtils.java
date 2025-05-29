@@ -206,7 +206,7 @@ public final class ServiceUtils {
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String serviceName) {
         // TODO map as JSON
         return new ElasticsearchStatusException(
-            "Model configuration contains settings [{}] unknown to the [{}] service",
+            "Configuration contains settings [{}] unknown to the [{}] service",
             RestStatus.BAD_REQUEST,
             config,
             serviceName
@@ -215,7 +215,7 @@ public final class ServiceUtils {
 
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String field, String scope) {
         return new ElasticsearchStatusException(
-            "Model configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
+            "Configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
             RestStatus.BAD_REQUEST,
             config,
             field,

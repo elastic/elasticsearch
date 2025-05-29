@@ -110,7 +110,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         @SuppressWarnings("unchecked")
-        List<Double> queryFolded = (List<Double>) query().fold(FoldContext.small() /* TODO remove me */);
+        List<Number> queryFolded = (List<Number>) query().fold(FoldContext.small() /* TODO remove me */);
         float[] queryAsFloats = new float[queryFolded.size()];
         for (int i = 0; i < queryFolded.size(); i++) {
             queryAsFloats[i] = queryFolded.get(i).floatValue();

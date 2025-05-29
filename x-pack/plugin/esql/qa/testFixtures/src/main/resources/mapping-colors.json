@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "color": {
+      "type": "keyword"
+    },
+    "hex_code": {
+      "type": "keyword"
+    },
+    "rgb_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm"
+    }
+  }
+}

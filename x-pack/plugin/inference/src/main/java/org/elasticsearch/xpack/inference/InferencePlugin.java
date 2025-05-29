@@ -386,7 +386,7 @@ public class InferencePlugin extends Plugin
             ? List.of(context -> new CustomService(httpFactory.get(), serviceComponents.get()))
             : List.of();
 
-        List<InferenceServiceExtension.Factory> availableServices =  List.of(
+        List<InferenceServiceExtension.Factory> availableServices = List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
@@ -406,8 +406,7 @@ public class InferencePlugin extends Plugin
             ElasticsearchInternalService::new
         );
 
-        return Stream.concat(availableServices.stream(), conditionalServices.stream())
-            .toList();
+        return Stream.concat(availableServices.stream(), conditionalServices.stream()).toList();
     }
 
     @Override

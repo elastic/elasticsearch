@@ -30,10 +30,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -55,13 +55,14 @@ public class S3ClientsManager implements ClusterStateApplier {
     private final Executor executor;
     private final AtomicBoolean managerClosed = new AtomicBoolean(false);
     // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
-    private final Map<ProjectId, ClientsHolder<?>> clientsHolders;
+    private final Map<ProjectId, PerProjectClientsHolder> perProjectClientsHolders;
+    private final ClusterClientsHolder clusterClientsHolder;
 
     S3ClientsManager(
         Settings nodeSettings,
         Function<S3ClientSettings, AmazonS3Reference> clientBuilder,
-        UnaryOperator<Map<ProjectId, ClientsHolder<?>>> clientsHoldersWrapper,
-        Executor executor
+        Executor executor,
+        boolean supportsMultipleProjects
     ) {
         this.nodeS3Settings = Settings.builder()
             .put(nodeSettings.getByPrefix(S3_SETTING_PREFIX), false) // not rely on any cluster scoped secrets
@@ -69,17 +70,20 @@ public class S3ClientsManager implements ClusterStateApplier {
             .build();
         this.clientBuilder = clientBuilder;
         this.executor = executor;
-        this.clientsHolders = clientsHoldersWrapper.apply(Map.of(ProjectId.DEFAULT, new ClusterClientsHolder()));
+        this.clusterClientsHolder = new ClusterClientsHolder();
+        this.perProjectClientsHolders = supportsMultipleProjects ? new ConcurrentHashMap<>() : null;
     }
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
+        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
         final var updatedPerProjectClients = new HashMap<ProjectId, PerProjectClientsHolder>();
         final List<PerProjectClientsHolder> clientsHoldersToClose = new ArrayList<>();
         for (var project : currentProjects.values()) {
-            // Skip the default project, it is handled differently with the ReloadablePlugin interface
+            // Skip the default project, it is tracked separately with clusterClientsHolder and
+            // updated differently with the ReloadablePlugin interface
             if (ProjectId.DEFAULT.equals(project.id())) {
                 continue;
             }
@@ -87,10 +91,9 @@ public class S3ClientsManager implements ClusterStateApplier {
             // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith("s3."))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
-                final var removed = clientsHolders.remove(project.id());
+                final var removed = perProjectClientsHolders.remove(project.id());
                 if (removed != null) {
-                    assert removed instanceof PerProjectClientsHolder;
-                    clientsHoldersToClose.add((PerProjectClientsHolder) removed);
+                    clientsHoldersToClose.add(removed);
                 }
                 continue;
             }
@@ -126,28 +129,27 @@ public class S3ClientsManager implements ClusterStateApplier {
 
         // Updated projects
         for (var projectId : updatedPerProjectClients.keySet()) {
-            final var old = clientsHolders.put(projectId, updatedPerProjectClients.get(projectId));
+            assert ProjectId.DEFAULT.equals(projectId) == false;
+            final var old = perProjectClientsHolders.put(projectId, updatedPerProjectClients.get(projectId));
             if (old != null) {
-                assert old instanceof PerProjectClientsHolder;
-                clientsHoldersToClose.add((PerProjectClientsHolder) old);
+                clientsHoldersToClose.add(old);
             }
         }
-        // removed projects
-        for (var projectId : clientsHolders.keySet()) {
+        // Removed projects
+        for (var projectId : perProjectClientsHolders.keySet()) {
+            assert ProjectId.DEFAULT.equals(projectId) == false;
             if (currentProjects.containsKey(projectId) == false) {
-                assert ProjectId.DEFAULT.equals(projectId) == false;
-                final var removed = clientsHolders.remove(projectId);
-                assert removed instanceof PerProjectClientsHolder;
-                clientsHoldersToClose.add((PerProjectClientsHolder) removed);
+                final var removed = perProjectClientsHolders.remove(projectId);
+                clientsHoldersToClose.add(removed);
             }
         }
         // Close stale clients asynchronously without blocking the applier thread
         if (clientsHoldersToClose.isEmpty() == false) {
-            closeClientsAsync(clientsHoldersToClose);
+            closePerProjectClientsAsync(clientsHoldersToClose);
         }
     }
 
-    private void closeClientsAsync(List<PerProjectClientsHolder> clientsHoldersToClose) {
+    private void closePerProjectClientsAsync(List<PerProjectClientsHolder> clientsHoldersToClose) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -162,34 +164,45 @@ public class S3ClientsManager implements ClusterStateApplier {
     }
 
     // visible for tests
-    Map<ProjectId, ClientsHolder<?>> getClientsHolders() {
-        return Map.copyOf(clientsHolders);
+    ClusterClientsHolder getClusterClientsHolder() {
+        return clusterClientsHolder;
+    }
+
+    // visible for tests
+    Map<ProjectId, PerProjectClientsHolder> getPerProjectClientsHolders() {
+        return perProjectClientsHolders == null ? null : Map.copyOf(perProjectClientsHolders);
+    }
+
+    // visible for tests
+    boolean isManagerClosed() {
+        return managerClosed.get();
     }
 
     void refreshAndClearCacheForClusterClients(Map<String, S3ClientSettings> clientsSettings) {
-        final var clientsHolder = clientsHolders.get(ProjectId.DEFAULT);
-        if (clientsHolder instanceof ClusterClientsHolder clusterClientsHolder) {
-            clusterClientsHolder.refreshAndClearCache(clientsSettings);
-        } else {
-            final String message = "expect cluster clients holder, got " + clientsHolder;
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
+        clusterClientsHolder.refreshAndClearCache(clientsSettings);
     }
 
     S3ClientSettings settingsForClient(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        final var clientsHolder = clientsHolders.get(Objects.requireNonNull(projectId));
+        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
+            return clusterClientsHolder.singleClientSettings(repositoryMetadata);
+        }
+
+        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
+        final var clientsHolder = perProjectClientsHolders.get(projectId);
         if (clientsHolder == null) {
-            assert ProjectId.DEFAULT.equals(projectId) == false;
             throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
         }
         return clientsHolder.singleClientSettings(repositoryMetadata);
     }
 
     AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        final var clientsHolder = clientsHolders.get(Objects.requireNonNull(projectId));
+        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
+            return clusterClientsHolder.client(repositoryMetadata);
+        }
+
+        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
+        final var clientsHolder = perProjectClientsHolders.get(projectId);
         if (clientsHolder == null) {
-            assert ProjectId.DEFAULT.equals(projectId) == false;
             throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
         }
         return clientsHolder.client(repositoryMetadata);
@@ -200,11 +213,15 @@ public class S3ClientsManager implements ClusterStateApplier {
      * All clients for the project are closed and will be recreated on next access.
      */
     void releaseCachedClients(ProjectId projectId) {
-        final var old = clientsHolders.get(Objects.requireNonNull(projectId));
+        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
+            clusterClientsHolder.clearCache();
+            return;
+        }
+
+        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
+        final var old = perProjectClientsHolders.get(projectId);
         if (old != null) {
             old.clearCache();
-        } else {
-            assert ProjectId.DEFAULT.equals(projectId) == false;
         }
     }
 
@@ -216,12 +233,15 @@ public class S3ClientsManager implements ClusterStateApplier {
             // Close all clients holders, they will close their cached clients.
             // It's OK if a new clients holder is added concurrently or after this point because
             // no new client will be created once the manager is closed, i.e. nothing to release.
-            IOUtils.closeWhileHandlingException(clientsHolders.values());
+            if (perProjectClientsHolders != null) {
+                IOUtils.closeWhileHandlingException(perProjectClientsHolders.values());
+            }
+            IOUtils.closeWhileHandlingException(clusterClientsHolder);
         }
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, S3ClientSettings> currentClientSettings) {
-        final var old = clientsHolders.get(projectId);
+        final var old = perProjectClientsHolders.get(projectId);
         if (old == null) {
             return true;
         }

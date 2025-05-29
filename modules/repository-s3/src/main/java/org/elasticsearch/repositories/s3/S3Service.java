@@ -71,10 +71,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_ARN;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_SESSION_NAME;
@@ -136,8 +134,8 @@ class S3Service extends AbstractLifecycleComponent {
         s3ClientsManager = new S3ClientsManager(
             nodeSettings,
             this::buildClientReference,
-            projectResolver.supportsMultipleProjects() ? ConcurrentHashMap::new : UnaryOperator.identity(),
-            clusterService.threadPool().generic()
+            clusterService.threadPool().generic(),
+            projectResolver.supportsMultipleProjects()
         );
         if (projectResolver.supportsMultipleProjects()) {
             clusterService.addHighPriorityApplier(s3ClientsManager);
@@ -145,7 +143,7 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     // visible to tests
-    S3ClientsManager getS3PerProjectClientManager() {
+    S3ClientsManager getS3ClientsManager() {
         return s3ClientsManager;
     }
 
@@ -428,6 +426,7 @@ class S3Service extends AbstractLifecycleComponent {
 
     /**
      * Release clients for the specified project.
+     * @param projectId The project associated with the client, or null if the client is cluster level
      */
     public void onBlobStoreClose(@Nullable ProjectId projectId) {
         s3ClientsManager.releaseCachedClients(effectiveProjectId(projectId));

@@ -104,7 +104,7 @@ public abstract class QueryList {
                 builder.add(aliasFilter.getQueryBuilder().toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
                 query = builder.build();
             } catch (IOException e) {
-                throw new RuntimeException(e);// TODO
+                throw new UncheckedIOException("Error while building query for alias filter", e);
             }
         }
 

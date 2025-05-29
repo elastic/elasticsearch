@@ -25,7 +25,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(22));
+        assertThat(services.size(), equalTo(23));
 
         var providers = providers(services);
 
@@ -39,6 +39,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -70,7 +71,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(16));
+        assertThat(services.size(), equalTo(17));
 
         var providers = providers(services);
 
@@ -83,6 +84,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
@@ -101,7 +103,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(8));
+        assertThat(services.size(), equalTo(9));
 
         var providers = providers(services);
 
@@ -111,6 +113,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "alibabacloud-ai-search",
                     "cohere",
+                    "custom",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
@@ -124,7 +127,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(12));
+        assertThat(services.size(), equalTo(13));
 
         var providers = providers(services);
 
@@ -138,6 +141,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "deepseek",
                     "googleaistudio",
                     "openai",
@@ -165,7 +169,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(6));
+        assertThat(services.size(), equalTo(7));
 
         var providers = providers(services);
 
@@ -174,6 +178,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "custom",
                     "elastic",
                     "elasticsearch",
                     "hugging_face",

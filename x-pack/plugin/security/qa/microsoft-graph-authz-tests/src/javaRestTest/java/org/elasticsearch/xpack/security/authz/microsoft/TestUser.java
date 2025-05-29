@@ -7,5 +7,4 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-public record TestUser(String username, String displayName, String email, String[] groups, String[] roles) {
-}
+public record TestUser(String username, String displayName, String email, String[] groups, String[] roles) {}

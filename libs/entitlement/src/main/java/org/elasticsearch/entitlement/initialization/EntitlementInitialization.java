@@ -63,7 +63,7 @@ public class EntitlementInitialization {
      * @param inst the JVM instrumentation class instance
      */
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = initChecker();
+        manager = initChecker(createPolicyManager());
 
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {
@@ -95,8 +95,8 @@ public class EntitlementInitialization {
         }
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyChecker policyChecker = createPolicyChecker();
+    private static ElasticsearchEntitlementChecker initChecker(PolicyManager policyManager) {
+        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
 
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
@@ -116,26 +116,30 @@ public class EntitlementInitialization {
         }
     }
 
-    private static PolicyCheckerImpl createPolicyChecker() {
+    private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        return new PolicyCheckerImpl(
+            bootstrapArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            bootstrapArgs.pathLookup()
+        );
+    }
+
+    private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
         PathLookup pathLookup = bootstrapArgs.pathLookup();
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        PolicyManager policyManager = new PolicyManager(
+        return new PolicyManager(
             HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), bootstrapArgs.serverPolicyPatch()),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             pathLookup
-        );
-        return new PolicyCheckerImpl(
-            bootstrapArgs.suppressFailureLogPackages(),
-            ENTITLEMENTS_MODULE,
-            policyManager,
-            bootstrapArgs.pathLookup()
         );
     }
 

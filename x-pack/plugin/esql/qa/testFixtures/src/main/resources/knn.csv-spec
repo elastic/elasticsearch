@@ -4,37 +4,38 @@ required_capability: knn_function
 from colors metadata _score 
 | where knn(rgb_vector, [0, 120, 0]) 
 | sort _score desc 
-| keep color, rgb_vector, _score
+| eval round_score = round(_score, 4)
+| keep color, rgb_vector, round_score
 ;
 
-color:text       | rgb_vector:dense_vector | _score:double
-green            | [0.0, 128.0, 0.0]        | 0.017461242154240608 
-dark green       | [0.0, 100.0, 0.0]        | 0.002344448585063219 
-forest green     | [34.0, 139.0, 34.0]      | 8.307271637022495E-4 
-dark olive green | [85.0, 107.0, 47.0]      | 1.564669219078496E-4 
-sea green        | [46.0, 139.0, 87.0]      | 1.4884951815474778E-4
-dark slate gray  | [47.0, 79.0, 79.0]       | 1.3984512770548463E-4
-olive drab       | [107.0, 142.0, 35.0]     | 1.0368906077928841E-4
-lime green       | [50.0, 205.0, 50.0]      | 1.0350035154260695E-4
-black            | [0.0, 0.0, 0.0]          | 8.751000859774649E-5 
-olive            | [128.0, 128.0, 0.0]      | 7.608329178765416E-5 
+color:text       | rgb_vector:dense_vector | round_score:double
+green            | [0.0, 128.0, 0.0]       | 0.0127            
+dark green       | [0.0, 100.0, 0.0]       | 0.0027            
+forest green     | [34.0, 139.0, 34.0]     | 0.0023            
+dark olive green | [85.0, 107.0, 47.0]     | 3.0E-4            
+sea green        | [46.0, 139.0, 87.0]     | 2.0E-4            
+dark slate gray  | [47.0, 79.0, 79.0]      | 2.0E-4            
+olive drab       | [107.0, 142.0, 35.0]    | 1.0E-4            
+lime green       | [50.0, 205.0, 50.0]     | 1.0E-4            
+black            | [0.0, 0.0, 0.0]         | 1.0E-4            
+olive            | [128.0, 128.0, 0.0]     | 1.0E-4  
 ;
 
 knnSearchWithKOption
 required_capability: knn_function
 
 from colors metadata _score 
-| where knn(rgb_vector, [0,255,255], {"k": 5})
+| where knn(rgb_vector, [0,255,255], {"k": 4})
 | sort _score desc 
-| keep color, rgb_vector, _score
+| eval round_score = round(_score, 4)
+| keep color, rgb_vector, round_score
 ;
 
-color:text       | rgb_vector:dense_vector | _score:double
-cyan             | [0.0, 255.0, 255.0]      | 1.0                  
-aqua             | [0.0, 255.0, 255.0]      | 1.0                  
-deep sky blue    | [0.0, 191.0, 255.0]      | 2.6103827985934913E-4
-dark turquoise   | [0.0, 206.0, 209.0]      | 2.463386917952448E-4 
-turquoise        | [64.0, 224.0, 208.0]     | 1.8581181939225644E-4
+color:text     | rgb_vector:dense_vector | round_score:double
+cyan           | [0.0, 255.0, 255.0]     | 1.0               
+deep sky blue  | [0.0, 191.0, 255.0]     | 3.0E-4            
+dark turquoise | [0.0, 206.0, 209.0]     | 3.0E-4            
+turquoise      | [64.0, 224.0, 208.0]    | 3.0E-4 
 ;
 
 knnSearchWithSimilarityOption
@@ -43,16 +44,16 @@ required_capability: knn_function
 from colors metadata _score 
 | where knn(rgb_vector, [255,192,203], {"similarity": 40})
 | sort _score desc 
-| keep color, rgb_vector, _score
+| keep color, rgb_vector
 ;
 
-color:text       | rgb_vector:dense_vector | _score:double
-pink             | [255.0, 192.0, 203.0]    | 1.0                 
-light pink       | [255.0, 182.0, 193.0]    | 0.004639764316380024
-peach puff       | [255.0, 218.0, 185.0]    | 9.59702767431736E-4 
-bisque           | [255.0, 228.0, 196.0]    | 7.536620832979679E-4
-thistle          | [216.0, 191.0, 216.0]    | 6.913584074936807E-4
-wheat            | [245.0, 222.0, 179.0]    | 6.44357583951205E-4 
+color:text       | rgb_vector:dense_vector
+pink             | [255.0, 192.0, 203.0]
+light pink       | [255.0, 182.0, 193.0]
+peach puff       | [255.0, 218.0, 185.0]
+bisque           | [255.0, 228.0, 196.0]
+thistle          | [216.0, 191.0, 216.0]
+wheat            | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
@@ -61,18 +62,160 @@ required_capability: knn_function
 from colors metadata _score 
 | where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 5})
 | sort _score desc 
+| eval round_score = round(_score, 4)
+| keep color, rgb_vector, round_score
+;
+
+color:text        | rgb_vector:dense_vector | round_score:double
+violet            | [238.0, 130.0, 238.0]   | 13.9457           
+blue violet       | [138.0, 43.0, 226.0]    | 3.0871            
+dark violet       | [148.0, 0.0, 211.0]     | 3.0871            
+medium violet red | [199.0, 21.0, 133.0]    | 2.5355            
+pale violet red   | [219.0, 112.0, 147.0]   | 2.5355            
+orchid            | [218.0, 112.0, 214.0]   | 0.0083            
+plum              | [221.0, 160.0, 221.0]   | 0.0071            
+hot pink          | [255.0, 105.0, 180.0]   | 0.0024            
+thistle           | [216.0, 191.0, 216.0]   | 0.0021  
+;
+
+knnWithMultipleFunctions
+required_capability: knn_function
+
+from colors metadata _score
+| where knn(rgb_vector, [128,128,0]) and match(color, "olive") 
+| sort _score desc
+| eval round_score = round(_score, 4)
+| keep color, rgb_vector, round_score
+;
+
+color:text       | rgb_vector:dense_vector | round_score:double
+olive            | [128.0, 128.0, 0.0]     | 5.4979            
+olive drab       | [107.0, 142.0, 35.0]    | 3.5206            
+dark olive green | [85.0, 107.0, 47.0]     | 2.8906 
+;
+
+knnAfterKeep
+required_capability: knn_function
+
+from colors metadata _score
+| keep rgb_vector, _score 
+| where knn(rgb_vector, [128,128,0]) 
+| eval round_score = round(_score, 4)
+| sort round_score desc
+| keep rgb_vector, round_score
+| limit 5
+;
+
+rgb_vector:dense_vector | round_score:double
+[128.0, 128.0, 0.0]     | 1.0               
+[107.0, 142.0, 35.0]    | 0.0014            
+[85.0, 107.0, 47.0]     | 4.0E-4            
+[139.0, 69.0, 19.0]     | 3.0E-4            
+[184.0, 134.0, 11.0]    | 3.0E-4  
+;
+
+knnAfterDrop
+required_capability: knn_function
+
+from colors metadata _score
+| drop color
+| where knn(rgb_vector, [128,128,0]) 
+| eval round_score = round(_score, 4)
+| keep rgb_vector, round_score
+| limit 5
+;
+
+rgb_vector:dense_vector | round_score:double
+[184.0, 134.0, 11.0]    | 3.0E-4            
+[128.0, 128.0, 0.0]     | 1.0               
+[154.0, 205.0, 50.0]    | 1.0E-4            
+[85.0, 107.0, 47.0]     | 4.0E-4            
+[107.0, 142.0, 35.0]    | 0.0014   
+;
+
+knnAfterEval
+required_capability: knn_function
+
+from colors metadata _score
+| eval composed_name = locate(color, " ") > 0 
+| where knn(rgb_vector, [128,128,0]) 
+| sort _score, color desc
+| keep color, composed_name 
+;
+
+color:text       | composed_name:boolean
+peru             | false                
+yellow green     | true                 
+chocolate        | false                
+dim gray         | true                 
+saddle brown     | true                 
+sienna           | false                
+dark golden rod  | true                 
+dark olive green | true                 
+olive drab       | true                 
+olive            | false 
+;
+
+knnWithConjunction
+required_capability: knn_function
+
+# TODO We need kNN prefiltering here so we get more candidates that pass the filter
+from colors metadata _score 
+| where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*" 
+| keep color, hex_code, rgb_vector
+;
+ignoreOrder:true
+
+color:text        | hex_code: keyword    | rgb_vector:dense_vector
+light yellow      | #FFFFE0              | [255.0, 255.0, 224.0]
+lavender blush    | #FFF0F5              | [255.0, 240.0, 245.0]
+sea shell         | #FFF5EE              | [255.0, 245.0, 238.0]
+floral white      | #FFFAF0              | [255.0, 250.0, 240.0]
+ivory             | #FFFFF0              | [255.0, 255.0, 240.0]
+snow              | #FFFAFA              | [255.0, 250.0, 250.0]
+white             | #FFFFFF              | [255.0, 255.0, 255.0]
+;
+
+knnWithDisjunctionAndFiltersConjunction
+required_capability: knn_function
+
+# TODO We need kNN prefiltering here so we get more candidates that pass the filter
+from colors metadata _score 
+| where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
 | keep color, rgb_vector, _score
 ;
 
-color:text        | rgb_vector:dense_vector| _score:double
-violet            | [238.0, 130.0, 238.0]  | 13.985496520996094   
-blue violet       | [138.0, 43.0, 226.0]   | 3.132192373275757    
-dark violet       | [148.0, 0.0, 211.0]    | 3.132192373275757    
-medium violet red | [199.0, 21.0, 133.0]   | 2.5798425674438477   
-pale violet red   | [219.0, 112.0, 147.0]  | 2.5798425674438477   
-orchid            | [218.0, 112.0, 214.0]  | 0.008259013295173645 
-plum              | [221.0, 160.0, 221.0]  | 0.006797885522246361 
-hot pink          | [255.0, 105.0, 180.0]  | 0.002509034238755703 
-thistle           | [216.0, 191.0, 216.0]  | 0.0022455058060586452
+color:text        | rgb_vector:dense_vector | _score:double
+cyan              | [0.0, 255.0, 255.0]     | 1.0                 
+blue              | [0.0, 0.0, 255.0]       | 9.922293975250795E-5
 ;
 
+knnWithDisjunctionAndConjunction
+required_capability: knn_function
+required_capability: full_text_functions_disjunctions
+
+# TODO We need kNN prefiltering here so we get more candidates that pass the filter
+from colors metadata _score 
+| where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [0, 0, 255])) and knn(rgb_vector, [0, 255, 0])
+| keep color, rgb_vector, _score
+;
+
+color:text          | rgb_vector:dense_vector | _score:double
+medium spring green | [0.0, 250.0, 154.0]     | 1.6871128173079342E-4
+;
+
+knnWithNonPushableConjunction
+required_capability: knn_function
+
+from colors metadata _score
+| eval composed_name = locate(color, " ") > 0 
+| where knn(rgb_vector, [128,128,0]) and composed_name == false 
+| keep color, composed_name, _score
+;
+
+color:text    | composed_name: boolean | _score: double
+olive            | false                  | 1.0                  
+sienna           | false                  | 2.9301168979145586E-4
+chocolate        | false                  | 1.4101568376645446E-4
+peru             | false                  | 1.3746823242399842E-4      
+;

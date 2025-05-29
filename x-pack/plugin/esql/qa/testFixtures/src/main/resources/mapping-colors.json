@@ -9,6 +9,9 @@
     "rgb_vector": {
       "type": "dense_vector",
       "similarity": "l2_norm"
+    },
+    "primary": {
+      "type": "boolean"
     }
   }
 }

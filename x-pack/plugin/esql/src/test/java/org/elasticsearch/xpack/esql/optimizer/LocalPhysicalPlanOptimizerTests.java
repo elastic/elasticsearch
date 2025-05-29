@@ -1909,7 +1909,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testKnnOptionsPushDown() {
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3], { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7 })
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -1924,7 +1924,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             10,
             new RescoreVectorBuilder(7),
             0.001f
-        );
+        ).boost(3.5f);
         assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 

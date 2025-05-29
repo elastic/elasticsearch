@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
@@ -48,7 +49,12 @@ public class KnnQuery extends Query {
         }
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
 
-        return new KnnVectorQueryBuilder(field, query, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(field, query, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+        Number boost = (Number) options.get(BOOST_FIELD.getPreferredName());
+        if (boost != null) {
+            queryBuilder.boost(boost.floatValue());
+        }
+        return queryBuilder;
     }
 
     @Override

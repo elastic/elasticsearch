@@ -27,11 +27,12 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
     // authorization response and running the test. Retrieving the authorization should be very fast since
     // we're hosting a local mock server but it's possible it could respond slower. So in the even of a test failure
     // we'll automatically retry after waiting a second.
+    // Note: @Rule is executed for each test
     @Rule
     public RetryRule retry = new RetryRule(3, TimeValue.timeValueSeconds(1));
 
-    private static final MockElasticInferenceServiceAuthorizationServer mockEISServer = MockElasticInferenceServiceAuthorizationServer
-        .enabledWithRainbowSprinklesAndElser();
+    protected static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
+        new MockElasticInferenceServiceAuthorizationServer();
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -50,6 +51,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
     // The reason we're doing this is to make sure the mock server is initialized first so we can get the address before communicating
     // it to the cluster as a setting.
+    // Note: @ClassRule is executed once for the entire test class
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(mockEISServer).around(cluster);
 

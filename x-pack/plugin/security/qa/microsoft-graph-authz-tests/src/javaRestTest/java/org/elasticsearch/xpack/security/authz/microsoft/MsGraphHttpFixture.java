@@ -49,11 +49,8 @@ public class MsGraphHttpFixture extends ExternalResource {
     private final String tenantId;
     private final String clientId;
     private final String clientSecret;
-    private final String principal;
-    private final String displayName;
-    private final String email;
-    private final String[] firstGroupsPage;
-    private final String[] secondGroupsPage;
+    private final List<TestUser> users;
+    private final int groupsPageSize;
     private final String jwt = "test jwt";
 
     private final AtomicInteger loginCount = new AtomicInteger(0);
@@ -62,24 +59,12 @@ public class MsGraphHttpFixture extends ExternalResource {
 
     private HttpsServer server;
 
-    public MsGraphHttpFixture(
-        String tenantId,
-        String clientId,
-        String clientSecret,
-        String principal,
-        String displayName,
-        String email,
-        String[] firstGroupsPage,
-        String[] secondGroupsPage
-    ) {
+    public MsGraphHttpFixture(String tenantId, String clientId, String clientSecret, List<TestUser> users, int groupsPageSize) {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
-        this.principal = principal;
-        this.displayName = displayName;
-        this.email = email;
-        this.firstGroupsPage = firstGroupsPage;
-        this.secondGroupsPage = secondGroupsPage;
+        this.users = users;
+        this.groupsPageSize = groupsPageSize;
     }
 
     @Override
@@ -99,8 +84,11 @@ public class MsGraphHttpFixture extends ExternalResource {
         server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
 
         registerGetAccessTokenHandler();
-        registerGetUserHandler();
-        registerGetUserMembershipHandler();
+
+        for (TestUser user : users) {
+            registerGetUserHandler(user);
+            registerGetUserMembershipHandler(user);
+        }
 
         server.createContext("/", exchange -> {
             logger.warn("Unhandled request for [{}]", exchange.getRequestURI());
@@ -176,8 +164,8 @@ public class MsGraphHttpFixture extends ExternalResource {
         });
     }
 
-    private void registerGetUserHandler() {
-        server.createContext("/v1.0/users/" + principal, exchange -> {
+    private void registerGetUserHandler(TestUser user) {
+        server.createContext("/v1.0/users/" + user.username(), exchange -> {
             logger.info("Received get user properties request [{}]", exchange.getRequestURI());
             final var callCount = getUserPropertiesCount.incrementAndGet();
 
@@ -208,8 +196,8 @@ public class MsGraphHttpFixture extends ExternalResource {
 
             var userProperties = XContentBuilder.builder(XContentType.JSON.xContent());
             userProperties.startObject();
-            userProperties.field("displayName", displayName);
-            userProperties.field("mail", email);
+            userProperties.field("displayName", user.displayName());
+            userProperties.field("mail", user.email());
             userProperties.endObject();
 
             var responseBytes = BytesReference.bytes(userProperties);
@@ -222,10 +210,10 @@ public class MsGraphHttpFixture extends ExternalResource {
         });
     }
 
-    private void registerGetUserMembershipHandler() {
+    private void registerGetUserMembershipHandler(TestUser user) {
         final var skipToken = UUID.randomUUID().toString();
 
-        server.createContext("/v1.0/users/" + principal + "/transitiveMemberOf", exchange -> {
+        server.createContext("/v1.0/users/" + user.username() + "/transitiveMemberOf", exchange -> {
             logger.info("Received get user membership request [{}]", exchange.getRequestURI());
             getGroupMembershipCount.incrementAndGet();
 
@@ -251,10 +239,10 @@ public class MsGraphHttpFixture extends ExternalResource {
 
             // return multiple pages of results, to ensure client correctly supports paging
             if (exchange.getRequestURI().getQuery().contains("$skiptoken")) {
-                groups = Arrays.stream(secondGroupsPage).map(id -> Map.of("id", id)).toArray();
+                groups = Arrays.stream(user.groups()).skip(groupsPageSize).map(id -> Map.of("id", id)).toArray();
                 nextLink = null;
             } else {
-                groups = Arrays.stream(firstGroupsPage).map(id -> Map.of("id", id)).toArray();
+                groups = Arrays.stream(user.groups()).limit(groupsPageSize).map(id -> Map.of("id", id)).toArray();
             }
 
             final var groupMembership = XContentBuilder.builder(XContentType.JSON.xContent());

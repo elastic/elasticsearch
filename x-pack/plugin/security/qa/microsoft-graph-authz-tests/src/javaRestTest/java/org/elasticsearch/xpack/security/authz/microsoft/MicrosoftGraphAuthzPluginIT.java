@@ -59,11 +59,16 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         TENANT_ID,
         CLIENT_ID,
         CLIENT_SECRET,
-        USERNAME,
-        "Thor Odinson",
-        "thor@oldap.test.elasticsearch.com",
-        new String[] { "unmapped-group-1", "unmapped-group-2", "unmapped-group-3" },
-        new String[] { EXPECTED_GROUP }
+        List.of(
+            new TestUser(
+                USERNAME,
+                "Thor Odinson",
+                "thor@oldap.test.elasticsearch.com",
+                new String[] { "unmapped-group-1", "unmapped-group-2", "unmapped-group-3", EXPECTED_GROUP },
+                new String[] { "microsoft_graph_user" }
+            )
+        ),
+        3
     );
 
     public static ElasticsearchCluster cluster = initTestCluster();

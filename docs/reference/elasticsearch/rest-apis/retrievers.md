@@ -287,10 +287,6 @@ Each entry specifies the following parameters:
 
     * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
-        ```
-        score = score / sqrt(sum(score_i^2))
-        ```
-
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
 `rank_window_size`

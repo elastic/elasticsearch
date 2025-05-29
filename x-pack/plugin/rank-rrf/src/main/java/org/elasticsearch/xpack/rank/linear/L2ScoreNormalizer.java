@@ -10,6 +10,13 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 
+/**
+ * A score normalizer that applies L2 normalization to a set of scores.
+ * <p>
+ * This normalizer scales the scores so that the L2 norm of the score vector is 1,
+ * if possible. If all scores are zero or NaN, normalization is skipped and the original scores are returned.
+ * </p>
+ */
 public class L2ScoreNormalizer extends ScoreNormalizer {
 
     public static final L2ScoreNormalizer INSTANCE = new L2ScoreNormalizer();

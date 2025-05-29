@@ -105,7 +105,9 @@ public class EntitlementInitialization {
         var classesToInitialize = Set.of(
             "sun.net.www.protocol.http.HttpURLConnection",
             "sun.nio.ch.SocketChannelImpl",
-            "java.net.ProxySelector"
+            "java.net.ProxySelector",
+            "sun.nio.ch.DatagramChannelImpl",
+            "sun.nio.ch.ServerSocketChannelImpl"
         );
         for (String className : classesToInitialize) {
             try {

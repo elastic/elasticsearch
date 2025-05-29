@@ -314,7 +314,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_UNIFIED_FUNCTION.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

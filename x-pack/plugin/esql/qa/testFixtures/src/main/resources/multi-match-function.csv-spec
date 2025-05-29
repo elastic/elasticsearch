@@ -3,7 +3,7 @@
 #
 
 multiMatchWithField
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 // tag::multi-match-with-field[]
 FROM books
@@ -25,7 +25,7 @@ book_no:keyword | author:text
 ;
 
 testMultiMatchWithOptionsFuzziness
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
 | where multi_match(title, description, "Pings", {"fuzziness": 1})  
@@ -46,7 +46,7 @@ book_no:keyword
 ;
 
 testMultiMatchWithOptionsOperator
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 // tag::multi-match-with-named-function-params[]
 FROM books
@@ -61,7 +61,7 @@ The Hobbit or There and Back Again
 ;
 
 testMultiMatchWithOptionsMinimumShouldMatch
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
 | where multi_match(title, description, "here back again", {"minimum_should_match": 2, "operator": "OR"})
@@ -74,7 +74,7 @@ The Hobbit or There and Back Again
 ;
 
 testMultiMatchWithNonPushableDisjunctions
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
@@ -97,7 +97,7 @@ book_no:keyword
 ;
 
 testMultiMatchPhraseQuery
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
 | where multi_match(title, description, "Lord of the rings", { "type": "phrase" } )
@@ -117,7 +117,7 @@ Return of the King Being the Third Part of The Lord of the Rings
 ;
 
 testMultiMatchPhrasePrefixQuery
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
 | where multi_match(title, "Lord of the ri", { "type": "phrase_prefix" } )

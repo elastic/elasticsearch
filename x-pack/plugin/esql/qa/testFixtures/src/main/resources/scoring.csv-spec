@@ -115,7 +115,7 @@ book_no:keyword | title:text                                                    
 ;
 
 testMultiMatchWithScore
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
@@ -128,7 +128,7 @@ book_no:keyword | title:text                                            | author
 ;
 
 testMultiMatchWithScore1
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
@@ -155,7 +155,7 @@ book_no:keyword | _score:double
 ;
 
 testMultiMatchWithScore2
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score

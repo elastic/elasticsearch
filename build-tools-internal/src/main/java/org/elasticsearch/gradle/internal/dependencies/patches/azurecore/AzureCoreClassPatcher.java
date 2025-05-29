@@ -22,12 +22,13 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.internal.dependencies.patches.PatcherInfo.classPatcher;
 
 public abstract class AzureCoreClassPatcher implements TransformAction<TransformParameters.None> {
 
-    private static final String JAR_FILE_TO_PATCH = "azure-core-1.55.3.jar";
+    private static final String JAR_FILE_TO_PATCH = "azure-core-[\\d.]*\\.jar";
 
     private static final List<PatcherInfo> CLASS_PATCHERS = List.of(
         classPatcher(
@@ -45,8 +46,7 @@ public abstract class AzureCoreClassPatcher implements TransformAction<Transform
     public void transform(@NotNull TransformOutputs outputs) {
         File inputFile = getInputArtifact().get().getAsFile();
 
-        // TODO could use a regex here so it matches regardless of JAR version
-        if (inputFile.getName().equals(JAR_FILE_TO_PATCH)) {
+        if (Pattern.matches(JAR_FILE_TO_PATCH, inputFile.getName())) {
             System.out.println("Patching " + inputFile.getName());
             File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
             Utils.patchJar(inputFile, outputFile, CLASS_PATCHERS, false);

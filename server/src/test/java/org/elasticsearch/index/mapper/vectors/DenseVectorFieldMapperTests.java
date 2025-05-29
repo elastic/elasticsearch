@@ -2316,9 +2316,30 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
+    public void testBBQIVFVectorsFormatDisallowsNested() throws IOException {
+        assumeTrue("feature flag [ivf_format] must be enabled", IVF_FORMAT.isEnabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("field");
+            b.field("type", "dense_vector");
+            b.field("dims", randomIntBetween(64, 4096));
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "bbq_ivf");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("fields with index type [bbq_ivf] with cannot be indexed if they're within [nested] mappings")
+        );
+    }
+
     public void testKnnBBQIVFVectorsFormat() throws IOException {
-        final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
-        final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        assumeTrue("feature flag [ivf_format] must be enabled", IVF_FORMAT.isEnabled());
         final int dims = randomIntBetween(64, 4096);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");

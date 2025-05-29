@@ -38,8 +38,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
-        if (nProbe < 1) {
-            throw new IllegalArgumentException("nProbe must be at least 1, got: " + nProbe);
+        if (nProbe < 1 && nProbe != -1) {
+            throw new IllegalArgumentException("nProbe must be at least 1 or exactly -1, got: " + nProbe);
         }
         this.query = query;
     }

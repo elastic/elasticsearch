@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -41,10 +43,13 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.unknown_field_mapping_update_error_message"
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature(
+        "mapper.ivf_format_cluster_feature"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        HashSet<NodeFeature> features = new HashSet<>(Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -69,6 +74,10 @@ public class MapperFeatures implements FeatureSpecification {
             NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ
-        );
+        ));
+        if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
+            features.add(IVF_FORMAT_CLUSTER_FEATURE);
+        }
+        return features;
     }
 }

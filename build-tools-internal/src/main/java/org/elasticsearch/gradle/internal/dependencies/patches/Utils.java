@@ -107,7 +107,7 @@ public class Utils {
                         );
                     }
                 } else {
-                    if (preserveManifest || entryName.endsWith("MANIFEST.MF") == false) {
+                    if (preserveManifest || entryName.equals("META-INF/MANIFEST.MF") == false) {
                         // Read the entry's data and write it to the new JAR
                         try (InputStream is = jarFile.getInputStream(entry)) {
                             is.transferTo(jos);

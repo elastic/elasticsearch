@@ -25,11 +25,11 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class DistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",
-        DistinctOverTime::new
+        CountDistinctOverTime::new
     );
 
     private final Expression precision;
@@ -39,7 +39,7 @@ public class DistinctOverTime extends TimeSeriesAggregateFunction implements Opt
         description = "The count of distinct values over time for a field.",
         type = FunctionType.AGGREGATE
     )
-    public DistinctOverTime(
+    public CountDistinctOverTime(
         Source source,
         @Param(
             name = "field",
@@ -57,12 +57,12 @@ public class DistinctOverTime extends TimeSeriesAggregateFunction implements Opt
         this(source, field, Literal.TRUE, precision);
     }
 
-    public DistinctOverTime(Source source, Expression field, Expression filter, Expression precision) {
+    public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression precision) {
         super(source, field, filter, precision == null ? List.of() : List.of(precision));
         this.precision = precision;
     }
 
-    private DistinctOverTime(StreamInput in) throws IOException {
+    private CountDistinctOverTime(StreamInput in) throws IOException {
         super(in);
         this.precision = parameters().isEmpty() ? null : parameters().getFirst();
     }
@@ -73,21 +73,21 @@ public class DistinctOverTime extends TimeSeriesAggregateFunction implements Opt
     }
 
     @Override
-    public DistinctOverTime withFilter(Expression filter) {
-        return new DistinctOverTime(source(), field(), filter, precision);
+    public CountDistinctOverTime withFilter(Expression filter) {
+        return new CountDistinctOverTime(source(), field(), filter, precision);
     }
 
     @Override
-    protected NodeInfo<DistinctOverTime> info() {
-        return NodeInfo.create(this, DistinctOverTime::new, field(), filter(), precision);
+    protected NodeInfo<CountDistinctOverTime> info() {
+        return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), precision);
     }
 
     @Override
-    public DistinctOverTime replaceChildren(List<Expression> newChildren) {
+    public CountDistinctOverTime replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() < 3) {
-            return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1), null);
+            return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), null);
         }
-        return new DistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override

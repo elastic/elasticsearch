@@ -38,7 +38,7 @@ public class AggregateWritables {
             FirstOverTime.ENTRY,
             SumOverTime.ENTRY,
             CountOverTime.ENTRY,
-            DistinctOverTime.ENTRY,
+            CountDistinctOverTime.ENTRY,
             // internal functions
             ToPartial.ENTRY,
             FromPartial.ENTRY,

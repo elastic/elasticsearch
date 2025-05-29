@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -22,8 +23,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -458,7 +459,7 @@ public class EsqlFunctionRegistry {
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
                 def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
-                def(DistinctOverTime.class, bi(DistinctOverTime::new), "distinct_over_time"),
+                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
@@ -919,11 +920,11 @@ public class EsqlFunctionRegistry {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new QlIllegalArgumentException(
-                    String.format("function %s expects one or two arguments but it received %d", Arrays.toString(names), children.size())
+                    Strings.format("function %s expects one or two arguments but it received %d", Arrays.toString(names), children.size())
                 );
             } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
                 throw new QlIllegalArgumentException(
-                    String.format("function %s expects exactly two arguments, it received %d", Arrays.toString(names), children.size())
+                    Strings.format("function %s expects exactly two arguments, it received %d", Arrays.toString(names), children.size())
                 );
             }
 

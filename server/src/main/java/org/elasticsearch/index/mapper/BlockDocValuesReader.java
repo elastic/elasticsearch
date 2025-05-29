@@ -552,7 +552,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     public static class IdDocValuesBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
-        public IdDocValuesBlockLoader (String fieldName) {
+        public IdDocValuesBlockLoader(String fieldName) {
             this.fieldName = fieldName;
         }
 

@@ -103,7 +103,7 @@ are coordinated.
 > the `Transport*Action` class that handles it.
 
 ### Action registration
-Elasticsearch contains many built-in [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can
+Elasticsearch contains many [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can
 contribute additional actions via the [getActions][ActionPlugin#getActions] method. [TransportAction]s define the request and response
 types used to invoke the action and the logic for performing the action.
 

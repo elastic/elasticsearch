@@ -1,4 +1,4 @@
-color:keyword,hex_code:keyword,rgb_vector:dense_vector
+color:text,hex_code:keyword,rgb_vector:dense_vector
 maroon, #800000, [128,0,0]
 dark red, #8B0000, [139,0,0]
 brown, #A52A2A, [165,42,42]

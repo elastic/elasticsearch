@@ -1,7 +1,7 @@
 {
   "properties": {
     "color": {
-      "type": "keyword"
+      "type": "text"
     },
     "hex_code": {
       "type": "keyword"

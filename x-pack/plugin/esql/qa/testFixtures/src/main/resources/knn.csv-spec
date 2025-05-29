@@ -7,7 +7,7 @@ from colors metadata _score
 | keep color, rgb_vector, _score
 ;
 
-color:keyword    | rgb_vector:dense_vector | _score:double
+color:text       | rgb_vector:dense_vector | _score:double
 green            | [0.0, 128.0, 0.0]        | 0.017461242154240608 
 dark green       | [0.0, 100.0, 0.0]        | 0.002344448585063219 
 forest green     | [34.0, 139.0, 34.0]      | 8.307271637022495E-4 
@@ -29,7 +29,7 @@ from colors metadata _score
 | keep color, rgb_vector, _score
 ;
 
-color:keyword    | rgb_vector:dense_vector | _score:double
+color:text       | rgb_vector:dense_vector | _score:double
 cyan             | [0.0, 255.0, 255.0]      | 1.0                  
 aqua             | [0.0, 255.0, 255.0]      | 1.0                  
 deep sky blue    | [0.0, 191.0, 255.0]      | 2.6103827985934913E-4
@@ -46,7 +46,7 @@ from colors metadata _score
 | keep color, rgb_vector, _score
 ;
 
-color:keyword    | rgb_vector:dense_vector | _score:double
+color:text       | rgb_vector:dense_vector | _score:double
 pink             | [255.0, 192.0, 203.0]    | 1.0                 
 light pink       | [255.0, 182.0, 193.0]    | 0.004639764316380024
 peach puff       | [255.0, 218.0, 185.0]    | 9.59702767431736E-4 
@@ -55,4 +55,24 @@ thistle          | [216.0, 191.0, 216.0]    | 6.913584074936807E-4
 wheat            | [245.0, 222.0, 179.0]    | 6.44357583951205E-4 
 ;
 
+knnHybridSearch
+required_capability: knn_function
+
+from colors metadata _score 
+| where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 5})
+| sort _score desc 
+| keep color, rgb_vector, _score
+;
+
+color:text        | rgb_vector:dense_vector| _score:double
+violet            | [238.0, 130.0, 238.0]  | 13.985496520996094   
+blue violet       | [138.0, 43.0, 226.0]   | 3.132192373275757    
+dark violet       | [148.0, 0.0, 211.0]    | 3.132192373275757    
+medium violet red | [199.0, 21.0, 133.0]   | 2.5798425674438477   
+pale violet red   | [219.0, 112.0, 147.0]  | 2.5798425674438477   
+orchid            | [218.0, 112.0, 214.0]  | 0.008259013295173645 
+plum              | [221.0, 160.0, 221.0]  | 0.006797885522246361 
+hot pink          | [255.0, 105.0, 180.0]  | 0.002509034238755703 
+thistle           | [216.0, 191.0, 216.0]  | 0.0022455058060586452
+;
 

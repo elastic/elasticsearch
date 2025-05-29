@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -291,13 +292,30 @@ public class PushQueriesIT extends ESRestTestCase {
                   "number_of_shards": 1
                 }
               }""";
-        if (false == "auto".equals(type)) {
-            json += """
+        json += switch (type) {
+            case "auto" -> "";
+            case "semantic_text" -> """
                 ,
                 "mappings": {
                   "properties": {
                     "test": {
-                      "type": "%type",
+                      "type": "semantic_text",
+                      "inference_id": "test",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                }""";
+            default -> """
+                  ,
+                  "mappings": {
+                    "properties": {
+                      "test": {
+                        "type": "%type",
                         "fields": {
                           "keyword": {
                             "type": "keyword",
@@ -308,7 +326,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     }
                   }
                 }""".replace("%type", type);
-        }
+        };
         json += "}";
         createIndex.setJsonEntity(json);
         Response createResponse = client().performRequest(createIndex);
@@ -349,5 +367,29 @@ public class PushQueriesIT extends ESRestTestCase {
     protected boolean preserveClusterUponCompletion() {
         // Preserve the cluser to speed up the semantic_text tests
         return true;
+    }
+
+    private static boolean setupEmbeddings = false;
+
+    @Before
+    public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
+        if (type.equals("semantic_text") == false || setupEmbeddings) {
+            return;
+        }
+        setupEmbeddings = true;
+        Request request = new Request("PUT", "_inference/text_embedding/test");
+        request.setJsonEntity("""
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                     "model": "my_model",
+                     "api_key": "abc64",
+                     "dimensions": 128
+                   },
+                   "task_settings": {
+                   }
+                 }
+            """);
+        adminClient().performRequest(request);
     }
 }

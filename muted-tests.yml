@@ -483,6 +483,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testFailToStartRequestOnRemoteCluster
   issue: https://github.com/elastic/elasticsearch/issues/128545
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test124CanRestartContainerWithStackLoggingConfig
+  issue: https://github.com/elastic/elasticsearch/issues/128121
 
 # Examples:
 #

@@ -71,6 +71,11 @@ public class LogsdbIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return false;
+        }
+
+        @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             var bytesRefs = values.stream().map(LogsdbIdFieldType::encode).map(this::indexedValueForSearch).toList();
             return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);

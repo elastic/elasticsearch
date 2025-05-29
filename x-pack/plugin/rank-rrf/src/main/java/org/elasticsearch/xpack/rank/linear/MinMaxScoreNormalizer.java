@@ -54,7 +54,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (minEqualsMax) {
-                score = min;
+                score = 1.0f;  // TODO: Address bug in separate PR
             } else {
                 score = (docs[i].score - min) / (max - min);
             }

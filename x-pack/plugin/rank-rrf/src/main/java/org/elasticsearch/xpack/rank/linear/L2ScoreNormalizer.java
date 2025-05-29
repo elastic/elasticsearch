@@ -32,10 +32,10 @@ public class L2ScoreNormalizer extends ScoreNormalizer {
         }
         double sumOfSquares = 0.0;
         boolean atLeastOneValidScore = false;
-        for (ScoreDoc rd : docs) {
-            if (Float.isNaN(rd.score) == false) {
+        for (ScoreDoc doc : docs) {
+            if (Float.isNaN(doc.score) == false) {
                 atLeastOneValidScore = true;
-                sumOfSquares += rd.score * rd.score;
+                sumOfSquares += doc.score * doc.score;
             }
         }
         if (atLeastOneValidScore == false) {

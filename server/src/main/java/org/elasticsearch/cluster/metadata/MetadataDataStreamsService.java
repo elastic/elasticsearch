@@ -173,24 +173,17 @@ public class MetadataDataStreamsService {
                 UpdateMappingsTask updateMappingsTask,
                 ClusterState clusterState
             ) throws Exception {
-
+                DataStream dataStream = createDataStreamForUpdatedDataStreamMappings(
+                    updateMappingsTask.projectId,
+                    updateMappingsTask.dataStreamName,
+                    updateMappingsTask.mappingsOverrides,
+                    clusterState
+                );
                 ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateMappingsTask.projectId);
                 ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-                Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
-                DataStream dataStream = dataStreamMap.get(updateMappingsTask.dataStreamName);
-
-                final ComposableIndexTemplate template = lookupTemplateForDataStream(updateMappingsTask.dataStreamName, projectMetadata);
-                ComposableIndexTemplate mergedTemplate = template.mergeMappings(updateMappingsTask.mappingsOverrides);
-                MetadataIndexTemplateService.validateTemplate(
-                    mergedTemplate.template().settings(),
-                    mergedTemplate.template().mappings(),
-                    indicesService
-                );
-                DataStream.Builder dataStreamBuilder = dataStream.copy().setMappings(updateMappingsTask.mappingsOverrides);
                 projectMetadataBuilder.removeDataStream(updateMappingsTask.dataStreamName);
-                projectMetadataBuilder.put(dataStreamBuilder.build());
+                projectMetadataBuilder.put(dataStream);
                 ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
-
                 return new Tuple<>(updatedClusterState, updateMappingsTask);
             }
         };
@@ -497,12 +490,32 @@ public class MetadataDataStreamsService {
         ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
         MetadataIndexTemplateService.validateTemplate(
             mergedTemplate.template().settings(),
-            mergedTemplate.template().mappings(),
+            dataStream.getEffectiveMappings(projectMetadata),
             indicesService
         );
 
         templateBuilder.settings(mergedSettingsBuilder);
         return dataStream.copy().setSettings(mergedSettings).build();
+    }
+
+    private DataStream createDataStreamForUpdatedDataStreamMappings(
+        ProjectId projectId,
+        String dataStreamName,
+        CompressedXContent mappingsOverrides,
+        ClusterState clusterState
+    ) throws Exception {
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+        Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
+        DataStream dataStream = dataStreamMap.get(dataStreamName);
+
+        final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
+        ComposableIndexTemplate mergedTemplate = template.mergeMappings(mappingsOverrides);
+        MetadataIndexTemplateService.validateTemplate(
+            dataStream.getEffectiveSettings(projectMetadata),
+            mergedTemplate.template().mappings(),
+            indicesService
+        );
+        return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 
     public void updateMappings(
@@ -511,13 +524,32 @@ public class MetadataDataStreamsService {
         TimeValue ackTimeout,
         String dataStreamName,
         CompressedXContent mappingsOverrides,
-        ActionListener<AcknowledgedResponse> listener
+        boolean dryRun,
+        ActionListener<DataStream> listener
     ) {
-        updateMappingsTaskQueue.submitTask(
-            "updating mappings on data stream",
-            new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, ackTimeout, listener),
-            masterNodeTimeout
-        );
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamMappings(
+                    projectId,
+                    dataStreamName,
+                    mappingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            updateMappingsTaskQueue.submitTask(
+                "updating mappings on data stream",
+                new UpdateMappingsTask(projectId, dataStreamName, mappingsOverrides, clusterService, ackTimeout, listener),
+                masterNodeTimeout
+            );
+        }
     }
 
     private static void addBackingIndex(
@@ -800,10 +832,17 @@ public class MetadataDataStreamsService {
             ProjectId projectId,
             String dataStreamName,
             CompressedXContent mappingsOverrides,
+            ClusterService clusterService,
             TimeValue ackTimeout,
-            ActionListener<AcknowledgedResponse> listener
+            ActionListener<DataStream> listener
         ) {
-            super(ackTimeout, listener);
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating mappings not accepted for unknown reasons");
+                }
+            }));
             this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.mappingsOverrides = mappingsOverrides;

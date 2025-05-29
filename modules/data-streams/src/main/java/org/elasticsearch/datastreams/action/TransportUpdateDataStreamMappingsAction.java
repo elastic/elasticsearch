@@ -15,12 +15,10 @@ import org.elasticsearch.action.datastreams.UpdateDataStreamMappingsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
@@ -98,18 +96,15 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
             IndicesOptions.DEFAULT,
             request.indices()
         );
-        List<UpdateDataStreamMappingsAction.DataStreamMappingsResponse> dataStreamSettingsResponse = new ArrayList<>();
-        CountDownActionListener countDownListener = new CountDownActionListener(dataStreamNames.size() + 1, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                listener.onResponse(new UpdateDataStreamMappingsAction.Response(dataStreamSettingsResponse));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        List<UpdateDataStreamMappingsAction.DataStreamMappingsResponse> dataStreamMappingsResponse = new ArrayList<>();
+        CountDownActionListener countDownListener = new CountDownActionListener(
+            dataStreamNames.size() + 1,
+            listener.delegateFailure(
+                (responseActionListener, unused) -> responseActionListener.onResponse(
+                    new UpdateDataStreamMappingsAction.Response(dataStreamMappingsResponse)
+                )
+            )
+        );
         countDownListener.onResponse(null);
         for (String dataStreamName : dataStreamNames) {
             updateSingleDataStream(
@@ -117,27 +112,22 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                 request.getMappings(),
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(UpdateDataStreamMappingsAction.DataStreamMappingsResponse dataStreamResponse) {
-                        dataStreamSettingsResponse.add(dataStreamResponse);
-                        countDownListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        dataStreamSettingsResponse.add(
-                            new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
-                                dataStreamName,
-                                false,
-                                e.getMessage(),
-                                Mapping.EMPTY.toCompressedXContent(),
-                                Mapping.EMPTY.toCompressedXContent()
-                            )
-                        );
-                        countDownListener.onResponse(null);
-                    }
-                }
+                request.isDryRun(),
+                ActionListener.wrap(dataStreamResponse -> {
+                    dataStreamMappingsResponse.add(dataStreamResponse);
+                    countDownListener.onResponse(null);
+                }, e -> {
+                    dataStreamMappingsResponse.add(
+                        new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
+                            dataStreamName,
+                            false,
+                            e.getMessage(),
+                            Mapping.EMPTY.toCompressedXContent(),
+                            Mapping.EMPTY.toCompressedXContent()
+                        )
+                    );
+                    countDownListener.onResponse(null);
+                })
             );
         }
     }
@@ -147,6 +137,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         CompressedXContent mappingsOverrides,
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
+        boolean dryRun,
         ActionListener<UpdateDataStreamMappingsAction.DataStreamMappingsResponse> listener
     ) {
         logger.debug("updating mappings for {}", dataStreamName);
@@ -168,56 +159,44 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
             ackTimeout,
             dataStreamName,
             mappingsOverrides,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged()) {
-                        DataStream dataStream = clusterService.state()
-                            .projectState(projectResolver.getProjectId())
-                            .metadata()
-                            .dataStreams()
-                            .get(dataStreamName);
-                        try {
-                            listener.onResponse(
-                                new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
-                                    dataStreamName,
-                                    true,
-                                    null,
-                                    mappingsOverrides,
-                                    dataStream.getEffectiveMappings(
-                                        clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                    )
+            dryRun,
+            listener.delegateFailure((dataStreamMappingsResponseActionListener, dataStream) -> {
+                if (dataStream != null) {
+                    try {
+                        dataStreamMappingsResponseActionListener.onResponse(
+                            new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
+                                dataStreamName,
+                                true,
+                                null,
+                                mappingsOverrides,
+                                dataStream.getEffectiveMappings(
+                                    clusterService.state().projectState(projectResolver.getProjectId()).metadata()
                                 )
-                            );
-                        } catch (IOException e) {
-                            listener.onResponse(
-                                new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
-                                    dataStreamName,
-                                    false,
-                                    e.getMessage(),
-                                    Mapping.EMPTY.toCompressedXContent(),
-                                    Mapping.EMPTY.toCompressedXContent()
-                                )
-                            );
-                        }
-                    } else {
-                        listener.onResponse(
+                            )
+                        );
+                    } catch (IOException e) {
+                        dataStreamMappingsResponseActionListener.onResponse(
                             new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
                                 dataStreamName,
                                 false,
-                                "Updating mappings not accepted for unknown reasons",
+                                e.getMessage(),
                                 Mapping.EMPTY.toCompressedXContent(),
                                 Mapping.EMPTY.toCompressedXContent()
                             )
                         );
                     }
+                } else {
+                    dataStreamMappingsResponseActionListener.onResponse(
+                        new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
+                            dataStreamName,
+                            false,
+                            "Updating mappings not accepted for unknown reasons",
+                            Mapping.EMPTY.toCompressedXContent(),
+                            Mapping.EMPTY.toCompressedXContent()
+                        )
+                    );
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+            })
         );
     }
 

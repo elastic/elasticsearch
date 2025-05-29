@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -276,7 +277,7 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
 
     @Override
     public Expression surrogate(SearchStats searchStats) {
-        if (field() instanceof FieldAttribute fa) {
+        if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false) {
             // Extract min/max from SearchStats
             DataType fieldType = fa.dataType();
             String fieldName = fa.fieldName();
@@ -291,7 +292,8 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
                 // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
                 // System.out.println("min string: " + dateWithTypeToString((Long) min, fieldType));
                 // System.out.println("max string: " + dateWithTypeToString((Long) max, fieldType));
-                // System.out.println("min = " + min + ", max = " + max + ", roundingPoints = " + Arrays.toString(roundingPoints));
+                // System.out.println("field name = " + fieldName + ", min = " + min + ", max = " + max + ", roundingPoints = " +
+                // Arrays.toString(roundingPoints));
                 if (roundingPoints == null) {
                     return null; // TODO log this case
                 }

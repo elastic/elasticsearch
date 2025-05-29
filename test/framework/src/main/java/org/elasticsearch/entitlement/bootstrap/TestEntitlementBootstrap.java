@@ -17,22 +17,16 @@ import org.elasticsearch.logging.Logger;
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
-    private static BootstrapArgs bootstrapArgs;
 
     /**
      * Activates entitlement checking in tests.
-     * @param bootstrapArgs arguments used for and passed to entitlement initialization
+     * @param pathLookup
      */
-    public static void bootstrap(BootstrapArgs bootstrapArgs) {
-        assert bootstrapArgs != null;
-        TestEntitlementBootstrap.bootstrapArgs = bootstrapArgs;
+    public static void bootstrap(PathLookup pathLookup) {
+        assert pathLookup != null;
+        TestEntitlementInitialization.initializeArgs = new TestEntitlementInitialization.InitializeArgs(pathLookup);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), TestEntitlementInitialization.class.getName());
     }
 
-    public static BootstrapArgs bootstrapArgs() {
-        return bootstrapArgs;
-    }
-
-    public record BootstrapArgs(PathLookup pathLookup) {}
 }

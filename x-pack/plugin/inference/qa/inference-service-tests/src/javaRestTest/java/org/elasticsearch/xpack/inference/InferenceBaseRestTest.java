@@ -119,12 +119,12 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType, apiKey, temperature);
     }
 
-    static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+    static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody, String service) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
             {
               %s
-              "service": "streaming_completion_test_service",
+              "service": "%s",
               "service_settings": {
                 "model": "my_model",
                 "api_key": "abc64"
@@ -133,7 +133,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 "temperature": 3
               }
             }
-            """, taskType);
+            """, taskType, service);
     }
 
     static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {

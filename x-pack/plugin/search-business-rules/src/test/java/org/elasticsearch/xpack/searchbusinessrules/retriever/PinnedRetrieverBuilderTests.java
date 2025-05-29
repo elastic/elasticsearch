@@ -25,6 +25,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -210,11 +213,13 @@ public class PinnedRetrieverBuilderTests extends AbstractXContentTestCase<Pinned
         multipleSortsSource.sort("_score");
         multipleSortsSource.sort("field1");
         builder.finalizeSourceBuilder(multipleSortsSource);
+
         assertThat(multipleSortsSource.sorts().size(), equalTo(2));
-        assertThat(multipleSortsSource.sorts().get(0).getField(), equalTo("_score"));
-        assertThat(multipleSortsSource.sorts().get(0).getOrder(), equalTo(SortOrder.DESC));
-        assertThat(multipleSortsSource.sorts().get(1).getField(), equalTo("field1"));
-        assertThat(multipleSortsSource.sorts().get(1).getOrder(), equalTo(SortOrder.ASC));
+        assertThat(multipleSortsSource.sorts().get(0), instanceOf(ScoreSortBuilder.class));
+        assertThat(((ScoreSortBuilder) multipleSortsSource.sorts().get(0)).order(), equalTo(SortOrder.DESC));
+        assertThat(multipleSortsSource.sorts().get(1), instanceOf(FieldSortBuilder.class));
+        assertThat(((FieldSortBuilder) multipleSortsSource.sorts().get(1)).getFieldName(), equalTo("field1"));
+        assertThat(((FieldSortBuilder) multipleSortsSource.sorts().get(1)).order(), equalTo(SortOrder.ASC));
 
         SearchSourceBuilder fieldFirstSource = new SearchSourceBuilder();
         fieldFirstSource.query(dummyQuery);

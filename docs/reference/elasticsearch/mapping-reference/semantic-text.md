@@ -64,6 +64,7 @@ PUT my-index-000002
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
 
@@ -88,6 +89,7 @@ PUT my-index-000003
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
@@ -192,6 +194,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Specifies the maximum number of fragments to return.
 2. Sorts highlighted fragments by score when set to `score`. By default,
@@ -221,6 +224,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
@@ -281,6 +285,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:TBD]
 
 can also be declared as multi-fields:
 
@@ -302,6 +307,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:TBD]
 
 ## Limitations [limitations]
 

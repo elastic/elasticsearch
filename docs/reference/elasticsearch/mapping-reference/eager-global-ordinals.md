@@ -40,6 +40,7 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+% TEST[s/^/PUT my-index-000001\n/]
 
 When `eager_global_ordinals` is enabled, global ordinals are built when a shard is [refreshed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-refresh) — Elasticsearch always loads them before exposing changes to the content of the index. This shifts the cost of building global ordinals from search to index-time. Elasticsearch will also eagerly build global ordinals when creating a new copy of a shard, as can occur when increasing the number of replicas or relocating a shard onto a new node.
 
@@ -56,6 +57,7 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+% TEST[continued]
 
 
 ## Avoiding global ordinal loading [_avoiding_global_ordinal_loading]

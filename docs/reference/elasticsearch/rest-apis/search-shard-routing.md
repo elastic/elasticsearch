@@ -39,6 +39,7 @@ GET /my-index-000001/_search?preference=_local
   }
 }
 ```
+% TEST[setup:my_index]
 
 You can also use the `preference` parameter to route searches to specific shards based on a provided string. If the cluster state and selected shards do not change, searches using the same `preference` string are routed to the same shards in the same order.
 
@@ -61,6 +62,7 @@ GET /my-index-000001/_search?preference=my-custom-shard-string
   }
 }
 ```
+% TEST[setup:my_index]
 
 ::::{note}
 If the cluster state or selected shards change, the same `preference` string may not route searches to the same shards in the same order. This can occur for a number of reasons, including shard relocations and shard failures. A node can also reject a search request, which {{es}} would re-route to another node.
@@ -97,6 +99,7 @@ GET /my-index-000001/_search?routing=my-routing-value
   }
 }
 ```
+% TEST[setup:my_index]
 
 You can also provide multiple comma-separated routing values:
 
@@ -110,6 +113,7 @@ GET /my-index-000001/_search?routing=my-routing-value,my-routing-value-2
   }
 }
 ```
+% TEST[setup:my_index]
 
 
 ## Search concurrency and parallelism [search-concurrency-and-parallelism]
@@ -133,6 +137,7 @@ GET /my-index-000001/_search?max_concurrent_shard_requests=3
   }
 }
 ```
+% TEST[setup:my_index]
 
 You can also use the `action.search.shard_count.limit` cluster setting to set a search shard limit and reject requests that hit too many shards. You can configure `action.search.shard_count.limit` using the [cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
 

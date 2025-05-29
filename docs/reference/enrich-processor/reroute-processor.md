@@ -31,6 +31,7 @@ Note that the client needs to have permissions to the final target. Otherwise, t
 ```js
 {"type":"security_exception","reason":"action [indices:admin/auto_create] is unauthorized for API key id [8-dt9H8BqGblnY2uSI--] of user [elastic/fleet-server] on indices [logs-foo-default], this action is granted by the index privileges [auto_configure,create_index,manage,all]"}
 ```
+% NOTCONSOLE
 
 $$$reroute-options$$$
 
@@ -56,6 +57,7 @@ The `if` option can be used to define the condition in which the document should
   }
 }
 ```
+% NOTCONSOLE
 
 The dataset and namespace options can contain either a single value or a list of values that are used as a fallback. If a field reference evaluates to `null`, is not present in the document, the next value or field reference is used. If a field reference evaluates to a non-`String` value, the processor fails.
 
@@ -72,4 +74,5 @@ In the following example, the processor would first try to resolve the value for
   }
 }
 ```
+% NOTCONSOLE
 

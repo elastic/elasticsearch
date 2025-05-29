@@ -283,6 +283,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -401,6 +402,7 @@ Example:
 	"skipExtractingDriveItemsOlderThan": 60
 }
 ```
+% NOTCONSOLE
 
 This rule will not extract content of any drive items (files in document libraries) that haven’t been modified for 60 days or more.
 
@@ -514,6 +516,8 @@ POST INDEX_NAME/_update_by_query?conflicts=proceed
   }
 }
 ```
+% TEST[skip:TODO]
+% TEST[skip:TODO]
 
 
 ### Document-level security [es-connectors-sharepoint-online-client-dls]

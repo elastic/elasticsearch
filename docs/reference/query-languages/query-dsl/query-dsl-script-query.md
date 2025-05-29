@@ -41,6 +41,8 @@ GET /_search
   }
 }
 ```
+% TEST[setup:ledger]
+% TEST[s/_search/_search\?filter_path=hits.hits&sort=amount/]
 
 You can achieve the same results in a search query by using runtime fields. Use the [`fields`](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md) parameter on the `_search` API to fetch values as part of the same query:
 
@@ -71,6 +73,8 @@ GET /_search
   "fields": [{"field": "amount.signed"}]
 }
 ```
+% TEST[setup:ledger]
+% TEST[s/_search/_search\?filter_path=hits.hits.fields&sort=amount.signed:desc/]
 
 
 ## Top-level parameters for `script` [script-top-level-params]

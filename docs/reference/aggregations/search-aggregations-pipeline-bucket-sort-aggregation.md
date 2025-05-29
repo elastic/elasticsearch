@@ -31,6 +31,7 @@ A `bucket_sort` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 1. Here, `sort_field_1` is the bucket path to the variable to be used as the primary sort and its order is ascending.
 
@@ -75,6 +76,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. `sort` is set to use the values of `total_sales` in descending order
 2. `size` is set to `3` meaning only the top 3 months in `total_sales` will be returned
@@ -120,6 +122,9 @@ And the following may be the response:
    }
 }
 ```
+% TESTRESPONSE[s/"took": 82/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 
 ## Truncating without sorting [_truncating_without_sorting]
@@ -150,6 +155,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -172,5 +178,8 @@ Response:
    }
 }
 ```
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

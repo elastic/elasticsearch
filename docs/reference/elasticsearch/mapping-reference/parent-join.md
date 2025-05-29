@@ -61,6 +61,7 @@ PUT my-index-000001/_doc/2?refresh
   }
 }
 ```
+% TEST[continued]
 
 1. This document is a `question` document.
 
@@ -82,6 +83,7 @@ PUT my-index-000001/_doc/2?refresh
   "my_join_field": "question"
 }
 ```
+% TEST[continued]
 
 1. Simpler notation for a parent document just uses the relation name.
 
@@ -116,6 +118,7 @@ PUT my-index-000001/_doc/4?routing=1&refresh
   }
 }
 ```
+% TEST[continued]
 
 1. The routing value is mandatory because parent and child documents must be indexed on the same shard
 2. `answer` is the name of the join for this document
@@ -157,6 +160,7 @@ GET my-index-000001/_search
   "sort": ["my_id"]
 }
 ```
+% TEST[continued]
 
 Will return:
 
@@ -234,6 +238,7 @@ Will return:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. This document belongs to the `question` join
 2. This document belongs to the `question` join
@@ -278,6 +283,8 @@ GET my-index-000001/_search
   ]
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=aggregations,hits.hits&sort=my_id/]
 
 1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl/query-dsl-has-child-query.md))
 2. Aggregating on the `parent id` field (also see the [`children`](/reference/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)
@@ -319,6 +326,7 @@ GET _stats/fielddata?human&fields=my_join_field#question
 # Per-node per-index
 GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
 ```
+% TEST[continued]
 
 
 ## Multiple children per parent [_multiple_children_per_parent]
@@ -398,6 +406,7 @@ PUT my-index-000001/_doc/3?routing=1&refresh <1>
   }
 }
 ```
+% TEST[continued]
 
 1. This child document must be on the same shard than its grand-parent and parent
 2. The parent id of this document (must points to an `answer` document)

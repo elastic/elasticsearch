@@ -49,6 +49,7 @@ PUT _connector/my-servicenow-connector
   "service_type": "servicenow"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -225,6 +226,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -315,6 +317,7 @@ $$$es-connectors-servicenow-client-sync-rules-number-incident-service$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
 **Indexing document based on user activity state for User service**
@@ -327,6 +330,7 @@ $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service$$$
 **Indexing document based on author name for Knowledge service**
@@ -339,6 +343,8 @@ $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-ser
   }
 ]
 ```
+% NOTCONSOLE
+% NOTCONSOLE
 
 
 ### End-to-end Testing [es-connectors-servicenow-client-connector-client-operations-testing]

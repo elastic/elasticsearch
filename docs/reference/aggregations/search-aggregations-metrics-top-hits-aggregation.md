@@ -80,6 +80,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Possible response:
 
@@ -177,6 +178,10 @@ Possible response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChK/$body.aggregations.top_tags.buckets.0.top_sales_hits.hits.hits.0._id/]
+% TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChL/$body.aggregations.top_tags.buckets.1.top_sales_hits.hits.hits.0._id/]
+% TESTRESPONSE[s/AVnNBmatCQpcRyxw6ChH/$body.aggregations.top_tags.buckets.2.top_sales_hits.hits.hits.0._id/]
 
 
 ## Field collapse example [_field_collapse_example]
@@ -219,6 +224,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are ordered according to the score of the most relevant webpage per domain. Unfortunately the `top_hits` aggregator can’t be used in the `order` option of the `terms` aggregator yet.
 
@@ -265,6 +271,7 @@ PUT /sales/_doc/1?refresh
   ]
 }
 ```
+% TEST[continued]
 
 It’s now possible to execute the following `top_hits` aggregation (wrapped in a `nested` aggregation):
 
@@ -296,6 +303,8 @@ POST /sales/_search
   }
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 
@@ -341,6 +350,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 1. Name of the array field containing the nested hit
 2. Position if the nested hit in the containing array
@@ -385,6 +395,7 @@ In the example below a nested hit resides in the first slot of the field `nested
 }
 ...
 ```
+% NOTCONSOLE
 
 
 ## Use in pipeline aggregations [_use_in_pipeline_aggregations]
@@ -429,6 +440,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 The `bucket_path` uses the `top_hits` name `top_sales_hits` and a keyword for the field providing the aggregate value, namely `_source` field `price` in the example above. Other options include `top_sales_hits[_sort]`, for filtering on the sort value `date` above, and `top_sales_hits[_score]`, for filtering on the score of the top hit.
 

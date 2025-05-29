@@ -22,6 +22,7 @@ GET /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
 
 The above aggregation computes the grades statistics over all documents. The aggregation type is `extended_stats` and the `field` setting defines the numeric field of the documents the stats will be computed on. The above will return the following:
 
@@ -57,6 +58,7 @@ The `std_deviation` and `variance` are calculated as population metrics so they 
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`grades_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -78,6 +80,7 @@ GET /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
 
 1. `sigma` controls how many standard deviations +/- from the mean should be displayed
 
@@ -121,6 +124,8 @@ GET /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 
 ## Missing value [_missing_value_9]
@@ -141,6 +146,7 @@ GET /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
 
 1. Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `0`.
 

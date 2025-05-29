@@ -73,6 +73,7 @@ Which returns
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 ### Using a custom regex file [_using_a_custom_regex_file]
 

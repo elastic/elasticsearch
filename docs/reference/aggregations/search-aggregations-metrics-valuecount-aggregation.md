@@ -19,6 +19,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -32,6 +33,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`types_count` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -63,6 +65,8 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 
 ## Histogram fields [search-aggregations-metrics-valuecount-aggregation-histogram-fields]
@@ -114,5 +118,6 @@ Eventually, the aggregation will add all values for all histograms and return th
   }
 }
 ```
+% TESTRESPONSE[skip:test not setup]
 
 

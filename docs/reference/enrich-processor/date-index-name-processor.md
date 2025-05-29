@@ -39,6 +39,7 @@ PUT /my-index/_doc/1?pipeline=monthlyindex
   "date1" : "2016-04-25T12:02:01.789Z"
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
@@ -55,6 +56,7 @@ PUT /my-index/_doc/1?pipeline=monthlyindex
   "_primary_term" : 1
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 The above request will not index this document into the `my-index` index, but into the `my-index-2016-04-01` index because it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
 
@@ -107,6 +109,7 @@ and the result:
   ]
 }
 ```
+% TESTRESPONSE[s/2016-11-08T19:43:03.850+0000/$body.docs.0.doc._ingest.timestamp/]
 
 The above example shows that `_index` was set to `<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch understands this to mean `2016-04-01` as is explained in the [date math index name documentation](/reference/elasticsearch/rest-apis/api-conventions.md#api-date-math-index-names)
 

@@ -26,6 +26,8 @@ GET /my-index-000001,my-index-000002/_search
   }
 }
 ```
+% TEST[setup:my_index]
+% TEST[s/^/PUT my-index-000002\n/]
 
 You can also search multiple data streams and indices using an index pattern.
 
@@ -41,6 +43,7 @@ GET /my-index-*/_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 You can exclude specific indices from a search. The request will retrieve data from all indices starting with `my-index-`, except for `my-index-01`.
 
@@ -67,6 +70,7 @@ GET /my-index-*/_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 To search all data streams and indices in a cluster, omit the target from the request path. Alternatively, you can use `_all` or `*`.
 
@@ -100,6 +104,7 @@ GET /*/_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 
 ## Index boost [index-boost]
@@ -120,6 +125,7 @@ GET /_search
   ]
 }
 ```
+% TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Aliases and index patterns can also be used:
 
@@ -132,6 +138,7 @@ GET /_search
   ]
 }
 ```
+% TEST[s/^/PUT my-index-000001\nPUT my-index-000001/_alias/my-alias\n/]
 
 If multiple matches are found, the first match will be used. For example, if an index is included in `alias1` and matches the `my-index*` pattern, a boost value of `1.4` is applied.
 

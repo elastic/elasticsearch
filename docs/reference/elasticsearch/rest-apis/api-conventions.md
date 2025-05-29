@@ -273,6 +273,8 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
   }
 }
 ```
+% TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
+% TEST[s/now/2016.09.20%7C%7C/]
 
 
 ## Multi-target syntax [api-multi-index]

@@ -20,6 +20,7 @@ A `cumulative_sum` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 $$$cumulative-sum-params$$$
 
@@ -56,6 +57,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. `buckets_path` instructs this cumulative sum aggregation to use the output of the `sales` aggregation for the cumulative sum
 
@@ -109,5 +111,8 @@ And the following may be the response:
    }
 }
 ```
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

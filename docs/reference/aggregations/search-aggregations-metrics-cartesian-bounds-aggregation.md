@@ -83,6 +83,7 @@ The response for the above aggregation:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
 ## Cartesian Bounds Aggregation on `shape` fields [cartesian-bounds-aggregation-shape]
@@ -120,6 +121,7 @@ POST /places/_search?size=0
   }
 }
 ```
+% TEST
 
 ```console-result
 {
@@ -140,4 +142,5 @@ POST /places/_search?size=0
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 

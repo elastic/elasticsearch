@@ -93,6 +93,7 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field. Note that this database is downloaded automatically. So this:
 
@@ -137,6 +138,7 @@ returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Not all IP addresses find geo information from the database, When this occurs, no `target_field` is inserted into the document.
 
@@ -178,6 +180,7 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 ### Recognizing Location as a Geopoint [ingest-geoip-mappings-note]
 

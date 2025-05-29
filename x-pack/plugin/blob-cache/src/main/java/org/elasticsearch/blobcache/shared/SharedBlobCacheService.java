@@ -662,7 +662,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     /**
      * Wraps the given {@link RangeMissingHandler} to adjust the position of the data read from the blob store
-     * (NB: the relativePos parameter in {@link RangeMissingHandler#fillCacheRange(SharedBytes.IO, int, SourceInputStreamFactory, int, int, IntConsumer, ActionListener)})
+     * (NB: the relativePos parameter in
+     * {@link RangeMissingHandler#fillCacheRange(SharedBytes.IO, int, SourceInputStreamFactory, int, int, IntConsumer, ActionListener)})
      * relative to the beginning of the region we're reading from.
      *
      * This is useful so that we can read the input stream we open for reading from the blob store

@@ -1,6 +1,11 @@
 setup:
   - requires:
-      test_runner_features: close_to
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ significant_terms_on_nested_fields ]
+      test_runner_features: [capabilities, close_to]
+      reason: "bug fix"
 
   - do:
       indices.create:

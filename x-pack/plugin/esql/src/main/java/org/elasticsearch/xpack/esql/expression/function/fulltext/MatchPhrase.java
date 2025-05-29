@@ -105,7 +105,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
-            All <<query-dsl-match-query-phrase,match_phrase>> query parameters are supported.
+            All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = {

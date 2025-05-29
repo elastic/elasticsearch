@@ -15,6 +15,10 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -30,8 +33,11 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Initializes natives and installs test security manager
@@ -47,17 +53,26 @@ public class BootstrapForTesting {
     // without making things complex???
 
     private static final ConstructingObjectParser<TestBuildInfoLocation, Void> TEST_BUILD_INFO_LOCATION_PARSER =
-        new ConstructingObjectParser<>("test_build_info_location", values -> new TestBuildInfoLocation((String)values[0], (String)values[1]));
+        new ConstructingObjectParser<>(
+            "test_build_info_location",
+            values -> new TestBuildInfoLocation((String) values[0], (String) values[1])
+        );
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<TestBuildInfo, Void> TEST_BUILD_INFO_PARSER =
-        new ConstructingObjectParser<>("test_build_info", values -> new TestBuildInfo((String)values[0], (List<TestBuildInfoLocation>)values[1]));
+    private static final ConstructingObjectParser<TestBuildInfo, Void> TEST_BUILD_INFO_PARSER = new ConstructingObjectParser<>(
+        "test_build_info",
+        values -> new TestBuildInfo((String) values[0], (List<TestBuildInfoLocation>) values[1])
+    );
 
     static {
-        TEST_BUILD_INFO_LOCATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("module"));
         TEST_BUILD_INFO_LOCATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("representative_class"));
+        TEST_BUILD_INFO_LOCATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("module"));
 
         TEST_BUILD_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("component"));
-        TEST_BUILD_INFO_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), TEST_BUILD_INFO_LOCATION_PARSER::apply, new ParseField("locations"));
+        TEST_BUILD_INFO_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            TEST_BUILD_INFO_LOCATION_PARSER::apply,
+            new ParseField("locations")
+        );
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(
@@ -95,19 +110,52 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
 
         try {
+            Map<String, PolicyScope> locationToPolicyScope = new HashMap<>();
             Enumeration<URL> urls = BootstrapForTesting.class.getClassLoader().getResources("META-INF/plugin-test-build-info.json");
-            System.out.println("HERE0: " + urls.hasMoreElements());
             while (urls.hasMoreElements()) {
-                try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, urls.nextElement().openStream())) {
-                    TestBuildInfo testBuildInfo = TEST_BUILD_INFO_PARSER.parse(parser, null);
-                    System.out.println("HERE1: " + testBuildInfo);
+                TestBuildInfo testBuildInfo;
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        XContentParserConfiguration.EMPTY,
+                        urls.nextElement().openStream()
+                    )
+                ) {
+                    testBuildInfo = TEST_BUILD_INFO_PARSER.parse(parser, null);
+                }
+                String componentName = testBuildInfo.component();
+                // TODO: look at descriptor file to determine if plugin is module, if not use unnamed
+                URL policyURL = BootstrapForTesting.class.getClassLoader()
+                    .getResource("META-INF/es-plugins/" + componentName + "/entitlement-policy.yaml");
+                if (policyURL == null) {
+                    continue;
+                }
+                Map<String, PolicyScope> moduleToScope = new HashMap<>();
+                try (InputStream policyStream = policyURL.openStream()) {
+                    Policy policy = new PolicyParser(policyStream, componentName, false).parsePolicy();
+                    for (Scope parserScope : policy.scopes()) {
+                        moduleToScope.put(parserScope.moduleName(), PolicyScope.plugin(componentName, parserScope.moduleName()));
+                    }
+                }
+                for (TestBuildInfoLocation testBuildInfoLocation : testBuildInfo.locations()) {
+                    URL url = BootstrapForTesting.class.getClassLoader().getResource(testBuildInfoLocation.representativeClass());
+                    String externalForm = url.toExternalForm();
+                    if (externalForm.startsWith("jar:")) {
+                        int start = "jar:".length();
+                        int end = externalForm.indexOf('!');
+                        externalForm = externalForm.substring(start, end);
+                    }
+                    PolicyScope policyScope = moduleToScope.get(testBuildInfoLocation.module());
+                    if (policyScope == null) {
+                        continue;
+                    }
+                    locationToPolicyScope.put(externalForm, policyScope);
                 }
             }
-            System.out.println(
-                "HERE2: " + BootstrapForTesting.class.getClassLoader().getResource("META-INF/plugin-test-build-info.json"));
-            System.out.println(
-                "HERE3: " + BootstrapForTesting.class.getResource("/META-INF/plugin-test-build-info.json"));
-            System.out.println("HERE4: " + BootstrapForTesting.class.getProtectionDomain().getCodeSource().getLocation());
+            System.out.println("LOCATION TO POLICY SCOPE:" + locationToPolicyScope);
+            Function<Class<?>, PolicyScope> classToPolicyScope = c -> locationToPolicyScope.get(
+                c.getProtectionDomain().getCodeSource().getLocation().toExternalForm()
+            );
+            System.out.println("TEST0:" + classToPolicyScope.apply(XContentParser.class));
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }

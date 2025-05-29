@@ -62,7 +62,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
         assertThat(requestMap, aMapWithSize(1));
         assertThat(
             requestMap,
-            equalTo(Map.of("contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", messages.getFirst()))))))
+            equalTo(Map.of("contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", messages.get(0)))))))
         );
 
     }

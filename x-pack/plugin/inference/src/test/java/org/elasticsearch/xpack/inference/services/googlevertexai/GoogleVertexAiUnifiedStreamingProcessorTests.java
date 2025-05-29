@@ -59,7 +59,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(1, chunk.choices().size());
             assertEquals("chat.completion.chunk", chunk.object());
 
-            var choice = chunk.choices().getFirst();
+            var choice = chunk.choices().get(0);
             assertEquals("Elastic", choice.delta().content());
             assertEquals("model", choice.delta().role());
             assertEquals("gemini-2.0-flash-lite", chunk.model());
@@ -67,7 +67,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("MAXTOKENS", choice.finishReason());
 
             assertEquals(1, choice.delta().toolCalls().size());
-            var toolCall = choice.delta().toolCalls().getFirst();
+            var toolCall = choice.delta().toolCalls().get(0);
             assertEquals("getWeatherData", toolCall.function().name());
             assertEquals("{\"unit\":\"celsius\",\"location\":\"buenos aires, argentina\"}", toolCall.function().arguments());
 
@@ -108,7 +108,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
             assertEquals("responseId", chunk.id());
             assertEquals(1, chunk.choices().size());
-            var choice = chunk.choices().getFirst();
+            var choice = chunk.choices().get(0);
             assertEquals("Hello", choice.delta().content());
             assertEquals("model", choice.delta().role());
             assertEquals("STOP", choice.finishReason());
@@ -154,13 +154,13 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
             assertEquals("resId789", chunk.id());
             assertEquals(1, chunk.choices().size());
-            var choice = chunk.choices().getFirst();
+            var choice = chunk.choices().get(0);
             assertEquals("model", choice.delta().role());
             assertNull(choice.delta().content());
 
             assertNotNull(choice.delta().toolCalls());
             assertEquals(1, choice.delta().toolCalls().size());
-            var toolCall = choice.delta().toolCalls().getFirst();
+            var toolCall = choice.delta().toolCalls().get(0);
             assertEquals("getLocation", toolCall.function().name());
             assertNull(toolCall.function().arguments());
 
@@ -203,7 +203,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("multiTextId", chunk.id());
             assertEquals(1, chunk.choices().size());
 
-            var choice = chunk.choices().getFirst();
+            var choice = chunk.choices().get(0);
             assertEquals("model", choice.delta().role());
             // Verify that the text from multiple parts is concatenated
             assertEquals("This is the first part. This is the second part.", choice.delta().content());

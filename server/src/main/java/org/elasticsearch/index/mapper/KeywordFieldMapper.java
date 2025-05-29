@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -91,6 +92,10 @@ import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldNa
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
 public final class KeywordFieldMapper extends FieldMapper {
+
+    public static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature(
+        "mapper.keyword.keyword_normalizer_synthetic_source"
+    );
 
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
@@ -1264,11 +1269,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasNormalizer()) {
-            // NOTE: no matter if we have doc values or not we use fallback synthetic source
-            // to store the original value whose doc values would be altered by the normalizer
-            return SyntheticSourceSupport.FALLBACK;
-        }
+        /* NOTE: we allow enabling synthetic source on Keyword fields with a Normalizer, even though the returned synthetic value
+        may not perfectly match the original, pre-normalization, value.
+         */
 
         if (fieldType.stored() || hasDocValues) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));

@@ -68,7 +68,8 @@ public class MapperFeatures implements FeatureSpecification {
             DateFieldMapper.INVALID_DATE_FIX,
             NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
-            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE
         );
     }
 }

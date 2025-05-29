@@ -19,7 +19,7 @@ All REST handlers exposed by Elasticsearch are registered in [ActionModule#initR
 REST actions with the [RestController] using [#registerHandler(...)][RestController#registerHandler]. These registrations populate
 a map of [routes][RestHandler#routes] to [RestHandler]s to allow routing of incoming HTTP requests to their respective handlers.
 There are many REST endpoints configured statically in [ActionModule][ActionModule#initRestHandlers], and additional
-endpoints can be contributed by [ActionPlugin]s by implementing the [getRestHandlers] method.
+endpoints can be contributed by [ActionPlugin]s by implementing the [getRestHandlers][ActionPlugin#getRestHandlers] method.
 
 Typically, REST actions follow the class naming convention `Rest*Action`, which makes them easier to find, but not always; the
 [#routes()][RestHandler#routes] implementation for each `Rest*Action` can also be helpful in finding a particular REST action.
@@ -87,7 +87,7 @@ additional configuration to implement features like IP filtering or TLS (see [Se
 [Security#getHttpTransports]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L1959
 [Security#getRestHandlerInterceptor]:https://github.com/elastic/elasticsearch/blob/v9.0.1/x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/Security.java#L2140
 [TransportAction]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
-[getRestHandlers]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L76
+[ActionPlugin#getRestHandlers]:https://github.com/elastic/elasticsearch/blob/v9.0.1/server/src/main/java/org/elasticsearch/plugins/ActionPlugin.java#L76
 
 ## Transport Layer
 

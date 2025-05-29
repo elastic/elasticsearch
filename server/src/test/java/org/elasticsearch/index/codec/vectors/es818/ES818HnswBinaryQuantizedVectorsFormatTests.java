@@ -36,8 +36,12 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -58,6 +62,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.OptionalLong;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
@@ -152,6 +157,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
     }
 
     public void testSimpleOffHeapSizeFSDir() throws IOException {
+        checkDirectIOSupported();
         var config = newIndexWriterConfig().setUseCompoundFile(false); // avoid compound files to allow directIO
         try (Directory dir = newFSDirectory()) {
             testSimpleOffHeapSizeImpl(dir, config, false);
@@ -212,5 +218,23 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
             dir = new MockDirectoryWrapper(random(), dir);
         }
         return dir;
+    }
+
+    static void checkDirectIOSupported() {
+        Path path = createTempDir("directIOProbe");
+        try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
+            out.writeString("test");
+        } catch (IOException e) {
+            assumeNoException("test requires a filesystem that supports Direct IO", e);
+        }
+    }
+
+    static DirectIODirectory open(Path path) throws IOException {
+        return new DirectIODirectory(FSDirectory.open(path)) {
+            @Override
+            protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                return true;
+            }
+        };
     }
 }

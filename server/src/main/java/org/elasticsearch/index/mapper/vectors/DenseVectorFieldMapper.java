@@ -2431,7 +2431,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             // TODO : fix reading of saturation threshold and patience params ?
             Query knnQuery = indexOptions != null && indexOptions.earlyExit()
-                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k*0.3))
+                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k * 0.3))
                 : knnByteVectorQuery;
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2463,7 +2463,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             // TODO: fix reading of saturation threshold and patience params ?
             Query knnQuery = indexOptions != null && indexOptions.earlyExit()
-                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k*0.3))
+                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k * 0.3))
                 : knnByteVectorQuery;
 
             if (similarityThreshold != null) {
@@ -2530,7 +2530,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
             // TODO: fix reading of saturation threshold and patience params ?
             Query knnQuery = indexOptions != null && indexOptions.earlyExit()
-                ? PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery, 0.95, (int) (k*0.3))
+                ? PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery, 0.95, (int) (k * 0.3))
                 : knnFloatVectorQuery;
 
             if (rescore) {

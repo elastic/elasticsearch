@@ -201,7 +201,22 @@ public final class RemoteClusterService extends RemoteClusterAware
         boolean returnLocalAll
     ) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        final Map<String, List<String>> groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+        final Map<String, List<String>> groupedIndices;
+        /*
+         * We could use IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY but that'd require adding dependency on its
+         * module and doing so results in a circular dependency warnings.
+         */
+        if (indices.length == 2 && indices[0].equals("*") && indices[1].equals("-*")) {
+            groupedIndices = Map.of();
+            /*
+             * We set returnLocalAll to false because this semantic ["*", "-*"] specifically means that it's alright to return
+             * an empty response and in this context we do not want to fallback to the local cluster.
+             */
+            returnLocalAll = false;
+        } else {
+            groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+        }
+
         if (groupedIndices.isEmpty()) {
             if (returnLocalAll) {
                 // search on _all in the local cluster if neither local indices nor remote indices were specified

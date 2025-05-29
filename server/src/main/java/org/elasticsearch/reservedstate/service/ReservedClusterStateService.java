@@ -676,6 +676,7 @@ public class ReservedClusterStateService {
                     reservedState.get(handlerName),
                     new TransformState(currentState, existingKeys)
                 );
+                currentState = transformState.state();
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }
@@ -686,7 +687,7 @@ public class ReservedClusterStateService {
 
     private static List<String> trialRun(
         ReservedStateMetadata existingMetadata,
-        ClusterState clusterState,
+        ClusterState currentState,
         ReservedStateChunk stateChunk,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         SequencedSet<String> orderedHandlers
@@ -702,8 +703,9 @@ public class ReservedClusterStateService {
                 TransformState transformState = transform(
                     handler,
                     reservedState.get(handlerName),
-                    new TransformState(clusterState, existingKeys)
+                    new TransformState(currentState, existingKeys)
                 );
+                currentState = transformState.state();
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }

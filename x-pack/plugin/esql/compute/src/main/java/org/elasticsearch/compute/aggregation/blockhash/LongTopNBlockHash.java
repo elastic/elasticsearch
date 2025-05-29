@@ -60,6 +60,7 @@ final class LongTopNBlockHash extends BlockHash {
         try {
             this.hash = new LongHash(1, blockFactory.bigArrays());
             this.topValues = new LongTopNSet(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
+            success = true;
         } finally {
             if (success == false) {
                 close();

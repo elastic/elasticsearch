@@ -237,6 +237,8 @@ public class S3ClientsManager implements ClusterStateApplier {
                 IOUtils.closeWhileHandlingException(perProjectClientsHolders.values());
             }
             IOUtils.closeWhileHandlingException(clusterClientsHolder);
+        } else {
+            assert false : "attempting to close s3 clients manager multiple times";
         }
     }
 

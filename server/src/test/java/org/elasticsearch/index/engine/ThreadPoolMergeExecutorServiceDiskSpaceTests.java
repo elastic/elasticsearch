@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -31,10 +32,18 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
 
@@ -160,13 +169,13 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     public void testAvailableDiskSpaceMonitorSingleUpdateWithDefaultSettings() throws Exception {
         Settings settings = Settings.builder()
             .put(this.settings)
-            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "10ms")
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
             .build();
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
-        // Path a has lots of free space, but b has little
-        aFileStore.usableSpace = 100000;
+        // path "a" has lots of free space, and "b" has little
+        aFileStore.usableSpace = 100_000L;
         aFileStore.totalSpace = aFileStore.usableSpace * 2;
-        bFileStore.usableSpace = 1000;
+        bFileStore.usableSpace = 1_000L;
         bFileStore.totalSpace = bFileStore.usableSpace * 2;
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
@@ -187,6 +196,98 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
                 // 100_000 (available) - 5% (default flood stage level) * 200_000 (total space)
                 assertThat(availableDiskSpaceForMerging.get().getBytes(), is(90_000L));
+            }
+        }
+    }
+
+    public void testAvailableDiskSpaceMonitorSettingsUpdate() throws Exception {
+        Settings settings = Settings.builder()
+            .put(this.settings)
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
+            .build();
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
+        // path "b" has more usable (available) space, but path "a" has more total space
+        aFileStore.usableSpace = 900_000L;
+        aFileStore.totalSpace = 1_200_000L;
+        bFileStore.usableSpace = 1_000_000L;
+        bFileStore.totalSpace = 1_100_000L;
+        LinkedHashSet<ByteSizeValue> availableDiskSpaceUpdates = new LinkedHashSet<>();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                try (
+                    var diskSpacePeriodicMonitor = ThreadPoolMergeExecutorService.startDiskSpaceMonitoring(
+                        testThreadPool,
+                        nodeEnv.dataPaths(),
+                        clusterSettings,
+                        (availableDiskSpace) -> {
+                            synchronized (availableDiskSpaceUpdates) {
+                                availableDiskSpaceUpdates.add(availableDiskSpace);
+                            }
+                        }
+                    )
+                ) {
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(1));
+                            // 1_000_000 (available) - 5% (default flood stage level) * 1_100_000 (total space)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(945_000L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // updated the ration for the watermark
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "90%")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(2));
+                            // 1_000_000 (available) - 10% (indices.merge.disk.watermark.high) * 1_100_000 (total space)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(890_000L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // absolute value for the watermark limit
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "3000b")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(3));
+                            // 1_000_000 (available) - 3_000 (indices.merge.disk.watermark.high)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(997_000L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // headroom value that takes priority over the watermark
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "50%")
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.getKey(), "11111b")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(4));
+                            // 1_000_000 (available) - 11_111 (indices.merge.disk.watermark.high)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(988_889L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                    // watermark limit that takes priority over the headroom
+                    clusterSettings.applySettings(
+                        Settings.builder()
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "98%")
+                            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.getKey(), "22222b")
+                            .build()
+                    );
+                    assertBusy(() -> {
+                        synchronized (availableDiskSpaceUpdates) {
+                            assertThat(availableDiskSpaceUpdates.size(), is(5));
+                            // 1_000_000 (available) - 2% (indices.merge.disk.watermark.high) * 1_100_000 (total space)
+                            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(978_000L));
+                        }
+                    }, 5, TimeUnit.SECONDS);
+                }
             }
         }
     }

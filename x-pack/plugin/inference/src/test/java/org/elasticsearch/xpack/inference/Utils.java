@@ -50,7 +50,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -232,7 +232,7 @@ public final class Utils {
             var actualParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, actual);
             var expectedParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, expected);
         ) {
-            assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
+            assertThat(actualParser.map().entrySet(), containsInAnyOrder(expectedParser.map().entrySet().toArray()));
         }
     }
 }

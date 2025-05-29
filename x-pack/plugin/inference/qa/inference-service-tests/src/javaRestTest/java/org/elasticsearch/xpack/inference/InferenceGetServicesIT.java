@@ -54,7 +54,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -93,7 +93,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -124,7 +124,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(11));
+        assertThat(services.size(), equalTo(12));
 
         var providers = providers(services);
 
@@ -142,7 +142,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googleaistudio",
                     "openai",
                     "streaming_completion_test_service",
-                    "hugging_face"
+                    "hugging_face",
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -150,13 +151,23 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(5));
+        assertThat(services.size(), equalTo(7));
 
         var providers = providers(services);
 
         assertThat(
             providers,
-            containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service", "hugging_face").toArray())
+            containsInAnyOrder(
+                List.of(
+                    "deepseek",
+                    "elastic",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "googlevertexai"
+                ).toArray()
+            )
         );
     }
 

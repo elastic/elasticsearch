@@ -187,43 +187,35 @@ public class SageMakerModelBuilderTests extends ESTestCase {
     }
 
     public void testFromRequestWithExtraServiceKeys() {
-        testExceptionFromRequest(
-            """
-                {
-                    "service_settings": {
-                        "access_key": "test-access-key",
-                        "secret_key": "test-secret-key",
-                        "region": "us-east-1",
-                        "api": "test-api",
-                        "endpoint_name": "test-endpoint",
-                        "hello": "there"
-                    }
+        testExceptionFromRequest("""
+            {
+                "service_settings": {
+                    "access_key": "test-access-key",
+                    "secret_key": "test-secret-key",
+                    "region": "us-east-1",
+                    "api": "test-api",
+                    "endpoint_name": "test-endpoint",
+                    "hello": "there"
                 }
-                """,
-            ElasticsearchStatusException.class,
-            "Configuration contains settings [{hello=there}] unknown to the [service] service"
-        );
+            }
+            """, ElasticsearchStatusException.class, "Configuration contains settings [{hello=there}] unknown to the [service] service");
     }
 
     public void testFromRequestWithExtraTaskKeys() {
-        testExceptionFromRequest(
-            """
-                {
-                    "service_settings": {
-                        "access_key": "test-access-key",
-                        "secret_key": "test-secret-key",
-                        "region": "us-east-1",
-                        "api": "test-api",
-                        "endpoint_name": "test-endpoint"
-                    },
-                    "task_settings": {
-                        "hello": "there"
-                    }
+        testExceptionFromRequest("""
+            {
+                "service_settings": {
+                    "access_key": "test-access-key",
+                    "secret_key": "test-secret-key",
+                    "region": "us-east-1",
+                    "api": "test-api",
+                    "endpoint_name": "test-endpoint"
+                },
+                "task_settings": {
+                    "hello": "there"
                 }
-                """,
-            ElasticsearchStatusException.class,
-            "Configuration contains settings [{hello=there}] unknown to the [service] service"
-        );
+            }
+            """, ElasticsearchStatusException.class, "Configuration contains settings [{hello=there}] unknown to the [service] service");
     }
 
     public void testRoundTrip() throws IOException {

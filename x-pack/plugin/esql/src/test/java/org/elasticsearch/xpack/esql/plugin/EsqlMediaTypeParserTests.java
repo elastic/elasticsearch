@@ -128,10 +128,7 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> getResponseMediaType(restRequest, createTestInstance(false, false, true))
             );
-            assertEquals(
-                "Invalid use of [profile] argument: cannot be used in combination with [txt, csv, tsv] formats",
-                e.getMessage()
-            );
+            assertEquals("Invalid use of [profile] argument: cannot be used in combination with [txt, csv, tsv] formats", e.getMessage());
         }
         {
             // check that no exception is thrown for the XContent types

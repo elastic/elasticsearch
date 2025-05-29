@@ -60,6 +60,10 @@ public class Utils {
         }
     }
 
+    public static void patchJar(File inputJar, File outputJar, Collection<PatcherInfo> patchers) {
+        patchJar(inputJar, outputJar, patchers, true);
+    }
+
     /**
      * Patches the classes in the input JAR file, using the collection of patchers. Each patcher specifies a target class (its jar entry
      * name) and the SHA256 digest on the class bytes.
@@ -69,8 +73,10 @@ public class Utils {
      * @param inputFile the JAR file to patch
      * @param outputFile the output (patched) JAR file
      * @param patchers list of patcher info (classes to patch (jar entry name + optional SHA256 digest) and ASM visitor to transform them)
+     * @param preserveManifest whether to include the manifest file from the input JAR; set this to false when patching a signed JAR,
+     *                         otherwise the patched classes will fail to load at runtime due to mismatched signatures
      */
-    public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers) {
+    public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers, boolean preserveManifest) {
         var classPatchers = patchers.stream().collect(Collectors.toMap(PatcherInfo::jarEntryName, Function.identity()));
         var mismatchedClasses = new ArrayList<MismatchInfo>();
         try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile))) {
@@ -101,9 +107,11 @@ public class Utils {
                         );
                     }
                 } else {
-                    // Read the entry's data and write it to the new JAR
-                    try (InputStream is = jarFile.getInputStream(entry)) {
-                        is.transferTo(jos);
+                    if (preserveManifest || entryName.endsWith("MANIFEST.MF") == false) {
+                        // Read the entry's data and write it to the new JAR
+                        try (InputStream is = jarFile.getInputStream(entry)) {
+                            is.transferTo(jos);
+                        }
                     }
                 }
                 jos.closeEntry();

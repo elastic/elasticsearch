@@ -1094,9 +1094,9 @@ public class EsqlCapabilities {
         COUNT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for distinct_over_time aggregation that gets evaluated per time-series
+         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
          */
-        DISTINCT_OVER_TIME(Build.current().isSnapshot()),
+        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.

@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Test-only version of {@code EntitlementInitialization}
@@ -106,15 +105,14 @@ public class TestEntitlementInitialization {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        return new PolicyManager(
+        PolicyManager policyManager = new PolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
             Map.of(),
-            null, // TODO: this will need to change -- encapsulate it when we extract isTriviallyAllowed
-            pathLookup,
-            Set.of()
+            pathLookup
         );
+        throw new IllegalStateException("Not yet implemented!");
     }
 }

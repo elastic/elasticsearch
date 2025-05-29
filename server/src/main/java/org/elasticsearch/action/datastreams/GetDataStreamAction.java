@@ -435,11 +435,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
-                if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-                    builder.startObject(SETTINGS_FIELD.getPreferredName());
-                    dataStream.getSettings().toXContent(builder, params);
-                    builder.endObject();
-                }
+                builder.startObject(SETTINGS_FIELD.getPreferredName());
+                dataStream.getSettings().toXContent(builder, params);
+                builder.endObject();
 
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                 builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);

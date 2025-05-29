@@ -297,7 +297,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                         }
                     ]
                 }
-            }""",validPrivilege, unknownPrivilege);
+            }""", validPrivilege, unknownPrivilege);
 
         assertInvalidPrivilegeParsing(mixedPrivilegesJson, unknownPrivilege);
     }
@@ -312,7 +312,9 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
     private static void assertInvalidPrivilegeParsing(final String jsonPayload, final String expectedErrorDetail) throws Exception {
         final XContent xContent = XContentType.JSON.xContent();
 
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, jsonPayload.getBytes(StandardCharsets.UTF_8))) {
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, jsonPayload.getBytes(StandardCharsets.UTF_8))
+        ) {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
 

@@ -1019,7 +1019,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V4(Build.current().isSnapshot()),
+        FORK_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1124,6 +1124,17 @@ public class EsqlCapabilities {
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
+         */
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
+
+        /**
+         * Support parameters for LiMIT command.
+         */
+        PARAMETER_FOR_LIMIT,
 
         /**
          * Dense vector field type support

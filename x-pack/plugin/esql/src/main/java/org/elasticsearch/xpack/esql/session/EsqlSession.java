@@ -584,38 +584,17 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
+        // TODO: Improve field resolution for FORK - right now we request all fields
+        if (parsed.anyMatch(p -> p instanceof Fork)) {
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+
         Holder<Boolean> projectAll = new Holder<>(false);
         parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
             if (projectAll.get()) {
                 return;
             }
             projectAll.set(true);
-        });
-
-        if (projectAll.get()) {
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
-
-        Holder<Boolean> projectAfterFork = new Holder<>(false);
-        Holder<Boolean> hasFork = new Holder<>(false);
-
-        parsed.forEachDown(plan -> {
-            if (projectAll.get()) {
-                return;
-            }
-
-            if (hasFork.get() == false && shouldCollectReferencedFields(plan, inlinestatsAggs)) {
-                projectAfterFork.set(true);
-            }
-
-            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
-                hasFork.set(true);
-                fork.children().forEach(child -> {
-                    if (child.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
-                        projectAll.set(true);
-                    }
-                });
-            }
         });
 
         if (projectAll.get()) {

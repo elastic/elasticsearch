@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -69,13 +68,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         new TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
     );
 
-    private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(
-        TENANT_ID,
-        CLIENT_ID,
-        CLIENT_SECRET,
-        TEST_USERS,
-        3
-    );
+    private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(TENANT_ID, CLIENT_ID, CLIENT_SECRET, TEST_USERS, 3);
 
     public static ElasticsearchCluster cluster = initTestCluster();
 

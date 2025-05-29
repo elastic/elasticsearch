@@ -32,7 +32,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

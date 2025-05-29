@@ -57,8 +57,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -78,7 +76,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         "MatchPhrase",
         MatchPhrase::readFrom
     );
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, BOOLEAN, DATETIME, DATE_NANOS, IP, VERSION);
+    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     protected final Expression field;
@@ -119,11 +117,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     )
     public MatchPhrase(
         Source source,
-        @Param(
-            name = "field",
-            type = { "keyword", "text", "boolean", "date", "date_nanos", "ip", "version" },
-            description = "Field that the query will target."
-        ) Expression field,
+        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
         @Param(
             name = "query",
             type = { "keyword", "text" },
@@ -211,9 +205,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field, sourceText(), FIRST).and(
-            isType(field, FIELD_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, boolean, date, date_nanos, ip, version")
-        );
+        return isNotNull(field, sourceText(), FIRST).and(isType(field, FIELD_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text"));
     }
 
     private TypeResolution resolveQuery() {

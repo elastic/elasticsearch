@@ -50,80 +50,8 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
         return suppliers;
-    }
-
-    public static void addQueryAsStringTestCases(List<TestCaseSupplier> suppliers) {
-
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                null,
-                "field",
-                "query",
-                Object::equals,
-                DataType.BOOLEAN,
-                TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
-                List.of(),
-                false
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                null,
-                "field",
-                "query",
-                Object::equals,
-                DataType.BOOLEAN,
-                TestCaseSupplier.ipCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
-                List.of(),
-                false
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                null,
-                "field",
-                "query",
-                Object::equals,
-                DataType.BOOLEAN,
-                TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
-                List.of(),
-                false
-            )
-        );
-        // Datetime
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                null,
-                "field",
-                "query",
-                Object::equals,
-                DataType.BOOLEAN,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
-                List.of(),
-                false
-            )
-        );
-
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                null,
-                "field",
-                "query",
-                Object::equals,
-                DataType.BOOLEAN,
-                TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
-                List.of(),
-                false
-            )
-        );
     }
 
     public static void addStringTestCases(List<TestCaseSupplier> suppliers) {

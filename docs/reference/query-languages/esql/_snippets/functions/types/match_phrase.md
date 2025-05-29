@@ -4,13 +4,8 @@
 
 | field | query | options | result |
 | --- | --- | --- | --- |
-| boolean | keyword | named parameters | boolean |
-| date | keyword | named parameters | boolean |
-| date_nanos | keyword | named parameters | boolean |
-| ip | keyword | named parameters | boolean |
 | keyword | keyword | named parameters | boolean |
 | keyword | text | named parameters | boolean |
 | text | keyword | named parameters | boolean |
 | text | text | named parameters | boolean |
-| version | keyword | named parameters | boolean |
 

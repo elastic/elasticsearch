@@ -35,11 +35,11 @@ The usual flow of a REST request being handled is as follows
 3. [BaseRestHandler] calls into [BaseRestHandler#prepareRequest], which `Rest*Action` subclasses implement to define the behavior
 for a particular action. [prepareRequest][BaseRestHandler#prepareRequest] processes the request parameters to produce a
 [RestChannelConsumer] that is ready to execute the action and return the response on a [RestChannel].
-4. [BaseRestHandler] validates that the handler consumed all the request parameters, throwing an exception if any
+4. `BaseRestHandler` validates that the handler consumed all the request parameters, throwing an exception if any
 were left unconsumed.
-5. [BaseRestHandler] then supplies the channel to the [RestChannelConsumer] to begin executing the action. Some handlers, such as the
+5. `BaseRestHandler` then supplies the channel to the [RestChannelConsumer] to begin executing the action. Some handlers, such as the
 [RestBulkAction], consume the request as a stream of chunks to allow incremental processing of large requests.
-6. The response is written to the [RestChannel], either as a [single payload][RestToXContentListener] or a
+6. The response is written to the `RestChannel`, either as a [single payload][RestToXContentListener] or a
 [stream of chunks][RestChunkedToXContentListener].
 
 ### Request interceptor
@@ -104,20 +104,20 @@ are coordinated.
 
 ### Action registration
 Elasticsearch contains many [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can
-contribute additional actions via the [getActions][ActionPlugin#getActions] method. [TransportAction]s define the request and response
+contribute additional actions via the [getActions][ActionPlugin#getActions] method. `TransportAction`s define the request and response
 types used to invoke the action and the logic for performing the action.
 
-[TransportAction]s that are registered in [ActionModule#setupActions] (including those supplied by plugins) are locally bound to their
+`TransportAction`s that are registered in `ActionModule#setupActions` (including those supplied by plugins) are locally bound to their
 [ActionType]. This map of `type -> action` bindings is what [NodeClient] instances use to locate actions in [NodeClient#executeLocally].
 
 The actions themselves sometimes dispatch downstream actions to other nodes in the cluster via the transport layer (see
 [TransportService#sendRequest]). To be callable in this way, actions must register themselves with the [TransportService] by calling
 [TransportService#registerRequestHandler]. [HandledTransportAction] is a common parent class that registers an action with the
-[TransportService].
+`TransportService`.
 
 > [!NOTE]
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,
-> a majority of transport actions are only ever invoked locally via the [NodeClient]. The two key features of a [TransportAction] are:
+> a majority of transport actions are only ever invoked locally via the [NodeClient]. The two key features of a `TransportAction` are:
 > - Their constructor parameters are provided via dependency injection (Guice) at runtime rather than direct instantiation.
 > - They represent a security boundary; we check that the calling user is authorized to call the action they're calling using
 > [TransportInterceptor]s, which are described below.

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class DisabledSearchStats implements SearchStats {
 
@@ -48,12 +47,12 @@ public class DisabledSearchStats implements SearchStats {
     }
 
     @Override
-    public byte[] min(String field, DataType dataType) {
+    public Object min(String field) {
         return null;
     }
 
     @Override
-    public byte[] max(String field, DataType dataType) {
+    public Object max(String field) {
         return null;
     }
 

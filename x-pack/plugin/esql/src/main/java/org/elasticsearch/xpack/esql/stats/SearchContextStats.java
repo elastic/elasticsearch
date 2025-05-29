@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -27,7 +28,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -49,7 +49,11 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
-    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {}
+    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
+        FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
+            this(exists, hasExactSubfield, indexed, hasDocValues, null);
+        }
+    }
 
     private static class FieldStats {
         private Long count;
@@ -91,11 +95,18 @@ public class SearchContextStats implements SearchStats {
         boolean hasExactSubfield = true;
         boolean indexed = true;
         boolean hasDocValues = true;
+        boolean mixedFieldType = false;
+        MappedFieldType fieldType = null; // Extract the field type, it will be used by min/max later.
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
                 var type = context.getFieldType(field);
+                if (fieldType == null) {
+                    fieldType = type;
+                } else if (mixedFieldType == false && type != fieldType) {
+                    mixedFieldType = true;
+                }
                 exists |= true;
                 indexed &= type.isIndexed();
                 hasDocValues &= type.hasDocValues();
@@ -113,7 +124,7 @@ public class SearchContextStats implements SearchStats {
             // if it does not exist on any context, no other settings are valid
             return new FieldConfig(false, false, false, false);
         } else {
-            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues);
+            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues, mixedFieldType ? null : fieldType);
         }
     }
 
@@ -175,48 +186,58 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public byte[] min(String field, DataType dataType) {
+    @Override
+    public Object min(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+        // Consolidate min/max for indexed numeric and date fields only, skip mixed-typed fields.
+        MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType == null
+            || stat.config.indexed == false
+            || (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) == false) {
+            return null;
+        }
         if (stat.min == null) {
-            var min = new byte[][] { null };
+            var min = new long[] { Long.MAX_VALUE };
             doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
-                // TODO: how to compare with the previous min
-                if (localMin != null) {
-                    if (min[0] == null) {
-                        min[0] = localMin;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
+                byte[] minPackedValue = PointValues.getMinPackedValue(r, field);
+                if (minPackedValue != null) {
+                    long minValue = LongPoint.decodeDimension(minPackedValue, 0);
+                    if (minValue < min[0]) {
+                        min[0] = minValue;
                     }
                 }
                 return true;
             }, true);
             stat.min = min[0];
         }
-        // return stat.min;
-        return null;
+        return stat.min;
     }
 
-    public byte[] max(String field, DataType dataType) {
+    @Override
+    public Object max(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+        // Consolidate min/max for indexed numeric and date fields only, skip mixed-typed fields
+        MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType == null
+            || stat.config.indexed == false
+            || (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) == false) {
+            return null;
+        }
         if (stat.max == null) {
-            var max = new byte[][] { null };
+            var max = new long[] { Long.MIN_VALUE };
             doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
-                // TODO: how to compare with the previous max
-                if (localMax != null) {
-                    if (max[0] == null) {
-                        max[0] = localMax;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field);
+                if (maxPackedValue != null) {
+                    long maxValue = LongPoint.decodeDimension(maxPackedValue, 0);
+                    if (maxValue > max[0]) {
+                        max[0] = maxValue;
                     }
                 }
                 return true;
             }, true);
             stat.max = max[0];
         }
-        // return stat.max;
-        return null;
+        return stat.max;
     }
 
     public boolean isSingleValue(String field) {

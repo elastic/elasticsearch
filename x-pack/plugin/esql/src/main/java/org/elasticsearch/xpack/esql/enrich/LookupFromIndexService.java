@@ -28,7 +28,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -201,8 +201,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
-                // TODO can we throw exceptions here?
-                throw new VerificationException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
             }
 
             out.writeString(inputDataType.typeName());

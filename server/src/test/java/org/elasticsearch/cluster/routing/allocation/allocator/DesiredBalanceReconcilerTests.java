@@ -74,6 +74,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1028,11 +1029,16 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         logger.info("State after shutdowns: {}", shardCounts(clusterState));
 
         Map<String, Integer> allocationCounts = shardCounts(clusterState);
-        // All allocations should be on the remaining nodes
+
+        // Only the remaining nodes should have allocations
         assertTrue(allocationCounts.keySet().stream().allMatch(nodeId -> nodeOrdinal.apply(nodeId) < numToRemain));
-        // Allocations should be spread evenly amongst them
-        int minimumAllocationCount = allocationCounts.values().stream().min(Integer::compareTo).orElse(0);
-        int maximumAllocationCount = allocationCounts.values().stream().max(Integer::compareTo).orElse(Integer.MAX_VALUE);
+
+        // ... and the shards should be spread as evenly as possible over them
+        int[] remainingNodeShardCounts = IntStream.range(0, numToRemain - 1)
+            .map(ordinal -> allocationCounts.getOrDefault("node-" + ordinal, 0))
+            .toArray();
+        int minimumAllocationCount = Arrays.stream(remainingNodeShardCounts).min().orElse(0);
+        int maximumAllocationCount = Arrays.stream(remainingNodeShardCounts).max().orElse(Integer.MAX_VALUE);
         assertThat(maximumAllocationCount - minimumAllocationCount, lessThanOrEqualTo(1));
     }
 

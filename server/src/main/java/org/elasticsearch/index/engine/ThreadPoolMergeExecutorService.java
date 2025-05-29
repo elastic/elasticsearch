@@ -208,7 +208,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         NodeEnvironment nodeEnvironment
     ) {
         if (clusterSettings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING)) {
-            // owns and closes the disk space monitor
             return new ThreadPoolMergeExecutorService(threadPool, clusterSettings, nodeEnvironment);
         } else {
             // register no-op setting update consumers so that setting validations work properly
@@ -389,7 +388,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
      * (but nothing blows up either, if using multiple data paths))
      */
-    static AvailableDiskSpacePeriodicMonitor startDiskSpaceMonitoring(
+    protected static AvailableDiskSpacePeriodicMonitor startDiskSpaceMonitoring(
         ThreadPool threadPool,
         NodeEnvironment.DataPath[] dataPaths,
         ClusterSettings clusterSettings,

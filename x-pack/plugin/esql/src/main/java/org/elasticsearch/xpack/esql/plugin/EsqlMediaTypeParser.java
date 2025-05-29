@@ -45,6 +45,7 @@ public class EsqlMediaTypeParser {
         var mediaType = getResponseMediaType(request, (MediaType) null);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
+        validateProfile(esqlRequest.profile(), mediaType);
         return checkNonNullMediaType(mediaType, request);
     }
 
@@ -67,22 +68,30 @@ public class EsqlMediaTypeParser {
 
     private static void validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
-            throw new IllegalArgumentException(
-                "Invalid use of [columnar] argument: cannot be used in combination with "
-                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                    + " formats"
-            );
+            throw invalid("columnar");
         }
     }
 
     private static void validateIncludeCCSMetadata(boolean includeCCSMetadata, MediaType fromMediaType) {
         if (includeCCSMetadata && fromMediaType instanceof TextFormat) {
-            throw new IllegalArgumentException(
-                "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with "
-                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                    + " formats"
-            );
+            throw invalid("include_ccs_metadata");
         }
+    }
+
+    private static void validateProfile(boolean profile, MediaType fromMediaType) {
+        if (profile && fromMediaType instanceof TextFormat) {
+            throw invalid("profile");
+        }
+    }
+
+    private static IllegalArgumentException invalid(String argument) {
+        return new IllegalArgumentException(
+            "Invalid use of ["
+                + argument
+                + "] argument: cannot be used in combination with "
+                + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
+                + " formats"
+        );
     }
 
     private static MediaType checkNonNullMediaType(MediaType mediaType, RestRequest request) {

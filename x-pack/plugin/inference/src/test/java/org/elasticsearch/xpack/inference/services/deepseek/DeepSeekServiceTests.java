@@ -146,10 +146,7 @@ public class DeepSeekServiceTests extends ESTestCase {
                 }
                 """,
             assertNoSuccessListener(
-                e -> assertThat(
-                    e.getMessage(),
-                    equalTo("Configuration contains settings [{so=extra}] unknown to the [deepseek] service")
-                )
+                e -> assertThat(e.getMessage(), equalTo("Configuration contains settings [{so=extra}] unknown to the [deepseek] service"))
             )
         );
     }

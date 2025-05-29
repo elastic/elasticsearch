@@ -252,10 +252,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service")
-                );
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
@@ -277,10 +274,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service")
-                );
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
@@ -302,10 +296,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service")
-                );
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);

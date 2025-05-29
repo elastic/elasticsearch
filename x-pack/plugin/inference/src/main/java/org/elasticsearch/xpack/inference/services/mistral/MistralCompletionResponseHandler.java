@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponseEntity;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 
 /**
@@ -24,6 +24,6 @@ public class MistralCompletionResponseHandler extends OpenAiChatCompletionRespon
      * @param parseFunction The function to parse the response.
      */
     public MistralCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, MistralErrorResponseEntity::fromResponse);
+        super(requestType, parseFunction, MistralErrorResponse::fromResponse);
     }
 }

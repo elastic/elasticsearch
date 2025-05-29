@@ -45,8 +45,8 @@ public final class UnfollowAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preUnfollowKey = new StepKey(phase, NAME, CONDITIONAL_UNFOLLOW_STEP);
         StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
-        StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey waitUntilTimeSeriesEndTimePassesStep = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+        StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
         StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowerIndexStep.NAME);
@@ -61,16 +61,18 @@ public final class UnfollowAction implements LifecycleAction {
             // if the index has no CCR metadata we'll skip the unfollow action completely
             return customIndexMetadata == null;
         });
-        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
-        WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(
+        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitUntilTimeSeriesEndTimePassesStep);
+
+        WaitUntilTimeSeriesEndTimePassesStep step2 = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitUntilTimeSeriesEndTimePassesStep,
             waitForFollowShardTasks,
-            waitUntilTimeSeriesEndTimePassesStep,
-            client
-        );
-        WaitUntilTimeSeriesEndTimePassesStep step3 = new WaitUntilTimeSeriesEndTimePassesStep(
-            waitUntilTimeSeriesEndTimePassesStep,
-            pauseFollowerIndex,
             Instant::now
+        );
+
+        WaitForFollowShardTasksStep step3 = new WaitForFollowShardTasksStep(
+            waitForFollowShardTasks,
+            pauseFollowerIndex,
+            client
         );
         PauseFollowerIndexStep step4 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
         CloseFollowerIndexStep step5 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);

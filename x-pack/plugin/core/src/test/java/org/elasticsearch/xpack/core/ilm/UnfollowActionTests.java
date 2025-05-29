@@ -55,8 +55,8 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
 
         StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowAction.CONDITIONAL_UNFOLLOW_STEP);
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
-        StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+        StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
         StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
         StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
         StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
@@ -70,11 +70,11 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
         assertThat(secondStep.getNextStepKey(), equalTo(expectedThirdStepKey));
 
-        WaitForFollowShardTasksStep thirdStep = (WaitForFollowShardTasksStep) steps.get(2);
+        WaitUntilTimeSeriesEndTimePassesStep thirdStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(2);
         assertThat(thirdStep.getKey(), equalTo(expectedThirdStepKey));
         assertThat(thirdStep.getNextStepKey(), equalTo(expectedFourthStepKey));
 
-        WaitUntilTimeSeriesEndTimePassesStep fourthStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(3);
+        WaitForFollowShardTasksStep fourthStep = (WaitForFollowShardTasksStep) steps.get(3);
         assertThat(fourthStep.getKey(), equalTo(expectedFourthStepKey));
         assertThat(fourthStep.getNextStepKey(), equalTo(expectedFifthStepKey));
 

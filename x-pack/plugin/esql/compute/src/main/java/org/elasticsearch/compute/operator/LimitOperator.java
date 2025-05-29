@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class LimitOperator implements Operator {
+    private final BlockFactory blockFactory;
+    private final int pageSize;
 
     /**
      * Count of pages that have been processed by this operator.
@@ -43,12 +45,10 @@ public class LimitOperator implements Operator {
     private long rowsEmitted;
 
     private final Limiter limiter;
-    private boolean finished;
 
-    private final int pageSize;
-    private int pendingRows;
     private final List<Page> queue = new ArrayList<>();
-    private final BlockFactory blockFactory;
+    private int pendingRows;
+    private boolean finished;
 
     public LimitOperator(Limiter limiter, BlockFactory blockFactory, int pageSize) {
         this.limiter = limiter;

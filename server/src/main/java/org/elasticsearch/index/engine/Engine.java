@@ -459,7 +459,8 @@ public abstract class Engine implements Closeable {
         private final Lock pauseIndexingLock = new ReentrantLock();
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
-        private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
+        // private volatile AtomicBoolean pauseIndexing = new AtomicBoolean();
+        private volatile AtomicBoolean pauseThrottling = new AtomicBoolean();
         private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
@@ -471,7 +472,9 @@ public abstract class Engine implements Closeable {
             if (lock == pauseLockReference) {
                 pauseLockReference.acquire();
                 try {
-                    while (pauseIndexing.getAcquire()) {
+                    // while (pauseIndexing.getAcquire()) {
+                    // If throttling is activate and not temporarily paused
+                    while ((lock == pauseLockReference) && (pauseThrottling.getAcquire() == false)) {
                         logger.trace("Waiting on pause indexing lock");
                         pauseCondition.await();
                     }
@@ -490,10 +493,11 @@ public abstract class Engine implements Closeable {
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
+
             startOfThrottleNS = System.nanoTime();
             if (pauseWhenThrottled) {
-                pauseIndexing.setRelease(true);
                 lock = pauseLockReference;
+                logger.trace("Activated index throttling pause");
             } else {
                 lock = lockReference;
             }
@@ -503,19 +507,15 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            if (lock == pauseLockReference) {
-                logger.trace("Deactivate index throttling pause");
-
-                // Signal the threads that are waiting on pauseCondition
-                pauseLockReference.acquire();
-                try {
-                    pauseIndexing.setRelease(false);
-                    pauseCondition.signalAll();
-                } finally {
-                    pauseLockReference.close();
-                }
-            }
             lock = NOOP_LOCK;
+            if (pauseWhenThrottled) {
+                // Signal the threads that are waiting on pauseCondition
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    // pauseIndexing.setRelease(false);
+                    pauseCondition.signalAll();
+                }
+                logger.trace("Deactivated index throttling pause");
+            }
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
             long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
@@ -540,6 +540,28 @@ public abstract class Engine implements Closeable {
 
         boolean isThrottled() {
             return lock != NOOP_LOCK;
+        }
+
+        // Pause throttling to allow another task such as relocation to acquire all indexing permits
+        public void pauseThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    // pauseIndexing.setRelease(false);
+                    pauseThrottling.setRelease(true);
+                    pauseCondition.signalAll();
+                }
+            }
+        }
+
+        // Reverse what was done in pauseThrottle()
+        public void unpauseThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    // pauseIndexing.setRelease(true);
+                    pauseThrottling.setRelease(false);
+                    pauseCondition.signalAll();
+                }
+            }
         }
 
         boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only

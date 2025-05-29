@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.qa.test;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -19,7 +20,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.NetworkInterface;
-import java.net.ProtocolFamily;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
@@ -212,7 +212,11 @@ class NetworkAccessCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void socketChannelOpenAddress() throws IOException {
-        SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
+        try {
+            SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
+        } catch (BindException ex) {
+            // Expected, we are trying to connect to port 0
+        }
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

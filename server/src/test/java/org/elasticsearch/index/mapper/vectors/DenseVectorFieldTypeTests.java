@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;

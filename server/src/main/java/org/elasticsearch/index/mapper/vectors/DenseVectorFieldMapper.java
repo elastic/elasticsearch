@@ -1396,7 +1396,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
                 if (earlyExitNode == null) {
-                    earlyExitNode = true;
+                    earlyExitNode = DEFAULT_EARLY_EXIT;
                 }
                 boolean earlyExit = XContentMapValues.nodeBooleanValue(earlyExitNode);
                 int m = XContentMapValues.nodeIntegerValue(mNode);
@@ -1707,7 +1707,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return DEFAULT_EARLY_EXIT;
+            return false;
         }
     }
 
@@ -1740,7 +1740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return DEFAULT_EARLY_EXIT;
+            return false;
         }
 
         @Override
@@ -1899,7 +1899,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean earlyExit() {
-            return DEFAULT_EARLY_EXIT;
+            return false;
         }
 
     }
@@ -2077,7 +2077,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean earlyExit;
 
         public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
-            this(m, efConstruction, rescoreVector, true);
+            this(m, efConstruction, rescoreVector, DEFAULT_EARLY_EXIT);
         }
 
         public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean earlyExit) {
@@ -2429,8 +2429,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnByteVectorQuery knnByteVectorQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-            // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
+            // TODO : fix reading of saturation threshold and patience params ?
+            Query knnQuery = indexOptions != null && indexOptions.earlyExit()
+                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k*0.3))
+                : knnByteVectorQuery;
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2459,8 +2461,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnByteVectorQuery knnByteVectorQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-            // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery) : knnByteVectorQuery;
+            // TODO: fix reading of saturation threshold and patience params ?
+            Query knnQuery = indexOptions != null && indexOptions.earlyExit()
+                ? PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery, 0.95, (int) (k*0.3))
+                : knnByteVectorQuery;
 
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2524,8 +2528,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     knnSearchStrategy
                 )
                 : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
-            // TODO: add saturation threshold and patience params ?
-            Query knnQuery = indexOptions.earlyExit() ? PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery) : knnFloatVectorQuery;
+            // TODO: fix reading of saturation threshold and patience params ?
+            Query knnQuery = indexOptions != null && indexOptions.earlyExit()
+                ? PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery, 0.95, (int) (k*0.3))
+                : knnFloatVectorQuery;
 
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(

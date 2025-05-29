@@ -80,7 +80,7 @@ $$$search-throttled$$$`search_throttled`
 $$$modules-threadpool-esql$$$`esql_worker`
 :   Executes [{{esql}}](docs-content://explore-analyze/query-filter/languages/esql.md) operations. Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors) ` * 3) / 2) + 1`, and queue_size of `1000`.
 
-Thread pool settings are [static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting) and can be changed by editing `elasticsearch.yml`. Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the number of threads in the `write` thread pool:
+Thread pool settings are [Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting) and can be changed by editing `elasticsearch.yml`. Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the number of threads in the `write` thread pool:
 
 ```yaml
 thread_pool:

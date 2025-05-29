@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -80,7 +81,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    private EnumSet<SnapshotState> state = EnumSet.noneOf(SnapshotState.class);
+    private EnumSet<SnapshotState> states = EnumSet.allOf(SnapshotState.class);
 
     public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -124,7 +125,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             includeIndexNames = in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
-            state = in.readEnumSet(SnapshotState.class);
+            states = in.readEnumSet(SnapshotState.class);
+        } else {
+            states = EnumSet.allOf(SnapshotState.class);
         }
     }
 
@@ -146,7 +149,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeBoolean(includeIndexNames);
         }
         if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
-            out.writeEnumSet(state);
+            out.writeEnumSet(states);
+        } else if (states.equals(EnumSet.allOf(SnapshotState.class)) == false) {
+            final var errorString = "GetSnapshotsRequest [states] field is not supported on all nodes in the cluster";
+            assert false : errorString;
+            throw new IllegalStateException(errorString);
         }
     }
 
@@ -353,12 +360,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return verbose;
     }
 
-    public EnumSet<SnapshotState> state() {
-        return state;
+    public EnumSet<SnapshotState> states() {
+        return states;
     }
 
-    public GetSnapshotsRequest state(EnumSet<SnapshotState> state) {
-        this.state = state;
+    public GetSnapshotsRequest states(EnumSet<SnapshotState> states) {
+        this.states = Objects.requireNonNull(states);
         return this;
     }
 

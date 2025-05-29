@@ -163,7 +163,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             SnapshotsInProgress.get(state),
             request.verbose(),
             request.includeIndexNames(),
-            request.state()
+            request.states()
         ).runOperation(listener);
     }
 
@@ -184,7 +184,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
-        private final EnumSet<SnapshotState> state;
+        private final EnumSet<SnapshotState> states;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -229,7 +229,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
             boolean indices,
-            EnumSet<SnapshotState> state
+            EnumSet<SnapshotState> states
         ) {
             this.cancellableTask = cancellableTask;
             this.repositories = repositories;
@@ -242,7 +242,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
-            this.state = state;
+            this.states = states;
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
@@ -566,7 +566,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
             final var details = repositoryData.getSnapshotDetails(snapshotId);
 
-            if (!state.isEmpty() && !state.contains(details.getSnapshotState())) {
+            if (states.isEmpty() == false
+                && details != null
+                && details.getSnapshotState() != null
+                && states.contains(details.getSnapshotState()) == false) {
                 return false;
             }
 
@@ -579,6 +582,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
             if (fromSortValuePredicates.test(snapshotInfo) == false) {
+                return false;
+            }
+
+            if (states.isEmpty() == false && snapshotInfo.state() != null && states.contains(snapshotInfo.state()) == false) {
                 return false;
             }
 

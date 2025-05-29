@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -40,7 +42,11 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
-    public RestGetSnapshotsAction() {}
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestGetSnapshotsAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
 
     @Override
     public List<Route> routes() {
@@ -87,10 +93,12 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
 
         final String stateString = request.param("state");
-        if (stateString == null || stateString.isEmpty()) {
-            getSnapshotsRequest.state(EnumSet.noneOf(SnapshotState.class));
+        if (Strings.hasLength(stateString) == false) {
+            getSnapshotsRequest.states(EnumSet.allOf(SnapshotState.class));
+        } else if (clusterSupportsFeature.test(GetSnapshotsFeatures.GET_SNAPSHOTS_STATE_PARAMETER)) {
+            getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
         } else {
-            getSnapshotsRequest.state(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::of).toList()));
+            throw new IllegalStateException("[state] parameter is not supported on all nodes in the cluster");
         }
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

@@ -303,3 +303,64 @@ setup:
       snapshot.delete:
         repository: test_repo_get_1
         snapshot: test_snapshot_no_repo_name
+
+---
+"Get snapshot using state parameter":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: SUCCESS
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_state_param }
+  - match: { snapshots.0.state: SUCCESS }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: SUCCESS,PARTIAL
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_state_param }
+  - match: { snapshots.0.state: SUCCESS }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: FAILED
+
+  - is_true: snapshots
+  - length: { snapshots: 0 }
+
+  - do:
+      catch: bad_request
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: FOO
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "No enum constant org.elasticsearch.snapshots.SnapshotState.FOO" }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param

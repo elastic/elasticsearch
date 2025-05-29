@@ -153,8 +153,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     }
 
-    public GetSnapshotsRequestBuilder setState(EnumSet<SnapshotState> state) {
-        request.state(state);
+    public GetSnapshotsRequestBuilder setStates(EnumSet<SnapshotState> states) {
+        request.states(states);
         return this;
     }
 }

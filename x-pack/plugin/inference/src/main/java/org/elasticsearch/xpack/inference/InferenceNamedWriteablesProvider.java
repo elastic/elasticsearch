@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.RerankTaskSettin
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
@@ -461,6 +462,15 @@ public class InferenceNamedWriteablesProvider {
                 GoogleVertexAiRerankTaskSettings::new
             )
         );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleVertexAiChatCompletionServiceSettings.NAME,
+                GoogleVertexAiChatCompletionServiceSettings::new
+            )
+        );
+
     }
 
     private static void addInternalNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

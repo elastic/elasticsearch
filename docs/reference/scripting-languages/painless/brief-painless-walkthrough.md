@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-walkthrough.html
+products:
+  - id: painless
 ---
 
 # A brief painless walkthrough [painless-walkthrough]

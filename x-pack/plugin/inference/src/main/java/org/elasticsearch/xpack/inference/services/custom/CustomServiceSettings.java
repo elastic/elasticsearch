@@ -360,7 +360,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ADD_INFERENCE_CUSTOM_MODEL;
+        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override

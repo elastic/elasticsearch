@@ -1,0 +1,36 @@
+{
+  "indices.get_data_stream_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Gets a data stream's settings"
+    },
+    "stability":"stable",
+    "visibility": "feature_flag",
+    "feature_flag": "logs_stream",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/{name}/_settings",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"Comma-separated list of data streams or data stream patterns"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Period to wait for a connection to the master node"
+      }
+    }
+  }
+}

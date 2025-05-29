@@ -256,7 +256,7 @@ public class CustomService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ADD_INFERENCE_CUSTOM_MODEL;
+        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     public static class Configuration {

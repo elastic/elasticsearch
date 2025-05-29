@@ -64,23 +64,6 @@ location:geo_point | geohash4:keyword | geohash3:keyword | geohash2:keyword | ge
 POINT(12.6493508684508 55.6285017221528) | u3bu | u3b | u3 | u
 ;
 
-geohashLiteralMv
-required_capability: spatial_grid
-
-ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
-| MV_EXPAND precision
-| EVAL geohash = ST_GEOHASH(location, precision)
-| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
-;
-
-location:geo_point                        | precision:integer | geohash:long | geohashString:keyword
-POINT (12.6493508684508 55.6285017221528) | 1                 | 417          | u
-POINT (12.6493508684508 55.6285017221528) | 2                 | 13362        | u3
-POINT (12.6493508684508 55.6285017221528) | 3                 | 427683       | u3b
-POINT (12.6493508684508 55.6285017221528) | 4                 | 13686180     | u3bu
-POINT (12.6493508684508 55.6285017221528) | 5                 | 437958005    | u3bur
-;
-
 geohashField
 required_capability: spatial_grid
 
@@ -370,23 +353,6 @@ location:geo_point                        | geotile4:keyword | geotile3:keyword 
 POINT (12.6493508684508 55.6285017221528) | 4/8/5            | 3/4/2            | 2/2/1            | 1/1/0           
 ;
 
-geotileLiteralMv
-required_capability: spatial_grid
-
-ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
-| MV_EXPAND precision
-| EVAL geotile = ST_GEOTILE(location, precision)
-| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
-;
-
-location:geo_point                        | precision:integer | geotile:long        | geotileString:keyword
-POINT (12.6493508684508 55.6285017221528) | 1                 | 288230376688582656  | 1/1/0
-POINT (12.6493508684508 55.6285017221528) | 2                 | 576460753377165313  | 2/2/1
-POINT (12.6493508684508 55.6285017221528) | 3                 | 864691130602618882  | 3/4/2
-POINT (12.6493508684508 55.6285017221528) | 4                 | 1152921508901814277 | 4/8/5
-POINT (12.6493508684508 55.6285017221528) | 5                 | 1441151889885364234 | 5/17/10
-;
-
 geotileField
 required_capability: spatial_grid
 
@@ -638,23 +604,6 @@ ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 
 location:geo_point                        | geohex4:keyword | geohex3:keyword | geohex2:keyword | geohex1:keyword
 POINT (12.6493508684508 55.6285017221528) | 841f059ffffffff | 831f05fffffffff | 821f07fffffffff | 811f3ffffffffff
-;
-
-geohexLiteralMv
-required_capability: spatial_grid
-
-ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
-| MV_EXPAND precision
-| EVAL geohex = ST_GEOHEX(location, precision)
-| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)
-;
-
-location:geo_point                        | precision:integer | geohex:long        | geohexString:keyword
-POINT (12.6493508684508 55.6285017221528) | 1                 | 581514107744681983 | 811f3ffffffffff
-POINT (12.6493508684508 55.6285017221528) | 2                 | 586013859081355263 | 821f07fffffffff
-POINT (12.6493508684508 55.6285017221528) | 3                 | 590517321269772287 | 831f05fffffffff
-POINT (12.6493508684508 55.6285017221528) | 4                 | 595020895127339007 | 841f059ffffffff
-POINT (12.6493508684508 55.6285017221528) | 5                 | 599524487238516735 | 851f0583fffffff
 ;
 
 geohexField

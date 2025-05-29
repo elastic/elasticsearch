@@ -50,10 +50,12 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
      */
     protected static class GeoHashBoundedGrid implements BoundedGrid {
         private final int precision;
+        private final GeoBoundingBox bbox;
         private final GeoHashBoundedPredicate bounds;
 
         public GeoHashBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
+            this.bbox = bbox;
             this.bounds = new GeoHashBoundedPredicate(precision, bbox);
         }
 
@@ -69,6 +71,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         @Override
         public int precision() {
             return precision;
+        }
+
+        @Override
+        public String toString() {
+            return "[" + bbox + "]";
         }
     }
 
@@ -155,67 +162,24 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (parameter().foldable() == false) {
+            throw new IllegalArgumentException("precision must be foldable");
+        }
         if (bounds != null) {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
-            if (spatialField().foldable()) {
-                // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
-                var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
-                return new StGeohashFromLiteralAndFieldAndLiteralEvaluator.Factory(source(), point, toEvaluator.apply(parameter()), bbox);
-            } else if (parameter().foldable()) {
-                // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-                int precision = (int) parameter.fold(toEvaluator.foldCtx());
-                GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-                return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField()),
-                        bounds
-                    )
-                    : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
-            } else {
-                // Both arguments come from index fields
-                return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndFieldAndLiteralEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        toEvaluator.apply(parameter),
-                        bbox
-                    )
-                    : new StGeohashFromFieldAndFieldAndLiteralEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        toEvaluator.apply(parameter),
-                        bbox
-                    );
-            }
+            int precision = (int) parameter.fold(toEvaluator.foldCtx());
+            GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
+            return spatialDocsValues
+                ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), bounds)
+                : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
         } else {
-            if (spatialField().foldable()) {
-                // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
-                var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
-                return new StGeohashFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
-            } else if (parameter().foldable()) {
-                // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-                int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-                return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                    : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
-            } else {
-                // Both arguments come from index fields
-                return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndFieldEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        toEvaluator.apply(parameter)
-                    )
-                    : new StGeohashFromFieldAndFieldEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(spatialField),
-                        toEvaluator.apply(parameter)
-                    );
-            }
+            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            return spatialDocsValues
+                ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
+                : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
         }
     }
 
@@ -224,9 +188,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
         if (bounds() == null) {
-            return fromLiteralAndField(point, precision);
+            return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
         } else {
-            return fromLiteralAndFieldAndLiteral(point, precision, asGeoBoundingBox((BytesRef) bounds().fold(ctx)));
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
+            GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
+            return bounds.calculateGridId(GEO.wkbAsPoint(point));
         }
     }
 
@@ -238,21 +204,6 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
         fromEncodedLong(results, p, encoded, precision, unboundedGrid);
-    }
-
-    @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndField(LongBlock.Builder results, int p, BytesRefBlock in, int precision) {
-        fromWKB(results, p, in, checkPrecisionRange(precision), unboundedGrid);
-    }
-
-    @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndField(LongBlock.Builder results, int p, LongBlock encoded, int precision) {
-        fromEncodedLong(results, p, encoded, checkPrecisionRange(precision), unboundedGrid);
-    }
-
-    @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
-    static long fromLiteralAndField(@Fixed BytesRef in, int precision) {
-        return unboundedGrid.calculateGridId(GEO.wkbAsPoint(in), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -268,29 +219,5 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         @Fixed GeoHashBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
-    }
-
-    @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-        fromWKB(results, p, in, bounds);
-    }
-
-    @Evaluator(extraName = "FromFieldDocValuesAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndFieldAndLiteral(
-        LongBlock.Builder results,
-        int p,
-        LongBlock encoded,
-        int precision,
-        @Fixed GeoBoundingBox bbox
-    ) {
-        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-        fromEncodedLong(results, p, encoded, bounds);
-    }
-
-    @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static long fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed GeoBoundingBox bbox) {
-        GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-        return bounds.calculateGridId(GEO.wkbAsPoint(in));
     }
 }

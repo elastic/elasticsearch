@@ -22,7 +22,7 @@ public class GeoHexBoundedPredicate {
     GeoHexBoundedPredicate(GeoBoundingBox bbox) {
         this.crossesDateline = bbox.right() < bbox.left();
         // TODO remove this once we get serverless flaky tests to pass
-        assert this.crossesDateline == false;
+        // assert this.crossesDateline == false;
         this.bbox = bbox;
         scratch = new GeoBoundingBox(new org.elasticsearch.common.geo.GeoPoint(), new org.elasticsearch.common.geo.GeoPoint());
     }

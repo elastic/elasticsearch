@@ -35,7 +35,7 @@ public class StGeohashErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "geo_point";
             case 1 -> "integer";
-            case 2 -> "geo_shape";
+            case 2 -> "geo_shape or geo_point";
             default -> throw new IllegalStateException("Unexpected value: " + p);
         }));
     }

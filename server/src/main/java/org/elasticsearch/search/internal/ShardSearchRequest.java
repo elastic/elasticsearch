@@ -101,6 +101,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      */
     private final boolean forceSyntheticSource;
 
+    private transient boolean runCanMatchInQueryPhase = true;
+
     public ShardSearchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
@@ -347,6 +349,14 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    public void setRunCanMatchInQueryPhase(boolean runCanMatchInQueryPhase) {
+        this.runCanMatchInQueryPhase = runCanMatchInQueryPhase;
+    }
+
+    public boolean runCanMatchInQueryPhase() {
+        return runCanMatchInQueryPhase;
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {

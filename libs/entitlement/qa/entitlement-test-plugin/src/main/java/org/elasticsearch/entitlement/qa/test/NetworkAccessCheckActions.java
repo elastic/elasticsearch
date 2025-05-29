@@ -19,12 +19,14 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.NetworkInterface;
+import java.net.ProtocolFamily;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.StandardProtocolFamily;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
@@ -201,6 +203,16 @@ class NetworkAccessCheckActions {
                 // "connect" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
         }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenProtocol() throws IOException {
+        SocketChannel.open(StandardProtocolFamily.INET).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenAddress() throws IOException {
+        SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

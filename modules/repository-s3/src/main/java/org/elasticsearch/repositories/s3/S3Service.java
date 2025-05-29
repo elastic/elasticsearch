@@ -182,6 +182,7 @@ class S3Service extends AbstractLifecycleComponent {
         return projectId == null ? ProjectId.DEFAULT : projectId;
     }
 
+    // TODO: consider moving client building into S3ClientsManager
     private AmazonS3Reference buildClientReference(final S3ClientSettings clientSettings) {
         final SdkHttpClient httpClient = buildHttpClient(clientSettings, getCustomDnsResolver());
         Releasable toRelease = httpClient::close;

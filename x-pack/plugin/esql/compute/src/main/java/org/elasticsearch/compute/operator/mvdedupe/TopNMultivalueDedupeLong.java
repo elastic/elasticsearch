@@ -20,7 +20,10 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 /**
- * Removes duplicate values from multivalued positions, and keeps only the top N.
+ * Removes duplicate values from multivalued positions, and keeps only the ones that pass the filters.
+ * <p>
+ *     Clone of {@link MultivalueDedupeLong}, but for it accepts a predicate and nulls flag to filter the values.
+ * </p>
  */
 public class TopNMultivalueDedupeLong {
     /**
@@ -37,7 +40,7 @@ public class TopNMultivalueDedupeLong {
     /**
      * Whether the hash expects nulls or not.
      */
-    final boolean hasNull;
+    final boolean acceptNulls;
     /**
      * A predicate to test if a value is part of the top N or not.
      */
@@ -54,137 +57,10 @@ public class TopNMultivalueDedupeLong {
      */
     int w;
 
-    public TopNMultivalueDedupeLong(LongBlock block, boolean hasNull, Predicate<Long> isAcceptable) {
+    public TopNMultivalueDedupeLong(LongBlock block, boolean acceptNulls, Predicate<Long> isAcceptable) {
         this.block = block;
-        this.hasNull = hasNull;
+        this.acceptNulls = acceptNulls;
         this.isAcceptable = isAcceptable;
-    }
-
-    /**
-     * Remove duplicate values from each position and write the results to a
-     * {@link Block} using an adaptive algorithm based on the size of the input list.
-     */
-    public LongBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
-        if (block.mvDeduplicated()) {
-            block.incRef();
-            return block;
-        }
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
-            for (int p = 0; p < block.getPositionCount(); p++) {
-                int count = block.getValueCount(p);
-                int first = block.getFirstValueIndex(p);
-                switch (count) {
-                    case 0 -> builder.appendNull();
-                    case 1 -> builder.appendLong(block.getLong(first));
-                    default -> {
-                        /*
-                         * It's better to copyMissing when there are few unique values
-                         * and better to copy and sort when there are many unique values.
-                         * The more duplicate values there are the more comparatively worse
-                         * copyAndSort is. But we don't know how many unique values there
-                         * because our job is to find them. So we use the count of values
-                         * as a proxy that is fast to test. It's not always going to be
-                         * optimal but it has the nice property of being quite quick on
-                         * short lists and not n^2 levels of terrible on long ones.
-                         *
-                         * It'd also be possible to make a truly hybrid mechanism that
-                         * switches from copyMissing to copyUnique once it collects enough
-                         * unique values. The trouble is that the switch is expensive and
-                         * makes kind of a "hole" in the performance of that mechanism where
-                         * you may as well have just gone with either of the two other
-                         * strategies. So we just don't try it for now.
-                         */
-                        if (count < ALWAYS_COPY_MISSING) {
-                            copyMissing(first, count);
-                            writeUniquedWork(builder);
-                        } else {
-                            copyAndSort(first, count);
-                            deduplicatedSortedWork(builder);
-                        }
-                    }
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    /**
-     * Remove duplicate values from each position and write the results to a
-     * {@link Block} using an algorithm with very low overhead but {@code n^2}
-     * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
-     * which picks based on the number of elements at each position.
-     */
-    public LongBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
-        if (block.mvDeduplicated()) {
-            block.incRef();
-            return block;
-        }
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
-            for (int p = 0; p < block.getPositionCount(); p++) {
-                int count = block.getValueCount(p);
-                int first = block.getFirstValueIndex(p);
-                switch (count) {
-                    case 0 -> builder.appendNull();
-                    case 1 -> builder.appendLong(block.getLong(first));
-                    default -> {
-                        copyAndSort(first, count);
-                        deduplicatedSortedWork(builder);
-                    }
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    /**
-     * Remove duplicate values from each position and write the results to a
-     * {@link Block} using an algorithm that sorts all values. It has a higher
-     * overhead for small numbers of values at each position than
-     * {@link #dedupeToBlockUsingCopyMissing} for large numbers of values the
-     * performance is dominated by the {@code n*log n} sort. Prefer
-     * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
-     */
-    public LongBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
-        if (block.mvDeduplicated()) {
-            block.incRef();
-            return block;
-        }
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
-            for (int p = 0; p < block.getPositionCount(); p++) {
-                int count = block.getValueCount(p);
-                int first = block.getFirstValueIndex(p);
-                switch (count) {
-                    case 0 -> builder.appendNull();
-                    case 1 -> builder.appendLong(block.getLong(first));
-                    default -> {
-                        copyMissing(first, count);
-                        writeUniquedWork(builder);
-                    }
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    /**
-     * Sort values from each position and write the results to a {@link Block}.
-     */
-    public LongBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
-            for (int p = 0; p < block.getPositionCount(); p++) {
-                int count = block.getValueCount(p);
-                int first = block.getFirstValueIndex(p);
-                switch (count) {
-                    case 0 -> builder.appendNull();
-                    case 1 -> builder.appendLong(block.getLong(first));
-                    default -> {
-                        copyAndSort(first, count);
-                        writeSortedWork(builder, ascending);
-                    }
-                }
-            }
-            return builder.build();
-        }
     }
 
     /**
@@ -200,7 +76,7 @@ public class TopNMultivalueDedupeLong {
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> {
-                        if (hasNull) {
+                        if (acceptNulls) {
                             sawNull = true;
                             builder.appendInt(0);
                         } else {
@@ -237,7 +113,7 @@ public class TopNMultivalueDedupeLong {
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> {
-                        if (hasNull) {
+                        if (acceptNulls) {
                             builder.appendInt(0);
                         } else {
                             builder.appendNull();
@@ -260,68 +136,6 @@ public class TopNMultivalueDedupeLong {
             }
             return builder.build();
         }
-    }
-
-    /**
-     * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
-     * things like hashing many fields together.
-     */
-    public BatchEncoder batchEncoder(int batchSize) {
-        block.incRef();
-        return new BatchEncoder.Longs(batchSize) {
-            @Override
-            protected void readNextBatch() {
-                int position = firstPosition();
-                if (w > 0) {
-                    // The last block didn't fit so we have to *make* it fit
-                    ensureCapacity(w);
-                    startPosition();
-                    encodeUniquedWork(this);
-                    endPosition();
-                    position++;
-                }
-                for (; position < block.getPositionCount(); position++) {
-                    int count = block.getValueCount(position);
-                    int first = block.getFirstValueIndex(position);
-                    switch (count) {
-                        case 0 -> encodeNull();
-                        case 1 -> {
-                            long v = block.getLong(first);
-                            if (hasCapacity(1)) {
-                                startPosition();
-                                encode(v);
-                                endPosition();
-                            } else {
-                                work[0] = v;
-                                w = 1;
-                                return;
-                            }
-                        }
-                        default -> {
-                            if (count < ALWAYS_COPY_MISSING) {
-                                copyMissing(first, count);
-                            } else {
-                                copyAndSort(first, count);
-                                convertSortedWorkToUnique();
-                            }
-                            if (hasCapacity(w)) {
-                                startPosition();
-                                encodeUniquedWork(this);
-                                endPosition();
-                            } else {
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            @Override
-            public void close() {
-                block.decRef();
-            }
-        };
     }
 
     /**
@@ -376,52 +190,6 @@ public class TopNMultivalueDedupeLong {
                 work[w++] = v;
             }
         }
-    }
-
-    /**
-     * Writes an already deduplicated {@link #work} to a {@link LongBlock.Builder}.
-     */
-    private void writeUniquedWork(LongBlock.Builder builder) {
-        if (w == 1) {
-            builder.appendLong(work[0]);
-            return;
-        }
-        builder.beginPositionEntry();
-        for (int i = 0; i < w; i++) {
-            builder.appendLong(work[i]);
-        }
-        builder.endPositionEntry();
-    }
-
-    /**
-     * Writes a sorted {@link #work} to a {@link LongBlock.Builder}, skipping duplicates.
-     */
-    private void deduplicatedSortedWork(LongBlock.Builder builder) {
-        builder.beginPositionEntry();
-        long prev = work[0];
-        builder.appendLong(prev);
-        for (int i = 1; i < w; i++) {
-            if (prev != work[i]) {
-                prev = work[i];
-                builder.appendLong(prev);
-            }
-        }
-        builder.endPositionEntry();
-    }
-
-    /**
-     * Writes a {@link #work} to a {@link LongBlock.Builder}.
-     */
-    private void writeSortedWork(LongBlock.Builder builder, boolean ascending) {
-        builder.beginPositionEntry();
-        for (int i = 0; i < w; i++) {
-            if (ascending) {
-                builder.appendLong(work[i]);
-            } else {
-                builder.appendLong(work[w - i - 1]);
-            }
-        }
-        builder.endPositionEntry();
     }
 
     /**
@@ -605,30 +373,6 @@ public class TopNMultivalueDedupeLong {
             i++;
         }
         builder.endPositionEntry();
-    }
-
-    /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Longs}.
-     */
-    private void encodeUniquedWork(BatchEncoder.Longs encoder) {
-        for (int i = 0; i < w; i++) {
-            encoder.encode(work[i]);
-        }
-    }
-
-    /**
-     * Converts {@link #work} from sorted array to a deduplicated array.
-     */
-    private void convertSortedWorkToUnique() {
-        long prev = work[0];
-        int end = w;
-        w = 1;
-        for (int i = 1; i < end; i++) {
-            if (false == valuesEqual(prev, work[i])) {
-                prev = work[i];
-                work[w++] = prev;
-            }
-        }
     }
 
     private void grow(int size) {

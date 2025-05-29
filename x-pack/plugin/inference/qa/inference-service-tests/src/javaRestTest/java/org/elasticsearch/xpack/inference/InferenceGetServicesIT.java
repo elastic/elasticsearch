@@ -103,7 +103,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(8));
+        assertThat(services.size(), equalTo(9));
 
         var providers = providers(services);
 
@@ -127,7 +127,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(12));
+        assertThat(services.size(), equalTo(13));
 
         var providers = providers(services);
 

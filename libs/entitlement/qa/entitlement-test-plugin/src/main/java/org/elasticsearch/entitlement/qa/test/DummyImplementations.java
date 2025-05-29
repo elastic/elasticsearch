@@ -872,7 +872,6 @@ class DummyImplementations {
         }
     }
 
-
     static class DummySelector extends AbstractSelector {
         protected DummySelector(SelectorProvider provider) {
             super(provider);

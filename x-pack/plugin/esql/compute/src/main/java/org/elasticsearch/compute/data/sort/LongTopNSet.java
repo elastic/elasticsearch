@@ -12,15 +12,15 @@ import org.elasticsearch.common.util.BinarySearcher;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 /**
- * Aggregates the top N long values per bucket.
- * See {@link BucketedSort} for more information.
- * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
+ * Aggregates the top N collected values, and keeps them sorted.
+ * <p>
+ *     Collection is O(1) for values out of the current top N. For values better than the worst value, it's O(log(n)).
+ * </p>
  */
-public class LongTopNUniqueSort implements Releasable {
+public class LongTopNSet implements Releasable {
 
     private final SortOrder order;
     private int limit;
@@ -30,7 +30,7 @@ public class LongTopNUniqueSort implements Releasable {
 
     private int count;
 
-    public LongTopNUniqueSort(BigArrays bigArrays, SortOrder order, int limit) {
+    public LongTopNSet(BigArrays bigArrays, SortOrder order, int limit) {
         this.order = order;
         this.limit = limit;
         this.count = 0;
@@ -38,6 +38,9 @@ public class LongTopNUniqueSort implements Releasable {
         this.searcher = new LongBinarySearcher(values, order);
     }
 
+    /**
+     * Adds the value to the top N, as long as it is "better" than the worst value, or the top isn't full yet.
+     */
     public boolean collect(long value) {
         if (limit == 0) {
             return false;
@@ -92,6 +95,12 @@ public class LongTopNUniqueSort implements Releasable {
         count = Math.min(count, limit);
     }
 
+    /**
+     * Returns the worst value in the top.
+     * <p>
+     *     The worst is the greatest value for {@link SortOrder#ASC}, and the lowest value for {@link SortOrder#DESC}.
+     * </p>
+     */
     public long getWorstValue() {
         assert count > 0;
         return values.get(count - 1);

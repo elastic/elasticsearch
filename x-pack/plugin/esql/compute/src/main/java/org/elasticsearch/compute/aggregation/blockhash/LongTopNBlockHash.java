@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.sort.LongTopNUniqueSort;
+import org.elasticsearch.compute.data.sort.LongTopNSet;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
@@ -37,7 +37,7 @@ final class LongTopNBlockHash extends BlockHash {
     private final boolean nullsFirst;
     private final int limit;
     private final LongHash hash;
-    private final LongTopNUniqueSort topValues;
+    private final LongTopNSet topValues;
 
     /**
      * Have we seen any {@code null} values?
@@ -59,7 +59,7 @@ final class LongTopNBlockHash extends BlockHash {
         boolean success = false;
         try {
             this.hash = new LongHash(1, blockFactory.bigArrays());
-            this.topValues = new LongTopNUniqueSort(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.topValues = new LongTopNSet(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
         } finally {
             if (success == false) {
                 close();

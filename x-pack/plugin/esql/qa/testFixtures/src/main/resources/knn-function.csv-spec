@@ -1,41 +1,45 @@
 knnSearch
 required_capability: knn_function
 
+// tag::knn-function[]
 from colors metadata _score 
 | where knn(rgb_vector, [0, 120, 0]) 
 | sort _score desc 
-| eval round_score = round(_score, 4)
-| keep color, rgb_vector, round_score
+// end::knn-function[]
+| keep color, rgb_vector
 ;
 
-color:text       | rgb_vector:dense_vector | round_score:double
-green            | [0.0, 128.0, 0.0]       | 0.0127            
-dark green       | [0.0, 100.0, 0.0]       | 0.0027            
-forest green     | [34.0, 139.0, 34.0]     | 0.0023            
-dark olive green | [85.0, 107.0, 47.0]     | 3.0E-4            
-sea green        | [46.0, 139.0, 87.0]     | 2.0E-4            
-dark slate gray  | [47.0, 79.0, 79.0]      | 2.0E-4            
-olive drab       | [107.0, 142.0, 35.0]    | 1.0E-4            
-lime green       | [50.0, 205.0, 50.0]     | 1.0E-4            
-black            | [0.0, 0.0, 0.0]         | 1.0E-4            
-olive            | [128.0, 128.0, 0.0]     | 1.0E-4  
+// tag::knn-function-result[]
+color:text       | rgb_vector:dense_vector
+green            | [0.0, 128.0, 0.0]      
+dark green       | [0.0, 100.0, 0.0]      
+forest green     | [34.0, 139.0, 34.0]    
+dark olive green | [85.0, 107.0, 47.0]    
+sea green        | [46.0, 139.0, 87.0]    
+dark slate gray  | [47.0, 79.0, 79.0]     
+olive drab       | [107.0, 142.0, 35.0]   
+lime green       | [50.0, 205.0, 50.0]    
+black            | [0.0, 0.0, 0.0]        
+olive            | [128.0, 128.0, 0.0]    
+// end::knn-function-result[]
 ;
 
 knnSearchWithKOption
 required_capability: knn_function
 
+// tag::knn-function-options[]
 from colors metadata _score 
 | where knn(rgb_vector, [0,255,255], {"k": 4})
 | sort _score desc 
-| eval round_score = round(_score, 4)
-| keep color, rgb_vector, round_score
+// end::knn-function-options[]
+| keep color, rgb_vector
 ;
 
-color:text     | rgb_vector:dense_vector | round_score:double
-cyan           | [0.0, 255.0, 255.0]     | 1.0               
-deep sky blue  | [0.0, 191.0, 255.0]     | 3.0E-4            
-dark turquoise | [0.0, 206.0, 209.0]     | 3.0E-4            
-turquoise      | [64.0, 224.0, 208.0]    | 3.0E-4 
+color:text     | rgb_vector:dense_vector
+cyan           | [0.0, 255.0, 255.0]    
+deep sky blue  | [0.0, 191.0, 255.0]    
+dark turquoise | [0.0, 206.0, 209.0]    
+turquoise      | [64.0, 224.0, 208.0]   
 ;
 
 knnSearchWithSimilarityOption

@@ -14,19 +14,46 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.nio.file.Path;
+import java.util.stream.Stream;
+
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
     /**
      * Activates entitlement checking in tests.
-     * @param pathLookup
      */
-    public static void bootstrap(PathLookup pathLookup) {
-        assert pathLookup != null;
-        TestEntitlementInitialization.initializeArgs = new TestEntitlementInitialization.InitializeArgs(pathLookup);
+    public static void bootstrap() {
+        TestEntitlementInitialization.initializeArgs = new TestEntitlementInitialization.InitializeArgs(new TestPathLookup());
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), TestEntitlementInitialization.class.getName());
     }
 
+    private record TestPathLookup() implements PathLookup {
+        @Override
+        public Path pidFile() {
+            throw notYetImplemented();
+        }
+
+        @Override
+        public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
+            throw notYetImplemented();
+        }
+
+        @Override
+        public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
+            throw notYetImplemented();
+        }
+
+        @Override
+        public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
+            throw notYetImplemented();
+        }
+
+        private static IllegalStateException notYetImplemented() {
+            return new IllegalStateException("not yet implemented");
+        }
+
+    }
 }

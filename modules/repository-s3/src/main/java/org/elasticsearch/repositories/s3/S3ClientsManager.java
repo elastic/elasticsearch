@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -183,29 +184,11 @@ public class S3ClientsManager implements ClusterStateApplier {
     }
 
     S3ClientSettings settingsForClient(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
-            return clusterClientsHolder.singleClientSettings(repositoryMetadata);
-        }
-
-        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
-        final var clientsHolder = perProjectClientsHolders.get(projectId);
-        if (clientsHolder == null) {
-            throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
-        }
-        return clientsHolder.singleClientSettings(repositoryMetadata);
+        return getClientsHolderSafe(projectId).singleClientSettings(repositoryMetadata);
     }
 
     AmazonS3Reference client(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
-        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
-            return clusterClientsHolder.client(repositoryMetadata);
-        }
-
-        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
-        final var clientsHolder = perProjectClientsHolders.get(projectId);
-        if (clientsHolder == null) {
-            throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
-        }
-        return clientsHolder.client(repositoryMetadata);
+        return getClientsHolderSafe(projectId).client(repositoryMetadata);
     }
 
     /**
@@ -213,15 +196,27 @@ public class S3ClientsManager implements ClusterStateApplier {
      * All clients for the project are closed and will be recreated on next access.
      */
     void releaseCachedClients(ProjectId projectId) {
-        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
-            clusterClientsHolder.clearCache();
-            return;
-        }
-
-        assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
-        final var old = perProjectClientsHolders.get(projectId);
+        final var old = getClientsHolder(projectId);
         if (old != null) {
             old.clearCache();
+        }
+    }
+
+    private ClientsHolder<?> getClientsHolderSafe(ProjectId projectId) {
+        final var clientsHolder = getClientsHolder(projectId);
+        if (clientsHolder == null) {
+            throw new IllegalArgumentException("no s3 client is configured for project [" + projectId + "]");
+        }
+        return clientsHolder;
+    }
+
+    @Nullable
+    private ClientsHolder<?> getClientsHolder(ProjectId projectId) {
+        if (ProjectId.DEFAULT.equals(Objects.requireNonNull(projectId))) {
+            return clusterClientsHolder;
+        } else {
+            assert perProjectClientsHolders != null : "expect per-project clients holders to be non-null";
+            return perProjectClientsHolders.get(projectId);
         }
     }
 

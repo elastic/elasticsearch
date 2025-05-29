@@ -21,10 +21,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -66,11 +69,71 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
     );
 
-    @FunctionInfo(returnType = "boolean", preview = true, description = """
-        Finds the k nearest vectors to a query vector, as measured by a similarity metric.
-        knn function finds nearest vectors through approximate search on indexed dense_vectors
-        """, appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) })
-    public Knn(Source source, Expression field, Expression query, Expression options) {
+    @FunctionInfo(
+        returnType = "boolean",
+        preview = true,
+        description = """
+            Finds the k nearest vectors to a query vector, as measured by a similarity metric.
+            knn function finds nearest vectors through approximate search on indexed dense_vectors
+            """,
+        examples = {
+            @Example(file = "knn-function", tag = "knn-function"),
+            @Example(file = "knn-function", tag = "knn-function-options"), },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+    )
+    public Knn(
+        Source source,
+        @Param(name = "field", type = { "dense_vector" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "query",
+            type = { "dense_vector" },
+            description = "Vector value to find top nearest neighbours for."
+        ) Expression query,
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "boost",
+                    type = "float",
+                    valueHint = { "2.5" },
+                    description = "Floating point number used to decrease or increase the relevance scores of the query. "
+                        + "Defaults to 1.0."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "k",
+                    type = "integer",
+                    valueHint = { "10" },
+                    description = "The number of nearest neighbors to return from each shard. "
+                        + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
+                        + "This value must be less than or equal to num_candidates. Defaults to 10."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "num_candidates",
+                    type = "integer",
+                    valueHint = { "10" },
+                    description = "The number of nearest neighbor candidates to consider per shard while doing knn search. "
+                        + "Cannot exceed 10,000. Increasing num_candidates tends to improve the accuracy of the final results. "
+                        + "Defaults to 1.5 * k"
+                ),
+                @MapParam.MapParamEntry(
+                    name = "similarity",
+                    type = "double",
+                    valueHint = { "0.01" },
+                    description = "The minimum similarity required for a document to be considered a match. "
+                        + "The similarity value calculated relates to the raw similarity used, not the document score"
+                ),
+                @MapParam.MapParamEntry(
+                    name = "rescore_oversample",
+                    type = "double",
+                    valueHint = { "3.5" },
+                    description = "Applies the specified oversampling for rescoring quantized vectors. "
+                        + "See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
+                ), },
+            description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
+                + " See <<query-dsl-knn-query,knn query>> for more information.",
+            optional = true
+        ) Expression options
+    ) {
         this(source, field, query, options, null);
     }
 

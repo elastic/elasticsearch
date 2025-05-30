@@ -2804,6 +2804,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
+     */
+    protected String activeProjectPrefix() {
+        return multiProjectEnabled ? (activeProject + "/") : "";
+    }
+
     protected void createProject(String project) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("PUT", "/_project/" + project);
@@ -2826,7 +2834,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    private Collection<String> getProjectIds(RestClient client) throws IOException {
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
         try {

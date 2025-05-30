@@ -46,8 +46,11 @@ import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -72,8 +75,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. " +
-                "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
+        description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
+            + "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
         examples = {
             @Example(file = "knn-function", tag = "knn-function"),
             @Example(file = "knn-function", tag = "knn-function-options"), },
@@ -156,12 +159,48 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     @Override
     protected TypeResolution resolveParams() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
+        return resolveField().and(resolveQuery()).and(resolveOptions());
+    }
+
+    private TypeResolution resolveField() {
+        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
+    }
+
+    private TypeResolution resolveQuery() {
+        return isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector").and(
+            isNotNullAndFoldable(query(), sourceText(), SECOND)
+        );
+    }
+
+    private TypeResolution resolveOptions() {
+        if (options() != null) {
+            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options(), sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                knnQueryOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    private Map<String, Object> knnQueryOptions() throws InvalidArgumentException {
+        if (options() == null) {
+            return Map.of();
         }
 
-        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"))
-            .and(isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector"));
+        Map<String, Object> matchOptions = new HashMap<>();
+        populateOptionsMap((MapExpression) options(), matchOptions, THIRD, sourceText(), ALLOWED_OPTIONS);
+        return matchOptions;
     }
 
     @Override
@@ -240,8 +279,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
-                && Objects.equals(query(), knn.query())
-                && Objects.equals(queryBuilder(), knn.queryBuilder());
+            && Objects.equals(query(), knn.query())
+            && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override

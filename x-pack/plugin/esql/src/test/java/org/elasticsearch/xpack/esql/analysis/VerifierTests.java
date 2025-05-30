@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -54,7 +55,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -2173,231 +2173,72 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"max_expansions\": 10})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})", defaultAnalyzer);
+    }
 
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [match(first_name, \"Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
-        }
-
-        assertThat(
-            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
+    public void testMultiMatchOptions() {
+        checkOptionDataTypes(
+            MultiMatch.OPTIONS,
+            "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})",
+            defaultAnalyzer
         );
     }
 
     public void testQueryStringOptions() {
-        // Check positive cases
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"allow_leading_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyze_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_field\": \"field1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_operator\": \"AND\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"enable_position_increments\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_prefix_length\": 5})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"max_determinized_states\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_analyzer\": \"qnalyzer_1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_field_suffix\": \"q_suffix\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"phrase_slop\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"rewrite\": \"r1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"time_zone\": \"time_zone\"})");
-
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : QueryString.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE QSTR(\"first_name: Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [QSTR(\"first_name: Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
-        }
-
-        assertThat(
-            error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
-        );
+        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})", defaultAnalyzer);
     }
 
-    public void testMultiMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name)");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"slop\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzziness\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"lenient\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"max_expansions\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"operator\": \"AND\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"prefix_length\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"tie_breaker\": 1.0})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"type\": \"best_fields\"})");
+    public void testKnnOptions() {
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-colors.json", "colors"));
+        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM colors | WHERE KNN(rgb_vector, [0.1, 0.2, 0.3], {\"%s\": %s})", analyzer);
+    }
 
-        // Check all data types for available options
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate, Analyzer analyzer) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : MultiMatch.OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+
             // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
+                String optionValue = exampleValueForType(currentType);
                 String queryOptionValue = optionValue;
                 if (currentType == KEYWORD) {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                    + optionName
-                    + "\": "
-                    + queryOptionValue
-                    + "})";
+                String query = String.format(Locale.ROOT, queryTemplate, optionName, queryOptionValue);
                 try {
                     // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
                     // If no exception was thrown, conversion is possible and should be done
-                    query(query);
+                    query(query, analyzer);
                 } catch (InvalidArgumentException e) {
                     // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot "
-                            + (optionType == OBJECT ? "convert from" : "cast")
-                            + " ["
-                            + optionValue
-                            + "]"
-                            + (optionType == OBJECT ? (", type [keyword]") : "")
-                            + " to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
+                    String error = error(query, analyzer);
+                    assertThat(error, containsString("Invalid option [" + optionName + "]"));
+                    assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
             }
         }
 
-        assertThat(
-            error("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", first_name, last_name, "
-                    + "{\"unknown_option\": true})], expected one of "
-            )
-        );
+        String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
+        assertThat(error(errorQuery, analyzer), containsString("Invalid option [unknown_option]"));
+    }
+
+    private static String exampleValueForType(DataType currentType) {
+        return switch (currentType) {
+            case BOOLEAN -> String.valueOf(randomBoolean());
+            case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+            case LONG -> String.valueOf(randomLong());
+            case FLOAT -> String.valueOf(randomFloat());
+            case DOUBLE -> String.valueOf(randomDouble());
+            case KEYWORD -> randomAlphaOfLength(10);
+            default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+        };
     }
 
     public void testMultiMatchFunctionIsNotNullable() {

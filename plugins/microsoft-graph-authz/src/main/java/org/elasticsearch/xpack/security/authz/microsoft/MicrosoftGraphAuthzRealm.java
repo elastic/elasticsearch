@@ -14,6 +14,8 @@ import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
 import com.microsoft.graph.models.DirectoryObject;
 import com.microsoft.graph.models.DirectoryObjectCollectionResponse;
+import com.microsoft.graph.models.Group;
+import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 
@@ -196,14 +198,14 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private List<String> sdkFetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
         List<String> groups = new ArrayList<>();
 
-        var groupMembership = client.users().byUserId(userId).transitiveMemberOf().get(requestConfig -> {
+        var groupMembership = client.users().byUserId(userId).transitiveMemberOf().graphGroup().get(requestConfig -> {
             requestConfig.queryParameters.select = new String[] { "id" };
             requestConfig.queryParameters.top = 999;
         });
 
-        var pageIterator = new PageIterator.Builder<DirectoryObject, DirectoryObjectCollectionResponse>().client(client)
+        var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>().client(client)
             .collectionPage(groupMembership)
-            .collectionPageFactory(DirectoryObjectCollectionResponse::createFromDiscriminatorValue)
+            .collectionPageFactory(GroupCollectionResponse::createFromDiscriminatorValue)
             .requestConfigurator(requestInfo -> {
                 requestInfo.addQueryParameter("%24select", new String[] { "id" });
                 requestInfo.addQueryParameter("%24top", "999");

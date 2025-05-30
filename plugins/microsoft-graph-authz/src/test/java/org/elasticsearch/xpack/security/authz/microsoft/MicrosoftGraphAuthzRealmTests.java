@@ -9,13 +9,14 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-import com.microsoft.graph.models.DirectoryObjectCollectionResponse;
 import com.microsoft.graph.models.Group;
+import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.models.odataerrors.MainError;
 import com.microsoft.graph.models.odataerrors.ODataError;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
+import com.microsoft.graph.users.item.transitivememberof.graphgroup.GraphGroupRequestBuilder;
 import com.microsoft.graph.users.item.transitivememberof.TransitiveMemberOfRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 
@@ -46,7 +47,9 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 
 public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 
@@ -96,13 +99,15 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         when(userItemRequestBuilder.get(any())).thenReturn(msUser);
 
         final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
+        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
         final var group = new Group();
         group.setId(groupId);
-        final var groupMembership = new DirectoryObjectCollectionResponse();
+        final var groupMembership = new GroupCollectionResponse();
         groupMembership.setValue(List.of(group));
 
         when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.get(any())).thenReturn(groupMembership);
+        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
+        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership);
 
         final var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
@@ -176,6 +181,7 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         when(userItemRequestBuilder.get(any())).thenReturn(msUser);
 
         final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
+        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
         final var graphError = new ODataError();
         final var error = new MainError();
         error.setCode("badRequest");
@@ -183,7 +189,8 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         graphError.setError(error);
 
         when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.get(any())).thenThrow(graphError);
+        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
+        when(graphGroupRequestBuilder.get(any())).thenThrow(graphError);
 
         final var licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
@@ -222,25 +229,27 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         when(userItemRequestBuilder.get(any())).thenReturn(msUser);
 
         final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
+        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
         final var group1 = new Group();
         group1.setId(groupId);
-        final var groupMembership1 = new DirectoryObjectCollectionResponse();
+        final var groupMembership1 = new GroupCollectionResponse();
         groupMembership1.setValue(List.of(group1));
         groupMembership1.setOdataNextLink("http://localhost:12345/page2");
 
         final var group2 = new Group();
         group2.setId(groupId2);
-        final var groupMembership2 = new DirectoryObjectCollectionResponse();
+        final var groupMembership2 = new GroupCollectionResponse();
         groupMembership2.setValue(List.of(group2));
         groupMembership2.setOdataNextLink("http://localhost:12345/page3");
 
         final var group3 = new Group();
         group3.setId(groupId3);
-        final var groupMembership3 = new DirectoryObjectCollectionResponse();
+        final var groupMembership3 = new GroupCollectionResponse();
         groupMembership3.setValue(List.of(group3));
 
         when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.get(any())).thenReturn(groupMembership1);
+        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
+        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership1);
         when(requestAdapter.send(any(), any(), any())).thenReturn(groupMembership2, groupMembership3);
 
         final var licenseState = MockLicenseState.createMock();

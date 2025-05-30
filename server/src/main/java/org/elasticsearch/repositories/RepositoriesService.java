@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -44,7 +45,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -65,7 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -653,7 +656,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
                             logger.warn(() -> "failed to change repository [" + repositoryMetadata.name() + "]", ex);
-                            repository = new InvalidRepository(repositoryMetadata, ex);
+                            repository = new InvalidRepository(state.metadata().getProject().id(), repositoryMetadata, ex);
                         }
                     }
                 } else {
@@ -661,7 +664,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> "failed to create repository [" + repositoryMetadata.name() + "]", ex);
-                        repository = new InvalidRepository(repositoryMetadata, ex);
+                        repository = new InvalidRepository(state.metadata().getProject().id(), repositoryMetadata, ex);
                     }
                 }
                 assert repository != null : "repository should not be null here";
@@ -822,19 +825,33 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
+    @FixForMultiProject(description = "resolve the actual ProjectId")
+    @Deprecated(forRemoval = true)
     private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        Function<RepositoryMetadata, Repository> defaultFactory
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
+    ) {
+        return createRepository(ProjectId.DEFAULT, repositoryMetadata, factories, defaultFactory);
+    }
+
+    /**
+     * Creates repository holder. This method starts the repository
+     */
+    private static Repository createRepository(
+        @Nullable ProjectId projectId,
+        RepositoryMetadata repositoryMetadata,
+        Map<String, Repository.Factory> factories,
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
         if (factory == null) {
-            return defaultFactory.apply(repositoryMetadata);
+            return defaultFactory.apply(projectId, repositoryMetadata);
         }
         Repository repository = null;
         try {
-            repository = factory.create(repositoryMetadata, factories::get);
+            repository = factory.create(projectId, repositoryMetadata, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {
@@ -859,21 +876,61 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @return the started repository
      * @throws RepositoryException if repository type is not registered
      */
+    @FixForMultiProject(description = "resolve the actual ProjectId")
+    @Deprecated(forRemoval = true)
     public Repository createRepository(RepositoryMetadata repositoryMetadata) {
-        return createRepository(repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+        return createRepository(ProjectId.DEFAULT, repositoryMetadata);
     }
 
-    private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
-        throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
+    /**
+     * Creates a repository holder.
+     *
+     * <p>WARNING: This method is intended for expert only usage mainly in plugins/modules. Please take note of the following:</p>
+     *
+     * <ul>
+     *     <li>This method does not register the repository (e.g., in the cluster state).</li>
+     *     <li>This method starts the repository. The repository should be closed after use.</li>
+     *     <li>The repository metadata should be associated to an already registered non-internal repository type and factory pair.</li>
+     * </ul>
+     *
+     * @param projectId the project that the repository is associated with
+     * @param repositoryMetadata the repository metadata
+     * @return the started repository
+     * @throws RepositoryException if repository type is not registered
+     */
+    public Repository createRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        return createRepository(
+            Objects.requireNonNull(projectId),
+            repositoryMetadata,
+            typesRegistry,
+            RepositoriesService::throwRepositoryTypeDoesNotExists
+        );
     }
 
-    private static Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    /**
+     * Similar to {@link #createRepository(ProjectId, RepositoryMetadata)}, but repository is not associated with a project, i.e. the
+     * repository is at the cluster level.
+     */
+    public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
+        assert DiscoveryNode.isStateless(clusterService.getSettings())
+            : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
+        return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+    }
+
+    private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        throw new RepositoryException(
+            repositoryMetadata.name(),
+            "repository type [" + repositoryMetadata.type() + "] does not exist for project [" + projectId + "]"
+        );
+    }
+
+    private static Repository createUnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         logger.warn(
             "[{}] repository type [{}] is unknown; ensure that all required plugins are installed on this node",
             repositoryMetadata.name(),
             repositoryMetadata.type()
         );
-        return new UnknownTypeRepository(repositoryMetadata);
+        return new UnknownTypeRepository(projectId, repositoryMetadata);
     }
 
     public static void validateRepositoryName(final String repositoryName) {

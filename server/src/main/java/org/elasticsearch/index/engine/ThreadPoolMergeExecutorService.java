@@ -388,7 +388,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * (i.e. multiple data path is not really supported when blocking merges due to insufficient available disk space
      * (but nothing blows up either, if using multiple data paths))
      */
-    protected static AvailableDiskSpacePeriodicMonitor startDiskSpaceMonitoring(
+    static AvailableDiskSpacePeriodicMonitor startDiskSpaceMonitoring(
         ThreadPool threadPool,
         NodeEnvironment.DataPath[] dataPaths,
         ClusterSettings clusterSettings,

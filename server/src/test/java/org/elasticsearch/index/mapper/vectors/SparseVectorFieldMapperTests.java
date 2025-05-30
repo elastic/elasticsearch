@@ -17,6 +17,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersion;
@@ -40,8 +41,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.Math.random;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,6 +68,35 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
+    }
+
+    protected void mappingWithDefaultIndexOptions(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+        b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+        b.endObject();
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsPrune(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsPruningConfig(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        b.field("prune", true);
+        b.startObject("pruning_config");
+        b.field("tokens_freq_ratio_threshold", 5.0);
+        b.field("tokens_weight_threshold", 0.4);
+        b.endObject();
+        b.endObject();
     }
 
     @Override
@@ -98,26 +130,33 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+        checkParsedDocument(mapper);
+    }
 
-        List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (XFeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (XFeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
+    public void testDefaultsPreIndexOptions() throws Exception {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            Randomness.get(),
+            NEW_SPARSE_VECTOR_INDEX_VERSION,
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+        );
+        DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
+        checkParsedDocument(mapper);
+    }
+
+    public void testWithIndexOptionsPrune() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPrune));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPrune)), mapper.mappingSource().toString());
+
+        checkParsedDocument(mapper);
+    }
+
+    public void testWithIndexOptionsPruningConfigOnly() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruningConfig));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruningConfig)), mapper.mappingSource().toString());
+
+        checkParsedDocument(mapper);
     }
 
     public void testDotInFieldName() throws Exception {
@@ -163,7 +202,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         // then fail appropriately
         assertEquals(
-            "[sparse_vector] fields take hashes that map a feature to a strictly positive float, but got unexpected token " + "START_ARRAY",
+            "[sparse_vector] fields take hashes that map a feature to a strictly positive float, "
+                + "but got unexpected token "
+                + "START_ARRAY",
             e.getCause().getMessage()
         );
 
@@ -200,6 +241,129 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [feature] of type [sparse_vector] can't be used in multifields"));
+    }
+
+    public void testPruneMustBeBoolean() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", "othervalue");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[index_options] failed to parse field [prune]"));
+    }
+
+    public void testPruningConfigurationIsMap() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.field("pruning_config", "this_is_not_a_map");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[index_options] pruning_config doesn't support values of type:"));
+    }
+
+    public void testWithIndexOptionsPruningConfigPruneRequired() throws Exception {
+
+        Exception eTestPruneIsFalse = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", false);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 5.0);
+            b.field("tokens_weight_threshold", 0.4);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestPruneIsFalse.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
+
+        Exception eTestPruneIsMissing = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 5.0);
+            b.field("tokens_weight_threshold", 0.4);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestPruneIsMissing.getMessage(),
+            containsString("Failed to parse mapping: Failed to build [index_options] after last required field arrived")
+        );
+    }
+
+    public void testTokensFreqRatioCorrect() {
+        Exception eTestInteger = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", "notaninteger");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(
+            eTestInteger.getMessage(),
+            containsString("Failed to parse mapping: [0:0] [index_options] failed to parse field [pruning_config]")
+        );
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", -2);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeLower.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_freq_ratio_threshold", 101);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeHigher.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
+    }
+
+    public void testTokensWeightThresholdCorrect() {
+        Exception eTestDouble = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", "notadouble");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestDouble.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
+
+        Exception eTestRangeLower = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", -0.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeLower.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
+
+        Exception eTestRangeHigher = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+            b.startObject("index_options");
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            b.field("tokens_weight_threshold", 1.1);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(eTestRangeHigher.getMessage(), containsString("[index_options] failed to parse field [pruning_config]"));
     }
 
     public void testStoreIsNotUpdateable() throws IOException {
@@ -332,5 +496,28 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }
         }
         return result;
+    }
+
+    private void checkParsedDocument(DocumentMapper mapper) throws IOException {
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
     }
 }

@@ -9,16 +9,21 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class UnknownTypeRepositoryTests extends ESTestCase {
 
-    private UnknownTypeRepository repository = new UnknownTypeRepository(new RepositoryMetadata("name", "type", Settings.EMPTY));
+    private ProjectId projectId = randomProjectIdOrDefault();
+    private UnknownTypeRepository repository = new UnknownTypeRepository(projectId, new RepositoryMetadata("name", "type", Settings.EMPTY));
 
     public void testShouldThrowWhenGettingMetadata() {
+        assertThat(repository.getProjectId(), equalTo(projectId));
         expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));
     }
 

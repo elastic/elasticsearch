@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Objects;
  *
  * <p> Pages are immutable and can be passed between threads.
  */
-public final class Page implements Writeable {
+public final class Page implements Writeable, Releasable {
 
     private final Block[] blocks;
 
@@ -242,6 +243,11 @@ public final class Page implements Writeable {
         blocksReleased = true;
 
         Releasables.closeExpectNoException(blocks);
+    }
+
+    @Override
+    public void close() {
+        releaseBlocks();
     }
 
     /**

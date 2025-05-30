@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.lang.instrument.Instrumentation;
@@ -34,11 +36,11 @@ public class EntitlementInitialization {
 
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
-    private static ElasticsearchEntitlementChecker manager;
+    private static ElasticsearchEntitlementChecker checker;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
-        return manager;
+        return checker;
     }
 
     /**
@@ -61,17 +63,16 @@ public class EntitlementInitialization {
      * @param inst the JVM instrumentation class instance
      */
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = initChecker();
+        checker = initChecker(inst, createPolicyManager());
+    }
 
-        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
-        if (verifyBytecode) {
-            ensureClassesSensitiveToVerificationAreInitialized();
-        }
-
-        DynamicInstrumentation.initialize(
-            inst,
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            verifyBytecode
+    private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        return new PolicyCheckerImpl(
+            bootstrapArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            bootstrapArgs.pathLookup()
         );
     }
 
@@ -88,9 +89,7 @@ public class EntitlementInitialization {
             pluginPolicies,
             EntitlementBootstrap.bootstrapArgs().scopeResolver(),
             EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            ENTITLEMENTS_MODULE,
-            pathLookup,
-            bootstrapArgs.suppressFailureLogPackages()
+            pathLookup
         );
     }
 
@@ -102,7 +101,11 @@ public class EntitlementInitialization {
      * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
      */
     private static void ensureClassesSensitiveToVerificationAreInitialized() {
-        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        var classesToInitialize = Set.of(
+            "sun.net.www.protocol.http.HttpURLConnection",
+            "sun.nio.ch.DatagramChannelImpl",
+            "sun.nio.ch.ServerSocketChannelImpl"
+        );
         for (String className : classesToInitialize) {
             try {
                 Class.forName(className);
@@ -112,9 +115,8 @@ public class EntitlementInitialization {
         }
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
-
+    static ElasticsearchEntitlementChecker initChecker(Instrumentation inst, PolicyManager policyManager) throws Exception {
+        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
             Runtime.version().feature()
@@ -122,14 +124,29 @@ public class EntitlementInitialization {
 
         Constructor<?> constructor;
         try {
-            constructor = clazz.getConstructor(PolicyManager.class);
+            constructor = clazz.getConstructor(PolicyChecker.class);
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
         }
+
+        ElasticsearchEntitlementChecker checker;
         try {
-            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }
+
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
+
+        DynamicInstrumentation.initialize(
+            inst,
+            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            verifyBytecode
+        );
+
+        return checker;
     }
 }

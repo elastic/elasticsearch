@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -63,13 +64,10 @@ public class DeepSeekChatCompletionRequest implements Request {
         var modelId = Objects.requireNonNullElseGet(unifiedChatInput.getRequest().model(), model::model);
         try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.field(MODEL_FIELD, modelId);
-
-            if (unifiedChatInput.getRequest().maxCompletionTokens() != null) {
-                builder.field(MAX_TOKENS, unifiedChatInput.getRequest().maxCompletionTokens());
-            }
-
+            new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(
+                builder,
+                UnifiedCompletionRequest.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
+            );
             builder.endObject();
             return new ByteArrayEntity(Strings.toString(builder).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {

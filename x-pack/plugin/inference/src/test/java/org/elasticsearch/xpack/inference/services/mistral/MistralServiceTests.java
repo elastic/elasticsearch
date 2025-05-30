@@ -217,7 +217,7 @@ public class MistralServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
                     );
                 }
             );
@@ -243,7 +243,7 @@ public class MistralServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
                     );
                 }
             );
@@ -269,7 +269,7 @@ public class MistralServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [mistral] service")
                     );
                 }
             );

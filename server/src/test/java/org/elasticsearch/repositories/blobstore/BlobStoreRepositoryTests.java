@@ -523,6 +523,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

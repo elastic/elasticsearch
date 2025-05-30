@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -57,14 +58,34 @@ public interface Repository extends LifecycleComponent {
     interface Factory {
         /**
          * Constructs a repository.
-         * @param metadata    metadata for the repository including name and settings
+         *
+         * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(RepositoryMetadata metadata) throws Exception;
+        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception;
 
-        default Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
-            return create(metadata);
+        /**
+         * Constructs a repository.
+         * @param projectId   the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata    metadata for the repository including name and settings
+         * @param typeLookup  a function that returns the repository factory for the given repository type.
+         */
+        default Repository create(
+            @Nullable ProjectId projectId,
+            RepositoryMetadata metadata,
+            Function<String, Repository.Factory> typeLookup
+        ) throws Exception {
+            return create(projectId, metadata);
         }
     }
+
+    /**
+     * Get the project-id for the repository.
+     *
+     * @return the project-id, or {@code null} if the repository is at the cluster level.
+     */
+    @Nullable
+    ProjectId getProjectId();
 
     /**
      * Returns metadata about this repository.

@@ -504,12 +504,10 @@ public class AzureBlobStore implements BlobStore {
                     .collect(Collectors.toList())
                     .flatMap(blockIds -> {
                         logger.debug("{}: all {} parts uploaded, now committing", blobName, multiParts.size());
-                        var response = asyncClient.commitBlockList(
+                        return asyncClient.commitBlockList(
                             multiParts.stream().map(MultiPart::blockId).toList(),
                             failIfAlreadyExists == false
-                        );
-                        logger.debug("{}: all {} parts committed", blobName, multiParts.size());
-                        return response;
+                        ).doOnSuccess(unused -> logger.debug("{}: all {} parts committed", blobName, multiParts.size()));
                     })
                     .block();
             }

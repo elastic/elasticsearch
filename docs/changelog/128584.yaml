@@ -1,0 +1,5 @@
+pr: 128584
+summary: '`InferenceService` support aliases'
+area: Machine Learning
+type: enhancement
+issues: []

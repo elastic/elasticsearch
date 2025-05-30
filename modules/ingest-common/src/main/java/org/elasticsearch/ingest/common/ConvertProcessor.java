@@ -42,7 +42,6 @@ public final class ConvertProcessor extends AbstractProcessor {
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
-
             }
         },
         LONG {

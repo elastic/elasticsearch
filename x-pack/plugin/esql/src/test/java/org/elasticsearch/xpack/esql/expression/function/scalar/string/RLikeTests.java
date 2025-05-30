@@ -20,14 +20,18 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.randomCasing;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -39,12 +43,13 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameters(str -> {
+        final Function<String, String> escapeString = str -> {
             for (String syntax : new String[] { "\\", ".", "?", "+", "*", "|", "{", "}", "[", "]", "(", ")", "\"", "<", ">", "#", "&" }) {
                 str = str.replace(syntax, "\\" + syntax);
             }
             return str;
-        }, () -> randomAlphaOfLength(1) + "?");
+        };
+        return parameters(escapeString, () -> randomAlphaOfLength(1) + "?");
     }
 
     static Iterable<Object[]> parameters(Function<String, String> escapeString, Supplier<String> optionalPattern) {
@@ -88,24 +93,52 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             String text = textSupplier.get();
             return new TextAndPattern(text, escapeString.apply(text));
         }, true);
+        cases(cases, title + " matches self case insensitive", () -> {
+            String text = textSupplier.get();
+            return new TextAndPattern(randomCasing(text), escapeString.apply(text));
+        }, true, true);
         cases(cases, title + " doesn't match self with trailing", () -> {
             String text = textSupplier.get();
             return new TextAndPattern(text, escapeString.apply(text) + randomAlphaOfLength(1));
         }, false);
+        cases(cases, title + " doesn't match self with trailing case insensitive", () -> {
+            String text = textSupplier.get();
+            return new TextAndPattern(randomCasing(text), escapeString.apply(text) + randomAlphaOfLength(1));
+        }, true, false);
         cases(cases, title + " matches self with optional trailing", () -> {
             String text = randomAlphaOfLength(1);
             return new TextAndPattern(text, escapeString.apply(text) + optionalPattern.get());
         }, true);
+        cases(cases, title + " matches self with optional trailing case insensitive", () -> {
+            String text = randomAlphaOfLength(1);
+            return new TextAndPattern(randomCasing(text), escapeString.apply(text) + optionalPattern.get());
+        }, true, true);
         if (canGenerateDifferent) {
             cases(cases, title + " doesn't match different", () -> {
                 String text = textSupplier.get();
                 String different = escapeString.apply(randomValueOtherThan(text, textSupplier));
                 return new TextAndPattern(text, different);
             }, false);
+            cases(cases, title + " doesn't match different case insensitive", () -> {
+                String text = textSupplier.get();
+                Predicate<String> predicate = t -> t.toLowerCase(Locale.ROOT).equals(text.toLowerCase(Locale.ROOT));
+                String different = escapeString.apply(randomValueOtherThanMany(predicate, textSupplier));
+                return new TextAndPattern(text, different);
+            }, true, false);
         }
     }
 
     private static void cases(List<TestCaseSupplier> cases, String title, Supplier<TextAndPattern> textAndPattern, boolean expected) {
+        cases(cases, title, textAndPattern, false, expected);
+    }
+
+    private static void cases(
+        List<TestCaseSupplier> cases,
+        String title,
+        Supplier<TextAndPattern> textAndPattern,
+        boolean caseInsensitive,
+        boolean expected
+    ) {
         for (DataType type : DataType.stringTypes()) {
             cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, DataType.KEYWORD, DataType.BOOLEAN), () -> {
                 TextAndPattern v = textAndPattern.get();
@@ -113,25 +146,27 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
                         new TestCaseSupplier.TypedData(new BytesRef(v.pattern), DataType.KEYWORD, "pattern").forceLiteral(),
-                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
+                        new TestCaseSupplier.TypedData(caseInsensitive, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
                     DataType.BOOLEAN,
                     equalTo(expected)
                 );
             }));
-            cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
-                TextAndPattern v = textAndPattern.get();
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
-                        new TestCaseSupplier.TypedData(new BytesRef(v.pattern), DataType.KEYWORD, "pattern").forceLiteral()
-                    ),
-                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
-                    DataType.BOOLEAN,
-                    equalTo(expected)
-                );
-            }));
+            if (caseInsensitive == false) {
+                cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                    TextAndPattern v = textAndPattern.get();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
+                            new TestCaseSupplier.TypedData(new BytesRef(v.pattern), DataType.KEYWORD, "pattern").forceLiteral()
+                        ),
+                        startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                        DataType.BOOLEAN,
+                        equalTo(expected)
+                    );
+                }));
+            }
         }
     }
 
@@ -150,7 +185,9 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
 
         return caseInsensitiveBool
             ? new RLike(source, expression, new RLikePattern(patternString), true)
-            : new RLike(source, expression, new RLikePattern(patternString));
+            : (randomBoolean()
+                ? new RLike(source, expression, new RLikePattern(patternString))
+                : new RLike(source, expression, new RLikePattern(patternString), false));
     }
 
     @AfterClass

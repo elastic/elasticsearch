@@ -5,14 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mistral.completions;
+package org.elasticsearch.xpack.inference.services.mistral.completion;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.List;

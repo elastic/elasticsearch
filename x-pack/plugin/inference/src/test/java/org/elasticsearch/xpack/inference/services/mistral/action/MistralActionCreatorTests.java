@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.mistral.completions.MistralChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests;
 import org.junit.After;
 import org.junit.Before;
 

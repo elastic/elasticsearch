@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -36,16 +37,13 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, params);
-
-        builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
+        unifiedRequestEntity.toXContent(
+            builder,
+            UnifiedCompletionRequest.withMaxCompletionTokensTokens(model.getServiceSettings().modelId(), params)
+        );
 
         if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
             builder.field(USER_FIELD, model.getTaskSettings().user());
-        }
-
-        if (unifiedChatInput.getRequest().maxCompletionTokens() != null) {
-            builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedChatInput.getRequest().maxCompletionTokens());
         }
 
         builder.endObject();

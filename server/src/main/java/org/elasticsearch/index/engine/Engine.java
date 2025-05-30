@@ -459,7 +459,7 @@ public abstract class Engine implements Closeable {
         private final Lock pauseIndexingLock = new ReentrantLock();
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
-        private volatile AtomicBoolean pauseThrottling = new AtomicBoolean();
+        private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
         private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
@@ -468,11 +468,11 @@ public abstract class Engine implements Closeable {
         }
 
         public Releasable acquireThrottle() {
-            if (lock == pauseLockReference) {
-                pauseLockReference.acquire();
-                try {
-                    // If throttling is activate and not temporarily paused
-                    while ((lock == pauseLockReference) && (pauseThrottling.getAcquire() == false)) {
+            var lockCopy = this.lock;
+            if (lockCopy == pauseLockReference) {
+                try (var ignored = pauseLockReference.acquire()) {
+                    // If pause throttling is activated and not temporarily suspended
+                    while ((lock == pauseLockReference) && (suspendThrottling.getAcquire() == false)) {
                         logger.trace("Waiting on pause indexing lock");
                         pauseCondition.await();
                     }
@@ -482,9 +482,9 @@ public abstract class Engine implements Closeable {
                 } finally {
                     logger.trace("Acquired pause indexing lock");
                 }
-                return pauseLockReference;
+                return (() -> {});
             } else {
-                return lock.acquire();
+                return lockCopy.acquire();
             }
         }
 
@@ -540,20 +540,20 @@ public abstract class Engine implements Closeable {
         }
 
         // Pause throttling to allow another task such as relocation to acquire all indexing permits
-        public void pauseThrottle() {
+        public void suspendThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
-                    pauseThrottling.setRelease(true);
+                    suspendThrottling.setRelease(true);
                     pauseCondition.signalAll();
                 }
             }
         }
 
         // Reverse what was done in pauseThrottle()
-        public void unpauseThrottle() {
+        public void resumeThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
-                    pauseThrottling.setRelease(false);
+                    suspendThrottling.setRelease(false);
                     pauseCondition.signalAll();
                 }
             }

@@ -82,7 +82,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues == null) {
+        if (floatVectorValues == null || knnCollector == null) {
             FloatVectorValues.checkField(reader, field);
             return NO_RESULTS;
         }

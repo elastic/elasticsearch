@@ -5,23 +5,24 @@
  * 2.0.
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.xpack.core.ml.search;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SparseVectorIndexOptionsUpgradeIT extends AbstractUpgradeTestCase {
+public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private final boolean testHasIndexOptions;
     private final boolean testIndexShouldPrune;
     private final boolean testQueryShouldNotPrune;
     private final boolean usePreviousIndexVersion;
 
-    public SparseVectorIndexOptionsUpgradeIT(
+    public SparseVectorIndexOptionsIT(
         boolean setIndexOptions,
         boolean setIndexShouldPrune,
         boolean setQueryShouldNotPrune,
@@ -48,10 +49,6 @@ public class SparseVectorIndexOptionsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testItPrunesTokensIfIndexOptions() {
-        Assert.assertFalse(true);
-    }
-
-    public void testBehavioralAnalyticsDataRetention() throws Exception {
         Assert.assertFalse(true);
     }
 }

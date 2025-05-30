@@ -35,6 +35,8 @@ if [[ -z "$TARGET_COMMIT_HASH" ]]; then
    exit 1
 fi
 
+echo "Running bc-bwc tests on commit [$TARGET_COMMIT_HASH]"
+
 cat <<EOF | buildkite-agent pipeline upload
 steps:
     - label: $BUILDKITE_BRANCH / bc-bwc

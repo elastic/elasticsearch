@@ -109,13 +109,13 @@ public class Utils {
                         );
                     }
                 } else {
-                    if (unsignJar && entryName.equals("META-INF/MANIFEST.MF")) {
-                        var manifest = new Manifest(jarFile.getInputStream(entry));
-                        manifest.getEntries().clear();
-                        manifest.write(jos);
-                    } else if (unsignJar == false || entryName.matches("META-INF/.*\\.SF") == false) {
-                        // Read the entry's data and write it to the new JAR
-                        try (InputStream is = jarFile.getInputStream(entry)) {
+                    try (InputStream is = jarFile.getInputStream(entry)) {
+                        if (unsignJar && entryName.equals("META-INF/MANIFEST.MF")) {
+                            var manifest = new Manifest(is);
+                            manifest.getEntries().clear();
+                            manifest.write(jos);
+                        } else if (unsignJar == false || entryName.matches("META-INF/.*\\.SF") == false) {
+                            // Read the entry's data and write it to the new JAR
                             is.transferTo(jos);
                         }
                     }

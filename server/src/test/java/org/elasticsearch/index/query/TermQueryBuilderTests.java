@@ -21,6 +21,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.hamcrest.CoreMatchers;
 

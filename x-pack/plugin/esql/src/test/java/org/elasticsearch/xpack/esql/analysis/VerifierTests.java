@@ -1239,22 +1239,31 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
     }
 
-    // These should pass eventually once we lift some restrictions on match function
-    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
-            error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
-        );
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
-            error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
-        );
+    public void testFieldBasedFullTextFunctions() {
+        testFieldBasedWithNonIndexedColumn("MATCH", " match(text, \"cat\")", "function");
+        testFieldBasedWithNonIndexedColumn(":", " text : \"cat\"", "operator");
+        testFieldBasedWithNonIndexedColumn("MultiMatch", " multi_match(\"cat\", text)", "function");
     }
 
-    public void testMatchFunctionIsNotNullable() {
-        assertEquals(
-            "1:48: [MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping",
-            error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
+    // These should pass eventually once we lift some restrictions on match function
+    public void testFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
+        assertThat(
+            error("from test | eval text = substring(first_name, 1) | where" + functionInvocation),
+            containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval text=concat(first_name, last_name) | where" + functionInvocation),
+            containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
+        );
+        var keywordInvocation = functionInvocation.replace("text", "text::keyword");
+        String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation);
+        assertThat(
+            keywordError,
+            containsString("[" + functionName + "] " + functionType + " cannot operate on")
+        );
+        assertThat(
+            keywordError,
+            containsString("which is not a field from an index mapping")
         );
     }
 

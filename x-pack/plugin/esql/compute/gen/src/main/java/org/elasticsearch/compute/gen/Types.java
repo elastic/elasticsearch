@@ -252,6 +252,9 @@ public class Types {
         if (t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR) || t.equals(DOUBLE_BLOCK_BUILDER)) {
             return TypeName.DOUBLE;
         }
+        if (t.equals(FLOAT_BLOCK) || t.equals(FLOAT_VECTOR) || t.equals(FLOAT_BLOCK_BUILDER)) {
+            return TypeName.FLOAT;
+        }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 

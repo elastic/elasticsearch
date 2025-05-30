@@ -18,7 +18,6 @@ setup:
           template:
             settings:
               number_of_replicas: 0
-              lifecycle.name: my-policy
             mappings:
               properties:
                 field1:

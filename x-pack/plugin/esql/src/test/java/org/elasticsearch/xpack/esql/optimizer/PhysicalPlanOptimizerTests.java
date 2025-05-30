@@ -2957,7 +2957,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+            containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 
@@ -2990,7 +2990,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Attribute some_field2 = relation.output().get(1);
         FragmentExec fragment = new FragmentExec(relation);
         ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
-        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+        LimitExec limitThenFragment = new LimitExec(
+            Source.EMPTY,
+            exchange,
+            new Literal(Source.EMPTY, 10000, DataType.INTEGER),
+            randomIntBetween(0, 1024)
+        );
 
         // All the relation's fields are required.
         PhysicalPlan plan = rule.apply(limitThenFragment);
@@ -7962,6 +7967,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
+    }
+
+    public void testReductionPlanForLimit() {
+        var plan = physicalPlan("FROM test | LIMIT 10");
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        LimitExec limitExec = as(reduction, LimitExec.class);
+        assertThat(limitExec.estimatedRowSize(), equalTo(328));
     }
 
     public void testEqualsPushdownToDelegate() {

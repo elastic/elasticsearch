@@ -32,7 +32,7 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     private void assertBuildOutput(int size) {
-        Page inputPage = randomInputPage(size, between(1, 20));
+        final Page inputPage = randomInputPage(size, between(1, 20));
         try (
             CompletionOperatorOutputBuilder outputBuilder = new CompletionOperatorOutputBuilder(
                 blockFactory().newBytesRefBlockBuilder(size),
@@ -44,7 +44,7 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
                 outputBuilder.addInferenceResponse(new InferenceAction.Response(new ChatCompletionResults(results)));
             }
 
-            Page outputPage = outputBuilder.buildOutput();
+            final Page outputPage = outputBuilder.buildOutput();
             assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
             assertThat(outputPage.getBlockCount(), equalTo(inputPage.getBlockCount() + 1));
             assertOutputContent(outputPage.getBlock(outputPage.getBlockCount() - 1));
@@ -68,7 +68,7 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     private Page randomInputPage(int positionCount, int columnCount) {
-        Block[] blocks = new Block[columnCount];
+        final Block[] blocks = new Block[columnCount];
         try {
             for (int i = 0; i < columnCount; i++) {
                 blocks[i] = RandomBlock.randomBlock(

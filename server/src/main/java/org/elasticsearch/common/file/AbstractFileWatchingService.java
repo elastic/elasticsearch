@@ -132,7 +132,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 if (retryCount == ACCESS_DENIED_RETRY_COUNT - 1) {
                     throw e;
                 }
-                logger.debug("Could not update file [{}] attempt [{}]", path, retryCount, e);
+                logger.debug("Could not update file [{}] attempt [{}]", path, retryCount);
                 Thread.sleep(retryDelayMillis(retryCount));
                 retryCount++;
             }

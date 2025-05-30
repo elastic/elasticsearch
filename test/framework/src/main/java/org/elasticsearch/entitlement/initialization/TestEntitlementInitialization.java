@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initInstrumentation;
+
 /**
  * Test-specific version of {@code EntitlementInitialization}
  */
@@ -46,7 +48,8 @@ public class TestEntitlementInitialization {
 
     public static void initialize(Instrumentation inst) throws Exception {
         TestEntitlementBootstrap.BootstrapArgs bootstrapArgs = TestEntitlementBootstrap.bootstrapArgs();
-        checker = EntitlementInitialization.initChecker(inst, createPolicyManager(bootstrapArgs.pathLookup()));
+        checker = EntitlementInitialization.initChecker(createPolicyManager(bootstrapArgs.pathLookup()));
+        initInstrumentation(inst);
     }
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}

@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.Java20EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -24,8 +24,8 @@ import java.nio.file.spi.FileSystemProvider;
 
 public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java20EntitlementChecker {
 
-    public Java20ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        super(policyManager);
+    public Java20ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
+        super(policyChecker);
     }
 
     @Override
@@ -35,7 +35,7 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         Linker.Option... options
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -46,7 +46,7 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         Linker.Option... options
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -57,22 +57,22 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         SegmentScope scope
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize, SegmentScope scope) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -83,23 +83,23 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         SegmentScope scope,
         Runnable cleanupAction
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$asUnbounded(Class<?> callerClass, ValueLayout.OfAddress that) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, SegmentScope scope) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, SegmentScope scope) {
-        policyManager.checkFileRead(callerClass, path);
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkFileRead(callerClass, path);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -110,11 +110,11 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Class<?> type,
         LinkOption... options
     ) {
-        policyManager.checkFileRead(callerClass, path);
+        policyChecker.checkFileRead(callerClass, path);
     }
 
     @Override
     public void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options) {
-        policyManager.checkFileRead(callerClass, path);
+        policyChecker.checkFileRead(callerClass, path);
     }
 }

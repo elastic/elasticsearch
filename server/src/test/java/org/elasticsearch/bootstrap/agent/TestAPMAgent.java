@@ -7,14 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.bootstrap.agent;
 
-import org.elasticsearch.entitlement.bridge.Java22EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
-
-public class Java22ElasticsearchEntitlementChecker extends Java21ElasticsearchEntitlementChecker implements Java22EntitlementChecker {
-
-    public Java22ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
-        super(policyChecker);
-    }
-}
+/**
+ * A test double for the APM agent
+ */
+public class TestAPMAgent {}

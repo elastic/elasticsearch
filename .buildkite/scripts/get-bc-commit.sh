@@ -11,41 +11,46 @@
 
 set -euo pipefail
 
-#TODO: all current branches? Only the "last" one? (9.0 in this case?)
-#source .buildkite/scripts/branches.sh
-#for BRANCH in "${BRANCHES[@]}"; do
-
-BRANCH=9.0
-
+# Select the most recent build from the current branch.
+# We collect snapshots, order by date, then collect BCs, order by date, and concat them; then we select the last.
+# So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
 MANIFEST="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
 jq ".releases[] |
-select(.branch == \"$BRANCH\") |
+select(.branch == \"$BUILDKITE_BRANCH\") |
 select(.active_release == true) |
-.build_candidates |
-to_entries |
-sort_by(.value.completed_at) |
-last |
-.value.manifest_url")"
+((.snapshots | to_entries | sort_by(.value.completed_at)) +
+(.build_candidates | to_entries | sort_by(.value.completed_at))) |
+last | .value.manifest_url")"
 
-BC_COMMIT_HASH="$(eval "curl -s $MANIFEST" | jq .projects.elasticsearch.commit_hash)"
+if [[ -z "$MANIFEST" ]]; then
+   echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]"
+   exit 0
+fi
 
-echo "steps:
-  - group: bc
-    steps:
-      - label: $BRANCH / bc-bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=9.1.0 -Dtests.bwc.refspec.main=$BC_COMMIT_HASH -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-          preemptible: true
-        retry:
-          automatic:
-            - exit_status: \"-1\"
-              limit: 3
-              signal_reason: none
-            - signal_reason: agent_stop
-              limit: 3
-"
+
+TARGET_COMMIT_HASH="$(eval "curl -s $MANIFEST" | jq .projects.elasticsearch.commit_hash)"
+
+if [[ -z "$TARGET_COMMIT_HASH" ]]; then
+   echo "Cannot get the elasticsearch commit hash from [$MANIFEST]"
+   exit 1
+fi
+
+cat <<EOF | buildkite-agent pipeline upload
+steps:
+    - label: $BUILDKITE_BRANCH / bc-bwc
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=9.1.0 -Dtests.bwc.refspec.main=${TARGET_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+      timeout_in_minutes: 300
+      agents:
+        provider: gcp
+        image: family/elasticsearch-ubuntu-2004
+        machineType: n1-standard-32
+        buildDirectory: /dev/shm/bk
+        preemptible: true
+      retry:
+        automatic:
+          - exit_status: \"-1\"
+            limit: 3
+            signal_reason: none
+          - signal_reason: agent_stop
+            limit: 3
+EOF

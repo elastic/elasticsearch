@@ -1,0 +1,5 @@
+pr: 127767
+summary: Integrate `OpenAi` Chat Completion in `SageMaker`
+area: Machine Learning
+type: enhancement
+issues: []

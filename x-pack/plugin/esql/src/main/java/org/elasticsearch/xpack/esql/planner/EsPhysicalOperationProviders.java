@@ -21,8 +21,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesExtractFieldOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -139,7 +142,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
         }
         var fields = extractFields(fieldExtractExec.attributesToExtract(), fieldExtractExec::fieldExtractPreference);
-        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+        if (fieldExtractExec instanceof TimeSeriesFieldExtractExec) {
+            // TODO: consolidate with ValuesSourceReaderOperator
+            return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
+        } else {
+            return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+        }
     }
 
     private static String getFieldName(Attribute attr) {
@@ -177,7 +185,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        protected @Nullable MappedFieldType fieldType(String name) {
+        public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName())
                 ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
@@ -192,9 +200,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return null;
     }
 
-    public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
+        QueryBuilder builder
+    ) {
         QueryBuilder qb = builder == null ? QueryBuilders.matchAllQuery().boost(0.0f) : builder;
-        return ctx -> shardContexts.get(ctx.index()).toQuery(qb);
+        return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
     @Override
@@ -246,22 +256,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public PhysicalOperation timeSeriesSourceOperation(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
-
         final int limit = ts.limit() != null ? (Integer) ts.limit().fold(context.foldCtx()) : NO_LIMIT;
-        final boolean emitDocIds = ts.attrs().stream().anyMatch(EsQueryExec::isSourceAttribute);
         LuceneOperator.Factory luceneFactory = TimeSeriesSourceOperatorFactory.create(
             limit,
             context.pageSize(ts.estimatedRowSize()),
             context.queryPragmas().taskConcurrency(),
-            emitDocIds,
             shardContexts,
-            extractFields(ts.attributesToExtract(), ts::fieldExtractPreference),
             querySupplier(ts.query())
         );
         Layout.Builder layout = new Layout.Builder();
         layout.append(ts.output());
-        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
@@ -380,7 +385,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(false);
+            return ctx.newSourceLoader(null, false);
         }
 
         @Override
@@ -459,7 +464,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
-        protected @Nullable MappedFieldType fieldType(String name) {
+        @Override
+        public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
         }
 

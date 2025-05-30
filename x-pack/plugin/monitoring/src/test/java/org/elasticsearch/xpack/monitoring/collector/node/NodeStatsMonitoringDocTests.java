@@ -367,7 +367,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         segmentsStats.addBitsetMemoryInBytes(++iota);
         indicesCommonStats.getSegments().add(segmentsStats);
 
-        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap(), randomBoolean());
+        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap(), emptyMap(), randomBoolean());
 
         // Filesystem
         final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(

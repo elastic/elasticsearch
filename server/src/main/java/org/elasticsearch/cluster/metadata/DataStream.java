@@ -419,12 +419,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata) throws IOException {
-        CompressedXContent mergedMappings = getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
-        if (mergedMappings == null) {
-            return EMPTY_MAPPINGS;
-        } else {
-            return mergedMappings;
-        }
+        return getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {

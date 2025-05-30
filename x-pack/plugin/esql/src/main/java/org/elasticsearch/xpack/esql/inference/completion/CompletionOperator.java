@@ -19,6 +19,10 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
+/**
+ * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
+ * It evaluates a prompt expression for each input row, constructs inference requests, and emits the model responses as output.
+ */
 public class CompletionOperator extends InferenceOperator {
 
     private final ExpressionEvaluator promptEvaluator;
@@ -44,16 +48,29 @@ public class CompletionOperator extends InferenceOperator {
         return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
+    /**
+     * Constructs the completion inference requests iterator for the given input page by evaluating the prompt expression.
+     *
+     * @param inputPage The input data page.
+     */
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
         return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
+    /**
+     * Creates a new {@link CompletionOperatorOutputBuilder} to collect and emit the completion results.
+     *
+     * @param input The input page for which results will be constructed.
+     */
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
         return new CompletionOperatorOutputBuilder(blockFactory().newBytesRefBlockBuilder(input.getPositionCount()), input);
     }
 
+    /**
+     * Factory for creating {@link CompletionOperator} instances.
+     */
     public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
         implements
             OperatorFactory {

@@ -12,10 +12,16 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.Comparator;
+
+/**
+ * Builds the output page for the {@link RerankOperator} by adding
+ *  * reranked relevance scores into the specified score channel of the input page.
+ */
 
 public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
 
@@ -34,6 +40,10 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
         Releasables.close(scoreBlockBuilder);
     }
 
+    /**
+     * Constructs a new output {@link Page} which contains all original blocks from the input page, with the reranked scores
+     * inserted at {@code scoreChannel}.
+     */
     @Override
     public Page buildOutput() {
         int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
@@ -55,6 +65,16 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
         }
     }
 
+    /**
+     * Extracts the ranked document results from the inference response and appends their relevance scores to the score block builder.
+     * <p>
+     * If the response is not of type {@link ChatCompletionResults} an {@link IllegalStateException} is thrown.
+     * </p>
+     * <p>
+     * The responses must be added in the same order as the corresponding inference requests were generated.
+     * Failing to preserve order may lead to incorrect or misaligned output rows.
+     * </p>
+     */
     @Override
     public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
         inferenceResults(inferenceResponse).getRankedDocs()

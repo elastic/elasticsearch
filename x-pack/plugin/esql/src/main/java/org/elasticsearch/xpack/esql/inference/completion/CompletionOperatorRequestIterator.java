@@ -18,6 +18,10 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+/**
+ *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
+ *  of type {@link TaskType#COMPLETION}.
+ */
 public class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
 
     private final PromptReader promptReader;
@@ -25,6 +29,12 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
     private final int size;
     private int currentPos = 0;
 
+    /**
+     * Constructs a new iterator from the given block of prompts.
+     *
+     * @param promptBlock The input block containing prompts.
+     * @param inferenceId The ID of the inference model to invoke.
+     */
     public CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
         this.promptReader = new PromptReader(promptBlock);
         this.size = promptBlock.getPositionCount();
@@ -44,6 +54,9 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
         return inferenceRequest(promptReader.readPrompt(currentPos++));
     }
 
+    /**
+     * Wraps a single prompt string into an {@link InferenceAction.Request}.
+     */
     private InferenceAction.Request inferenceRequest(String prompt) {
         return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
     }
@@ -58,6 +71,9 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
         Releasables.close(promptReader);
     }
 
+    /**
+     * Helper class that reads prompts from a {@link BytesRefBlock}.
+     */
     private static class PromptReader implements Releasable {
         private final BytesRefBlock promptBlock;
         private final StringBuilder strBuilder = new StringBuilder();
@@ -67,6 +83,11 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
             this.promptBlock = promptBlock;
         }
 
+        /**
+         * Reads the prompt string at the given position..
+         *
+         * @param pos the position index in the block
+         */
         public String readPrompt(int pos) {
             if (promptBlock.isNull(pos)) {
                 return null;
@@ -85,6 +106,9 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
             return strBuilder.toString();
         }
 
+        /**
+         * Returns the total number of positions (prompts) in the block.
+         */
         public int estimatedSize() {
             return promptBlock.getPositionCount();
         }

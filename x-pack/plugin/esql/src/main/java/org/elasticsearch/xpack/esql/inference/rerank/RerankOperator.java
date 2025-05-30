@@ -18,12 +18,20 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 
+/**
+ * {@link RerankOperator} is an inference operator that compute scores for rows using a reranking model.
+ */
 public class RerankOperator extends InferenceOperator {
+
+    // Default number of rows to include per inference request
     private static final int DEFAULT_BATCH_SIZE = 20;
     private final String queryText;
+
+    // Encodes each input row into a string representation for the model
     private final ExpressionEvaluator rowEncoder;
     private final int scoreChannel;
 
+    // Batch size used to group rows into a single inference request (currently fixed)
     // TODO: make it configurable either in the command or as query pragmas
     private final int batchSize = DEFAULT_BATCH_SIZE;
 
@@ -52,16 +60,25 @@ public class RerankOperator extends InferenceOperator {
         return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
     }
 
+    /**
+     * Returns the request iterator responsible for batching and converting input rows into inference requests.
+     */
     @Override
     protected RerankOperatorRequestIterator requests(Page inputPage) {
         return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
     }
 
+    /**
+     * Returns the output builder responsible for collecting inference responses and building the output page.
+     */
     @Override
     protected RerankOperatorOutputBuilder outputBuilder(Page input) {
         return new RerankOperatorOutputBuilder(blockFactory().newDoubleBlockBuilder(input.getPositionCount()), input, scoreChannel);
     }
 
+    /**
+     * Factory for creating {@link RerankOperator} instances
+     */
     public record Factory(
         InferenceRunner inferenceRunner,
         String inferenceId,

@@ -19,6 +19,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+/**
+ * Iterator over input data blocks to create batched inference requests for the Rerank task.
+ *
+ * <p>This iterator reads from a {@link BytesRefBlock} containing input documents or items to be reranked. It slices the input into batches
+ * of configurable size and converts each batch into an {@link InferenceAction.Request} with the task type {@link TaskType#RERANK}.
+ */
 public class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
     private final BytesRefBlock inputBlock;
     private final String inferenceId;

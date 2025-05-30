@@ -1629,6 +1629,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                         l.onResponse(null);
                     }));
+            })
+            .andThen(l -> {
+                // delete the snapshot that has the deleted index so it triggers cleanup of redundant shard generations
+                client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "first-snapshot").execute(l.map(r -> null));
             });
 
         deterministicTaskQueue.runAllRunnableTasks();

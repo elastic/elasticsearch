@@ -24,7 +24,7 @@ public class ShardSearchLoadStatsAction extends ActionType<ShardSearchLoadStatsR
      * Singleton instance of the action type.
      */
     public static final ShardSearchLoadStatsAction INSTANCE = new ShardSearchLoadStatsAction();
-    public static final String NAME = "internal:monitor/stats";
+    public static final String NAME = "internal:search/stats";
     public static final RemoteClusterActionType<ShardSearchLoadStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         ShardSearchLoadStatsResponse::new

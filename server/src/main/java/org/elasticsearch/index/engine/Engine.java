@@ -455,33 +455,66 @@ public abstract class Engine implements Closeable {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
-        private final PauseLock throttlingLock;
-        private final ReleasableLock lockReference;
+        // private final PauseLock throttlingLock;
+        // private final ReleasableLock lockReference;
+        private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        private final Lock pauseIndexingLock = new ReentrantLock();
+        private final Condition pauseCondition = pauseIndexingLock.newCondition();
+        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
+        private volatile AtomicBoolean pauseThrottling = new AtomicBoolean();
+        private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
-            throttlingLock = new PauseLock(pause ? 0 : 1);
-            lockReference = new ReleasableLock(throttlingLock);
+            pauseWhenThrottled = pause;
         }
 
         public Releasable acquireThrottle() {
-            return lock.acquire();
+            var lockCopy = this.lock;
+            if (lockCopy == pauseLockReference) {
+                //try (pauseLockReference.acquire();)
+                try  (var ignored = pauseLockReference.acquire()) {
+                    // If throttling is activated and not temporarily paused
+                    while ((lock == pauseLockReference) && (pauseThrottling.getAcquire() == false)) {
+                        logger.trace("Waiting on pause indexing lock");
+                        pauseCondition.await();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    logger.trace("Acquired pause indexing lock");
+                }
+                return (() -> {});
+            } else {
+                return lockCopy.acquire();
+            }
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            throttlingLock.throttle();
-            lock = lockReference;
+            if (pauseWhenThrottled) {
+                lock = pauseLockReference;
+                logger.trace("Activated index throttling pause");
+            } else {
+                lock = lockReference;
+            }
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
 
-            throttlingLock.unthrottle();
             lock = NOOP_LOCK;
+            if (pauseWhenThrottled) {
+                // Signal the threads that are waiting on pauseCondition
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    pauseCondition.signalAll();
+                }
+                logger.trace("Deactivated index throttling pause");
+            }
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
             long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
@@ -504,19 +537,32 @@ public abstract class Engine implements Closeable {
             return throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS);
         }
 
-        void pauseThrottle() {
-            if (isThrottled()) {
-                throttlingLock.pauseThrottle();
+        // Pause throttling to allow another task such as relocation to acquire all indexing permits
+        public void suspendThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    pauseThrottling.setRelease(true);
+                    pauseCondition.signalAll();
+                }
             }
-            // TODO: calculate pause time
         }
 
-        void unpauseThrottle() {
-            throttlingLock.unPauseThrottle();
+        // Reverse what was done in pauseThrottle()
+        public void resumeThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    pauseThrottling.setRelease(false);
+                    pauseCondition.signalAll();
+                }
+            }
         }
 
         boolean isThrottled() {
             return lock != NOOP_LOCK;
+        }
+
+        boolean isIndexingPaused() {
+            return (pauseWhenThrottled && isThrottled());
         }
 
         boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only
@@ -627,31 +673,31 @@ public abstract class Engine implements Closeable {
         }
 
         public void throttle() {
-            if(throttlePaused.get()) {
+            if (throttlePaused.get()) {
                 return;
             }
-            assert semaphore.availablePermits() == Integer.MAX_VALUE : "Available permits should be " + Integer.MAX_VALUE
-                + " but is " + semaphore.availablePermits();
+            assert semaphore.availablePermits() == Integer.MAX_VALUE
+                : "Available permits should be " + Integer.MAX_VALUE + " but is " + semaphore.availablePermits();
             semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
         }
 
         public void unthrottle() {
             unPauseThrottle();
-            assert semaphore.availablePermits() <= allowThreads : "Available permits should be no greater than " + allowThreads
-                + " but is " + semaphore.availablePermits();
+            assert semaphore.availablePermits() <= allowThreads
+                : "Available permits should be no greater than " + allowThreads + " but is " + semaphore.availablePermits();
             semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
 
         // Pause throttling by allowing 1 thread to pass
         public void pauseThrottle() {
             // we only need to pause throttling if throttling allows no threads to pass i.e. allowThreads is 0
-            if((allowThreads == 0) && throttlePaused.getAndSet(true) == false) {
+            if ((allowThreads == 0) && throttlePaused.getAndSet(true) == false) {
                 semaphore.release(1);
             }
         }
 
         public void unPauseThrottle() {
-            if(throttlePaused.getAndSet(false)) {
+            if (throttlePaused.getAndSet(false)) {
                 semaphore.acquireUninterruptibly(1);
             }
         }
@@ -2305,6 +2351,8 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #pauseThrottling} call.
      */
     public abstract void unPauseThrottling();
+
+    public abstract boolean isIndexingPaused();
 
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.

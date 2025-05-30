@@ -2856,6 +2856,11 @@ public class InternalEngine extends Engine {
         return throttle.isThrottled();
     }
 
+    @Override
+    public boolean isIndexingPaused() {
+        return throttle.isIndexingPaused();
+    }
+
     boolean throttleLockIsHeldByCurrentThread() {  // to be used in assertions and tests only
         return throttle.throttleLockIsHeldByCurrentThread();
     }
@@ -2933,7 +2938,7 @@ public class InternalEngine extends Engine {
                 configuredMaxMergeCount
             );
             // System.out.println("Activate throttling enableIndexingThrottling");
-                InternalEngine.this.activateThrottling();
+            InternalEngine.this.activateThrottling();
 
         }
 

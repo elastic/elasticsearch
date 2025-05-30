@@ -84,15 +84,17 @@ final class IndexShardOperationPermits implements Closeable {
         final ActionListener<Releasable> onAcquired,
         final long timeout,
         final TimeUnit timeUnit,
-        final Executor executor
-        //@Nullable IndexShard indexShard
+        final Executor executor,
+        @Nullable IndexShard indexShard
     ) {
         delayOperations();
         // If indexing is paused on the shard, unpause it so that any currently waiting task can
         // go ahead and release the indexing permit it holds.
-        //if(indexShard && indexShard)
-
+        boolean throttlingPaused = indexShard.pauseThrottling();
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
+        if (throttlingPaused) {
+            indexShard.unpauseThrottling();
+        }
     }
 
     private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {

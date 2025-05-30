@@ -879,8 +879,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
-                                                                            // CancellableThreads and we want to be able to interrupt it
+            },
+                30L,
+                TimeUnit.MINUTES,
+                // Wait on current thread because this execution is wrapped by CancellableThreads and we want to be able to interrupt it
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                this
+            );
+
         }
     }
 
@@ -2752,16 +2758,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void pauseThrottling() {
+    public boolean pauseThrottling() {
         Engine engine = getEngineOrNull();
-        final boolean throttled;
+        final boolean indexingPaused;
         if (engine == null) {
-            throttled = false;
+            indexingPaused = false;
         } else {
-            throttled = engine.isThrottled();
+            indexingPaused = engine.isIndexingPaused();
         }
-        if (throttled) {
+        if (indexingPaused) {
             engine.pauseThrottling();
+            return (true);
+        }
+        return (false);
+    }
+
+    public void unpauseThrottling() {
+        try {
+            getEngine().unPauseThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
         }
     }
 
@@ -3824,7 +3840,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic(), this);
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;

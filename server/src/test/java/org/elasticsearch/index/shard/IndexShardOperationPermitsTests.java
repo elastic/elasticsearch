@@ -193,7 +193,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 wrap(() -> { throw new IllegalArgumentException("fake error"); }),
                 randomInt(10),
                 TimeUnit.MINUTES,
-                threadPool.generic()
+                threadPool.generic(),
+                null
             )
         );
     }
@@ -219,7 +220,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
-            }), 30, TimeUnit.MINUTES, threadPool.generic());
+            }), 30, TimeUnit.MINUTES, threadPool.generic(), null);
             assertFalse(blocked.get());
             assertFalse(future.isDone());
         }
@@ -313,7 +314,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }
-        }, blockReleased::countDown), 1, TimeUnit.MINUTES, threadPool.generic());
+        }, blockReleased::countDown), 1, TimeUnit.MINUTES, threadPool.generic(), null);
         blockAcquired.await();
         return () -> {
             releaseBlock.countDown();
@@ -333,7 +334,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             blocked.set(true);
             blockAcquired.countDown();
             releaseBlock.await();
-        }), 30, TimeUnit.MINUTES, threadPool.generic());
+        }), 30, TimeUnit.MINUTES, threadPool.generic(), null);
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -381,7 +382,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.blockOperations(wrap(() -> {
             onBlocked.set(true);
             blockedLatch.countDown();
-        }), 30, TimeUnit.MINUTES, threadPool.generic());
+        }), 30, TimeUnit.MINUTES, threadPool.generic(), null);
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -463,7 +464,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             permits.blockOperations(wrap(() -> {
                 values.add(operations);
                 operationLatch.countDown();
-            }), 30, TimeUnit.MINUTES, threadPool.generic());
+            }), 30, TimeUnit.MINUTES, threadPool.generic(), null);
         });
         blockingThread.start();
 
@@ -540,7 +541,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             final var rejectingExecutor = threadPool.executor(REJECTING_EXECUTOR);
             rejectingExecutor.execute(threadBlock::actionGet);
             assertThat(
-                safeAwaitFailure(Releasable.class, l -> permits.blockOperations(l, 1, TimeUnit.HOURS, rejectingExecutor)),
+                safeAwaitFailure(Releasable.class, l -> permits.blockOperations(l, 1, TimeUnit.HOURS, rejectingExecutor, null)),
                 instanceOf(EsRejectedExecutionException.class)
             );
 
@@ -553,7 +554,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic(), null))) {
             assertNotNull(block);
         }
     }
@@ -568,7 +569,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 safeAwaitFailure(
                     ElasticsearchTimeoutException.class,
                     Releasable.class,
-                    f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic())
+                    f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic(), null)
                 ).getMessage()
             );
 
@@ -582,7 +583,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic(), null))) {
             assertNotNull(block);
         }
     }
@@ -613,7 +614,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 reference.set(e);
                 onFailureLatch.countDown();
             }
-        }, 1, TimeUnit.MILLISECONDS, threadPool.generic());
+        }, 1, TimeUnit.MILLISECONDS, threadPool.generic(), null);
         onFailureLatch.await();
         assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
 

@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Container for cluster settings
  */
@@ -42,9 +40,8 @@ public class SearchStatsSettings {
 
     private TimeValue recentReadLoadHalfLifeForNewShards = RECENT_READ_LOAD_HALF_LIFE_SETTING.getDefault(Settings.EMPTY);
 
-
     public SearchStatsSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(RECENT_READ_LOAD_HALF_LIFE_SETTING,value -> recentReadLoadHalfLifeForNewShards = value);
+        clusterSettings.initializeAndWatch(RECENT_READ_LOAD_HALF_LIFE_SETTING, value -> recentReadLoadHalfLifeForNewShards = value);
     }
 
     public TimeValue getRecentReadLoadHalfLifeForNewShards() {

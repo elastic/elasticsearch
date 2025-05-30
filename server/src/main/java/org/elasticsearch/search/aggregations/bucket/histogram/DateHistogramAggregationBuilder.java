@@ -67,8 +67,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         entry("1d", Rounding.DateTimeUnit.DAY_OF_MONTH),
         entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
         entry("1h", Rounding.DateTimeUnit.HOUR_OF_DAY),
-        entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-        entry("1m", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+        entry("minute", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
+        entry("1m", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
         entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
         entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
     );

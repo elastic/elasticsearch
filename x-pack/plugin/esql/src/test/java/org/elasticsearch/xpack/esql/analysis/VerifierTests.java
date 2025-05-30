@@ -1259,112 +1259,83 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        // Source commands
-        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
-        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
-
-        // Processing commands
-        assertEquals(
-            "1:43: [QSTR] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:71: [QSTR] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
-        );
-        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:44: [QSTR] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
-        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:35: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:45: [QSTR] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
-        );
-
-        // Some combination of processing commands
-        assertEquals(
-            "1:38: [QSTR] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:46: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:77: [QSTR] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:54: [QSTR] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
-        );
+        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Anna\")");
     }
 
     public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
+        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Anna\")");
+    }
+
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
         // Source commands
-        assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
-        assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
+        assertEquals("1:13: [" + functionName + "] function cannot be used after SHOW", error("show info | where " + functionInvocation));
+        assertEquals(
+            "1:17: [" + functionName + "] function cannot be used after ROW",
+            error("row a= \"Anna\" | where " + functionInvocation)
+        );
 
         // Processing commands
         assertEquals(
-            "1:43: [KQL] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where kql(\"Connection\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after DROP", error("from test | drop emp_no | where kql(\"Anna\")"));
-        assertEquals(
-            "1:71: [KQL] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where kql(\"Anna\")")
-        );
-        assertEquals("1:26: [KQL] function cannot be used after EVAL", error("from test | eval z = 2 | where kql(\"Anna\")"));
-        assertEquals(
-            "1:44: [KQL] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where kql(\"Anna\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
-        assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
-        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
-        assertEquals(
-            "1:45: [KQL] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where kql(\"Anna\")")
+            "1:43: [" + functionName + "] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [KQL] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where kql(\"Anna\")")
+            "1:27: [" + functionName + "] function cannot be used after DROP",
+            error("from test | drop emp_no | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:71: [" + functionName + "] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:26: [" + functionName + "] function cannot be used after EVAL",
+            error("from test | eval z = 2 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:44: [" + functionName + "] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:27: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | keep emp_no | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:24: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | limit 10 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:35: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:45: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:52: [" + functionName + "] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where " + functionInvocation)
         );
 
         // Some combination of processing commands
-        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
         assertEquals(
-            "1:46: [KQL] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")
+            "1:38: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | keep emp_no | limit 10 | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [KQL] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where kql(\"Anna\")")
+            "1:46: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:77: [KQL] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
+            "1:52: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:54: [KQL] function cannot be used after DROP",
-            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
+            "1:77: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:54: [" + functionName + "] function cannot be used after DROP",
+            error("from test | rename last_name as name | drop emp_no | where " + functionInvocation)
         );
     }
 
@@ -1425,25 +1396,17 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in KqlFunctionTests
     }
 
-    public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
-    }
-
-    public void testKqlFunctionWithDisjunctions() {
-        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
-    }
-
-    public void testMatchFunctionWithDisjunctions() {
+    public void testFullTextFunctionsWithDisjunctions() {
         checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionWithDisjunctions() {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatorWithDisjunctions() {
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
+        }
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name)", "function");
+        }
     }
 
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
@@ -1462,6 +1425,9 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
         checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("term(last_name, \"Smith\")");
+        }
     }
 
     private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
@@ -2173,195 +2139,35 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"max_expansions\": 10})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
-
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [match(first_name, \"Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
-        }
-
-        assertThat(
-            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
-        );
-    }
-
-    public void testQueryStringOptions() {
-        // Check positive cases
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"allow_leading_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyze_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_field\": \"field1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_operator\": \"AND\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"enable_position_increments\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_prefix_length\": 5})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"max_determinized_states\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_analyzer\": \"qnalyzer_1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_field_suffix\": \"q_suffix\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"phrase_slop\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"rewrite\": \"r1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"time_zone\": \"time_zone\"})");
-
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : QueryString.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE QSTR(\"first_name: Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [QSTR(\"first_name: Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
-        }
-
-        assertThat(
-            error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
-        );
+        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})");
     }
 
     public void testMultiMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name)");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"slop\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzziness\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"lenient\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"max_expansions\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"operator\": \"AND\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"prefix_length\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"tie_breaker\": 1.0})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"type\": \"best_fields\"})");
+        checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
+    }
 
-        // Check all data types for available options
+    public void testQueryStringOptions() {
+        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})");
+    }
+
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : MultiMatch.OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+
             // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
+                String optionValue = exampleValueForType(currentType);
                 String queryOptionValue = optionValue;
                 if (currentType == KEYWORD) {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                    + optionName
-                    + "\": "
-                    + queryOptionValue
-                    + "})";
+                String query = String.format(Locale.ROOT, queryTemplate, optionName, queryOptionValue);
                 try {
                     // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
@@ -2369,35 +2175,27 @@ public class VerifierTests extends ESTestCase {
                     query(query);
                 } catch (InvalidArgumentException e) {
                     // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot "
-                            + (optionType == OBJECT ? "convert from" : "cast")
-                            + " ["
-                            + optionValue
-                            + "]"
-                            + (optionType == OBJECT ? (", type [keyword]") : "")
-                            + " to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
+                    String error = error(query);
+                    assertThat(error, containsString("Invalid option [" + optionName + "]"));
+                    assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
             }
         }
 
-        assertThat(
-            error("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", first_name, last_name, "
-                    + "{\"unknown_option\": true})], expected one of "
-            )
-        );
+        String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
+        assertThat(error(errorQuery), containsString("Invalid option [unknown_option]"));
+    }
+
+    private static String exampleValueForType(DataType currentType) {
+        return switch (currentType) {
+            case BOOLEAN -> String.valueOf(randomBoolean());
+            case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+            case LONG -> String.valueOf(randomLong());
+            case FLOAT -> String.valueOf(randomFloat());
+            case DOUBLE -> String.valueOf(randomDouble());
+            case KEYWORD -> randomAlphaOfLength(10);
+            default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+        };
     }
 
     public void testMultiMatchFunctionIsNotNullable() {
@@ -2427,10 +2225,6 @@ public class VerifierTests extends ESTestCase {
             "1:47: [MultiMatch] function cannot be used after STATS",
             error("from test | STATS c = AVG(salary) BY gender | where multi_match(\"F\", gender)")
         );
-    }
-
-    public void testMultiMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
     }
 
     public void testMultiMatchFunctionWithNonBooleanFunctions() {

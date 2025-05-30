@@ -29,19 +29,16 @@ RUN microdnf install -y findutils tar gzip
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against the published checksum.
-RUN set -eux ; \\
-    tini_bin="" ; \\
-    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \
+RUN set -eux; \\
+    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
     case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$arch" ; echo >&2 ; exit 1 ;; \\
+        aarch64) tini_bin='tini-arm64'; tini_sum='07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81' ;; \\
+        x86_64)  tini_bin='tini-amd64'; tini_sum='93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c' ;; \\
+        *) echo >&2 "Unsupported architecture \$arch"; exit 1 ;; \\
     esac ; \\
-    curl -f --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl -f --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /bin/tini ; \\
+    curl -f --retry 10 -S -L -o /tmp/tini https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}; \\
+    echo "\${tini_sum}  /tmp/tini" | sha256sum -c -; \\
+    mv /tmp/tini /bin/tini; \\
     chmod 0555 /bin/tini
 
 WORKDIR /usr/share/elasticsearch
@@ -146,8 +143,6 @@ LABEL name="Elasticsearch" \\
   release="1" \\
   summary="Elasticsearch" \\
   description="You know, for search."
-
-RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

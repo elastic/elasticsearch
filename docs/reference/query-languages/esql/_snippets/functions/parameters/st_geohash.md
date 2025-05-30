@@ -9,5 +9,5 @@
 :   Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).
 
 `bounds`
-:   Optional bounds to filter the grid tiles, either a `geo_shape` or an array of at least two `geo_point`s. The envelope of the `geo_shape` is used as bounds.
+:   Optional bounds to filter the grid tiles, a `geo_shape`. The envelope of the `geo_shape` is used as bounds.
 

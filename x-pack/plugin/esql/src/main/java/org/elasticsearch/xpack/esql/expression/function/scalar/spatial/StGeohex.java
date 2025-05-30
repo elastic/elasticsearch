@@ -114,8 +114,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         @Param(name = "precision", type = { "integer" }, description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 15](https://h3geo.org/docs/core-library/restable/).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape", "geo_point" }, description = """
-            Optional bounds to filter the grid tiles, either a `geo_shape` or an array of at least two `geo_point`s.
+        @Param(name = "bounds", type = { "geo_shape" }, description = """
+            Optional bounds to filter the grid tiles, a `geo_shape`.
             The envelope of the `geo_shape` is used as bounds.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);

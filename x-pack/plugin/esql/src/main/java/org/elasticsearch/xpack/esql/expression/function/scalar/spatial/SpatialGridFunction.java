@@ -103,7 +103,7 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         }
 
         if (bounds() != null) {
-            resolution = isGeo(bounds(), sourceText());
+            resolution = isGeoshape(bounds(), sourceText());
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -116,8 +116,8 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         return isType(e, t -> t.equals(GEO_POINT), operationName, FIRST, GEO_POINT.typeName());
     }
 
-    protected static Expression.TypeResolution isGeo(Expression e, String operationName) {
-        return isType(e, t -> t.equals(GEO_SHAPE) || t.equals(GEO_POINT), operationName, THIRD, GEO_SHAPE.typeName(), GEO_POINT.typeName());
+    protected static Expression.TypeResolution isGeoshape(Expression e, String operationName) {
+        return isType(e, t -> t.equals(GEO_SHAPE), operationName, THIRD, GEO_SHAPE.typeName());
     }
 
     protected static Rectangle asRectangle(BytesRef boundsBytesRef) {
@@ -132,24 +132,9 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         throw new IllegalArgumentException("Cannot determine envelope of bounds geometry");
     }
 
-    protected static Rectangle asRectangle(List<?> list) {
-        var visitor = new SpatialEnvelopeVisitor(new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP));
-        for (Object o : list) {
-            if (o instanceof BytesRef bytesRef) {
-                var geometry = GEO.wkbToGeometry(bytesRef);
-                geometry.visit(visitor);
-            } else {
-                throw new IllegalArgumentException("Cannot determine envelope of bounds geometry of type " + o.getClass().getSimpleName());
-            }
-        }
-        return visitor.getResult();
-    }
-
     protected static GeoBoundingBox asGeoBoundingBox(Object bounds) {
         if (bounds instanceof BytesRef boundsBytesRef) {
             return asGeoBoundingBox(asRectangle(boundsBytesRef));
-        } else if (bounds instanceof List<?> list) {
-            return asGeoBoundingBox(asRectangle(list));
         }
         throw new IllegalArgumentException("Cannot determine envelope of bounds geometry of type " + bounds.getClass().getSimpleName());
     }
@@ -159,14 +144,6 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
             new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
         );
-    }
-
-    protected static boolean inBounds(Point point, Rectangle bounds) {
-        // TODO: consider bounds across the dateline
-        return point.getX() >= bounds.getMinX()
-            && point.getY() >= bounds.getMinY()
-            && point.getX() <= bounds.getMaxX()
-            && point.getY() <= bounds.getMaxY();
     }
 
     @Override

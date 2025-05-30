@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,7 +20,6 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -70,40 +68,29 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     );
                 }));
                 // Test with bounds
-                for (DataType boundsType : List.of(GEO_POINT, GEO_SHAPE)) {
-                    String boundsTestName = testName + " and " + boundsType.typeName() + " bounds";
-                    suppliers.add(new TestCaseSupplier(boundsTestName, List.of(spatialType, INTEGER, boundsType), () -> {
-                        TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
-                        BytesRef geometry = (BytesRef) geoTypedData.data();
-                        int precision = between(1, 8);
-                        TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
-                        Rectangle bounds = new Rectangle(-180, 180, 90, -90);
-                        String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
-                        if (literalPrecision) {
-                            precisionData = precisionData.forceLiteral();
-                            evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
-                        }
-                        TestCaseSupplier.TypedData boundsData;
-                        if (boundsType == GEO_POINT) {
-                            // Create a point as bounds
-                            ArrayList<BytesRef> boundsPoints = new ArrayList<>();
-                            boundsPoints.add(GEO.asWkb(new Point(-180, -90)));
-                            boundsPoints.add(GEO.asWkb(new Point(180, 90)));
-                            boundsPoints.add(GEO.asWkb(new Point(0, 0)));
-                            boundsData = new TestCaseSupplier.TypedData(boundsPoints, GEO_POINT, "bounds").forceLiteral();
-                        } else {
-                            // Create a rectangle as bounds
-                            BytesRef boundsBytesRef = GEO.asWkb(bounds);
-                            boundsData = new TestCaseSupplier.TypedData(boundsBytesRef, GEO_SHAPE, "bounds").forceLiteral();
-                        }
-                        return new TestCaseSupplier.TestCase(
-                            List.of(geoTypedData, precisionData, boundsData),
-                            startsWith(getFunctionClassName() + evaluatorName),
-                            LONG,
-                            boundsMatches(bounds, expectedValue)
-                        );
-                    }));
-                }
+                String boundsTestName = testName + " and bounds";
+                suppliers.add(new TestCaseSupplier(boundsTestName, List.of(spatialType, INTEGER, GEO_SHAPE), () -> {
+                    TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
+                    BytesRef geometry = (BytesRef) geoTypedData.data();
+                    int precision = between(1, 8);
+                    TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
+                    Rectangle bounds = new Rectangle(-180, 180, 90, -90);
+                    String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
+                    if (literalPrecision) {
+                        precisionData = precisionData.forceLiteral();
+                        evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
+                    }
+                    TestCaseSupplier.TypedData boundsData;
+                    // Create a rectangle as bounds
+                    BytesRef boundsBytesRef = GEO.asWkb(bounds);
+                    boundsData = new TestCaseSupplier.TypedData(boundsBytesRef, GEO_SHAPE, "bounds").forceLiteral();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(geoTypedData, precisionData, boundsData),
+                        startsWith(getFunctionClassName() + evaluatorName),
+                        LONG,
+                        boundsMatches(bounds, expectedValue)
+                    );
+                }));
             }
         }
     }

@@ -169,36 +169,6 @@ count:long | centroid:geo_point                            | geohashString:keywo
 2          | POINT (16.706149326637387 32.37822346854955)  | sm
 ;
 
-gridGeohashStatsByPointsBounds
-required_capability: spatial_grid
-
-FROM airports
-| EVAL points = ["POINT(0.0 30.0)", "POINT(12.0 60.0)"]
-| EVAL geohash = ST_GEOHASH(location, 2, TO_GEOPOINT(points))
-| WHERE geohash IS NOT NULL
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-      BY geohash
-| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)
-| KEEP count, centroid, geohashString
-| SORT count DESC, geohashString ASC
-;
-
-count:long | centroid:geo_point                            | geohashString:keyword
-19         | POINT (6.360728044651057 47.94084087577894)   | u0
-10         | POINT (15.350638423115015 47.80751353036612)  | u2
-9          | POINT (18.5217544157058 42.1394603792578)     | sr
-8          | POINT (6.351574736181647 51.8981519783847)    | u1
-7          | POINT (5.268637698941997 42.747250193330856)  | sp
-7          | POINT (17.092350951528974 53.365471504096476) | u3
-5          | POINT (16.2651440910995 58.812188878655434)   | u6
-4          | POINT (7.7012718468904495 36.39783004182391)  | sn
-3          | POINT (14.222751930356026 37.168446206487715) | sq
-3          | POINT (7.318722177296877 59.788265260867774)  | u4
-2          | POINT (16.706149326637387 32.37822346854955)  | sm
-;
-
 gridGeohashStatsByWhereUK
 required_capability: spatial_grid
 
@@ -432,27 +402,6 @@ FROM airports
 | EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
 | SORT count DESC, geotileString ASC
 | KEEP count, centroid, geotileString
-;
-
-count:long | centroid:geo_point                           | geotileString:keyword
-100        | POINT (18.10569669920951 50.40505832391791)  | 3/4/2
-79         | POINT (24.516750878736943 23.93036561181085) | 3/4/3
-;
-
-gridGeotileStatsByPointsBounds
-required_capability: spatial_grid
-
-FROM airports
-| EVAL points = ["POINT(0.0 30.0)", "POINT(12.0 60.0)"]
-| EVAL geotile = ST_GEOTILE(location, 3, TO_GEOPOINT(points))
-| WHERE geotile IS NOT NULL
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-      BY geotile
-| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
-| KEEP count, centroid, geotileString
-| SORT count DESC, geotileString ASC
 ;
 
 count:long | centroid:geo_point                           | geotileString:keyword
@@ -760,36 +709,6 @@ location:geo_point                        | geohex:keyword  | geohexBounded:keyw
 POINT (46.035023249891 51.5606456508842)  | 8110bffffffffff | null
 POINT (13.1442589810713 32.6691695504993) | 813fbffffffffff | 813fbffffffffff
 POINT (118.12696884672 24.537192570557)   | 8141bffffffffff | null
-;
-
-gridGeohexStatsByPointsBounds
-required_capability: spatial_grid
-
-FROM airports
-| EVAL points = ["POINT(0.0 30.0)", "POINT(12.0 60.0)"]
-| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOPOINT(points))
-| WHERE geohex IS NOT NULL
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-      BY geohex
-| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)
-| KEEP count, centroid, geohexString
-| SORT count DESC, geohexString ASC
-;
-
-count:long | centroid:geo_point                            | geohexString:keyword 
-22         | POINT (7.250850197689777 48.21363834643059)   | 811fbffffffffff
-17         | POINT (-0.7606179875266903 52.86413913565304) | 81197ffffffffff
-7          | POINT (2.475211258445467 41.32352174592337)   | 81397ffffffffff
-6          | POINT (11.75047050230205 42.351422344800085)  | 811ebffffffffff
-5          | POINT (18.766171680763364 59.15833930950612)  | 8108bffffffffff
-5          | POINT (11.404999259859324 54.510593589395285) | 811f3ffffffffff
-4          | POINT (5.167026452254504 59.81037143385038)   | 8109bffffffffff
-4          | POINT (-1.1871178611181676 35.77457194332965) | 81383ffffffffff
-3          | POINT (-1.1497433669865131 45.83295159973204) | 81187ffffffffff
-3          | POINT (9.197671310976148 36.29719984252006)   | 81387ffffffffff
-1          | POINT (13.144258903339505 32.66916951164603)  | 813fbffffffffff
 ;
 
 gridGeohexStatsByWhereUK

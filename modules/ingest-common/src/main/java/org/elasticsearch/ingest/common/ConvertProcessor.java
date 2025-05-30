@@ -118,19 +118,19 @@ public final class ConvertProcessor extends AbstractProcessor {
                 }
                 try {
                     return BOOLEAN.convert(value);
-                } catch (IllegalArgumentException e) {}
+                } catch (IllegalArgumentException ignored) {}
                 try {
                     return INTEGER.convert(value);
-                } catch (IllegalArgumentException e) {}
+                } catch (IllegalArgumentException ignored) {}
                 try {
                     return LONG.convert(value);
-                } catch (IllegalArgumentException e) {}
+                } catch (IllegalArgumentException ignored) {}
                 try {
                     return FLOAT.convert(value);
-                } catch (IllegalArgumentException e) {}
+                } catch (IllegalArgumentException ignored) {}
                 try {
                     return DOUBLE.convert(value);
-                } catch (IllegalArgumentException e) {}
+                } catch (IllegalArgumentException ignored) {}
                 return value;
             }
         };

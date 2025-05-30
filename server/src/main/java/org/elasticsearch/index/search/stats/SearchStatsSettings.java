@@ -21,8 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class SearchStatsSettings {
 
-    public static final TimeValue RECENT_READ_LOAD_HALF_LIFE_DEFAULT = TimeValue.timeValueSeconds(15); // TODO this is set to seconds for
-                                                                                                       // debugging
+    public static final TimeValue RECENT_READ_LOAD_HALF_LIFE_DEFAULT = TimeValue.timeValueMinutes(5);
     static final TimeValue RECENT_READ_LOAD_HALF_LIFE_MIN = TimeValue.timeValueSeconds(1); // A sub-second half-life makes no sense
     static final TimeValue RECENT_READ_LOAD_HALF_LIFE_MAX = TimeValue.timeValueDays(100_000); // Long.MAX_VALUE nanos, rounded down
 
@@ -41,15 +40,14 @@ public class SearchStatsSettings {
         Setting.Property.NodeScope
     );
 
-    private final AtomicReference<TimeValue> recentReadLoadHalfLifeForNewShards = new AtomicReference<>(
-        RECENT_READ_LOAD_HALF_LIFE_SETTING.getDefault(Settings.EMPTY)
-    );
+    private TimeValue recentReadLoadHalfLifeForNewShards = RECENT_READ_LOAD_HALF_LIFE_SETTING.getDefault(Settings.EMPTY);
+
 
     public SearchStatsSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(RECENT_READ_LOAD_HALF_LIFE_SETTING, recentReadLoadHalfLifeForNewShards::set);
+        clusterSettings.initializeAndWatch(RECENT_READ_LOAD_HALF_LIFE_SETTING,value -> recentReadLoadHalfLifeForNewShards = value);
     }
 
     public TimeValue getRecentReadLoadHalfLifeForNewShards() {
-        return recentReadLoadHalfLifeForNewShards.get();
+        return recentReadLoadHalfLifeForNewShards;
     }
 }

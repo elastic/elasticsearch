@@ -40,7 +40,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -691,6 +693,48 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertTrue(states.contains(SnapshotState.SUCCESS));
         snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));
         assertThat(snapshots, hasSize(0));
+    }
+
+    public void testRetrievingSnapshotsWhenRepositoryIsUnreadable() throws Exception {
+        final String repoName = randomIdentifier();
+        final Path repoPath = randomRepoPath();
+        createRepository(
+            repoName,
+            "fs",
+            Settings.builder().put("location", repoPath).put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
+        );
+        createNSnapshots(repoName, randomIntBetween(1, 3));
+
+        try {
+            try (var directoryStream = Files.newDirectoryStream(repoPath)) {
+                for (final var directoryEntry : directoryStream) {
+                    if (Files.isRegularFile(directoryEntry) && directoryEntry.getFileName().toString().startsWith("index-")) {
+                        Files.writeString(directoryEntry, "invalid");
+                    }
+                }
+            }
+
+            final var repositoryException = safeAwaitAndUnwrapFailure(
+                RepositoryException.class,
+                GetSnapshotsResponse.class,
+                l -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+                    .setSort(SnapshotSortKey.NAME)
+                    .setIgnoreUnavailable(randomBoolean())
+                    .execute(l)
+            );
+            assertEquals(
+                Strings.format("[%s] cannot retrieve snapshots list from this repository", repoName),
+                repositoryException.getMessage()
+            );
+            assertEquals(
+                Strings.format("[%s] Unexpected exception when loading repository data", repoName),
+                repositoryException.getCause().getMessage()
+            );
+        } finally {
+            safeAwait(
+                l -> clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).execute(l.map(v -> null))
+            );
+        }
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

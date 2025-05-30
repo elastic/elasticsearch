@@ -65,7 +65,8 @@ dependencies {
     exclude group: 'org.bouncycastle'
   }
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
+  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"

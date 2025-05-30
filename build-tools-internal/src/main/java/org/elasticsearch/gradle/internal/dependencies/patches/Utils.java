@@ -27,6 +27,8 @@ import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -61,7 +63,7 @@ public class Utils {
     }
 
     public static void patchJar(File inputJar, File outputJar, Collection<PatcherInfo> patchers) {
-        patchJar(inputJar, outputJar, patchers, true);
+        patchJar(inputJar, outputJar, patchers, false);
     }
 
     /**
@@ -73,10 +75,11 @@ public class Utils {
      * @param inputFile the JAR file to patch
      * @param outputFile the output (patched) JAR file
      * @param patchers list of patcher info (classes to patch (jar entry name + optional SHA256 digest) and ASM visitor to transform them)
-     * @param preserveManifest whether to include the manifest file from the input JAR; set this to false when patching a signed JAR,
-     *                         otherwise the patched classes will fail to load at runtime due to mismatched signatures
+     * @param unsignJar whether to remove class signatures from the JAR Manifest; set this to true when patching a signed JAR,
+     *                  otherwise the patched classes will fail to load at runtime due to mismatched signatures.
+     *                  @see <a href="https://docs.oracle.com/javase/tutorial/deployment/jar/intro.html">Understanding Signing and Verification</a>
      */
-    public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers, boolean preserveManifest) {
+    public static void patchJar(File inputFile, File outputFile, Collection<PatcherInfo> patchers, boolean unsignJar) {
         var classPatchers = patchers.stream().collect(Collectors.toMap(PatcherInfo::jarEntryName, Function.identity()));
         var mismatchedClasses = new ArrayList<MismatchInfo>();
         try (JarFile jarFile = new JarFile(inputFile); JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile))) {
@@ -107,7 +110,11 @@ public class Utils {
                         );
                     }
                 } else {
-                    if (preserveManifest || entryName.equals("META-INF/MANIFEST.MF") == false) {
+                    if (unsignJar && entryName.equals("META-INF/MANIFEST.MF")) {
+                        var manifest = new Manifest(jarFile.getInputStream(entry));
+                        manifest.getEntries().clear();
+                        manifest.write(jos);
+                    } else if (unsignJar == false || entryName.matches("META-INF/.*\\.SF") == false) {
                         // Read the entry's data and write it to the new JAR
                         try (InputStream is = jarFile.getInputStream(entry)) {
                             is.transferTo(jos);

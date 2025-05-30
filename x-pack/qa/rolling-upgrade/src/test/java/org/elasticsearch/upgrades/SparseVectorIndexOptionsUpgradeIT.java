@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -39,10 +38,8 @@ public class SparseVectorIndexOptionsUpgradeIT extends AbstractUpgradeTestCase {
         List<Object[]> params = new ArrayList<>();
         // create a matrix of all combinations
         // of our first three parameters
-        for (int i=0; i < 8; i++) {
-            params.add(new Object[] {
-                (i & 1) == 0, (i & 2) == 0, (i & 4) == 0, false
-            });
+        for (int i = 0; i < 8; i++) {
+            params.add(new Object[] { (i & 1) == 0, (i & 2) == 0, (i & 4) == 0, false });
         }
         // and add in overrides for the previous index versions
         params.add(new Object[] { false, false, false, true });

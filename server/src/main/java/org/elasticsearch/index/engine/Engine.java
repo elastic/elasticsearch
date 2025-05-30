@@ -461,7 +461,7 @@ public abstract class Engine implements Closeable {
         private final Lock pauseIndexingLock = new ReentrantLock();
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
-        private volatile AtomicBoolean pauseThrottling = new AtomicBoolean();
+        private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
         private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
@@ -472,10 +472,10 @@ public abstract class Engine implements Closeable {
         public Releasable acquireThrottle() {
             var lockCopy = this.lock;
             if (lockCopy == pauseLockReference) {
-                //try (pauseLockReference.acquire();)
-                try  (var ignored = pauseLockReference.acquire()) {
+                // try (pauseLockReference.acquire();)
+                try (var ignored = pauseLockReference.acquire()) {
                     // If throttling is activated and not temporarily paused
-                    while ((lock == pauseLockReference) && (pauseThrottling.getAcquire() == false)) {
+                    while ((lock == pauseLockReference) && (suspendThrottling.getAcquire() == false)) {
                         logger.trace("Waiting on pause indexing lock");
                         pauseCondition.await();
                     }
@@ -541,7 +541,7 @@ public abstract class Engine implements Closeable {
         public void suspendThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
-                    pauseThrottling.setRelease(true);
+                    suspendThrottling.setRelease(true);
                     pauseCondition.signalAll();
                 }
             }
@@ -551,7 +551,7 @@ public abstract class Engine implements Closeable {
         public void resumeThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
-                    pauseThrottling.setRelease(false);
+                    suspendThrottling.setRelease(false);
                     pauseCondition.signalAll();
                 }
             }
@@ -2345,12 +2345,12 @@ public abstract class Engine implements Closeable {
      * another task trying to get indexing permits might want to pause throttling
      * by letting one thread pass at a time so that it does not get starved.
      */
-    public abstract void pauseThrottling();
+    public abstract void suspendThrottling();
 
     /**
-     * Reverses a previous {@link #pauseThrottling} call.
+     * Reverses a previous {@link #resumeThrottling} call.
      */
-    public abstract void unPauseThrottling();
+    public abstract void resumeThrottling();
 
     public abstract boolean isIndexingPaused();
 

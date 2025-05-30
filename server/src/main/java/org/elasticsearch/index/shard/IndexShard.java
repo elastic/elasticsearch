@@ -2758,7 +2758,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public boolean pauseThrottling() {
+    public boolean suspendThrottling() {
         Engine engine = getEngineOrNull();
         final boolean indexingPaused;
         if (engine == null) {
@@ -2767,15 +2767,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingPaused = engine.isIndexingPaused();
         }
         if (indexingPaused) {
-            engine.pauseThrottling();
+            engine.suspendThrottling();
             return (true);
         }
         return (false);
     }
 
-    public void unpauseThrottling() {
+    public void resumeThrottling() {
         try {
-            getEngine().unPauseThrottling();
+            getEngine().resumeThrottling();
         } catch (AlreadyClosedException ex) {
             // ignore
         }

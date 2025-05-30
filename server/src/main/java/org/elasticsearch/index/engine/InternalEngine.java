@@ -2823,32 +2823,36 @@ public class InternalEngine extends Engine {
 
     @Override
     public void activateThrottling() {
-        int count = throttleRequestCount.incrementAndGet();
-        assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
-        if (count == 1) {
-            throttle.activate();
-            logger.info("Activated throttling");
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.incrementAndGet();
+            assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
+            if (count == 1) {
+                throttle.activate();
+                logger.info("Activated throttling");
+            }
         }
     }
 
     @Override
     public void deactivateThrottling() {
-        int count = throttleRequestCount.decrementAndGet();
-        assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
-        if (count == 0) {
-            throttle.deactivate();
-            logger.info("Deactivated throttling");
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.decrementAndGet();
+            assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
+            if (count == 0) {
+                throttle.deactivate();
+                logger.info("Deactivated throttling");
+            }
         }
     }
 
     @Override
-    public void pauseThrottling() {
-        throttle.pauseThrottle();
+    public void suspendThrottling() {
+        throttle.suspendThrottle();
     }
 
     @Override
-    public void unPauseThrottling() {
-        throttle.unpauseThrottle();
+    public void resumeThrottling() {
+        throttle.resumeThrottle();
     }
 
     @Override

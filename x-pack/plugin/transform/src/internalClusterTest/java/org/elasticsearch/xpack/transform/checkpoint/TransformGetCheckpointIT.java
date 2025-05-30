@@ -213,6 +213,11 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
     }
 
     private void deleteIndices(List<String> indices) {
-        indicesAdmin().prepareDelete(indices.toArray(new String[0])).get();
+        try {
+            indicesAdmin().prepareDelete(indices.toArray(new String[0])).get();
+        } catch (Exception e) {
+            // we can fail to clean up the indices, but this wouldn't impact other tests since the node gets torn down anyway
+            // the index delete is to help the node tear down go smoother
+        }
     }
 }

@@ -44,28 +44,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         if (fieldName == null && getQueryName().equals(MatchAllQueryBuilder.NAME)) {
-
-            if (getInferenceFieldsFromResolveIndices(resolvedIndices).isEmpty()) {
-                // No inference fields were identified, so return the original query.
-                return queryBuilder;
-            }
-
-            List<String> fieldList = new ArrayList<>(getFieldsFromResolveIndices(resolvedIndices));
-            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            for (String field : fieldList) {
-                InferenceIndexInformationForField indexInformation = resolveIndicesForField(field, resolvedIndices);
-                if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-                    // Combined case where the field name requested by this query contains both
-                    // semantic_text and non-inference fields, so we have to combine queries per index
-                    // containing each field type.
-                    boolQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
-                } else {
-                    // The only fields we've identified are inference fields (e.g. semantic_text),
-                    // so rewrite the entire query to work on a semantic_text field.
-                    boolQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation));
-                }
-            }
-            return boolQueryBuilder;
+            return handleMatchAllQuery(queryBuilder, resolvedIndices);
         }
 
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
@@ -82,6 +61,30 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // so rewrite the entire query to work on a semantic_text field.
             return buildInferenceQuery(queryBuilder, indexInformation);
         }
+    }
+
+    private QueryBuilder handleMatchAllQuery(QueryBuilder queryBuilder, ResolvedIndices resolvedIndices) {
+        if (getInferenceFieldsFromResolveIndices(resolvedIndices).isEmpty()) {
+            // No inference fields were identified, so return the original query.
+            return queryBuilder;
+        }
+
+        List<String> fieldList = new ArrayList<>(getFieldsFromResolveIndices(resolvedIndices));
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        for (String field : fieldList) {
+            InferenceIndexInformationForField indexInformation = resolveIndicesForField(field, resolvedIndices);
+            if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+                // Combined case where the field name requested by this query contains both
+                // semantic_text and non-inference fields, so we have to combine queries per index
+                // containing each field type.
+                boolQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
+            } else {
+                // The only fields we've identified are inference fields (e.g. semantic_text),
+                // so rewrite this semantic_text field into a semantic query
+                boolQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation));
+            }
+        }
+        return boolQueryBuilder.should().isEmpty() ? queryBuilder : boolQueryBuilder;
     }
 
     /**
@@ -141,7 +144,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         List<InferenceFieldMetadata> inferenceIndicesMetadata = new ArrayList<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            String indexName = indexMetadata.getIndex().getName();
             inferenceIndicesMetadata.addAll(indexMetadata.getInferenceFields().values());
         }
 

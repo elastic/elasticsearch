@@ -65,16 +65,16 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        var latestCheckerInterface = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
-            EntitlementChecker.class,
-            Runtime.version().feature()
-        );
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
-        DynamicInstrumentation.initialize(inst, latestCheckerInterface, verifyBytecode);
+        DynamicInstrumentation.initialize(
+            inst,
+            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            verifyBytecode
+        );
     }
 
     /**

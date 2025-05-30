@@ -203,7 +203,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: this sorting operation tanks recall for some reason, works fine for small numbers of vectors like in single segment
-        //    need to investigate this further
+        // need to investigate this further
         // float[] distances = new float[centroids.length];
         // for (int i = 0; i < centroids.length; i++) {
         // distances[i] = VectorUtil.squareDistance(centroids[i], globalCentroid);
@@ -271,7 +271,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         short[] soarAssignments = kMeansResult.soarAssignments();
 
         // TODO: previously for flush we were doing this over the vectors not the centroids,
-        //  right off this produces good recall but need to do further evaluation
+        // right off this produces good recall but need to do further evaluation
         // VectorUtil.calculateCentroid(fieldWriter.delegate().getVectors(), globalCentroid);
         // TODO: push this logic into vector util
         for (float[] centroid : centroids) {

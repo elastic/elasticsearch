@@ -70,12 +70,13 @@ public class KMeans {
         return centroids;
     }
 
-    private boolean stepLloyd(FloatVectorValues vectors,
-                              float[][] centroids,
-                              short[] assignments,
-                              int sampleSize,
-                              ClusteringAugment augment)
-        throws IOException {
+    private boolean stepLloyd(
+        FloatVectorValues vectors,
+        float[][] centroids,
+        short[] assignments,
+        int sampleSize,
+        ClusteringAugment augment
+    ) throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
         long[] centroidCounts = new long[centroids.length];

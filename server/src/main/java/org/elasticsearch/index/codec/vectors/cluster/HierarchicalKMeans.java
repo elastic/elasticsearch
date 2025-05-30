@@ -48,7 +48,7 @@ public class HierarchicalKMeans {
      */
     public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
 
-        if(vectors.size() == 0) {
+        if (vectors.size() == 0) {
             return new KMeansResult();
         }
 

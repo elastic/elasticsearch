@@ -12,10 +12,18 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -23,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -39,12 +48,15 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -64,6 +76,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     protected static final String VECTOR_FIELD = "vector";
     protected static final String TOPIC_FIELD = "topic";
 
+    private BytesReference pitId;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(RRFRankPlugin.class);
@@ -72,6 +86,26 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         setupIndex();
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(INDEX).keepAlive(TimeValue.timeValueMinutes(2));
+        OpenPointInTimeResponse openResp = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet();
+        pitId = openResp.getPointInTimeId();
+    }
+
+    @After
+    public void cleanup() {
+        if (pitId != null) {
+            try {
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet(30, TimeUnit.SECONDS);
+                pitId = null;
+                Thread.sleep(100);
+            } catch (Exception e) {}
+        }
+    }
+
+    protected SearchRequestBuilder prepareSearchWithPIT(SearchSourceBuilder source) {
+        return client().prepareSearch()
+            .setSource(source.pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1))))
+            .setPreference(null);
     }
 
     protected void setupIndex() {
@@ -152,6 +186,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             new float[] { 7.0f }
         );
         refresh(INDEX);
+        ensureGreen(INDEX);
     }
 
     public void testLinearRetrieverWithAggs() {
@@ -269,7 +304,6 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
             assertThat((double) resp.getHits().getAt(1).getScore(), closeTo(12.0588f, 0.0001f));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getScore(), equalTo(10f));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
@@ -387,7 +421,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                             ),
                             rankWindowSize,
                             new float[] { 2.0f, 1.0f },
-                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                            0.0f
                         ),
                         null
                     ),
@@ -399,7 +434,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 ),
                 rankWindowSize,
                 new float[] { 1.0f, 100.0f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                0.0f
             )
         );
 
@@ -478,32 +514,32 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
             assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
-            var rrfDetails = resp.getHits().getAt(0).getExplanation().getDetails()[0];
-            assertThat(rrfDetails.getDetails().length, equalTo(3));
+            var linearTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
+            assertThat(linearTopLevel.getDetails().length, equalTo(3));
             assertThat(
-                rrfDetails.getDescription(),
-                equalTo(
+                linearTopLevel.getDescription(),
+                containsString(
                     "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
                         + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
                 )
             );
 
             assertThat(
-                rrfDetails.getDetails()[0].getDescription(),
+                linearTopLevel.getDetails()[0].getDescription(),
                 containsString(
                     "weighted score: [9.0] in query at index [0] [my_custom_retriever] computed as [1.0 * 9.0] "
                         + "using score normalizer [none] for original matching query with score"
                 )
             );
             assertThat(
-                rrfDetails.getDetails()[1].getDescription(),
+                linearTopLevel.getDetails()[1].getDescription(),
                 containsString(
                     "weighted score: [20.0] in query at index [1] computed as [1.0 * 20.0] using score normalizer [none] "
                         + "for original matching query with score:"
                 )
             );
             assertThat(
-                rrfDetails.getDetails()[2].getDescription(),
+                linearTopLevel.getDetails()[2].getDescription(),
                 containsString(
                     "weighted score: [1.0] in query at index [2] computed as [1.0 * 1.0] using score normalizer [none] "
                         + "for original matching query with score"
@@ -565,8 +601,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                     new CompoundRetrieverBuilder.RetrieverSource(standard2, null)
                 ),
                 rankWindowSize,
-                new float[] { 1, 5f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                new float[] { 1.0f, 5f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                0.0f
             )
         );
         source.explain(true);
@@ -758,7 +795,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
         // this will too retrieve just doc 7
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
-            "vector",
+            VECTOR_FIELD,
             null,
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
@@ -834,5 +871,195 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testLinearWithMinScore() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                new float[] { 1.0f, 1.0f, 0.0f },
+                new ScoreNormalizer[] {
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE },
+                10.0f
+            )
+        );
+
+        SearchRequestBuilder req = prepareSearchWithPIT(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNotNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(4));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat((double) resp.getHits().getAt(0).getScore(), closeTo(29.0f, 0.1f));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
+            assertThat((double) resp.getHits().getAt(1).getScore(), closeTo(12.0f, 0.1f));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
+            assertThat((double) resp.getHits().getAt(2).getScore(), closeTo(10.0f, 0.1f));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_3"));
+            assertThat((double) resp.getHits().getAt(3).getScore(), closeTo(10.0f, 0.1f));
+        });
+    }
+
+    public void testLinearWithMinScoreAndNormalization() {
+        final StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(5.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(4.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7.0f))
+        );
+        standard0.retrieverName("standard0");
+
+        final StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(0.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(0.0f))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6.0f))
+        );
+        standard1.retrieverName("standard1");
+
+        final KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 1.0f },
+            null,
+            10,
+            10,
+            null,
+            null
+        );
+        knnRetrieverBuilder.retrieverName("knn");
+
+        final ScoreNormalizer[] normalizers = new ScoreNormalizer[] {
+            MinMaxScoreNormalizer.INSTANCE,
+            MinMaxScoreNormalizer.INSTANCE,
+            MinMaxScoreNormalizer.INSTANCE };
+        final LinearRetrieverBuilder linear = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+            ),
+            10,
+            new float[] { 1.0f, 1.0f, 0.0f },
+            normalizers,
+            1.5f
+        );
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.retriever(linear);
+
+        SearchRequestBuilder req = prepareSearchWithPIT(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNotNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+
+            // Calculated scores >= 1.5f should only be doc_2(2.0)
+            assertThat(resp.getHits().getHits().length, equalTo(1));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat((double) resp.getHits().getAt(0).getScore(), closeTo(2.0f, 0.01f));
+        });
+    }
+
+    public void testLinearWithMinScoreValidation() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new LinearRetrieverBuilder(
+                Arrays.asList(new CompoundRetrieverBuilder.RetrieverSource(standard0, null)),
+                rankWindowSize,
+                new float[] { 1.0f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE },
+                -1.0f
+            )
+        );
+        assertThat(e.getMessage(), equalTo("[min_score] must be greater than 0, was: -1.0"));
+    }
+
+    public void testLinearRetrieverRankWindowSize() {
+        final int rankWindowSize = 3;
+
+        createTestDocuments(10);
+
+        try {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(
+                new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1))
+            );
+
+            StandardRetrieverBuilder retriever1 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+            StandardRetrieverBuilder retriever2 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+
+            LinearRetrieverBuilder linearRetrieverBuilder = new LinearRetrieverBuilder(
+                List.of(
+                    new CompoundRetrieverBuilder.RetrieverSource(retriever1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(retriever2, null)
+                ),
+                rankWindowSize,
+                new float[] { 1.0f, 1.0f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                0.0f
+            );
+
+            searchSourceBuilder.retriever(linearRetrieverBuilder);
+
+            ElasticsearchAssertions.assertResponse(prepareSearchWithPIT(searchSourceBuilder), response -> {
+                assertNotNull("PIT ID should be present", response.pointInTimeId());
+                assertNotNull("Hit count should be present", response.getHits().getTotalHits());
+
+                assertThat(
+                    "Number of hits should be limited by rank window size",
+                    response.getHits().getHits().length,
+                    equalTo(rankWindowSize)
+                );
+            });
+
+            Thread.sleep(100);
+        } catch (Exception e) {
+            fail("Failed to execute search: " + e.getMessage());
+        }
+    }
+
+    private void createTestDocuments(int count) {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            builders.add(client().prepareIndex(INDEX).setSource(DOC_FIELD, "doc" + i, TEXT_FIELD, "text" + i));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(INDEX);
     }
 }

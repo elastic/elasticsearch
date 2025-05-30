@@ -293,12 +293,69 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 
     This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
 
+`min_score`
+:   (Optional, float)
+
+    Minimum score threshold for documents to be included in the final result set. Documents with scores below this threshold will be filtered out. Must be greater than or equal to 0 if explicitly set. If not set, defaults to minimum float value, meaning no documents are filtered based on score  .
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "linear": { <1>
+      "retrievers": [ <2>
+        {
+          "retriever": { <3>
+            "standard": {
+              "query": {
+                "multi_match": {
+                  "query": "Italian cuisine",
+                  "fields": [
+                    "description",
+                    "cuisine"
+                  ]
+                }
+              }
+            }
+          },
+          "weight": 2.0, <4>
+          "normalizer": "minmax" <5>
+        },
+        {
+          "retriever": { <6>
+            "knn": {
+              "field": "vector",
+              "query_vector": [10, 22, 77],
+              "k": 10,
+              "num_candidates": 10
+            }
+          },
+          "weight": 1.0, <7>
+          "normalizer": "minmax" <8>
+        }
+      ],
+      "rank_window_size": 50, <9>
+      "min_score": 1.5 <10>
+    }
+  }
+}
+```
+
+1. Defines a retriever tree using the `linear` retriever type.
+2. The array of retrievers to be combined.
+3. A `standard` retriever used for traditional full-text search.
+4. Weight applied to the score from the `standard` retriever.
+5. Normalization method (`minmax`) applied to the `standard` retriever score.
+6. A `knn` retriever used for vector-based similarity search.
+7. Weight applied to the score from the `knn` retriever.
+8. Normalization method (`minmax`) applied to the `knn` retriever score.
+9. The number of top documents considered for scoring in the linear combination.
+10. Minimum score threshold for the final result set — documents below this combined score will be excluded.
 
 
 ## RRF Retriever [rrf-retriever]

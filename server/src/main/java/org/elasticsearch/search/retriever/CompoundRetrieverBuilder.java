@@ -119,6 +119,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             if (entry.retriever.isCompound() && false == preFilterQueryBuilders.isEmpty()) {
                 entry.retriever.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             }
+            // Propagate the minScore down to the child retriever
+            entry.retriever.minScore(this.minScore);
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
                 newRetrievers.add(new RetrieverSource(newRetriever, null));
@@ -198,6 +200,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             results::get
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
+        rankDocsRetrieverBuilder.minScore(this.minScore);
         return rankDocsRetrieverBuilder;
     }
 

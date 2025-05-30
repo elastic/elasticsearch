@@ -19,6 +19,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -50,7 +52,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs, null, false);
+        return new RankDocsQueryBuilder(rankDocs, null, false, randomFloat());
     }
 
     @Override
@@ -151,7 +153,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
@@ -172,7 +175,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -187,7 +191,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        true
+                        true,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -204,7 +209,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         singleRankDoc,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
                     var col = searcher.search(q, topDocsManager);
@@ -260,6 +266,70 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                 RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(new RankDoc[] { new RankDoc(0, -1.0f, 0) }, null, false);
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> queryBuilder.doToQuery(context));
                 assertEquals("RankDoc scores must be positive values. Missing a normalization step?", ex.getMessage());
+            }
+        }
+    }
+
+    public void testMinScoreSerializationAndParsing() throws IOException {
+        RankDoc[] rankDocs = generateRandomRankDocs();
+        float minScore = randomFloatBetween(0.1f, 100.0f, true);
+        RankDocsQueryBuilder originalBuilder = new RankDocsQueryBuilder(rankDocs, null, false, minScore);
+
+        RankDocsQueryBuilder parsedBuilder = (RankDocsQueryBuilder) assertSerialization(originalBuilder);
+
+        assertArrayEquals(rankDocs, parsedBuilder.rankDocs());
+    }
+
+    public void testRankDocsQueryMinScoreFiltering() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                Document doc0 = new Document();
+                iw.addDocument(doc0);
+                Document doc1 = new Document();
+                iw.addDocument(doc1);
+                Document doc2 = new Document();
+                iw.addDocument(doc2);
+                Document doc3 = new Document();
+                iw.addDocument(doc3);
+            }
+
+            float minScore = 1.5f;
+            RankDoc[] rankDocs = new RankDoc[] { new RankDoc(0, 2.0f, 0), new RankDoc(1, 1.0f, 0), new RankDoc(2, 1.6f, 0) };
+            Arrays.sort(rankDocs);
+            for (int i = 0; i < rankDocs.length; i++) {
+                rankDocs[i].rank = i;
+            }
+            RankDocsQueryBuilder builder = new RankDocsQueryBuilder(rankDocs, null, true, minScore);
+
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                Query query = builder.doToQuery(context);
+                assertTrue("Query should be RankDocsQuery", query instanceof RankDocsQuery);
+
+                IndexSearcher searcher = newSearcher(reader);
+                TopDocs topDocs = searcher.search(query, 10);
+
+                long expectedTotalHits = 2;
+                long expectedFilteredHits = 2;
+                assertEquals("Total hits should match filtered count", expectedTotalHits, topDocs.totalHits.value());
+                assertEquals("Number of score docs should match filtered count", expectedFilteredHits, topDocs.scoreDocs.length);
+
+                boolean foundDoc0 = false;
+                boolean foundDoc2 = false;
+                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                    assertTrue("Score should be >= minScore", scoreDoc.score >= minScore);
+                    if (scoreDoc.doc == 0) {
+                        assertEquals("Doc 0 score mismatch", 2.0f, scoreDoc.score, 0f);
+                        foundDoc0 = true;
+                    } else if (scoreDoc.doc == 2) {
+                        assertEquals("Doc 2 score mismatch", 1.6f, scoreDoc.score, 0f);
+                        foundDoc2 = true;
+                    } else {
+                        fail("Unexpected document ID returned: " + scoreDoc.doc);
+                    }
+                }
+                assertTrue("Document 0 should have been found", foundDoc0);
+                assertTrue("Document 2 should have been found", foundDoc2);
             }
         }
     }

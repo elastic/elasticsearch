@@ -432,10 +432,6 @@ setup:
             num_candidates: 3
 
   - match: { hits.total: 3 }
-  - set: { hits.hits.0._score: raw_score0 }
-  - set: { hits.hits.1._score: raw_score1 }
-  - set: { hits.hits.2._score: raw_score2 }
-
 
   - do:
       headers:

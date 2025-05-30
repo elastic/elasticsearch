@@ -2334,7 +2334,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getMessage(),
-            containsString("fields with index type [bbq_ivf] with cannot be indexed if they're within [nested] mappings")
+            containsString("fields with index type [bbq_ivf] cannot be indexed if they're within [nested] mappings")
         );
     }
 

@@ -61,6 +61,8 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
+    // useful when searching with 'efSearch' type parameters instead of requiring a specific nprobe.
     public static final int DYNAMIC_NPROBE = -1;
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
     public static final int MIN_VECTORS_PER_CLUSTER = 64;

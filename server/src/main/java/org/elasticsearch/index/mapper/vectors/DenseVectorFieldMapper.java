@@ -2772,7 +2772,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + CONTENT_TYPE
                     + "] fields with index type ["
                     + indexOptions.type
-                    + "] with cannot be indexed if they're within [nested] mappings"
+                    + "] cannot be indexed if they're within [nested] mappings"
             );
         }
     }

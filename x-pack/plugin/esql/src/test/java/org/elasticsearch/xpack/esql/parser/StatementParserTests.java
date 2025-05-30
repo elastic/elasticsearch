@@ -885,7 +885,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:19: extraneous input '-' expecting INTEGER_LITERAL");
+        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
     }
 
     public void testBasicSortCommand() {
@@ -3051,7 +3051,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("drop {}", "line 1:18: token recognition error at: '{'"),
             Map.entry("rename a as {}", "line 1:25: token recognition error at: '{'"),
             Map.entry("mv_expand {}", "line 1:23: token recognition error at: '{'"),
-            Map.entry("limit {}", "line 1:19: mismatched input '{' expecting INTEGER_LITERAL"),
+            Map.entry("limit {}", "line 1:19: extraneous input '{' expecting {QUOTED_STRING"),
             Map.entry("enrich idx2 on f1 with f2 = {}", "line 1:41: token recognition error at: '{'"),
             Map.entry("dissect {} \"%{bar}\"", "line 1:21: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("grok {} \"%{WORD:foo}\"", "line 1:18: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL")

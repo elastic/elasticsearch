@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -37,20 +36,13 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests.getThreadPoolMergeExecutorService;
-import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doAnswer;
@@ -337,11 +329,11 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         // fewer merge tasks than pool threads so that there's always a free thread available
         int submittedMergesCount = randomIntBetween(1, mergeExecutorThreadCount - 1);
         Settings settings = Settings.builder()
-                .put(this.settings)
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
-                .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-                .build();
+            .put(this.settings)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
         aFileStore.totalSpace = 150_000L;
         bFileStore.totalSpace = 140_000L;
@@ -422,9 +414,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                         threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                     }
                     // running (or aborting) merge tasks have depleted the available budget
-                    assertBusy(() -> {
-                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(0L));
-                    });
+                    assertBusy(() -> { assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(0L)); });
                     int moreMergeTasksCount = randomIntBetween(1, 10);
                     // any new merge tasks will only be enqueued but not actually run, until more budget becomes available
                     for (int i = 0; i < moreMergeTasksCount; i++) {

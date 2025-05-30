@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.Java19EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.lang.foreign.Addressable;
 import java.lang.foreign.FunctionDescriptor;
@@ -22,8 +22,8 @@ import java.nio.file.Path;
 
 public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java19EntitlementChecker {
 
-    public Java19ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        super(policyManager);
+    public Java19ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
+        super(policyChecker);
     }
 
     @Override
@@ -32,7 +32,7 @@ public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Linker that,
         FunctionDescriptor function
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Addressable address,
         FunctionDescriptor function
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -53,7 +53,7 @@ public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         MemorySession scope
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -63,17 +63,17 @@ public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         long byteSize,
         MemorySession session
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, MemorySession session) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, MemorySession session) {
-        policyManager.checkFileRead(callerClass, path);
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkFileRead(callerClass, path);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 }

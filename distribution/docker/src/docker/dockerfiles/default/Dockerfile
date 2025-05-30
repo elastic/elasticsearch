@@ -97,9 +97,10 @@ package_manager,
   "      rm -rf /var/lib/apt/lists/*"
 ) %>
 
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
-    adduser elasticsearch root && \\
+RUN userdel -r ubuntu && \\
+    groupadd -g 1000 elasticsearch && \\
+    useradd --uid 1000 --gid 1000 --home-dir /usr/share/elasticsearch --create-home elasticsearch && \\
+    usermod -aG root elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true

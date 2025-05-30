@@ -2521,7 +2521,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
-                knnQuery = new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, filter, bbqIndexOptions.defaultNProbe);
+                knnQuery = new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

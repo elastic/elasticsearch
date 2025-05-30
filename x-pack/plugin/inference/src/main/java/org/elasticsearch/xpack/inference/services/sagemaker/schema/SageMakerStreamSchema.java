@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
@@ -66,16 +67,16 @@ public class SageMakerStreamSchema extends SageMakerSchema {
     }
 
     public InferenceServiceResults streamResponse(SageMakerModel model, SageMakerClient.SageMakerStream response) {
-        return streamResponse(model, response, payload::streamResponseBody, this::error);
+        return new StreamingChatCompletionResults(streamResponse(model, response, payload::streamResponseBody, this::error));
     }
 
-    private InferenceServiceResults streamResponse(
+    private <T> Flow.Publisher<T> streamResponse(
         SageMakerModel model,
         SageMakerClient.SageMakerStream response,
-        CheckedBiFunction<SageMakerModel, SdkBytes, InferenceServiceResults.Result, Exception> parseFunction,
+        CheckedBiFunction<SageMakerModel, SdkBytes, T, Exception> parseFunction,
         BiFunction<SageMakerModel, Exception, Exception> errorFunction
     ) {
-        return new StreamingChatCompletionResults(downstream -> {
+        return downstream -> {
             response.responseStream().subscribe(new Flow.Subscriber<>() {
                 private volatile Flow.Subscription upstream;
 
@@ -118,7 +119,7 @@ public class SageMakerStreamSchema extends SageMakerSchema {
                     downstream.onComplete();
                 }
             });
-        });
+        };
     }
 
     public InvokeEndpointWithResponseStreamRequest chatCompletionStreamRequest(SageMakerModel model, UnifiedCompletionRequest request) {
@@ -126,7 +127,9 @@ public class SageMakerStreamSchema extends SageMakerSchema {
     }
 
     public InferenceServiceResults chatCompletionStreamResponse(SageMakerModel model, SageMakerClient.SageMakerStream response) {
-        return streamResponse(model, response, payload::chatCompletionResponseBody, this::chatCompletionError);
+        return new StreamingUnifiedChatCompletionResults(
+            streamResponse(model, response, payload::chatCompletionResponseBody, this::chatCompletionError)
+        );
     }
 
     public UnifiedChatCompletionException chatCompletionError(SageMakerModel model, Exception e) {

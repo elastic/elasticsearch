@@ -20,16 +20,18 @@ package co.elastic.elasticsearch.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -46,10 +48,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,8 +69,12 @@ public class MetadataReshardIndexService {
     private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final AllocationService allocationService;
     private final ThreadPool threadPool;
+
+    private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
+    private final MasterServiceTaskQueue<TransitionToHandoffStateTask> transitionToHandOffStateQueue;
+    private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
+    private final MasterServiceTaskQueue<FinishReshardTask> finishReshardQueue;
 
     public MetadataReshardIndexService(
         final Settings settings,
@@ -79,8 +86,22 @@ public class MetadataReshardIndexService {
         this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.allocationService = allocationService;
         this.threadPool = threadPool;
+
+        this.reshardQueue = clusterService.createTaskQueue("reshard-index", Priority.NORMAL, new ReshardIndexExecutor(allocationService));
+        this.transitionToHandOffStateQueue = clusterService.createTaskQueue(
+            "transition-reshard-target-state-to-handoff",
+            // This is high priority because indexing is blocked while this updated is applied
+            // and we would like to unblock it quickly.
+            Priority.HIGH,
+            new TransitionToHandoffStateExecutor()
+        );
+        this.transitionTargetStateQueue = clusterService.createTaskQueue(
+            "transition-reshard-target-state",
+            Priority.NORMAL,
+            new TransitionTargetStateExecutor()
+        );
+        this.finishReshardQueue = clusterService.createTaskQueue("finish-index-reshard", Priority.NORMAL, new FinishReshardExecutor());
     }
 
     public static ValidationError validateIndex(IndexAbstraction indexAbstraction, IndexMetadata indexMetadata) {
@@ -139,7 +160,7 @@ public class MetadataReshardIndexService {
      * But the same document routes to shard 0 = (800 % 768)/ 512 in the target shards
      * We DO NOT want documents moving from shard 1 to shard 0!!
      */
-    public void validateNumTargetShards(int numTargetShards, IndexMetadata sourceIndexMetadata) {
+    public static void validateNumTargetShards(int numTargetShards, IndexMetadata sourceIndexMetadata) {
         int numSourceShards = sourceIndexMetadata.getNumberOfShards();
         IndexMetadata.assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
     }
@@ -199,113 +220,36 @@ public class MetadataReshardIndexService {
     }
 
     public void transitionToHandoff(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
-        ShardId shardId = splitStateRequest.getShardId();
-        Index index = shardId.getIndex();
-        submitUnbatchedTask(
-            "transition-reshard-index-to-handoff [" + index.getName() + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, splitStateRequest.masterNodeTimeout()) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(ActionResponse.Empty.INSTANCE);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    final ProjectMetadata project = currentState.metadata().projectFor(shardId.getIndex());
-                    final ProjectState projectState = currentState.projectState(project.id());
-                    final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
-                    IndexReshardingMetadata reshardingMetadata = sourceMetadata.getReshardingMetadata();
-                    if (reshardingMetadata == null) {
-                        throw new IllegalStateException("no existing resharding operation on " + index + ".");
-                    }
-
-                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-                    IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
-                    long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
-                    long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
-                    long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
-                    long startingSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
-                    if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
-                        handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
-                    } else if (startingSourcePrimaryTerm != currentSourcePrimaryTerm) {
-                        String message = format(
-                            "%s cannot transition target state [%s] because source primary term advanced [%s>%s]",
-                            shardId,
-                            splitStateRequest.getNewTargetShardState(),
-                            currentSourcePrimaryTerm,
-                            startingSourcePrimaryTerm
-                        );
-                        logger.debug(message);
-                        assert currentSourcePrimaryTerm > startingSourcePrimaryTerm;
-                        throw new IllegalStateException(message);
-                    }
-
-                    ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
-                        IndexMetadata.builder(indexMetadata)
-                            .reshardingMetadata(
-                                reshardingMetadata.transitionSplitTargetToNewState(
-                                    shardId,
-                                    IndexReshardingState.Split.TargetShardState.HANDOFF
-                                )
-                            )
-                    );
-
-                    return ClusterState.builder(currentState).putProjectMetadata(projectMetadata.build()).build();
-                }
-            }
+        // TODO it is up to the caller to figure out how to create ActionResponse, we should not be dealing with it here
+        transitionToHandOffStateQueue.submitTask(
+            "transition-reshard-index-to-handoff [" + splitStateRequest.getShardId().getIndex().getName() + "]",
+            new TransitionToHandoffStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
+            splitStateRequest.masterNodeTimeout()
         );
     }
 
     public void transitionTargetState(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
-        ShardId shardId = splitStateRequest.getShardId();
-        Index index = shardId.getIndex();
-        submitUnbatchedTask(
-            "transition-reshard-index-target-state [" + index.getName() + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, splitStateRequest.masterNodeTimeout()) {
+        // TODO it is up to the caller to figure out how to create ActionResponse, we should not be dealing with it here
+        transitionTargetStateQueue.submitTask(
+            "transition-reshard-index-target-state [" + splitStateRequest.getShardId().getIndex().getName() + "]",
+            new TransitionTargetStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
+            splitStateRequest.masterNodeTimeout()
+        );
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
+    private void onlyReshardIndex(
+        final TimeValue masterNodeTimeout,
+        final TimeValue ackTimeout,
+        final ReshardIndexClusterStateUpdateRequest request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        // TODO perform async reroute after handling the entire batch instead of after every request
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(ActionResponse.Empty.INSTANCE);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    final ProjectMetadata project = currentState.metadata().projectFor(shardId.getIndex());
-                    final ProjectState projectState = currentState.projectState(project.id());
-                    final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
-                    IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-                    if (reshardingMetadata == null) {
-                        throw new IllegalStateException("no existing resharding operation on " + index + ".");
-                    }
-                    long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
-                    long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
-                    if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
-                        handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
-                    }
-
-                    ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-
-                    ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
-                        IndexMetadata.builder(indexMetadata)
-                            .reshardingMetadata(
-                                reshardingMetadata.transitionSplitTargetToNewState(shardId, splitStateRequest.getNewTargetShardState())
-                            )
-                    );
-
-                    return ClusterState.builder(currentState).putProjectMetadata(projectMetadata.build()).build();
-                }
-            }
+        reshardQueue.submitTask(
+            "reshard-index [" + request.index().getName() + "]",
+            new ReshardTask(request, delegate.clusterStateUpdate(), delegate.reroute(), ackTimeout),
+            masterNodeTimeout
         );
     }
 
@@ -327,35 +271,6 @@ public class MetadataReshardIndexService {
         throw new IllegalStateException(message);
     }
 
-    private void onlyReshardIndex(
-        final TimeValue masterNodeTimeout,
-        final TimeValue ackTimeout,
-        final ReshardIndexClusterStateUpdateRequest request,
-        final ActionListener<AcknowledgedResponse> listener
-    ) {
-        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        submitUnbatchedTask(
-            "reshard-index [" + request.index().getName() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return applyReshardIndexRequest(currentState, request, false, delegate.reroute());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> "[" + request.index().getName() + "] failed to autoshard", e);
-                    } else {
-                        logger.debug(() -> "[" + request.index().getName() + "] failed to autoshard", e);
-                    }
-                    super.onFailure(e);
-                }
-            }
-        );
-    }
-
     /**
      * When resharding is complete, finishReshard kicks off a task to remove resharding state from index metadata
      * @param projectId Project containing the given index
@@ -363,73 +278,11 @@ public class MetadataReshardIndexService {
      * @param listener  Callback fired when resharding metadata has been removed from cluster state
      */
     private void finishReshard(final ProjectId projectId, final Index index, ActionListener<Void> listener) {
-        submitUnbatchedTask("finish-reshard-index [" + index.getName() + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final var projectState = currentState.projectState(projectId);
-                final var indexMetadata = projectState.metadata().getIndexSafe(index);
-                if (indexMetadata == null) {
-                    return currentState;
-                }
-
-                var projectMetadata = metadataRemoveReshardingState(projectState, index);
-
-                return ClusterState.builder(currentState).putProjectMetadata(projectMetadata).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("Failed to remove reshard metadata for [{}:{}] from cluster state", projectId, index);
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    public ClusterState applyReshardIndexRequest(
-        ClusterState currentState,
-        ReshardIndexClusterStateUpdateRequest request,
-        boolean silent,
-        final ActionListener<Void> rerouteListener
-    ) {
-        final ProjectId projectId = request.projectId();
-        final Index index = request.index();
-        // TODO: Handle Missing (Index might not exist - need to handle for the batched case)
-        final ProjectState projectState = currentState.projectState(projectId);
-        final IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
-        final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
-
-        var validationError = validateIndex(indexAbstraction, sourceMetadata);
-        if (validationError != null) {
-            throw validationError.intoException(index);
-        }
-
-        final int sourceNumShards = sourceMetadata.getNumberOfShards();
-        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, request.getMultiple());
-        final int targetNumShards = reshardingMetadata.shardCountAfter();
-        // TODO: We should do this validation in TransportReshardAction as well
-        validateNumTargetShards(targetNumShards, sourceMetadata);
-
-        // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
-        final var routingTableBuilder = reshardUpdateNumberOfShards(
-            projectState,
-            allocationService.getShardRoutingRoleStrategy(),
-            targetNumShards,
-            index
+        finishReshardQueue.submitTask(
+            "finish-reshard-index [" + index.getName() + "]",
+            new FinishReshardTask(projectId, index, listener),
+            TimeValue.MINUS_ONE
         );
-
-        ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
-        // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)
-        final ClusterState updated = ClusterState.builder(currentState)
-            .putProjectMetadata(projectMetadata)
-            .putRoutingTable(projectId, routingTableBuilder.build())
-            .build();
-        logger.info("resharding index [{}]", index);
-        return allocationService.reroute(updated, "index [" + index.getName() + "] resharded", rerouteListener);
     }
 
     /**
@@ -523,9 +376,208 @@ public class MetadataReshardIndexService {
         return routingTableBuilder;
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    // TODO: Batch together reshard tasks only. What if there are 2 reshard requests for the same index
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    private static class ReshardTask extends AckedBatchedClusterStateUpdateTask {
+        private final ReshardIndexClusterStateUpdateRequest request;
+        private final ActionListener<Void> rerouteListener;
+
+        ReshardTask(
+            ReshardIndexClusterStateUpdateRequest request,
+            ActionListener<AcknowledgedResponse> stateUpdateListener,
+            ActionListener<Void> rerouteListener,
+            TimeValue ackTimeout
+        ) {
+            super(ackTimeout, stateUpdateListener);
+            this.request = request;
+            this.rerouteListener = rerouteListener;
+        }
+    }
+
+    // TODO investigate if this executor can be non-acked. There should be no need to wait for all nodes to ack the
+    // cluster state update performed here.
+    private static class ReshardIndexExecutor extends SimpleBatchedAckListenerTaskExecutor<ReshardTask> {
+        private final AllocationService allocationService;
+
+        private ReshardIndexExecutor(AllocationService allocationService) {
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(ReshardTask task, ClusterState clusterState) {
+            final ProjectId projectId = task.request.projectId();
+            final Index index = task.request.index();
+
+            final ProjectState projectState = clusterState.projectState(projectId);
+            final IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
+            final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
+
+            var validationError = validateIndex(indexAbstraction, sourceMetadata);
+            if (validationError != null) {
+                throw validationError.intoException(index);
+            }
+
+            final int sourceNumShards = sourceMetadata.getNumberOfShards();
+            final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, task.request.getMultiple());
+            final int targetNumShards = reshardingMetadata.shardCountAfter();
+            // TODO: We should do this validation in TransportReshardAction as well
+            validateNumTargetShards(targetNumShards, sourceMetadata);
+
+            // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
+            final var routingTableBuilder = reshardUpdateNumberOfShards(
+                projectState,
+                allocationService.getShardRoutingRoleStrategy(),
+                targetNumShards,
+                index
+            );
+
+            ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
+            // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)
+            final ClusterState updated = ClusterState.builder(clusterState)
+                .putProjectMetadata(projectMetadata)
+                .putRoutingTable(projectId, routingTableBuilder.build())
+                .build();
+            logger.info("resharding index [{}]", index);
+            allocationService.reroute(updated, "index [" + index.getName() + "] resharded", task.rerouteListener);
+
+            return new Tuple<>(updated, task);
+        }
+    }
+
+    private record TransitionTargetStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class TransitionTargetStateExecutor extends SimpleBatchedExecutor<TransitionTargetStateTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(TransitionTargetStateTask task, ClusterState clusterState) throws Exception {
+            final SplitStateRequest splitStateRequest = task.splitStateRequest;
+            final ShardId shardId = splitStateRequest.getShardId();
+            final Index index = shardId.getIndex();
+
+            final ProjectMetadata project = clusterState.metadata().projectFor(index);
+            final ProjectState projectState = clusterState.projectState(project.id());
+            final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            if (reshardingMetadata == null) {
+                throw new IllegalStateException("no existing resharding operation on " + index + ".");
+            }
+
+            long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
+            long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
+            if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
+                handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
+            }
+
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+
+            ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
+                IndexMetadata.builder(indexMetadata)
+                    .reshardingMetadata(
+                        reshardingMetadata.transitionSplitTargetToNewState(shardId, splitStateRequest.getNewTargetShardState())
+                    )
+            );
+
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
+        }
+
+        @Override
+        public void taskSucceeded(TransitionTargetStateTask task, Void unused) {
+            task.listener.onResponse(null);
+        }
+    }
+
+    private record TransitionToHandoffStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class TransitionToHandoffStateExecutor extends SimpleBatchedExecutor<TransitionToHandoffStateTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(TransitionToHandoffStateTask task, ClusterState clusterState) throws Exception {
+            final SplitStateRequest splitStateRequest = task.splitStateRequest;
+            final ShardId shardId = splitStateRequest.getShardId();
+            final Index index = shardId.getIndex();
+
+            final ProjectMetadata project = clusterState.metadata().projectFor(shardId.getIndex());
+            final ProjectState projectState = clusterState.projectState(project.id());
+            final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
+            IndexReshardingMetadata reshardingMetadata = sourceMetadata.getReshardingMetadata();
+            if (reshardingMetadata == null) {
+                throw new IllegalStateException("no existing resharding operation on " + index + ".");
+            }
+
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+            IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
+            long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
+            long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
+            long currentSourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
+            long startingSourcePrimaryTerm = splitStateRequest.getSourcePrimaryTerm();
+            if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
+                handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
+            } else if (startingSourcePrimaryTerm != currentSourcePrimaryTerm) {
+                String message = format(
+                    "%s cannot transition target state [%s] because source primary term advanced [%s>%s]",
+                    shardId,
+                    splitStateRequest.getNewTargetShardState(),
+                    currentSourcePrimaryTerm,
+                    startingSourcePrimaryTerm
+                );
+                logger.debug(message);
+                assert currentSourcePrimaryTerm > startingSourcePrimaryTerm;
+                throw new IllegalStateException(message);
+            }
+
+            ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
+                IndexMetadata.builder(indexMetadata)
+                    .reshardingMetadata(
+                        reshardingMetadata.transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF)
+                    )
+            );
+
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
+        }
+
+        @Override
+        public void taskSucceeded(TransitionToHandoffStateTask task, Void unused) {
+            task.listener.onResponse(null);
+        }
+    }
+
+    private record FinishReshardTask(ProjectId projectId, Index index, ActionListener<Void> listener) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class FinishReshardExecutor extends SimpleBatchedExecutor<FinishReshardTask, Void> {
+
+        @Override
+        public Tuple<ClusterState, Void> executeTask(FinishReshardTask task, ClusterState clusterState) throws Exception {
+            final var index = task.index;
+
+            final var projectState = clusterState.projectState(task.projectId);
+            final var indexMetadata = projectState.metadata().index(index);
+            if (indexMetadata == null) {
+                return new Tuple<>(clusterState, null);
+            }
+
+            var projectMetadata = metadataRemoveReshardingState(projectState, index);
+
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
+        }
+
+        @Override
+        public void taskSucceeded(FinishReshardTask task, Void unused) {
+            task.listener.onResponse(null);
+        }
     }
 }

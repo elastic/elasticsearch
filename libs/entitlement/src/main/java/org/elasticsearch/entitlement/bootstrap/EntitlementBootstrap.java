@@ -43,14 +43,14 @@ public class EntitlementBootstrap {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
         Map<String, Path> sourcePaths,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Package> suppressFailureLogPackages
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(scopeResolver);
             requireNonNull(pathLookup);
             requireNonNull(sourcePaths);
-            requireNonNull(suppressFailureLogClasses);
+            requireNonNull(suppressFailureLogPackages);
         }
     }
 
@@ -78,7 +78,7 @@ public class EntitlementBootstrap {
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
-     * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
+     * @param suppressFailureLogPackages   packages for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
         Policy serverPolicyPatch,
@@ -95,7 +95,7 @@ public class EntitlementBootstrap {
         Path logsDir,
         Path tempDir,
         Path pidFile,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Package> suppressFailureLogPackages
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -119,10 +119,10 @@ public class EntitlementBootstrap {
                 settingResolver
             ),
             sourcePaths,
-            suppressFailureLogClasses
+            suppressFailureLogPackages
         );
         exportInitializationToAgent();
-        loadAgent(findAgentJar());
+        loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static Path getUserHome() {
@@ -134,11 +134,11 @@ public class EntitlementBootstrap {
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
-    private static void loadAgent(String agentPath) {
+    static void loadAgent(String agentPath, String entitlementInitializationClassName) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath, EntitlementInitialization.class.getName());
+                vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
@@ -154,7 +154,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    public static String findAgentJar() {
+    static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {

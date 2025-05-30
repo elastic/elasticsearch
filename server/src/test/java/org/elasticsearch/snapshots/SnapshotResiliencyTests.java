@@ -1428,7 +1428,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         private static final SubscribableListener<Void> ALWAYS_PROCEED = SubscribableListener.newSucceeded(null);
 
         private SubscribableListener<Void> listenerFor(String snapshot, String index) {
-            if ("last-snapshot".equals(snapshot)) {
+            if ("last-snapshot".equals(snapshot) || "first-snapshot".equals(snapshot)) {
                 return ALWAYS_PROCEED;
             }
 
@@ -1513,10 +1513,21 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             );
                     }
                 }
+            })
+            .andThen(l -> {
+                // Create the first snapshot as source of the clone
+                client.admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "first-snapshot")
+                    .setIndices("index-0", indexToDelete)
+                    .setPartial(false)
+                    .setWaitForCompletion(true)
+                    .execute(l.map(v -> null));
             });
 
         // Start some snapshots such that snapshot-{i} contains index-{i} and index-{snapshotCount} so that we can control the order in
         // which they finalize by controlling the order in which the shard snapshot updates are processed
+        final var cloneFuture = new PlainActionFuture<AcknowledgedResponse>();
         for (int i = 0; i < snapshotCount; i++) {
             final var snapshotName = "snapshot-" + i;
             final var indexName = "index-" + i;
@@ -1528,10 +1539,25 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .setPartial(true)
                     .execute(stepListener.map(createSnapshotResponse -> null))
             );
+            if (i == 0) {
+                // Insert a clone between snapshot-0 and snapshot-1 and it finalizes after snapshot-1 because it will be blocked on index-0
+                testListener = testListener.andThen(stepListener -> {
+                    client.admin()
+                        .cluster()
+                        .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, "first-snapshot", "clone")
+                        .setIndices("index-0", indexToDelete)
+                        .execute(cloneFuture);
+                    ClusterServiceUtils.addTemporaryStateListener(
+                        masterClusterService,
+                        clusterState -> SnapshotsInProgress.get(clusterState)
+                            .asStream()
+                            .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("clone") && e.isClone())
+                    ).addListener(stepListener.map(v -> null));
+                });
+            }
         }
 
         testListener = testListener
-
             // wait for the target index to complete in snapshot-1
             .andThen(l -> {
                 sequencer.releaseBlock("snapshot-0", indexToDelete);
@@ -1541,6 +1567,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     masterClusterService,
                     clusterState -> SnapshotsInProgress.get(clusterState)
                         .asStream()
+                        .filter(e -> e.isClone() == false)
                         .mapToLong(
                             e -> e.shards()
                                 .entrySet()
@@ -1569,6 +1596,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             // wait for all the other snapshots to complete
             .andThen(l -> {
+                // Clone is yet to be finalized
+                assertTrue(SnapshotsInProgress.get(masterClusterService.state()).asStream().anyMatch(SnapshotsInProgress.Entry::isClone));
                 for (int i = 0; i < snapshotCount; i++) {
                     sequencer.releaseBlock("snapshot-" + i, indexToDelete);
                     sequencer.releaseBlock("snapshot-" + i, "index-" + i);
@@ -1577,16 +1606,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .addListener(l.map(v -> null));
             })
             .andThen(l -> {
+                final var snapshotNames = Stream.concat(
+                    Stream.of("clone"),
+                    IntStream.range(0, snapshotCount).mapToObj(i -> "snapshot-" + i)
+                ).toArray(String[]::new);
+
                 client.admin()
                     .cluster()
                     .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
-                    .setSnapshots(IntStream.range(0, snapshotCount).mapToObj(i -> "snapshot-" + i).toArray(String[]::new))
+                    .setSnapshots(snapshotNames)
                     .execute(ActionTestUtils.assertNoFailureListener(getSnapshotsResponse -> {
                         for (final var snapshot : getSnapshotsResponse.getSnapshots()) {
                             assertThat(snapshot.state(), is(SnapshotState.SUCCESS));
                             final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
-                            // Does not contain the deleted index in the snapshot
-                            assertThat(snapshot.indices(), contains("index-" + snapshotName.charAt(snapshotName.length() - 1)));
+                            if ("clone".equals(snapshotName)) {
+                                // Clone is not affected by index deletion
+                                assertThat(snapshot.indices(), containsInAnyOrder("index-0", indexToDelete));
+                            } else {
+                                // Does not contain the deleted index in the snapshot
+                                assertThat(snapshot.indices(), contains("index-" + snapshotName.charAt(snapshotName.length() - 1)));
+                            }
                         }
                         l.onResponse(null);
                     }));
@@ -1599,6 +1638,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testListener.isDone()
         );
         safeAwait(testListener); // shouldn't throw
+        assertTrue(cloneFuture.isDone());
     }
 
     @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")

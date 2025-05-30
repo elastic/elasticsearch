@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-
 package org.elasticsearch.action.search.load;
 
 import org.apache.logging.log4j.LogManager;

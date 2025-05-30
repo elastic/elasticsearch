@@ -104,7 +104,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
 
         bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
 
@@ -131,7 +131,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
 
         bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
 

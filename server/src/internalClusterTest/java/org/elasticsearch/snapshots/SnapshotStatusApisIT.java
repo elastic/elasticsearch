@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -249,22 +248,23 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
             assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
             assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+            assertNull("expected a null description for snapshot shard status: " + snapshotShardState, snapshotShardState.getDescription());
         }, 30L, TimeUnit.SECONDS);
-
-        final SnapshotStats snapshotShardStats = stateFirstShard(getSnapshotStatus(repoName, snapshotOne), indexTwo).getStats();
-        final int totalFiles = snapshotShardStats.getTotalFileCount();
-        final long totalFileSize = snapshotShardStats.getTotalSize();
 
         internalCluster().restartNode(dataNodeTwo);
 
-        final SnapshotIndexShardStatus snapshotShardStateAfterNodeRestart = stateFirstShard(
-            getSnapshotStatus(repoName, snapshotOne),
-            indexTwo
-        );
+        final var snapshotStatusAfterRestart = getSnapshotStatus(repoName, snapshotOne);
+        final var snapshotShardStateAfterNodeRestart = stateFirstShard(snapshotStatusAfterRestart, indexTwo);
         assertThat(snapshotShardStateAfterNodeRestart.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertNotNull("expected a description string for missing stats", snapshotShardStateAfterNodeRestart.getDescription());
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalFileCount(), equalTo(0));
-        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalSize(), equalTo(0L));
+        assertNotNull("expected a non-null description string for missing stats", snapshotShardStateAfterNodeRestart.getDescription());
+        final var missingStats = snapshotShardStateAfterNodeRestart.getStats();
+        assertThat(missingStats.getTotalFileCount(), equalTo(-1));
+        assertThat(missingStats.getTotalSize(), equalTo(-1L));
+
+        final var snapshotShardStateIndexOne = stateFirstShard(snapshotStatusAfterRestart, indexOne);
+        assertNull("expected a null description string for available stats", snapshotShardStateIndexOne.getDescription());
+        assertThat(snapshotShardStateIndexOne.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(snapshotShardStateIndexOne.getStats().getTotalSize(), greaterThan(0L));
 
         unblockAllDataNodes(repoName);
         assertThat(responseSnapshotOne.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));

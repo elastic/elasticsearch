@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -199,6 +200,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,
+            TransportVersion.current(),
             cancellableTask,
             ActionListener.runAfter(listener, () -> listenerInvoked.set(true))
         );
@@ -213,6 +215,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
         final var shardId2 = new ShardId(indexName, indexUuid, 2);
         final var nowMsecs = System.currentTimeMillis();
         final var eightKb = ByteSizeValue.ofKb(8).getBytes();
+        final var shard2SnapshotStats = new SnapshotStats(nowMsecs, 0, 1, 1, 1, eightKb, eightKb, eightKb);
 
         final var currentSnapshotEntries = List.of(
             SnapshotsInProgress.Entry.snapshot(
@@ -275,7 +278,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
                             new SnapshotIndexShardStatus(
                                 new ShardId(indexName, indexUuid, 2),
                                 SnapshotIndexShardStage.DONE,
-                                new SnapshotStats(nowMsecs, 0, 1, 1, 1, eightKb, eightKb, eightKb),
+                                shard2SnapshotStats,
                                 "nodeId2",
                                 null
                             )
@@ -301,7 +304,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             assertNotNull("expected non-null shard stats for SnapshotStatus: " + snapshotStatus, shardStats);
             assertEquals(new SnapshotShardsStats(0, 1 /* started */, 0, 2 /* done */, 0, 3 /* total */), shardStats);
             final var totalStats = snapshotStatus.getStats();
-            assertNotNull("expected non-null total stats for SnapshotStatus: " + snapshotStatus, snapshotStatus);
+            assertNotNull("expected non-null total stats for SnapshotStatus: " + snapshotStatus, totalStats);
             assertEquals("expected total file count to be 1 in the stats: " + totalStats, 1, totalStats.getTotalFileCount());
             assertEquals("expected total size to be " + eightKb + " in the stats: " + totalStats, eightKb, totalStats.getTotalSize());
             final var snapshotStatusIndices = snapshotStatus.getIndices();
@@ -313,9 +316,28 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             );
             final var shardMap = snapshotIndexStatus.getShards();
             assertNotNull("expected a non-null shard map for SnapshotIndexStatus: " + snapshotIndexStatus, shardMap);
+
+            // Verify data for the shard 0 entry, which is missing the stats.
             final var shard0Entry = shardMap.get(0);
             assertNotNull("no entry for shard 0 found in indexName [" + indexName + "] shardMap: " + shardMap, shard0Entry);
-            assertNotNull("expected a description string for shard 0 with missing stats from node0", shard0Entry.getDescription());
+            assertEquals(SnapshotIndexShardStage.DONE, shard0Entry.getStage());
+            final var description = shard0Entry.getDescription();
+            assertNotNull("expected a non-null description string for shard 0 with missing stats from node0: " + shard0Entry, description);
+            assertTrue(
+                "unexpected description string text: " + description,
+                description.contains("shard stats missing from a currently running snapshot due to")
+            );
+            assertEquals(SnapshotStats.forMissingStats(), shard0Entry.getStats());
+
+            // Verify data for the shard 2 entry, which is DONE and has stats present.
+            final var shard2Entry = shardMap.get(2);
+            assertNotNull("no entry for shard 2 found in indexName [" + indexName + "] shardMap: " + shardMap, shard2Entry);
+            assertEquals(SnapshotIndexShardStage.DONE, shard2Entry.getStage());
+            assertNull(
+                "expected a null description string for shard 2 that has stats data present: " + shard2Entry,
+                shard2Entry.getDescription()
+            );
+            assertEquals("unexpected stats for shard 2: " + shard2Entry, shard2SnapshotStats, shard2Entry.getStats());
         };
 
         final var listener = new ActionListener<SnapshotsStatusResponse>() {
@@ -337,6 +359,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,
+            TransportVersion.current(),
             new CancellableTask(randomLong(), "type", "action", "desc", null, Map.of()),
             ActionListener.runAfter(listener, () -> listenerInvoked.set(true))
         );

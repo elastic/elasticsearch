@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_DESCRIPTION_ADDED;
+import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
@@ -41,7 +41,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats = new SnapshotStats(in);
         nodeId = in.readOptionalString();
         failure = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_DESCRIPTION_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
             description = in.readOptionalString();
         }
     }
@@ -101,6 +101,20 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     }
 
     /**
+     * Creates an instance for scenarios where the snapshot stats are unavailable, with a non-null description of why the stats are missing.
+     */
+    public static SnapshotIndexShardStatus forMissingStats(ShardId shardId, SnapshotIndexShardStage stage, String description) {
+        return new SnapshotIndexShardStatus(
+            shardId,
+            stage,
+            SnapshotStats.forMissingStats(),
+            null,
+            null,
+            Objects.requireNonNull(description)
+        );
+    }
+
+    /**
      * Returns snapshot stage
      */
     public SnapshotIndexShardStage getStage() {
@@ -142,7 +156,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats.writeTo(out);
         out.writeOptionalString(nodeId);
         out.writeOptionalString(failure);
-        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_DESCRIPTION_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
             out.writeOptionalString(description);
         }
     }

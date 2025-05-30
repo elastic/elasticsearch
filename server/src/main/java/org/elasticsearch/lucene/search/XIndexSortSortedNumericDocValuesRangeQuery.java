@@ -60,7 +60,6 @@ import java.util.Objects;
 
 /**
  * copied from Lucene
- * @lucene.experimental
  */
 public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
 

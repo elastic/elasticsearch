@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public class SemanticMatchAllQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor{
+public class SemanticMatchAllQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_MATCH_ALL_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_match_all_query_rewrite_interception_supported"
@@ -38,17 +37,16 @@ public class SemanticMatchAllQueryRewriteInterceptor extends SemanticQueryRewrit
     }
 
     @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation
+    ) {
         assert (queryBuilder instanceof MatchAllQueryBuilder);
         MatchAllQueryBuilder matchAllQueryBuilder = (MatchAllQueryBuilder) queryBuilder;
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
         boolQueryBuilder.should(
-            createSemanticSubQuery(
-                indexInformation.getInferenceIndices(),
-                indexInformation.fieldName(),
-                getQuery(queryBuilder)
-            )
+            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(queryBuilder))
         );
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchAllQueryBuilder));
         return boolQueryBuilder;

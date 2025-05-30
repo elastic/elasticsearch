@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,6 +31,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -89,7 +89,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             protected Page createPage(int positionOffset, int length) {
                 try (var builder = blockFactory.newBytesRefVectorBuilder(length)) {
                     for (int i = 0; i < length; i++) {
-                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(1000)));
                     }
                     currentPosition += length;
                     return new Page(builder.build().asBlock());
@@ -120,13 +120,21 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
-                    InferenceAction.Response inferenceResponse = new InferenceAction.Response(mockInferenceResult(inferenceRequest));
-                    listener.onResponse((Response) inferenceResponse);
-                    return;
-                }
+                Runnable runnable = () -> {
+                    if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
+                        InferenceAction.Response inferenceResponse = new InferenceAction.Response(mockInferenceResult(inferenceRequest));
+                        listener.onResponse((Response) inferenceResponse);
+                        return;
+                    }
 
-                fail("Unexpected call to action [" + action.name() + "]");
+                    fail("Unexpected call to action [" + action.name() + "]");
+                };
+
+                if (randomBoolean()) {
+                    runnable.run();
+                } else {
+                    threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 100)), threadPool.executor(ThreadPool.Names.SEARCH));
+                }
             }
         };
 
@@ -187,7 +195,9 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return context -> new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return BlockUtils.deepCopyOf(page.getBlock(channel), context.blockFactory());
+                Block b = page.getBlock(channel);
+                b.incRef();
+                return b;
             }
 
             @Override

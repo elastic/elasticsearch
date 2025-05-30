@@ -237,7 +237,11 @@ public class BulkInferenceExecutor {
             return new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    inferenceRunner.doInference(request, completionListener);
+                    try {
+                        inferenceRunner.doInference(request, completionListener);
+                    } catch (Throwable e) {
+                        listener.onFailure(new RuntimeException("Unexpected failure while running inference", e));
+                    }
                 }
 
                 @Override

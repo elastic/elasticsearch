@@ -9,10 +9,11 @@
 
 package org.elasticsearch.gradle.internal.shadow;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowStats;
+//import com.github.jengelman.gradle.plugins.shadow.ShadowStats;
+
 import com.github.jengelman.gradle.plugins.shadow.relocation.RelocateClassContext;
 import com.github.jengelman.gradle.plugins.shadow.relocation.Relocator;
-import com.github.jengelman.gradle.plugins.shadow.transformers.Transformer;
+import com.github.jengelman.gradle.plugins.shadow.transformers.ResourceTransformer;
 import com.github.jengelman.gradle.plugins.shadow.transformers.TransformerContext;
 
 import org.apache.commons.io.IOUtils;
@@ -26,7 +27,7 @@ import org.w3c.dom.NodeList;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -35,7 +36,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-public class XmlClassRelocationTransformer implements Transformer {
+public class XmlClassRelocationTransformer implements ResourceTransformer {
 
     boolean hasTransformedResource = false;
 
@@ -55,7 +56,7 @@ public class XmlClassRelocationTransformer implements Transformer {
     @Override
     public void transform(TransformerContext context) {
         try {
-            BufferedInputStream bis = new BufferedInputStream(context.getIs());
+            BufferedInputStream bis = new BufferedInputStream(context.getInputStream());
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             doc = dBuilder.parse(bis);
@@ -66,17 +67,16 @@ public class XmlClassRelocationTransformer implements Transformer {
                 this.doc = null;
             }
         } catch (Exception e) {
-            throw new RuntimeException("Error parsing xml file in " + context.getIs(), e);
+            throw new RuntimeException("Error parsing xml file in " + context.getInputStream(), e);
         }
     }
 
     private static String getRelocatedClass(String className, TransformerContext context) {
-        List<Relocator> relocators = context.getRelocators();
-        ShadowStats stats = context.getStats();
+        Set<Relocator> relocators = context.getRelocators();
         if (className != null && className.length() > 0 && relocators != null) {
             for (Relocator relocator : relocators) {
                 if (relocator.canRelocateClass(className)) {
-                    RelocateClassContext relocateClassContext = new RelocateClassContext(className, stats);
+                    RelocateClassContext relocateClassContext = new RelocateClassContext(className);
                     return relocator.relocateClass(relocateClassContext);
                 }
             }
@@ -111,7 +111,9 @@ public class XmlClassRelocationTransformer implements Transformer {
     @Override
     public void modifyOutputStream(ZipOutputStream os, boolean preserveFileTimestamps) {
         ZipEntry entry = new ZipEntry(resource);
-        entry.setTime(TransformerContext.getEntryTimestamp(preserveFileTimestamps, entry.getTime()));
+        if (preserveFileTimestamps) {
+            entry.setTime(entry.getTime());
+        }
 
         try {
             // Write the content back to the XML file
@@ -134,10 +136,5 @@ public class XmlClassRelocationTransformer implements Transformer {
             hasTransformedResource = false;
             doc = null;
         }
-    }
-
-    @Override
-    public String getName() {
-        return getClass().getSimpleName();
     }
 }

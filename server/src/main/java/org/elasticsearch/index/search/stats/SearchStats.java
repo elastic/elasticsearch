@@ -49,6 +49,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryFailure;
         private long fetchFailure;
 
+        private double exponentiallyWeightedMovingRate;
+
         private Stats() {
             // for internal use, initializes all counts to 0
         }
@@ -67,7 +69,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long scrollCurrent,
             long suggestCount,
             long suggestTimeInMillis,
-            long suggestCurrent
+            long suggestCurrent,
+            double exponentiallyWeightedMovingRate
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
@@ -86,6 +89,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.suggestCount = suggestCount;
             this.suggestTimeInMillis = suggestTimeInMillis;
             this.suggestCurrent = suggestCurrent;
+
+            this.exponentiallyWeightedMovingRate = exponentiallyWeightedMovingRate;
+
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -108,6 +114,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
+            }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EWMR_STATS)) {
+                exponentiallyWeightedMovingRate = in.readDouble();
             }
         }
 
@@ -133,6 +143,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(queryFailure);
                 out.writeVLong(fetchFailure);
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EWMR_STATS)) {
+                out.writeDouble(exponentiallyWeightedMovingRate);
+            }
         }
 
         public void add(Stats stats) {
@@ -153,6 +167,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCount += stats.suggestCount;
             suggestTimeInMillis += stats.suggestTimeInMillis;
             suggestCurrent += stats.suggestCurrent;
+
+            exponentiallyWeightedMovingRate += stats.exponentiallyWeightedMovingRate;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -171,6 +187,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             suggestCount += stats.suggestCount;
             suggestTimeInMillis += stats.suggestTimeInMillis;
+
+            exponentiallyWeightedMovingRate += stats.exponentiallyWeightedMovingRate;
         }
 
         public long getQueryCount() {
@@ -245,6 +263,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return suggestCurrent;
         }
 
+        public double getExponentiallyWeightedMovingRate() {
+            return exponentiallyWeightedMovingRate;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -269,6 +291,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
+            builder.field(Fields.EMW_RATE, exponentiallyWeightedMovingRate);
+
             return builder;
         }
 
@@ -290,7 +314,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 && scrollCurrent == that.scrollCurrent
                 && suggestCount == that.suggestCount
                 && suggestTimeInMillis == that.suggestTimeInMillis
-                && suggestCurrent == that.suggestCurrent;
+                && suggestCurrent == that.suggestCurrent
+                && exponentiallyWeightedMovingRate == that.exponentiallyWeightedMovingRate;
         }
 
         @Override
@@ -309,7 +334,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 scrollCurrent,
                 suggestCount,
                 suggestTimeInMillis,
-                suggestCurrent
+                suggestCurrent,
+                exponentiallyWeightedMovingRate
             );
         }
     }
@@ -427,6 +453,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String EMW_RATE = "ewm_rate";
     }
 
     @Override

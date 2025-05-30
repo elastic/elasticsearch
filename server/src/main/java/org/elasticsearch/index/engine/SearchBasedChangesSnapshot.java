@@ -14,8 +14,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -24,6 +27,7 @@ import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XLongComparator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -184,7 +188,12 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      */
     protected TopDocs nextTopDocs() throws IOException {
         Query rangeQuery = rangeQuery(indexSettings, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
-        SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
+        SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, new FieldComparatorSource() {
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
+                return new XLongComparator(numHits, fieldname, -2L, reversed, pruning);
+            }
+        });
 
         TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(new Sort(sortBySeqNo), searchBatchSize, afterDoc, 0);
         TopDocs results = indexSearcher.search(rangeQuery, collectorManager);

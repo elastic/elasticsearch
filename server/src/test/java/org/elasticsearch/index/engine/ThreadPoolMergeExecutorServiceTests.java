@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -761,24 +762,27 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
-    public void testMergeTaskPriorityAvailableBudgetTracking() throws Exception {
-        int taskCount = randomIntBetween(5, 15);
-        for (int i = 0; i < taskCount; i++) {
-            MergeTask mergeTask = mock(MergeTask.class);
-            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1, 10));
-        }
+    public void testMergeTaskQueueAvailableBudgetTracking() throws Exception {
         MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
         assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(Long.MAX_VALUE));
         long availableBudget = randomLongBetween(1, 10);
         mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
         assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
 
+        int taskCount = randomIntBetween(5, 15);
+        for (int i = 0; i < taskCount; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1, 10));
+            mergeTaskPriorityBlockingQueue.enqueue(mergeTask);
+        }
+        assertThat(mergeTaskPriorityBlockingQueue.queueSize(), is(taskCount));
+
         List<PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget> tookElements = new ArrayList<>();
 
         while (mergeTaskPriorityBlockingQueue.isQueueEmpty() == false) {
             if (mergeTaskPriorityBlockingQueue.peekQueue().estimatedRemainingMergeSize() <= mergeTaskPriorityBlockingQueue
                 .getAvailableBudget() && randomBoolean()) {
-                // get another element
+                // take another element (merge task) from the queue
                 long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
                 tookElements.add(mergeTaskPriorityBlockingQueue.take());
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
@@ -787,11 +791,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             } else if (tookElements.isEmpty() == false && randomBoolean()) {
                 // closes a took element to release its budget
                 int index = randomIntBetween(0, tookElements.size() - 1);
-                var closedElement = tookElements.remove(index);
+                var elementToClose = tookElements.remove(index);
                 long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
-                closedElement.close();
+                elementToClose.close();
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
-                assertThat(afterBudget - prevBudget, is(closedElement.element().estimatedRemainingMergeSize()));
+                assertThat(afterBudget - prevBudget, is(elementToClose.element().estimatedRemainingMergeSize()));
             } else if (randomBoolean()) {
                 // increment available budget
                 long budgetIncrement = randomLongBetween(1, 10);
@@ -800,6 +804,59 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
                 assertThat(afterBudget - prevBudget, is(budgetIncrement));
+            }
+        }
+    }
+
+    public void testMergeTaskQueueBudgetTrackingWhenEstimatedRemainingMergeSizeChanges() throws Exception {
+        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(Long.MAX_VALUE));
+        // plenty of available budget
+        final long availableBudget = randomLongBetween(1000, 2000);
+        mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        IdentityHashMap<MergeTask, Long> budgetMap = new IdentityHashMap<>();
+        int taskCount = randomIntBetween(5, 15);
+        for (int i = 0; i < taskCount; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            budgetMap.put(mergeTask, randomLongBetween(1, 10));
+            doAnswer(invocation -> { return budgetMap.get((MergeTask) invocation.getMock()); }).when(mergeTask)
+                .estimatedRemainingMergeSize();
+            mergeTaskPriorityBlockingQueue.enqueue(mergeTask);
+        }
+        assertThat(mergeTaskPriorityBlockingQueue.queueSize(), is(taskCount));
+
+        List<PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget> tookElements = new ArrayList<>();
+
+        while (mergeTaskPriorityBlockingQueue.isQueueEmpty() == false) {
+            if (tookElements.isEmpty() || randomBoolean()) {
+                // take another element (merge task) from the queue
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                tookElements.add(mergeTaskPriorityBlockingQueue.take());
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, greaterThanOrEqualTo(0L));
+                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+            } else if (randomBoolean()) {
+                // closes a took element to release its budget
+                int index = randomIntBetween(0, tookElements.size() - 1);
+                var elementToClose = tookElements.remove(index);
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                elementToClose.close();
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget - prevBudget, is(elementToClose.element().estimatedRemainingMergeSize()));
+            } else {
+                // update the remaining merge size of a took merge task
+                int index = randomIntBetween(0, tookElements.size() - 1);
+                var elementToUpdate = tookElements.get(index);
+                long prevElementBudget = elementToUpdate.element().estimatedRemainingMergeSize();
+                long afterElementBudget = randomValueOtherThan(prevElementBudget, () -> randomLongBetween(1, 10));
+                budgetMap.put(elementToUpdate.element(), afterElementBudget);
+                // it's always the same "baseline" available budget, it's only the per-element (took) budget that is updated
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget - prevBudget, is(prevElementBudget - afterElementBudget));
             }
         }
     }

@@ -56,7 +56,7 @@ public class CompletionOperator extends InferenceOperator {
             super.addInput(input.appendBlock(promptEvaluator.eval(input)));
         } catch (Exception e) {
             releasePageOnAnyThread(input);
-            throw(e);
+            throw (e);
         }
     }
 
@@ -79,7 +79,10 @@ public class CompletionOperator extends InferenceOperator {
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
         BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(input.getPositionCount());
-        return new CompletionOperatorOutputBuilder(outputBlockBuilder, input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray()));
+        return new CompletionOperatorOutputBuilder(
+            outputBlockBuilder,
+            input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray())
+        );
     }
 
     /**

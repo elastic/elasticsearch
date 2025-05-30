@@ -27,7 +27,10 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
     private void assertIterate(int size) {
         final String inferenceId = randomIdentifier();
 
-        try (BytesRefBlock inputBlock = randomInputBlock(size); CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId)) {
+        try (
+            BytesRefBlock inputBlock = randomInputBlock(size);
+            CompletionOperatorRequestIterator requestIterator = new CompletionOperatorRequestIterator(inputBlock, inferenceId)
+        ) {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {

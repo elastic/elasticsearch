@@ -57,7 +57,7 @@ public class RerankOperator extends InferenceOperator {
             super.addInput(input.appendBlock(rowEncoder.eval(input)));
         } catch (Exception e) {
             releasePageOnAnyThread(input);
-            throw(e);
+            throw (e);
         }
     }
 

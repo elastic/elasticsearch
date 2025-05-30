@@ -79,7 +79,10 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
      */
     @Override
     public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
-        Iterator<RankedDocsResults.RankedDoc> sortedRankedDocIterator = inferenceResults(inferenceResponse).getRankedDocs().stream().sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index)).iterator();
+        Iterator<RankedDocsResults.RankedDoc> sortedRankedDocIterator = inferenceResults(inferenceResponse).getRankedDocs()
+            .stream()
+            .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
+            .iterator();
         while (sortedRankedDocIterator.hasNext()) {
             scoreBlockBuilder.appendDouble(sortedRankedDocIterator.next().relevanceScore());
         }

@@ -231,6 +231,20 @@ public final class ShardGenerations {
             return this;
         }
 
+        public Builder updateIfPresent(ShardGenerations shardGenerations) {
+            shardGenerations.shardGenerations.forEach((indexId, gens) -> {
+                if (generations.containsKey(indexId)) {
+                    for (int i = 0; i < gens.size(); i++) {
+                        final ShardGeneration gen = gens.get(i);
+                        if (gen != null) {
+                            generations.get(indexId).put(i, gen);
+                        }
+                    }
+                }
+            });
+            return this;
+        }
+
         public Builder put(IndexId indexId, int shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
             // only track generations for successful shard status values
             return put(indexId, shardId, status.state().failed() ? null : status.generation());

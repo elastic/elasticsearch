@@ -22,7 +22,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Context for finalizing a snapshot.
@@ -111,18 +110,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
         final Collection<IndexId> deletedIndices = updatedShardGenerations.deletedIndices.indices();
         obsoleteGenerations.set(
-            SnapshotsInProgress.get(updatedState)
-                .obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
-                .entrySet()
-                .stream()
-                // We want to keep both old and new generations for deleted indices, so we filter them out here to avoid deletion.
-                // We need the old generations because they are what get recorded in the RepositoryData.
-                // We also need the new generations a future finalization may build upon them. It may ends up not being used at all
-                // when current batch of in-progress snapshots are completed and no new index of the same name is created.
-                // That is also OK. It means we have some redundant shard generations in the repository and they will be deleted
-                // when a snapshot deletion runs.
-                .filter(e -> deletedIndices.contains(e.getKey().index()) == false)
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+            SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
         return updatedState;
     }

@@ -274,7 +274,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LIMIT_ROW_SIZE = def(9_085_0_00);
     public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY = def(9_086_0_00);
     public static final TransportVersion RANK_DOCS_QUERY_MIN_SCORE = def(9_087_0_00);
-  
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

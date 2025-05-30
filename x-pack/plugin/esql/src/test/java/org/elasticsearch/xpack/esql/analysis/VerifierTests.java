@@ -1259,112 +1259,83 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        // Source commands
-        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
-        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
-
-        // Processing commands
-        assertEquals(
-            "1:43: [QSTR] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:71: [QSTR] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
-        );
-        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:44: [QSTR] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
-        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:35: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:45: [QSTR] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
-        );
-
-        // Some combination of processing commands
-        assertEquals(
-            "1:38: [QSTR] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:46: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:77: [QSTR] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:54: [QSTR] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
-        );
+        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Anna\")");
     }
 
     public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
+        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Anna\")");
+    }
+
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
         // Source commands
-        assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
-        assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
+        assertEquals("1:13: [" + functionName + "] function cannot be used after SHOW", error("show info | where " + functionInvocation));
+        assertEquals(
+            "1:17: [" + functionName + "] function cannot be used after ROW",
+            error("row a= \"Anna\" | where " + functionInvocation)
+        );
 
         // Processing commands
         assertEquals(
-            "1:43: [KQL] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where kql(\"Connection\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after DROP", error("from test | drop emp_no | where kql(\"Anna\")"));
-        assertEquals(
-            "1:71: [KQL] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where kql(\"Anna\")")
-        );
-        assertEquals("1:26: [KQL] function cannot be used after EVAL", error("from test | eval z = 2 | where kql(\"Anna\")"));
-        assertEquals(
-            "1:44: [KQL] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where kql(\"Anna\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
-        assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
-        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
-        assertEquals(
-            "1:45: [KQL] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where kql(\"Anna\")")
+            "1:43: [" + functionName + "] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [KQL] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where kql(\"Anna\")")
+            "1:27: [" + functionName + "] function cannot be used after DROP",
+            error("from test | drop emp_no | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:71: [" + functionName + "] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:26: [" + functionName + "] function cannot be used after EVAL",
+            error("from test | eval z = 2 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:44: [" + functionName + "] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:27: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | keep emp_no | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:24: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | limit 10 | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:35: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | mv_expand last_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:45: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:52: [" + functionName + "] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where " + functionInvocation)
         );
 
         // Some combination of processing commands
-        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
         assertEquals(
-            "1:46: [KQL] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")
+            "1:38: [" + functionName + "] function cannot be used after LIMIT",
+            error("from test | keep emp_no | limit 10 | where " + functionInvocation)
         );
         assertEquals(
-            "1:52: [KQL] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where kql(\"Anna\")")
+            "1:46: [" + functionName + "] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:77: [KQL] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
+            "1:52: [" + functionName + "] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where " + functionInvocation)
         );
         assertEquals(
-            "1:54: [KQL] function cannot be used after DROP",
-            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
+            "1:77: [" + functionName + "] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where " + functionInvocation)
+        );
+        assertEquals(
+            "1:54: [" + functionName + "] function cannot be used after DROP",
+            error("from test | rename last_name as name | drop emp_no | where " + functionInvocation)
         );
     }
 
@@ -2156,10 +2127,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMultiMatchOptions() {
-        checkOptionDataTypes(
-            MultiMatch.OPTIONS,
-            "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})"
-        );
+        checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
     }
 
     public void testQueryStringOptions() {

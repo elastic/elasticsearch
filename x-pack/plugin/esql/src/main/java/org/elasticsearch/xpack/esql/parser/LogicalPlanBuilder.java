@@ -739,7 +739,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        Literal inferenceId = ctx.inferenceId != null ? inferenceId(ctx.inferenceId) : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+        Literal inferenceId = ctx.inferenceId != null
+            ? inferenceId(ctx.inferenceId)
+            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
 
         return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }

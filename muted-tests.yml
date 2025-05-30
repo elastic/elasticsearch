@@ -178,8 +178,6 @@ tests:
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/120964
-- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
-  issue: https://github.com/elastic/elasticsearch/issues/121165
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/121285
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT

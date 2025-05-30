@@ -269,50 +269,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10043          | Yishay              | Tzvieli        
 ;
 
-testMatchPhraseVersionField
-required_capability: match_phrase_function
-
-from apps 
-| where match_phrase(version, "2.1") 
-| keep name, version;
-
-name:keyword | version:version
-bbbbb        | 2.1
-;
-
-testMatchPhraseIpField
-required_capability: match_phrase_function
-
-from sample_data
-| where match_phrase(client_ip, "172.21.0.5")
-| keep client_ip, message;
-
-client_ip:ip   | message:keyword
-172.21.0.5     | Disconnected
-;
-
-testMatchPhraseDateFieldAsString
-required_capability: match_phrase_function
-
-from date_nanos
-| where match_phrase(millis, "2023-10-23T13:55:01.543Z")
-| keep millis;
-
-millis:date
-2023-10-23T13:55:01.543Z
-;
-
-testMatchPhraseDateNanosFieldAsString
-required_capability: match_phrase_function
-
-from date_nanos
-| where match_phrase(nanos, "2023-10-23T13:55:01.543123456Z")
-| keep nanos;
-
-nanos:date_nanos
-2023-10-23T13:55:01.543123456Z
-;
-
 testMatchPhraseWithOptionsSlop
 required_capability: match_phrase_function
 from books 

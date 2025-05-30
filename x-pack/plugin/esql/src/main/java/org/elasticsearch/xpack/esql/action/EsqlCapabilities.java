@@ -586,6 +586,12 @@ public class EsqlCapabilities {
          * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
          */
         FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+
+        /**
+         * Support for date nanos in lookup join. Done in #127962
+         */
+        DATE_NANOS_LOOKUP_JOIN,
+
         /**
          * DATE_PARSE supports reading timezones
          */

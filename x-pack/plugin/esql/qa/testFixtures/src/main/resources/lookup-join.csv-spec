@@ -4591,7 +4591,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 joinDateNanos
 required_capability: join_lookup_v12
-required_capability: date_nanos_type
+required_capability: date_nanos_lookup_join
 
 FROM sample_data_ts_nanos
 | LOOKUP JOIN lookup_sample_data_ts_nanos ON @timestamp

@@ -31,6 +31,7 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Set;
@@ -66,24 +67,30 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
+    static boolean shouldUseDirectIO(SegmentReadState state) {
+        return FsDirectoryFactory.isHybridFs(state.directory);
+    }
+
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        // only override the context for the random-access use case
-        SegmentReadState directIOState = state.context.context() == IOContext.Context.DEFAULT
-            ? new SegmentReadState(
+        if (shouldUseDirectIO(state) && state.context.context() == IOContext.Context.DEFAULT) {
+            // only override the context for the random-access use case
+            SegmentReadState directIOState = new SegmentReadState(
                 state.directory,
                 state.segmentInfo,
                 state.fieldInfos,
                 new DirectIOContext(state.context.hints()),
                 state.segmentSuffix
-            )
-            : state;
-        // Use mmap for merges and direct I/O for searches.
-        // TODO: Open the mmap file with sequential access instead of random (current behavior).
-        return new MergeReaderWrapper(
-            new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
-            new Lucene99FlatVectorsReader(state, vectorsScorer)
-        );
+            );
+            // Use mmap for merges and direct I/O for searches.
+            // TODO: Open the mmap file with sequential access instead of random (current behavior).
+            return new MergeReaderWrapper(
+                new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
+                new Lucene99FlatVectorsReader(state, vectorsScorer)
+            );
+        } else {
+            return new Lucene99FlatVectorsReader(state, vectorsScorer);
+        }
     }
 
     @Override

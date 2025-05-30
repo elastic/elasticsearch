@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -79,6 +81,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -633,6 +636,88 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false]
+     * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
+     *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     */
+    public void testReplaceUpperStringCasinqgWithInsensitiveRLike() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE \"VALÜ*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rlike = as(filter.condition(), RLike.class);
+        var field = as(rlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        assertThat(rlike.pattern().pattern(), is("VALÜ*"));
+        assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern
+    public void testReplaceLowerStringCasingWithInsensitiveRLike() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rlike = as(filter.condition(), RLike.class);
+        var field = as(rlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        assertThat(rlike.pattern().pattern(), is("valü*"));
+        assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndRLikeWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
+    public void testReplaceUpperStringCasingWithInsensitiveLike() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE \"VALÜ*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var wlike = as(filter.condition(), WildcardLike.class);
+        var field = as(wlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        assertThat(wlike.pattern().pattern(), is("VALÜ*"));
+        assertThat(wlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern
+    public void testReplaceLowerStringCasingWithInsensitiveLike() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var wlike = as(filter.condition(), WildcardLike.class);
+        var field = as(wlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        assertThat(wlike.pattern().pattern(), is("valü*"));
+        assertThat(wlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndLikeWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 
     private IsNotNull isNotNull(Expression field) {

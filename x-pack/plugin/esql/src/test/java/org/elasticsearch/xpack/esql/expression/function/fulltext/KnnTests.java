@@ -84,12 +84,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                 List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
                 values.add(
                     new TestCaseSupplier.TypedData(
-                        new MapExpression(
-                            Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD)
-                            )
-                        ),
+                        new MapExpression(Source.EMPTY, List.of(new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))),
                         UNSUPPORTED,
                         "options"
                     ).forceLiteral()

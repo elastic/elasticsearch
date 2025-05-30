@@ -406,8 +406,8 @@ public final class RepositoryData {
      *
      * @param snapshotId       Id of the new snapshot
      * @param details          Details of the new snapshot
-     * @param updatedShardGenerations Updated shard generations in the new snapshot. For each index contained in the snapshot an array of new
-     *                         generations indexed by the shard id they correspond to must be supplied.
+     * @param updatedShardGenerations Updated shard generations in the new snapshot, including both indices that are included
+     *                                in the final snapshot and those got deleted while finalizing.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
      *                         {@link IndexMetadata} in them

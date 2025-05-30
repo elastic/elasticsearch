@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -156,7 +156,7 @@ public class BulkInferenceExecutor {
             this.executorService = executorService;
             this.permits = new Semaphore(maxRunningTasks);
             this.inferenceRunner = inferenceRunner;
-            this.pendingRequestsQueue = ConcurrentCollections.newBlockingQueue();
+            this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks);
         }
 
         /**

@@ -531,6 +531,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             // to the remaining disk space requirements of currently running merge tasks
             super(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE);
         }
+
+        // exposed for tests
+        long getAvailableBudget() {
+            return super.availableBudget;
+        }
+
+        // exposed for tests
+        MergeTask peekQueue() {
+            return enqueuedByBudget.peek();
+        }
     }
 
     /**
@@ -539,11 +549,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      */
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
-        private final PriorityQueue<E> enqueuedByBudget;
+        protected final PriorityQueue<E> enqueuedByBudget;
         private final IdentityHashMap<Wrap<E>, Long> unreleasedBudgetPerElement;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
-        private long availableBudget;
+        protected long availableBudget;
 
         PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long initialAvailableBudget) {
             this.budgetFunction = budgetFunction;

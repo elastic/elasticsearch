@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MergeTaskPriorityBlockingQueue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.PriorityBlockingQueueWithBudget;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -47,6 +49,7 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.R
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -754,6 +757,49 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             } else {
                 // run one merge task
                 runOneTask(mergeExecutorTaskQueue);
+            }
+        }
+    }
+
+    public void testMergeTaskPriorityAvailableBudgetTracking() throws Exception {
+        int taskCount = randomIntBetween(5, 15);
+        for (int i = 0; i < taskCount; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1, 10));
+        }
+        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(Long.MAX_VALUE));
+        long availableBudget = randomLongBetween(1, 10);
+        mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        List<PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget> tookElements = new ArrayList<>();
+
+        while (mergeTaskPriorityBlockingQueue.isQueueEmpty() == false) {
+            if (mergeTaskPriorityBlockingQueue.peekQueue().estimatedRemainingMergeSize() <= mergeTaskPriorityBlockingQueue
+                .getAvailableBudget() && randomBoolean()) {
+                // get another element
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                tookElements.add(mergeTaskPriorityBlockingQueue.take());
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, greaterThanOrEqualTo(0L));
+                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+            } else if (tookElements.isEmpty() == false && randomBoolean()) {
+                // closes a took element to release its budget
+                int index = randomIntBetween(0, tookElements.size() - 1);
+                var closedElement = tookElements.remove(index);
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                closedElement.close();
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget - prevBudget, is(closedElement.element().estimatedRemainingMergeSize()));
+            } else if (randomBoolean()) {
+                // increment available budget
+                long budgetIncrement = randomLongBetween(1, 10);
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                availableBudget += budgetIncrement;
+                mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget - prevBudget, is(budgetIncrement));
             }
         }
     }

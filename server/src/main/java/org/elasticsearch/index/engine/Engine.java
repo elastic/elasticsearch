@@ -455,12 +455,14 @@ public abstract class Engine implements Closeable {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
+        // This lock throttles indexing to 1 thread (per shard)
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        // This lock pauses indexing completely (on a per shard basis)
         private final Lock pauseIndexingLock = new ReentrantLock();
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
         private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
-        private final boolean pauseWhenThrottled;
+        private final boolean pauseWhenThrottled; // Should throttling pause indexing ?
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
@@ -539,7 +541,7 @@ public abstract class Engine implements Closeable {
             return lock != NOOP_LOCK;
         }
 
-        // Pause throttling to allow another task such as relocation to acquire all indexing permits
+        /** Suspend throttling to allow another task such as relocation to acquire all indexing permits */
         public void suspendThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
@@ -549,7 +551,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        // Reverse what was done in pauseThrottle()
+        /** Reverse what was done in {@link #suspendThrottle()} */
         public void resumeThrottle() {
             if (pauseWhenThrottled) {
                 try (Releasable releasableLock = pauseLockReference.acquire()) {
@@ -618,58 +620,6 @@ public abstract class Engine implements Closeable {
         @Override
         public Condition newCondition() {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
-        }
-    }
-
-    /* A lock implementation that allows us to control how many threads can take the lock
-     * In particular, this is used to set the number of allowed threads to 1 or 0
-     * when index throttling is activated.
-     */
-    protected static final class PauseLock implements Lock {
-        private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
-        private final int allowThreads;
-
-        public PauseLock(int allowThreads) {
-            this.allowThreads = allowThreads;
-        }
-
-        public void lock() {
-            semaphore.acquireUninterruptibly();
-        }
-
-        @Override
-        public void lockInterruptibly() throws InterruptedException {
-            semaphore.acquire();
-        }
-
-        @Override
-        public void unlock() {
-            semaphore.release();
-        }
-
-        @Override
-        public boolean tryLock() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Condition newCondition() {
-            throw new UnsupportedOperationException();
-        }
-
-        public void throttle() {
-            assert semaphore.availablePermits() == Integer.MAX_VALUE;
-            semaphore.acquireUninterruptibly(Integer.MAX_VALUE - allowThreads);
-        }
-
-        public void unthrottle() {
-            assert semaphore.availablePermits() <= allowThreads;
-            semaphore.release(Integer.MAX_VALUE - allowThreads);
         }
     }
 

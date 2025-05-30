@@ -61,6 +61,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -1021,6 +1023,45 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // now we should be able to resplit
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
+    }
+
+    // This test checks that batched cluster state updates performed in scope of resharding are correct.
+    public void testConcurrentReshardOfDifferentIndices() {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        int indexCount = randomIntBetween(1, 10);
+
+        final String indexNameTemplate = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            createIndex(indexName, indexSettings(1, 0).build());
+            ensureGreen(indexName);
+            checkNumberOfShardsSetting(indexNode, indexName, 1);
+        }
+
+        // Block master service to force all resharding tasks to be executed in one batch.
+        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        var futures = new ArrayList<ActionFuture<ReshardIndexResponse>>();
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            futures.add(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)));
+        }
+
+        disruption.stopDisrupting();
+
+        for (var future : futures) {
+            future.actionGet();
+        }
+
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            checkNumberOfShardsSetting(indexNode, indexName, 2);
+        }
     }
 
     @Override

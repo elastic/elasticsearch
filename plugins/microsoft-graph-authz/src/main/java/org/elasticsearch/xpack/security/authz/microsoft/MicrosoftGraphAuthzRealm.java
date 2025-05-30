@@ -30,6 +30,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 public class MicrosoftGraphAuthzRealm extends Realm {
 
@@ -62,8 +64,9 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final UserRoleMapper roleMapper;
     private final GraphServiceClient client;
     private final XPackLicenseState licenseState;
+    private final ExecutorService genericExecutor;
 
-    public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config) {
+    public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, ThreadPool threadPool) {
         super(config);
 
         this.config = config;
@@ -83,15 +86,23 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
         this.client = buildClient(clientSecret);
         this.licenseState = XPackPlugin.getSharedLicenseState();
+        this.genericExecutor = threadPool.generic();
     }
 
     // for testing
-    MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, GraphServiceClient client, XPackLicenseState licenseState) {
+    MicrosoftGraphAuthzRealm(
+        UserRoleMapper roleMapper,
+        RealmConfig config,
+        GraphServiceClient client,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool
+    ) {
         super(config);
         this.config = config;
         this.roleMapper = roleMapper;
         this.client = client;
         this.licenseState = licenseState;
+        this.genericExecutor = threadPool.generic();
     }
 
     private void require(Setting.AffixSetting<String> setting) {
@@ -123,29 +134,31 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             return;
         }
 
-        try {
-            final var userProperties = sdkFetchUserProperties(client, principal);
-            final var groups = sdkFetchGroupMembership(client, principal);
+        genericExecutor.execute(() -> {
+            try {
+                final var userProperties = sdkFetchUserProperties(client, principal);
+                final var groups = sdkFetchGroupMembership(client, principal);
 
-            // TODO confirm we don't need any other fields
-            final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
+                // TODO confirm we don't need any other fields
+                final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
 
-            roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
-                final var user = new User(
-                    principal,
-                    roles.toArray(Strings.EMPTY_ARRAY),
-                    userProperties.v1(),
-                    userProperties.v2(),
-                    Map.of(),
-                    true
-                );
-                logger.trace("Entra ID user {}", user);
-                l.onResponse(user);
-            }));
-        } catch (Exception e) {
-            logger.error("failed to authenticate with realm", e);
-            listener.onFailure(e);
-        }
+                roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
+                    final var user = new User(
+                        principal,
+                        roles.toArray(Strings.EMPTY_ARRAY),
+                        userProperties.v1(),
+                        userProperties.v2(),
+                        Map.of(),
+                        true
+                    );
+                    logger.trace("Entra ID user {}", user);
+                    l.onResponse(user);
+                }));
+            } catch (Exception e) {
+                logger.error("failed to authenticate with realm", e);
+                listener.onFailure(e);
+            }
+        });
     }
 
     private GraphServiceClient buildClient(SecureString clientSecret) {

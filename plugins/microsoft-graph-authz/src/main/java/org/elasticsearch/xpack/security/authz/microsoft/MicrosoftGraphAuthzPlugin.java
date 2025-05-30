@@ -20,7 +20,10 @@ import java.util.Map;
 public class MicrosoftGraphAuthzPlugin extends Plugin implements SecurityExtension {
     @Override
     public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
-        return Map.of(MicrosoftGraphAuthzRealmSettings.REALM_TYPE, config -> new MicrosoftGraphAuthzRealm(components.roleMapper(), config));
+        return Map.of(
+            MicrosoftGraphAuthzRealmSettings.REALM_TYPE,
+            config -> new MicrosoftGraphAuthzRealm(components.roleMapper(), config, components.threadPool())
+        );
     }
 
     @Override

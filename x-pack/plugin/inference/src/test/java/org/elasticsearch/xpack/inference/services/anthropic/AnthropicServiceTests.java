@@ -153,7 +153,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -172,7 +172,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -191,7 +191,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -210,7 +210,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }

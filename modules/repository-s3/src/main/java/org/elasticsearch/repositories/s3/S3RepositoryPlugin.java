@@ -15,6 +15,7 @@ import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -80,13 +81,20 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        service.set(
+            s3Service(services.environment(), services.clusterService(), services.projectResolver(), services.resourceWatcherService())
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service.get());
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    S3Service s3Service(
+        Environment environment,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ResourceWatcherService resourceWatcherService
+    ) {
+        return new S3Service(environment, clusterService, projectResolver, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
     }
 
     private static Region getDefaultRegion() {

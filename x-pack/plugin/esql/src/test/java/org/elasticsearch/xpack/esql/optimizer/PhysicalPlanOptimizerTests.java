@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -205,7 +206,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -2201,6 +2202,163 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.query(), nullValue());
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *      ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *          ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"esql_single_value":{"field":"first_name","next":{"regexp":{"first_name":
+     *       {"value":"foo*","flags_value":65791,"case_insensitive":true,"max_determinized_states":10000,"boost":0.0}}},
+     *       "source":"TO_LOWER(first_name) RLIKE \"foo*\"@2:9"}}][_doc{f}#25], limit[1000], sort[] estimatedRowSize[332]
+     */
+    private void doTestPushDownCaseChangeRegexMatch(String query, String expected) {
+        var plan = physicalPlan(query);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(stripThrough(singleValue.toString()), is(stripThrough(expected)));
+    }
+
+    public void testPushDownLowerCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) RLIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "foo*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) RLIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) RLIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "FOO*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) RLIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownLowerCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) LIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "foo*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) LIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "FOO*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) LIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
+     *     \_FieldExtractExec[_meta_field{f}#10, gender{f}#6, hire_date{f}#11, jo..]<[],[]>
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[LIKE(first_name{f}#5, "FOO*", true) OR IN(1[INTEGER],2[INTEGER],3[INTEGER],emp_no{f}#4 + 1[INTEGER])]
+     *           \_FieldExtractExec[first_name{f}#5, emp_no{f}#4]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[332]
+     */
+    public void testChangeCaseAsInsensitiveWildcardLikeNotPushedDown() {
+        var esql = """
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*" OR emp_no + 1 IN (1, 2, 3)
+            """;
+        var plan = physicalPlan(esql);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var or = as(filter.condition(), Or.class);
+        var wildcard = as(or.left(), WildcardLike.class);
+        assertThat(Expressions.name(wildcard.field()), is("first_name"));
+        assertThat(wildcard.pattern().pattern(), is("FOO*"));
+        assertThat(wildcard.caseInsensitive(), is(true));
+    }
+
     public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test
@@ -2432,6 +2590,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + KEYWORD_EST));
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2]]
+     *     \_FieldExtractExec[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"wildcard":{"_index":{"wildcard":"test*","boost":0.0}}}][_doc{f}#27],
+     *          limit[1000], sort[] estimatedRowSize[382]
+     *
+     */
     public void testPushDownMetadataIndexInWildcard() {
         var plan = physicalPlan("""
             from test metadata _index
@@ -2788,7 +2957,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+            containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 
@@ -2821,7 +2990,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Attribute some_field2 = relation.output().get(1);
         FragmentExec fragment = new FragmentExec(relation);
         ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
-        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+        LimitExec limitThenFragment = new LimitExec(
+            Source.EMPTY,
+            exchange,
+            new Literal(Source.EMPTY, 10000, DataType.INTEGER),
+            randomIntBetween(0, 1024)
+        );
 
         // All the relation's fields are required.
         PhysicalPlan plan = rule.apply(limitThenFragment);
@@ -7795,6 +7969,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
 
+    public void testReductionPlanForLimit() {
+        var plan = physicalPlan("FROM test | LIMIT 10");
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        LimitExec limitExec = as(reduction, LimitExec.class);
+        assertThat(limitExec.estimatedRowSize(), equalTo(328));
+    }
+
     public void testEqualsPushdownToDelegate() {
         var optimized = optimizedPlan(physicalPlan("""
             FROM test
@@ -8084,7 +8266,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);
         if (assertSerialization) {
-            assertSerialization(physical);
+            assertSerialization(physical, config);
         }
         return physical;
     }

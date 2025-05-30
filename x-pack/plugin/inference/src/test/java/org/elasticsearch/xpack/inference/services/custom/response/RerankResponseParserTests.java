@@ -53,6 +53,7 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
                     "$.result.scores[*].document_text"
                 )
             ),
+            "scope",
             validation
         );
 
@@ -64,7 +65,11 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_WithoutOptionalFields() {
         var validation = new ValidationException();
-        var parser = RerankResponseParser.fromMap(new HashMap<>(Map.of(RERANK_PARSER_SCORE, "$.result.scores[*].score")), validation);
+        var parser = RerankResponseParser.fromMap(
+            new HashMap<>(Map.of(RERANK_PARSER_SCORE, "$.result.scores[*].score")),
+            "scope",
+            validation
+        );
 
         assertThat(parser, is(new RerankResponseParser("$.result.scores[*].score", null, null)));
     }
@@ -73,12 +78,12 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> RerankResponseParser.fromMap(new HashMap<>(Map.of("not_path", "$.result[*].embeddings")), validation)
+            () -> RerankResponseParser.fromMap(new HashMap<>(Map.of("not_path", "$.result[*].embeddings")), "scope", validation)
         );
 
         assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [json_parser] does not contain the required setting [relevance_score];")
+            is("Validation Failed: 1: [scope.json_parser] does not contain the required setting [relevance_score];")
         );
     }
 

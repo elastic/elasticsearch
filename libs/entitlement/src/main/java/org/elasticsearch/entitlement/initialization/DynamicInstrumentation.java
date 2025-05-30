@@ -122,20 +122,7 @@ class DynamicInstrumentation {
     private static Map<MethodKey, CheckMethod> getMethodsToInstrument(Class<?> checkerInterface) throws ClassNotFoundException,
         NoSuchMethodException {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(checkerInterface));
-        Stream.of(
-            fileSystemProviderChecks(),
-            fileStoreChecks(),
-            pathChecks(),
-            Stream.of(
-                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                    SelectorProvider.class,
-                    "inheritedChannel",
-                    SelectorProvider.provider().getClass(),
-                    EntitlementChecker.class,
-                    "checkSelectorProviderInheritedChannel"
-                )
-            )
-        )
+        Stream.of(fileSystemProviderChecks(), fileStoreChecks(), pathChecks(), selectorProviderChecks())
             .flatMap(Function.identity())
             .forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
@@ -255,6 +242,39 @@ class DynamicInstrumentation {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> selectorProviderChecks() {
+        var selectorProviderClass = SelectorProvider.provider().getClass();
+
+        var instrumentation = new InstrumentationInfoFactory() {
+            @Override
+            public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
+                throws ClassNotFoundException, NoSuchMethodException {
+                return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    SelectorProvider.class,
+                    methodName,
+                    selectorProviderClass,
+                    EntitlementChecker.class,
+                    "checkSelectorProvider" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+            }
+        };
+
+        try {
+            return Stream.of(
+                instrumentation.of("inheritedChannel"),
+                instrumentation.of("openDatagramChannel"),
+                instrumentation.of("openDatagramChannel", java.net.ProtocolFamily.class),
+                instrumentation.of("openServerSocketChannel"),
+                instrumentation.of("openServerSocketChannel", java.net.ProtocolFamily.class),
+                instrumentation.of("openSocketChannel"),
+                instrumentation.of("openSocketChannel", java.net.ProtocolFamily.class)
+            );
+        } catch (NoSuchMethodException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {

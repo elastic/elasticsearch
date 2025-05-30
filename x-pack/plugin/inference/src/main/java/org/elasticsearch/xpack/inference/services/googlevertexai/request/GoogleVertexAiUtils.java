@@ -35,6 +35,10 @@ public final class GoogleVertexAiUtils {
 
     public static final String RANK = "rank";
 
+    public static final String STREAM_GENERATE_CONTENT = "streamGenerateContent";
+
+    public static final String QUERY_PARAM_ALT_SSE = "alt=sse";
+
     private GoogleVertexAiUtils() {}
 
 }

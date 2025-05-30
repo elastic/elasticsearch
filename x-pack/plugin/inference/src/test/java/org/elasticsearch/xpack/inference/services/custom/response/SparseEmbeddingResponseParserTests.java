@@ -49,6 +49,7 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
                     "$.result[*].embeddings[*].weight"
                 )
             ),
+            "scope",
             validation
         );
 
@@ -59,14 +60,14 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> SparseEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("not_path", "$.result[*].embeddings")), validation)
+            () -> SparseEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("not_path", "$.result[*].embeddings")), "scope", validation)
         );
 
         assertThat(
             exception.getMessage(),
             is(
-                "Validation Failed: 1: [json_parser] does not contain the required setting [token_path];"
-                    + "2: [json_parser] does not contain the required setting [weight_path];"
+                "Validation Failed: 1: [scope.json_parser] does not contain the required setting [token_path];"
+                    + "2: [scope.json_parser] does not contain the required setting [weight_path];"
             )
         );
     }

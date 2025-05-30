@@ -14,16 +14,21 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -56,8 +61,13 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Service extends S3Service {
 
-        DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
-            super(environment, Settings.EMPTY, resourceWatcherService, () -> null);
+        DummyS3Service(
+            Environment environment,
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            ResourceWatcherService resourceWatcherService
+        ) {
+            super(environment, clusterService, projectResolver, resourceWatcherService, () -> null);
         }
 
         @Override
@@ -159,7 +169,12 @@ public class S3RepositoryTests extends ESTestCase {
             projectId,
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(mock(Environment.class), mock(ResourceWatcherService.class)),
+            new DummyS3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class)
+            ),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),

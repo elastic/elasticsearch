@@ -251,7 +251,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -266,7 +266,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -285,7 +285,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -304,7 +304,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
@@ -46,6 +47,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
+        .feature(FeatureFlag.INFERENCE_CUSTOM_SERVICE_ENABLED)
         .build();
 
     // The reason we're doing this is to make sure the mock server is initialized first so we can get the address before communicating

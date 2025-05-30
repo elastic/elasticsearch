@@ -11,17 +11,21 @@ package org.elasticsearch.index.codec.vectors.es818;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 
-class MergeReaderWrapper extends FlatVectorsReader {
+class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
 
     private final FlatVectorsReader mainReader;
     private final FlatVectorsReader mergeReader;
@@ -85,5 +89,10 @@ class MergeReaderWrapper extends FlatVectorsReader {
     @Override
     public void close() throws IOException {
         IOUtils.close(mainReader, mergeReader);
+    }
+
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        return OffHeapByteSizeUtils.getOffHeapByteSize(mainReader, fieldInfo);
     }
 }

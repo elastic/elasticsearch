@@ -44,16 +44,18 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
 
 /** Copied from Lucene99FlatVectorsReader in Lucene 10.2, then modified to support DirectIOIndexInputSupplier */
 @SuppressForbidden(reason = "Copied from lucene")
-public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
+public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader implements OffHeapStats {
 
     private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
 
@@ -280,6 +282,11 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader {
     @Override
     public void close() throws IOException {
         IOUtils.close(vectorData);
+    }
+
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        return Map.of();  // no off-heap
     }
 
     private record FieldEntry(

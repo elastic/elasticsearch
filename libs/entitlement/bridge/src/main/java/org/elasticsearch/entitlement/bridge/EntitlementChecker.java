@@ -53,6 +53,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -588,6 +590,16 @@ public interface EntitlementChecker {
      * (not instrumentable).
      */
 
+    void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    );
+
+    void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops);
+
     // bind
 
     void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
@@ -610,6 +622,12 @@ public interface EntitlementChecker {
     void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local);
 
     void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, java.net.ProtocolFamily family);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote);
 
     void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
 
@@ -657,6 +675,18 @@ public interface EntitlementChecker {
 
     // provider methods (dynamic)
     void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
 
     /// /////////////////
     //

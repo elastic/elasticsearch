@@ -33,10 +33,10 @@ Changing the name of a cluster requires a [full cluster restart](docs-content://
 An entire cluster may be set to read-only with the following setting:
 
 `cluster.blocks.read_only`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Make the whole cluster read only (indices do not accept write operations), metadata is not allowed to be modified (create or delete indices). Defaults to `false`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Make the whole cluster read only (indices do not accept write operations), metadata is not allowed to be modified (create or delete indices). Defaults to `false`.
 
 `cluster.blocks.read_only_allow_delete`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Identical to `cluster.blocks.read_only` but allows to delete indices to free up resources. Defaults to `false`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Identical to `cluster.blocks.read_only` but allows to delete indices to free up resources. Defaults to `false`.
 
 ::::{warning}
 Don’t rely on this setting to prevent changes to your cluster. Any user with access to the [cluster-update-settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API can make the cluster read-write again.
@@ -67,7 +67,7 @@ You can dynamically adjust the cluster shard limit with the following setting:
 $$$cluster-max-shards-per-node$$$
 
 `cluster.max_shards_per_node`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limits the total number of primary and replica shards for the cluster. {{es}} calculates the limit as follows:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limits the total number of primary and replica shards for the cluster. {{es}} calculates the limit as follows:
 
 `cluster.max_shards_per_node * number of non-frozen data nodes`
 
@@ -83,7 +83,7 @@ Notice that frozen shards have their own independent limit.
 $$$cluster-max-shards-per-node-frozen$$$
 
 `cluster.max_shards_per_node.frozen`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limits the total number of primary and replica frozen shards for the cluster. {{es}} calculates the limit as follows:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Limits the total number of primary and replica frozen shards for the cluster. {{es}} calculates the limit as follows:
 
 `cluster.max_shards_per_node.frozen * number of frozen data nodes`
 
@@ -122,7 +122,7 @@ User-defined cluster metadata is not intended to store sensitive or confidential
 The cluster state maintains index tombstones to explicitly denote indices that have been deleted. The number of tombstones maintained in the cluster state is controlled by the following setting:
 
 `cluster.indices.tombstones.size`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Index tombstones prevent nodes that are not part of the cluster when a delete occurs from joining the cluster and reimporting the index as though the delete was never issued. To keep the cluster state from growing huge we only keep the last `cluster.indices.tombstones.size` deletes, which defaults to 500. You can increase it if you expect nodes to be absent from the cluster and miss more than 500 deletes. We think that is rare, thus the default. Tombstones don’t take up much space, but we also think that a number like 50,000 is probably too big.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Index tombstones prevent nodes that are not part of the cluster when a delete occurs from joining the cluster and reimporting the index as though the delete was never issued. To keep the cluster state from growing huge we only keep the last `cluster.indices.tombstones.size` deletes, which defaults to 500. You can increase it if you expect nodes to be absent from the cluster and miss more than 500 deletes. We think that is rare, thus the default. Tombstones don’t take up much space, but we also think that a number like 50,000 is probably too big.
 
 If {{es}} encounters index data that is absent from the current cluster state, those indices are considered to be dangling. For example, this can happen if you delete more than `cluster.indices.tombstones.size` indices while an {{es}} node is offline.
 
@@ -150,7 +150,7 @@ Plugins can create a kind of tasks called persistent tasks. Those tasks are usua
 Every time a persistent task is created, the master node takes care of assigning the task to a node of the cluster, and the assigned node will then pick up the task and execute it locally. The process of assigning persistent tasks to nodes is controlled by the following settings:
 
 `cluster.persistent_tasks.allocation.enable`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Enable or disable allocation for persistent tasks:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enable or disable allocation for persistent tasks:
 
 * `all` -             (default) Allows persistent tasks to be assigned to nodes
 * `none` -            No allocations are allowed for any type of persistent task
@@ -159,5 +159,5 @@ This setting does not affect the persistent tasks that are already being execute
 
 
 `cluster.persistent_tasks.allocation.recheck_interval`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The master node will automatically check whether persistent tasks need to be assigned when the cluster state changes significantly. However, there may be other factors, such as memory usage, that affect whether persistent tasks can be assigned to nodes but do not cause the cluster state to change. This setting controls how often assignment checks are performed to react to these factors. The default is 30 seconds. The minimum permitted value is 10 seconds.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The master node will automatically check whether persistent tasks need to be assigned when the cluster state changes significantly. However, there may be other factors, such as memory usage, that affect whether persistent tasks can be assigned to nodes but do not cause the cluster state to change. This setting controls how often assignment checks are performed to react to these factors. The default is 30 seconds. The minimum permitted value is 10 seconds.
 

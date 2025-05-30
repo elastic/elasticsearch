@@ -8,6 +8,8 @@ io.netty.common:
       mode: "read"
     - path: "/proc/sys/net/core/somaxconn"
       mode: read
+io.netty.transport:
+  - outbound_network
 com.azure.identity:
   - outbound_network
   - files:

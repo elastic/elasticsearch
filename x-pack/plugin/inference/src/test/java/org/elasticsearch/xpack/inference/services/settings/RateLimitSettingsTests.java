@@ -86,7 +86,7 @@ public class RateLimitSettingsTests extends AbstractWireSerializingTestCase<Rate
             () -> RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(exception.getMessage(), is("Model configuration contains settings [{abc=100}] unknown to the [test] service"));
+        assertThat(exception.getMessage(), is("Configuration contains settings [{abc=100}] unknown to the [test] service"));
     }
 
     public void testToXContent() throws IOException {

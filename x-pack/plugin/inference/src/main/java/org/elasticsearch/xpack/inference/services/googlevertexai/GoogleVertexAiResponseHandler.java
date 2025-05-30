@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiErrorResponseEntity;
+
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -22,6 +25,15 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
 
     public GoogleVertexAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, GoogleVertexAiErrorResponseEntity::fromResponse);
+    }
+
+    public GoogleVertexAiResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
+        super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);
     }
 
     @Override

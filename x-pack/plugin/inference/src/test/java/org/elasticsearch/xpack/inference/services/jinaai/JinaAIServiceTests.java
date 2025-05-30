@@ -256,7 +256,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -275,7 +275,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -294,7 +294,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -314,7 +314,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }

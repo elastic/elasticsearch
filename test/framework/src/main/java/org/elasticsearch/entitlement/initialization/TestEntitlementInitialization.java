@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
@@ -105,7 +106,7 @@ public class TestEntitlementInitialization {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        PolicyManager policyManager = new PolicyManager(
+        return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
@@ -113,6 +114,5 @@ public class TestEntitlementInitialization {
             Map.of(),
             pathLookup
         );
-        throw new IllegalStateException("Not yet implemented!");
     }
 }

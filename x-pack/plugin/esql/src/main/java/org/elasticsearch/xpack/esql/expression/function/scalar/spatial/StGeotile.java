@@ -86,7 +86,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the tile is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = (point, precision) -> GeoTileUtils.longEncode(
+    public static final UnboundedGrid unboundedGrid = (point, precision) -> GeoTileUtils.longEncode(
         point.getX(),
         point.getY(),
         checkPrecisionRange(precision)

@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -79,7 +81,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the tile is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = (point, precision) -> H3.geoToH3(
+    public static final UnboundedGrid unboundedGrid = (point, precision) -> H3.geoToH3(
         point.getLat(),
         point.getLon(),
         checkPrecisionRange(precision)
@@ -127,6 +129,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     private StGeohex(StreamInput in) throws IOException {
         super(in, false);
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return state.isAllowedByLicense(License.OperationMode.PLATINUM);
     }
 
     @Override

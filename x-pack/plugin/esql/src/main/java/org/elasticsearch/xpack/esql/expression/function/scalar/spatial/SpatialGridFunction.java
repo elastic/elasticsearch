@@ -16,6 +16,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -41,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * Spatial functions that take one spatial argument, one parameter and one optional bounds can inherit from this class.
  * Obvious choices are: StGeohash, StGeotile and StGeohex.
  */
-public abstract class SpatialGridFunction extends ScalarFunction implements OptionalArgument {
+public abstract class SpatialGridFunction extends ScalarFunction implements OptionalArgument, LicenseAware {
     protected final Expression spatialField;
     protected final Expression parameter;
     protected final Expression bounds;
@@ -77,6 +80,14 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         out.writeNamedWriteable(spatialField);
         out.writeNamedWriteable(parameter);
         out.writeOptionalNamedWriteable(bounds);
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return switch (spatialField().dataType()) {
+            case GEO_SHAPE, CARTESIAN_SHAPE -> state.isAllowedByLicense(License.OperationMode.PLATINUM);
+            default -> true;
+        };
     }
 
     /**
@@ -207,7 +218,8 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         }
     }
 
-    protected interface UnboundedGrid {
+    /** Public for use in integration tests */
+    public interface UnboundedGrid {
         long calculateGridId(Point point, int precision);
     }
 

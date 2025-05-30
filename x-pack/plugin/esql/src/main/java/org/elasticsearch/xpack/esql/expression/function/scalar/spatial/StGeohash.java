@@ -83,7 +83,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
      * For unbounded grids, we don't need to check if the grid cell is valid,
      * just calculate the encoded long intersecting the point at that precision.
      */
-    protected static final UnboundedGrid unboundedGrid = (point, precision) -> Geohash.longEncode(
+    public static final UnboundedGrid unboundedGrid = (point, precision) -> Geohash.longEncode(
         point.getX(),
         point.getY(),
         checkPrecisionRange(precision)

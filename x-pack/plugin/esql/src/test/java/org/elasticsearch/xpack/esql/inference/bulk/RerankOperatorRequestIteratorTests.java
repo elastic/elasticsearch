@@ -28,11 +28,11 @@ public class RerankOperatorRequestIteratorTests extends ComputeTestCase {
     }
 
     private void assertIterate(int size, int batchSize) {
-        final BytesRefBlock inputBlock = randomInputBlock(size);
         final String inferenceId = randomIdentifier();
         final String queryText = randomIdentifier();
 
         try (
+            BytesRefBlock inputBlock = randomInputBlock(size);
             RerankOperatorRequestIterator requestIterator = new RerankOperatorRequestIterator(inputBlock, inferenceId, queryText, batchSize)
         ) {
             BytesRef scratch = new BytesRef();

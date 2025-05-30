@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 import java.util.Comparator;
+import java.util.Iterator;
 
 /**
  * Builds the output page for the {@link RerankOperator} by adding
@@ -38,6 +39,7 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
     @Override
     public void close() {
         Releasables.close(scoreBlockBuilder);
+        releasePageOnAnyThread(inputPage);
     }
 
     /**
@@ -77,11 +79,10 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
      */
     @Override
     public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
-        inferenceResults(inferenceResponse).getRankedDocs()
-            .stream()
-            .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
-            .mapToDouble(RankedDocsResults.RankedDoc::relevanceScore)
-            .forEach(scoreBlockBuilder::appendDouble);
+        Iterator<RankedDocsResults.RankedDoc> sortedRankedDocIterator = inferenceResults(inferenceResponse).getRankedDocs().stream().sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index)).iterator();
+        while (sortedRankedDocIterator.hasNext()) {
+            scoreBlockBuilder.appendDouble(sortedRankedDocIterator.next().relevanceScore());
+        }
     }
 
     private RankedDocsResults inferenceResults(InferenceAction.Response inferenceResponse) {

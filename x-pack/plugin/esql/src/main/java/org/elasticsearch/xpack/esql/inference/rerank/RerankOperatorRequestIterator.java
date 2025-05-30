@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
@@ -81,7 +80,6 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
 
     @Override
     public void close() {
-        inputBlock.allowPassingToDifferentDriver();
-        Releasables.close(inputBlock);
+
     }
 }

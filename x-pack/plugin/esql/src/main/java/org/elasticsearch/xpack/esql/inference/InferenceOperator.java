@@ -106,13 +106,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         try (OutputBuilder outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
-            assert ongoingInferenceResult.inputPage.getPositionCount() == ongoingInferenceResult.responses.size();
             for (InferenceAction.Response response : ongoingInferenceResult.responses) {
-                try {
-                    outputBuilder.addInferenceResponse(response);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalStateException("Invalid inference response", e);
-                }
+                outputBuilder.addInferenceResponse(response);
             }
             return outputBuilder.buildOutput();
 
@@ -167,6 +162,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             throw new IllegalStateException(
                 format("Inference result has wrong type. Got [{}] while expecting [{}]", results.getClass().getName(), clazz.getName())
             );
+        }
+
+        default void releasePageOnAnyThread(Page page) {
+            InferenceOperator.releasePageOnAnyThread(page);
         }
     }
 

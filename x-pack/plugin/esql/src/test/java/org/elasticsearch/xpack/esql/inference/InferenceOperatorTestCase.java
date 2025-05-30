@@ -78,7 +78,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        int minSize = Integer.min(1, size / 10);
+        return new AbstractBlockSourceOperator(blockFactory, between(minSize, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;

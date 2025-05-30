@@ -33,6 +33,7 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     @Override
     public void close() {
         Releasables.close(outputBlockBuilder);
+        releasePageOnAnyThread(inputPage);
     }
 
     /**
@@ -63,7 +64,6 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
             bytesRefBuilder.clear();
         }
         outputBlockBuilder.endPositionEntry();
-
     }
 
     /**

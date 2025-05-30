@@ -565,38 +565,24 @@ required_capability: match_phrase_function
 required_capability: metadata_score
 
 from books metadata _score
-| where match_phrase(author, "J. R. R. Tolkien")
+| where match_phrase(title, "J. R. R. Tolkien")
 | keep book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                                                                 | author:text                       | _score:double    
-    7480            | The Hobbit                                                                 | J. R. R. Tolkien                  | 7.587270736694336
-    6405            | The Hobbit or There and Back Again                                         | J. R. R. Tolkien                  | 7.587270736694336
-    6760            | Roverandom                                                                 | J. R. R. Tolkien                  | 7.503391265869141
-    7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | [Alan Lee, J. R. R. Tolkien]      | 6.170376777648926
-    7670            | A Middle English Reader and Vocabulary                                     | [J. R. R. Tolkien, Kenneth Sisam] | 4.533677101135254
-    7635            | Oliphaunt (Beastly Verse)                                                  | J. R. R. Tolkien                  | 5.634923934936523
-    4289            | Poems from the Hobbit                                                      | J R R Tolkien                     | 5.634923934936523
-    1463            | Realms of Tolkien: Images of Middle-earth                                  | J. R. R. Tolkien                  | 5.634923934936523
-    2714            | Return of the King Being the Third Part of The Lord of the Rings           | J. R. R. Tolkien                  | 5.634923934936523
+book_no:keyword | title:text                            | author:text                                      | _score:double    
+    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 9.017186164855957
+    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 8.412636756896973
 ;
 
 testMatchPhraseWithScoreBoost
 required_capability: match_phrase_function
 
 from books metadata _score
-| where match_phrase(author, "J. R. R. Tolkien", {"boost": 5})
+| where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})
 | keep book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                                                                 | author:text                       | _score:double     
-    7480            | The Hobbit                                                                 | J. R. R. Tolkien                  | 37.93635177612305 
-    6405            | The Hobbit or There and Back Again                                         | J. R. R. Tolkien                  | 37.93635177612305 
-    6760            | Roverandom                                                                 | J. R. R. Tolkien                  | 37.51696014404297 
-    7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | [Alan Lee, J. R. R. Tolkien]      | 30.851882934570312
-    7670            | A Middle English Reader and Vocabulary                                     | [J. R. R. Tolkien, Kenneth Sisam] | 22.668384552001953
-    7635            | Oliphaunt (Beastly Verse)                                                  | J. R. R. Tolkien                  | 28.174617767333984
-    4289            | Poems from the Hobbit                                                      | J R R Tolkien                     | 28.174617767333984
-    1463            | Realms of Tolkien: Images of Middle-earth                                  | J. R. R. Tolkien                  | 28.174617767333984
-    2714            | Return of the King Being the Third Part of The Lord of the Rings           | J. R. R. Tolkien                  | 28.174617767333984
+book_no:keyword | title:text                            | author:text                                      | _score:double    
+    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 45.0859260559082 
+    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 42.06318283081055
 ;

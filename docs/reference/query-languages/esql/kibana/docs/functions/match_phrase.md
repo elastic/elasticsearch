@@ -9,7 +9,7 @@ MatchPhrase is not supported for [semantic_text](https://www.elastic.co/docs/ref
 
 MatchPhrase can use [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params) to specify additional options for the
 match_phrase query.
-All [match_phrase](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query#query-dsl-match-query-phrase) query parameters are supported.
+All [`match_phrase`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query-phrase) query parameters are supported.
 
 `MATCH_PHRASE` returns true if the provided query matches the row.
 

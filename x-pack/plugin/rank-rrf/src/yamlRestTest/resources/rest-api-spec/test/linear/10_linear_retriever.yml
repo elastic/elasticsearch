@@ -1102,3 +1102,36 @@ setup:
               ]
               rank_window_size: -10
   - match: { status: 400 }
+
+---
+"minmax normalization properly handles a single doc result set":
+  - requires:
+      cluster_features: [ "linear_retriever.minmax_single_doc_fix" ]
+      reason: "Fix bug where minmax normalizer would emit unnormalized score when handling a single doc result set"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          "keyword": {
+                            "value": "one"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  normalizer: "minmax"
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 1.0 }

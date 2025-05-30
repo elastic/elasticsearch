@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.features.NodeFeature;
 
 public class MinMaxScoreNormalizer extends ScoreNormalizer {
-
     public static final MinMaxScoreNormalizer INSTANCE = new MinMaxScoreNormalizer();
+
+    public static final NodeFeature LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX = new NodeFeature("linear_retriever.minmax_single_doc_fix");
 
     public static final String NAME = "minmax";
 

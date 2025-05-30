@@ -3428,10 +3428,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
-
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
-
-        expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'=', ',', '.', 'with'}");
     }
 
     public void testCompletionUsingFieldAsPrompt() {

@@ -2543,13 +2543,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder()
+                            .settings(
+                                Settings.builder()
+                                    .put("index.setting1", "componentTemplateValue")
+                                    .put("index.setting5", "componentTemplateValue")
+                            )
+                            .build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
         Settings mergedSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")
             .put("index.setting2", "dataStreamValue")
             .put("index.setting4", "templateValue")
+            .put("index.setting5", "componentTemplateValue")
             .build();
         assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(mergedSettings));
     }
@@ -2570,9 +2588,20 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder().settings(Settings.builder().put("index.setting5", "componentTemplateValue")).build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(indexTemplate));
     }
 
@@ -2583,6 +2612,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = randomMappings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -2619,13 +2649,25 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"), "field2", Map.of("type", "keyword"))))
         );
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+        List<String> componentTemplates = List.of("component-template-1");
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(componentTemplates)
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder().settings(Settings.builder().put("index.setting5", "componentTemplateValue")).build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
         Settings mergedSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")
             .put("index.setting2", "dataStreamValue")
@@ -2642,6 +2684,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(expectedTemplateBuilder)
+            .componentTemplates(componentTemplates)
             .build();
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }

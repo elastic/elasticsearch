@@ -654,15 +654,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 }
             }
 
-            final var repositoryException = asInstanceOf(
+            final var repositoryException = safeAwaitAndUnwrapFailure(
                 RepositoryException.class,
-                safeAwaitFailure(
-                    GetSnapshotsResponse.class,
-                    l -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
-                        .setSort(SnapshotSortKey.NAME)
-                        .setIgnoreUnavailable(randomBoolean())
-                        .execute(l)
-                )
+                GetSnapshotsResponse.class,
+                l -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+                    .setSort(SnapshotSortKey.NAME)
+                    .setIgnoreUnavailable(randomBoolean())
+                    .execute(l)
             );
             assertEquals(
                 Strings.format("[%s] cannot retrieve snapshots list from this repository", repoName),

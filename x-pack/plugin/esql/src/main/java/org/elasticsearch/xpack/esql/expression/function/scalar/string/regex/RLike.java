@@ -5,21 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -29,14 +25,9 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-
-public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike
-    implements
-        EvaluatorMapper,
-        TranslationAware.SingleValueTranslationAware {
+public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
+    public static final String NAME = "RLIKE";
 
     @FunctionInfo(returnType = "boolean", description = """
         Use `RLIKE` to filter data based on string patterns using using
@@ -52,13 +43,13 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
-        """, operator = "RLIKE", examples = @Example(file = "docs", tag = "rlike"))
+        """, operator = NAME, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
         @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern pattern
     ) {
-        super(source, value, pattern);
+        this(source, value, pattern, false);
     }
 
     public RLike(Source source, Expression field, RLikePattern rLikePattern, boolean caseInsensitive) {
@@ -66,7 +57,12 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     private RLike(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), new RLikePattern(in.readString()));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            new RLikePattern(in.readString()),
+            deserializeCaseInsensitivity(in)
+        );
     }
 
     @Override
@@ -74,6 +70,12 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeString(pattern().asJavaRegex());
+        serializeCaseInsensitivity(out);
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     @Override
@@ -92,34 +94,9 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT);
-    }
-
-    @Override
-    public Boolean fold(FoldContext ctx) {
-        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
-    }
-
-    @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(field()) ? Translatable.YES : Translatable.NO;
-    }
-
-    @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
         // TODO: see whether escaping is needed
         return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
-    }
-
-    @Override
-    public Expression singleValueField() {
-        return field();
     }
 }

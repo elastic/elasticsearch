@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -98,6 +99,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -302,6 +304,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                      * This will delay the creation of sub-fields, so indexing and querying for this field won't work
                      * until the corresponding inference endpoint is created.
                      */
+                    logger.warn(
+                        "The field [{}] references an unknown inference ID [{}]. "
+                            + "Indexing and querying this field will not work correctly until the corresponding "
+                            + "inference endpoint is created.",
+                        leafName(),
+                        inferenceId.get()
+                    );
                 }
             } else {
                 resolvedModelSettings = modelSettings.get();
@@ -309,14 +318,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             if (modelSettings.get() != null) {
                 validateServiceSettings(modelSettings.get(), resolvedModelSettings);
-            } else {
-                logger.warn(
-                    "The field [{}] references an unknown inference ID [{}]. "
-                        + "Indexing and querying this field will not work correctly until the corresponding "
-                        + "inference endpoint is created.",
-                    leafName(),
-                    inferenceId.get()
-                );
             }
 
             final String fullName = context.buildFullName(leafName());
@@ -1078,7 +1079,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
                 DenseVectorFieldMapper.IndexOptions defaultIndexOptions = null;
-                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)) {
+                if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
+                    || indexVersionCreated.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
                     defaultIndexOptions = defaultSemanticDenseIndexOptions();
                 }
                 if (defaultIndexOptions != null

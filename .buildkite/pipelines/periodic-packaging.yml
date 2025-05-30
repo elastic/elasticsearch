@@ -303,8 +303,8 @@ steps:
         env:
           BWC_VERSION: 8.16.6
 
-      - label: "{{matrix.image}} / 8.17.6 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.6
+      - label: "{{matrix.image}} / 8.17.7 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.7
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -317,10 +317,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.17.6
+          BWC_VERSION: 8.17.7
 
-      - label: "{{matrix.image}} / 8.18.1 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.1
+      - label: "{{matrix.image}} / 8.18.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -333,7 +333,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.18.1
+          BWC_VERSION: 8.18.3
 
       - label: "{{matrix.image}} / 8.19.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.0
@@ -351,8 +351,8 @@ steps:
         env:
           BWC_VERSION: 8.19.0
 
-      - label: "{{matrix.image}} / 9.0.1 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.1
+      - label: "{{matrix.image}} / 9.0.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.2
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -365,7 +365,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.0.1
+          BWC_VERSION: 9.0.2
 
       - label: "{{matrix.image}} / 9.1.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.1.0
@@ -393,6 +393,7 @@ steps:
           setup:
             image:
               - windows-2022
+              - windows-2025
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

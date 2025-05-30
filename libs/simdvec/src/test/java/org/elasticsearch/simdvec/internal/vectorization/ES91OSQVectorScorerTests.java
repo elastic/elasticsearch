@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import static org.hamcrest.Matchers.lessThan;
 

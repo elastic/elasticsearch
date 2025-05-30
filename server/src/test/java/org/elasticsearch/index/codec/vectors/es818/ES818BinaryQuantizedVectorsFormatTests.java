@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -36,20 +35,37 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
+import java.util.OptionalLong;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
@@ -64,14 +80,11 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818BinaryQuantizedVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES818BinaryQuantizedVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     public void testSearch() throws Exception {
@@ -186,8 +199,28 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     }
 
     public void testSimpleOffHeapSize() throws IOException {
+        try (Directory dir = newDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeFSDir() throws IOException {
+        checkDirectIOSupported();
+        var config = newIndexWriterConfig().setUseCompoundFile(false); // avoid compound files to allow directIO
+        try (Directory dir = newFSDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, config, false);
+        }
+    }
+
+    public void testSimpleOffHeapSizeMMapDir() throws IOException {
+        try (Directory dir = newMMapDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        try (IndexWriter w = new IndexWriter(dir, config)) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
             w.addDocument(doc);
@@ -201,11 +234,54 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
                     assertTrue(offHeap.get("veb") > 0L);
+                    if (expectVecOffHeap) {
+                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    }
                 }
             }
         }
+    }
+
+    static Directory newMMapDirectory() throws IOException {
+        Directory dir = new MMapDirectory(createTempDir("ES818BinaryQuantizedVectorsFormatTests"));
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
+    }
+
+    private Directory newFSDirectory() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
+        Files.createDirectories(tempDir);
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
+        Directory dir = (new FsDirectoryFactory()).newDirectory(idxSettings, path);
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
+    }
+
+    static void checkDirectIOSupported() {
+        Path path = createTempDir("directIOProbe");
+        try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
+            out.writeString("test");
+        } catch (IOException e) {
+            assumeNoException("test requires a filesystem that supports Direct IO", e);
+        }
+    }
+
+    static DirectIODirectory open(Path path) throws IOException {
+        return new DirectIODirectory(FSDirectory.open(path)) {
+            @Override
+            protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                return true;
+            }
+        };
     }
 }

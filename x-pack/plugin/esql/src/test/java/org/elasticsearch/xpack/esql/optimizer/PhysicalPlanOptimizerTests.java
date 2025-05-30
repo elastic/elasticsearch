@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -2787,7 +2788,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+            containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 
@@ -2820,7 +2821,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Attribute some_field2 = relation.output().get(1);
         FragmentExec fragment = new FragmentExec(relation);
         ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
-        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+        LimitExec limitThenFragment = new LimitExec(
+            Source.EMPTY,
+            exchange,
+            new Literal(Source.EMPTY, 10000, DataType.INTEGER),
+            randomIntBetween(0, 1024)
+        );
 
         // All the relation's fields are required.
         PhysicalPlan plan = rule.apply(limitThenFragment);
@@ -7666,7 +7672,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7794,8 +7800,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
 
+    public void testReductionPlanForLimit() {
+        var plan = physicalPlan("FROM test | LIMIT 10");
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        LimitExec limitExec = as(reduction, LimitExec.class);
+        assertThat(limitExec.estimatedRowSize(), equalTo(328));
+    }
+
     public void testEqualsPushdownToDelegate() {
-        assumeFalse("disabled from bug", true);
         var optimized = optimizedPlan(physicalPlan("""
             FROM test
             | WHERE job == "v"
@@ -7822,6 +7835,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var limit2 = as(extract.child(), LimitExec.class);
         as(limit2.child(), FilterExec.class);
+    }
+
+    public void testNotEqualsPushdownToDelegate() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job != "v"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var extract2 = as(filter.child(), FieldExtractExec.class);
+        var query = as(extract2.child(), EsQueryExec.class);
+        assertThat(
+            query.query(),
+            equalTo(
+                new BoolQueryBuilder().filter(
+                    new SingleValueQuery(
+                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                        "job",
+                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                    ).toQueryBuilder()
+                )
+            )
+        );
     }
 
     /*

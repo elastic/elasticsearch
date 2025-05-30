@@ -75,7 +75,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
 
     private static final String CLIENT_SECRET = "b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2";
 
-    private static Network network = Network.newNetwork();
+    private static final Network network = Network.newNetwork();
     protected static OidcProviderTestContainer c2id = new OidcProviderTestContainer(network);
     protected static HttpProxyTestContainer proxy = new HttpProxyTestContainer(network);
 
@@ -165,6 +165,17 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.jwt.op-jwt.claims.principal", "sub")
         .setting("xpack.security.authc.realms.jwt.op-jwt.claims.groups", "groups")
         .setting("xpack.security.authc.realms.jwt.op-jwt.client_authentication.type", "shared_secret")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.order", "8")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.allowed_issuer", () -> c2id.getC2IssuerUrl())
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.allowed_audiences", "elasticsearch-jwt1,elasticsearch-jwt2")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.pkc_jwkset_path", () -> c2id.getC2IDSslUrl() + "/jwks.json")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.claims.groups", "groups")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.client_authentication.type", "shared_secret")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.http.proxy.scheme", "http")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.http.proxy.host", "localhost")
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.http.proxy.port", () -> proxy.getTlsPort().toString())
+        .setting("xpack.security.authc.realms.jwt.op-jwt-proxy.ssl.keystore.path", "testnode.jks")
         .keystore("bootstrap.password", "x-pack-test-password")
         .keystore("xpack.security.http.ssl.keystore.secure_password", "testnode")
         .keystore("xpack.security.authc.realms.oidc.c2id.rp.client_secret", CLIENT_SECRET)
@@ -173,6 +184,8 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .keystore("xpack.security.authc.realms.oidc.c2id-post.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.oidc.c2id-jwt.rp.client_secret", CLIENT_SECRET)
         .keystore("xpack.security.authc.realms.jwt.op-jwt.client_authentication.shared_secret", "jwt-realm-shared-secret")
+        .keystore("xpack.security.authc.realms.jwt.op-jwt-proxy.client_authentication.shared_secret", "jwt-proxy-realm-shared-secret")
+        .keystore("xpack.security.authc.realms.jwt.op-jwt-proxy.ssl.keystore.secure_password", "testnode")
         .configFile("testnode.jks", Resource.fromClasspath("ssl/testnode.jks"))
         .configFile("op-jwks.json", Resource.fromClasspath("op-jwks.json"))
         .user("x_pack_rest_user", "x-pack-test-password", "superuser", false)

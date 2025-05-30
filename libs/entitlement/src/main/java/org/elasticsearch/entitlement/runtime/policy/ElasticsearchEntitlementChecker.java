@@ -7,13 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.runtime.policy;
 
 import jdk.nio.Channels;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.io.File;
 import java.io.FileDescriptor;

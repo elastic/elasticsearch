@@ -14,9 +14,8 @@ import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -40,6 +39,7 @@ import static org.elasticsearch.entitlement.initialization.EntitlementInitializa
 public class TestEntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker checker;
+    public static InitializeArgs initializeArgs;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
@@ -47,10 +47,11 @@ public class TestEntitlementInitialization {
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        TestEntitlementBootstrap.BootstrapArgs bootstrapArgs = TestEntitlementBootstrap.bootstrapArgs();
-        checker = EntitlementInitialization.initChecker(createPolicyManager(bootstrapArgs.pathLookup()));
+        checker = EntitlementInitialization.initChecker(createPolicyManager(initializeArgs.pathLookup()));
         initInstrumentation(inst);
     }
+
+    public record InitializeArgs(PathLookup pathLookup) {}
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
@@ -118,4 +119,5 @@ public class TestEntitlementInitialization {
         );
         throw new IllegalStateException("Not yet implemented!");
     }
+
 }

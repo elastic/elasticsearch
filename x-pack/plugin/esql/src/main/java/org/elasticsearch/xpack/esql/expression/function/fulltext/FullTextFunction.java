@@ -152,7 +152,8 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder)
+            && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override

@@ -72,10 +72,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = """
-            Finds the k nearest vectors to a query vector, as measured by a similarity metric.
-            knn function finds nearest vectors through approximate search on indexed dense_vectors
-            """,
+        description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. " +
+                "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
         examples = {
             @Example(file = "knn-function", tag = "knn-function"),
             @Example(file = "knn-function", tag = "knn-function-options"), },
@@ -96,7 +94,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
-                    description = "Floating point number used to decrease or increase the relevance scores of the query. "
+                    description = "Floating point number used to decrease or increase the relevance scores of the query."
                         + "Defaults to 1.0."
                 ),
                 @MapParam.MapParamEntry(
@@ -120,7 +118,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     type = "double",
                     valueHint = { "0.01" },
                     description = "The minimum similarity required for a document to be considered a match. "
-                        + "The similarity value calculated relates to the raw similarity used, not the document score"
+                        + "The similarity value calculated relates to the raw similarity used, not the document score."
                 ),
                 @MapParam.MapParamEntry(
                     name = "rescore_oversample",
@@ -237,12 +235,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     @Override
     public boolean equals(Object o) {
+        // Knn does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field, knn.field)
-            && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder());
+        return Objects.equals(field(), knn.field())
+                && Objects.equals(query(), knn.query())
+                && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override

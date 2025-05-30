@@ -12,13 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 /**
  * Processor that delegates the {@link java.util.concurrent.Flow.Subscription} to the upstream {@link java.util.concurrent.Flow.Publisher}
@@ -34,19 +33,13 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
     public static <ParsedChunk> Deque<ParsedChunk> parseEvent(
         Deque<ServerSentEvent> item,
         ParseChunkFunction<ParsedChunk> parseFunction,
-        XContentParserConfiguration parserConfig,
-        Logger logger
-    ) throws Exception {
+        XContentParserConfiguration parserConfig
+    ) {
         var results = new ArrayDeque<ParsedChunk>(item.size());
         for (ServerSentEvent event : item) {
             if (event.hasData()) {
-                try {
-                    var delta = parseFunction.apply(parserConfig, event);
-                    delta.forEachRemaining(results::offer);
-                } catch (Exception e) {
-                    logger.warn("Failed to parse event from inference provider: {}", event);
-                    throw e;
-                }
+                var delta = parseFunction.apply(parserConfig, event);
+                delta.forEach(results::offer);
             }
         }
 
@@ -55,7 +48,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
 
     @FunctionalInterface
     public interface ParseChunkFunction<ParsedChunk> {
-        Iterator<ParsedChunk> apply(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException;
+        Stream<ParsedChunk> apply(XContentParserConfiguration parserConfig, ServerSentEvent event);
     }
 
     @Override

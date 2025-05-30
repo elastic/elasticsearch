@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -37,7 +36,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
         List<? extends ShardContext> contexts,
         boolean emitDocIds,
         List<ValuesSourceReaderOperator.FieldInfo> fieldsToExact,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         int taskConcurrency,
         int maxPageSize,
         int limit
@@ -74,7 +73,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
         boolean emitDocIds,
         List<? extends ShardContext> contexts,
         List<ValuesSourceReaderOperator.FieldInfo> fieldsToExact,
-        Function<ShardContext, Query> queryFunction
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction
     ) {
         return new TimeSeriesSourceOperatorFactory(contexts, emitDocIds, fieldsToExact, queryFunction, taskConcurrency, maxPageSize, limit);
     }

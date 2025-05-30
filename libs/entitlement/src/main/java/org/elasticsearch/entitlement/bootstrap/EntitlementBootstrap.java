@@ -122,7 +122,7 @@ public class EntitlementBootstrap {
             suppressFailureLogPackages
         );
         exportInitializationToAgent();
-        loadAgent(findAgentJar());
+        loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static Path getUserHome() {
@@ -134,11 +134,11 @@ public class EntitlementBootstrap {
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
-    private static void loadAgent(String agentPath) {
+    static void loadAgent(String agentPath, String entitlementInitializationClassName) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath, EntitlementInitialization.class.getName());
+                vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
@@ -154,7 +154,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    public static String findAgentJar() {
+    static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {

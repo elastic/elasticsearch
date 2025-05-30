@@ -461,11 +461,7 @@ public final class RepositoryData {
             snapshots,
             newSnapshotDetails,
             allIndexSnapshots,
-            ShardGenerations.builder()
-                .putAll(this.shardGenerations)
-                .putAll(shardGenerations)
-                .updateIfPresent(updatedShardGenerations.deletedIndices())
-                .build(),
+            ShardGenerations.builder().putAll(this.shardGenerations).update(updatedShardGenerations).build(),
             newIndexMetaGenerations,
             clusterUUID
         );

@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.FinalizeSnapshotContext.*;
+
 /**
  * Represents the current {@link ShardGeneration} for each shard in a repository.
  */
@@ -231,17 +233,11 @@ public final class ShardGenerations {
             return this;
         }
 
-        public Builder updateIfPresent(ShardGenerations shardGenerations) {
-            shardGenerations.shardGenerations.forEach((indexId, gens) -> {
-                if (generations.containsKey(indexId)) {
-                    for (int i = 0; i < gens.size(); i++) {
-                        final ShardGeneration gen = gens.get(i);
-                        if (gen != null) {
-                            generations.get(indexId).put(i, gen);
-                        }
-                    }
-                }
-            });
+        public Builder update(UpdatedShardGenerations updatedShardGenerations) {
+            putAll(updatedShardGenerations.liveIndices());
+            // For deleted indices, we only update the generations if they are present in the existing generations, i.e.
+            // they are referenced by other snapshots.
+            updateIfPresent(updatedShardGenerations.deletedIndices());
             return this;
         }
 
@@ -255,6 +251,20 @@ public final class ShardGenerations {
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
+            return this;
+        }
+
+        private Builder updateIfPresent(ShardGenerations shardGenerations) {
+            shardGenerations.shardGenerations.forEach((indexId, gens) -> {
+                if (generations.containsKey(indexId)) {
+                    for (int i = 0; i < gens.size(); i++) {
+                        final ShardGeneration gen = gens.get(i);
+                        if (gen != null) {
+                            generations.get(indexId).put(i, gen);
+                        }
+                    }
+                }
+            });
             return this;
         }
 

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,12 +33,17 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { DataType.GEO_POINT }, StGeotileTests::valueOf);
+        addTestCaseSuppliers(suppliers, new DataType[] { DataType.GEO_POINT }, StGeotileTests::valueOf, StGeotileTests::boundedValueOf);
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static long valueOf(BytesRef wkb, int precision) {
         return StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
+    }
+
+    private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid(precision, bbox);
+        return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
     }
 
     @Override

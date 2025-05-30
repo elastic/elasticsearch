@@ -9,5 +9,5 @@
 :   Expression of type `integer`. If `null`, the function returns `null`. Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).
 
 `bounds`
-:   Optional bounds to filter the grid tiles, a `geo_shape`. The envelope of the `geo_shape` is used as bounds.
+:   Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.
 

@@ -119,8 +119,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
         @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape`.
-            The envelope of the `geo_shape` is used as bounds.""", optional = true) Expression bounds
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
+            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }

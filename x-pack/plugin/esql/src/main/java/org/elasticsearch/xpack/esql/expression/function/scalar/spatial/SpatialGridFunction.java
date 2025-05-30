@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -125,11 +124,7 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         if (geometry instanceof Rectangle rectangle) {
             return rectangle;
         }
-        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, SpatialEnvelopeVisitor.WrapLongitude.WRAP);
-        if (envelope.isPresent()) {
-            return envelope.get();
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of bounds geometry");
+        throw new IllegalArgumentException("Bounds geometry type '" + geometry.getClass().getSimpleName() + "' is not an envelope");
     }
 
     protected static GeoBoundingBox asGeoBoundingBox(Object bounds) {

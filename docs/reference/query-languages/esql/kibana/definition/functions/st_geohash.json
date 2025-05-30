@@ -40,7 +40,7 @@
           "name" : "bounds",
           "type" : "geo_shape",
           "optional" : true,
-          "description" : "Optional bounds to filter the grid tiles, a `geo_shape`. The envelope of the `geo_shape` is used as bounds."
+          "description" : "Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type."
         }
       ],
       "variadic" : false,

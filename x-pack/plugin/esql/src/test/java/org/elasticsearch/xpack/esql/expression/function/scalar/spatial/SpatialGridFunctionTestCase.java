@@ -8,17 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.BiFunction;
@@ -28,11 +27,18 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeNotNull;
 
 public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunctionTestCase {
+
+    @FunctionalInterface
+    protected interface TriFunction<T, U, V, R> {
+        R apply(T t, U u, V v);
+    }
 
     private static String getFunctionClassName() {
         Class<?> testClass = getTestClass();
@@ -43,7 +49,8 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
-        BiFunction<BytesRef, Integer, Long> expectedValue
+        BiFunction<BytesRef, Integer, Long> expectedValue,
+        TriFunction<BytesRef, Integer, GeoBoundingBox, Long> expectedValueWithBounds
     ) {
         for (DataType spatialType : dataTypes) {
             TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, true);
@@ -88,28 +95,10 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         List.of(geoTypedData, precisionData, boundsData),
                         startsWith(getFunctionClassName() + evaluatorName),
                         LONG,
-                        boundsMatches(bounds, expectedValue)
+                        equalTo(expectedValueWithBounds.apply(geometry, precision, SpatialGridFunction.asGeoBoundingBox(bounds)))
                     );
                 }));
             }
-        }
-    }
-
-    private static Matcher<Long> boundsMatches(Rectangle bounds, BiFunction<BytesRef, Integer, Long> expectedValue) {
-        // TODO: Implement a matcher that checks if the calculated grid ID matches the expected value, or null if outside bounds
-        return new TestAlwaysPassMatcher();
-    }
-
-    private static class TestAlwaysPassMatcher extends BaseMatcher<Long> {
-
-        @Override
-        public boolean matches(Object o) {
-            return o == null || o instanceof Long;
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("Long or null");
         }
     }
 
@@ -144,5 +133,36 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         ) {
             return block.isNull(0) ? null : expectedValue.apply(wkb, precision);
         }
+    }
+
+    protected Long process(BytesRef bounds, BiFunction<BytesRef, BytesRef, Long> expectedValue) {
+        Object spatialObj = this.testCase.getDataValues().getFirst();
+        assumeNotNull(spatialObj);
+        assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
+        BytesRef wkb = (BytesRef) spatialObj;
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                build(
+                    Source.EMPTY,
+                    List.of(
+                        new Literal(Source.EMPTY, wkb, GEO_POINT),
+                        new Literal(Source.EMPTY, 1, INTEGER),
+                        new Literal(Source.EMPTY, bounds, GEO_SHAPE)
+                    )
+                )
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(wkb, 1, bounds)))
+        ) {
+            return block.isNull(0) ? null : expectedValue.apply(wkb, bounds);
+        }
+    }
+
+    public void testInvalidBounds() {
+        BytesRef point = UNSPECIFIED.asWkb(new Point(0, 0));
+        BytesRef polygon = UNSPECIFIED.wktToWkb("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(point, (p, b) -> -1L));
+        assertThat(ex.getMessage(), containsString("Bounds geometry type 'Point' is not an envelope"));
+        ex = expectThrows(IllegalArgumentException.class, () -> process(polygon, (p, b) -> -1L));
+        assertThat(ex.getMessage(), containsString("Bounds geometry type 'Polygon' is not an envelope"));
     }
 }

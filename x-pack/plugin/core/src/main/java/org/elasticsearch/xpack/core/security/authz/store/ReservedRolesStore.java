@@ -59,6 +59,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String PREVIEW_ALERTS_BACKING_INDEX = ".internal.preview.alerts*";
     public static final String PREVIEW_ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.preview.alerts*";
 
+    /** "Attack Discovery" ad-hoc alerts index */
+    public static final String ADHOC_ALERTS_INDEX_ALIAS = ".adhoc.alerts*";
+    public static final String ADHOC_ALERTS_BACKING_INDEX = ".internal.adhoc.alerts*";
+
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
     public static final String LISTS_INDEX_REINDEXED_V8 = ".reindexed-v8-lists-*";
@@ -782,7 +786,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .indices(
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Universal Profiling
@@ -846,7 +854,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED,
-                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),

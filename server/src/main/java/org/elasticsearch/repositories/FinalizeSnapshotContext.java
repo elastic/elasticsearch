@@ -127,7 +127,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     /**
      * A record used to track the new shard generations that have been written for each shard in a snapshot.
      * An index may be deleted after the shard generation is written but before the snapshot is finalized.
-     * In this case, its shard generation is tracked in {@link #deletedIndices}. Otherwise, it is tracked in
+     * In this case, its shard generation is tracked in {@link #deletedIndices} because it's still a valid shard generation blob that exists in the repository and may be used by subsequent snapshots, even though the index will not be included in the snapshot being finalized. Otherwise, it is tracked in
      * {@link #liveIndices}.
      */
     public record UpdatedShardGenerations(ShardGenerations liveIndices, ShardGenerations deletedIndices) {

@@ -37,11 +37,16 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
     private final String rerankIndexPath;
     private final String documentTextPath;
 
-    public static RerankResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
+    public static RerankResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        ValidationException validationException
+    ) {
+        var fullScope = String.join(".", scope, JSON_PARSER);
 
-        var relevanceScore = extractRequiredString(responseParserMap, RERANK_PARSER_SCORE, JSON_PARSER, validationException);
-        var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, JSON_PARSER, validationException);
-        var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, JSON_PARSER, validationException);
+        var relevanceScore = extractRequiredString(responseParserMap, RERANK_PARSER_SCORE, fullScope, validationException);
+        var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, fullScope, validationException);
+        var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, fullScope, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

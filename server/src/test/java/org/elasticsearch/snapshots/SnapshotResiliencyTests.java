@@ -2173,7 +2173,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     clusterService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
-                        metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
+                        (projectId, metadata) -> new FsRepository(
+                            projectId,
+                            metadata,
+                            environment,
+                            xContentRegistry(),
+                            clusterService,
+                            bigArrays,
+                            recoverySettings
+                        )
                     ),
                     emptyMap(),
                     threadPool,

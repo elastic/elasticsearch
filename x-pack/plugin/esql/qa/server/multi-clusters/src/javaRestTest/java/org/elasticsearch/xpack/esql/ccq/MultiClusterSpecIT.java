@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V3;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V7;
@@ -132,7 +132,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("LOOKUP JOIN not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName()));
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
-        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V3.capabilityName()));
+        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V5.capabilityName()));
     }
 
     @Override

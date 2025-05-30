@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
@@ -177,7 +178,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        protected @Nullable MappedFieldType fieldType(String name) {
+        public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName())
                 ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
@@ -192,9 +193,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return null;
     }
 
-    public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
+        QueryBuilder builder
+    ) {
         QueryBuilder qb = builder == null ? QueryBuilders.matchAllQuery().boost(0.0f) : builder;
-        return ctx -> shardContexts.get(ctx.index()).toQuery(qb);
+        return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
     @Override
@@ -260,8 +263,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
         Layout.Builder layout = new Layout.Builder();
         layout.append(ts.output());
-        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
@@ -459,7 +461,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
-        protected @Nullable MappedFieldType fieldType(String name) {
+        @Override
+        public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
         }
 

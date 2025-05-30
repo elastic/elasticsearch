@@ -432,10 +432,9 @@ public class TopNOperator implements Operator, Accountable {
         assert page.getPositionCount() > 0;
         BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "topn");
         for (Partition partition : partitions) {
-            try (var block = page.getBlock(partition.channel)) {
-                BytesRef partitionFieldValue = ((BytesRefBlock) block).getBytesRef(i, new BytesRef());
-                builder.append(partitionFieldValue);
-            }
+            BytesRefBlock block = page.getBlock(partition.channel);  // TODO: validate block type
+            BytesRef partitionFieldValue = block.getBytesRef(i, new BytesRef());
+            builder.append(partitionFieldValue);
         }
         return builder.bytesRefView();
     }
@@ -462,15 +461,11 @@ public class TopNOperator implements Operator, Accountable {
             for (var entry : inputQueues.entrySet()) {
                 Queue inputQueue = entry.getValue();
 
-                list = new ArrayList<>(inputQueue.size());
-                builders = null;
-                while (inputQueue.size() > 0) {
-                    list.add(inputQueue.pop());
-                }
-                Collections.reverse(list);
+                list = createListBasedOnQueueContents(inputQueue);
 
                 int p = 0;
                 int size = 0;
+                builders = null;
                 for (int i = 0; i < list.size(); i++) {
                     if (builders == null) {
                         size = Math.min(maxPageSize, list.size() - i);
@@ -547,6 +542,15 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    private static List<Row> createListBasedOnQueueContents(Queue queue) {
+        List<Row> list = new ArrayList<>(queue.size());
+        while (queue.size() > 0) {
+            list.add(queue.pop());
+        }
+        Collections.reverse(list);
+        return list;
+    }
+
     private static boolean channelInKey(List<SortOrder> sortOrders, int channel) {
         for (SortOrder so : sortOrders) {
             if (so.channel == channel) {
@@ -603,7 +607,7 @@ public class TopNOperator implements Operator, Accountable {
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
         long ramBytesUsedSum = inputQueues.entrySet()
             .stream()
-            .mapToLong(e -> e.getKey().bytes.length + e.getValue().ramBytesUsed())
+            .mapToLong(e -> e.getKey().length + e.getValue().ramBytesUsed())
             .sum();
         size += ramBytesUsedSum;
         return size;

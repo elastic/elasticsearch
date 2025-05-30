@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -34,6 +36,7 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -53,6 +56,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -60,6 +64,9 @@ import java.util.stream.LongStream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
@@ -83,6 +90,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -256,7 +264,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
         Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
         List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-        List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
+        List<Long> outputValues = topNLong(context, inputValues, limit, false, asc, false);
         assertThat(outputValues, equalTo(expectedValues));
     }
 
@@ -288,6 +296,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext,
         List<Long> inputValues,
         int limit,
+        boolean usePartitionField,
         boolean ascendingOrder,
         boolean nullsFirst
     ) {
@@ -297,12 +306,126 @@ public class TopNOperatorTests extends OperatorTestCase {
             limit,
             List.of(LONG, LONG),
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
+            usePartitionField ? List.of(new TopNOperator.Partition(1)) : List.of(),
             List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst))
         ).stream().map(Tuple::v1).toList();
     }
 
     private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
-        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
+        return topNLong(driverContext(), inputValues, limit, false, ascendingOrder, nullsFirst);
+    }
+
+    public void testBasicTopNWithPartitionField() {
+        List<Tuple<Long, BytesRef>> values = denormalize(List.of(
+            tuple(new BytesRef("a"), Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L)),
+            tuple(new BytesRef("b"), Arrays.asList(6L, 5L, 8L, null, 9L, 14L, null, 24L, 8L, 104L)),
+            tuple(new BytesRef("c"), Arrays.asList(-2L, -1L, -4L, null, -5L, -10L, null, -20L, -4L, -100L)),
+            tuple(new BytesRef(""), Arrays.asList(1L, 2L, 3L))
+        ));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 1, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(1L, "a"), tuple(5L, "b"), tuple(-100L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 1, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(100L, "a"), tuple(104L, "b"), tuple(-1L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 2, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(-100L, "c"), tuple(-20L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 2, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(-1L, "c"), tuple(-2L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 3, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 3, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(1L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(10L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(14L, "b"), tuple(-1L, "c"), tuple(-2L, "c"), tuple(-4L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 4, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(4L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(8L, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c"), tuple(-5L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 4, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(1L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(10L, "a"), tuple(5L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(14L, "b"), tuple(9L, "b"), tuple(-1L, "c"), tuple(-2L, "c"), tuple(-4L, "c"), tuple(-4L, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 100, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(4L, "a"), tuple(5L, "a"), tuple(10L, "a"), tuple(20L, "a"), tuple(100L, "a"), tuple(null, "a"), tuple(null, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(8L, "b"), tuple(9L, "b"), tuple(14L, "b"), tuple(24L, "b"), tuple(104L, "b"), tuple(null, "b"), tuple(null, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c"), tuple(-5L, "c"), tuple(-4L, "c"), tuple(-4L, "c"), tuple(-2L, "c"), tuple(-1L, "c"), tuple(null, "c"), tuple(null, "c")))));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 2, true, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 2, false, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 3, true, true), equalTo(Arrays.asList(null, null, 1L)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
+        assertThat(topNLongWithPartitionField(driverContext(), values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
+    }
+
+    private static List<Tuple<Long, BytesRef>> denormalize(List<Tuple<BytesRef, List<Long>>> values) {
+        return values.stream().flatMap(t -> t.v2().stream().map(l -> tuple(l, t.v1()))).toList();
+    }
+
+    private static List<Tuple<Long, BytesRef>> stringsToBytesRefs(List<Tuple<Long, String>> values) {
+        return values.stream().map(t -> tuple(t.v1(), new BytesRef(t.v2()))).toList();
+    }
+
+    public void testRandomTopNWithPartitionField() {
+        for (boolean asc : List.of(true, false)) {
+            testRandomTopNWithPartitionField(asc, driverContext());
+        }
+    }
+
+    public void testRandomTopNCrankyWithPartitionField() {
+        try {
+            testRandomTopNWithPartitionField(randomBoolean(), crankyDriverContext());
+            logger.info("cranky didn't break us");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testRandomTopNWithPartitionField(boolean ascendingOrder, DriverContext driverContext) {
+        final Comparator<Tuple<Long, BytesRef>> valueComparator = ascendingOrder
+            ? Comparator.comparingLong(Tuple::v1)
+            : Comparator.<Tuple<Long, BytesRef>>comparingLong(Tuple::v1).reversed();
+        final boolean nullsFirst = randomBoolean();
+        final int noPartitions = randomIntBetween(1, 20);
+        final int limit = randomIntBetween(1, 20);
+        List<Tuple<Long, BytesRef>> inputValues = randomList(0, 5000, () ->
+            Tuple.tuple(
+                randomLongBetween(-10_000, 10_000),
+                new BytesRef("partition_" + randomIntBetween(1, noPartitions))
+            )
+        );
+        List<Tuple<Long, BytesRef>> expectedOutputValues = inputValues.stream()
+            .collect(groupingBy(Tuple::v2, TreeMap::new, collectingAndThen(toList(),
+                values -> values.stream().sorted(valueComparator).limit(limit).collect(toList()))))
+            .entrySet().stream().flatMap(e -> e.getValue().stream()).toList();
+
+        List<Tuple<Long, BytesRef>> actualOutputValues =
+            topNLongWithPartitionField(driverContext, inputValues, limit, ascendingOrder, nullsFirst);
+
+        assertThat(actualOutputValues, equalTo(expectedOutputValues));
+    }
+
+    private List<Tuple<Long, BytesRef>> topNLongWithPartitionField(DriverContext driverContext, List<Tuple<Long, BytesRef>> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        List<Page> outputPages = new ArrayList<>();
+        List<Tuple<Long, BytesRef>> actualOutputValues = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new LongBytesRefTupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        limit,
+                        List.of(LONG, BYTES_REF),
+                        List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
+                        List.of(new TopNOperator.Partition(1)),
+                        List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst)),
+                        randomPageSize()
+                    )
+                ),
+                new PageConsumerOperator(page -> {
+                    outputPages.add(page);
+                    LongBlock block0 = page.getBlock(0);
+                    BytesRefBlock block1 = page.getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        actualOutputValues.add(tuple(block0.getLong(i), block1.getBytesRef(i, new BytesRef())));
+                    }
+                })
+            )
+        ) {
+            runDriver(driver);
+        }
+        assertDriverContext(driverContext);
+//        outputPages.forEach(Page::releaseBlocks);
+        return actualOutputValues;
     }
 
     public void testCompareInts() {
@@ -473,6 +596,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 5,
                 List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false))
             ),
             equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
@@ -484,6 +608,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 5,
                 List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false))
             ),
             equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
@@ -495,6 +620,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 5,
                 List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+                List.of(),
                 List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true))
             ),
             equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
@@ -667,6 +793,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         int limit,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoder,
+        List<TopNOperator.Partition> partitions,
         List<TopNOperator.SortOrder> sortOrders
     ) {
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
@@ -681,7 +808,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         limit,
                         elementTypes,
                         encoder,
-                        List.of(),
+                        partitions,
                         sortOrders,
                         randomPageSize()
                     )

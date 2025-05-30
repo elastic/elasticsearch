@@ -1457,9 +1457,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-            final var snapshotShardGenerations = buildGenerations(entry, metadata);
-            final ShardGenerations updatedShardGenerations = snapshotShardGenerations.liveIndices();
-            final List<String> finalIndices = updatedShardGenerations.indices().stream().map(IndexId::getName).toList();
+            final var updatedShardGenerations = buildGenerations(entry, metadata);
+            final ShardGenerations updatedShardGensForLiveIndices = updatedShardGenerations.liveIndices();
+            final List<String> finalIndices = updatedShardGensForLiveIndices.indices().stream().map(IndexId::getName).toList();
             final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
@@ -1556,7 +1556,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
                     threadPool.absoluteTimeInMillis(),
-                    entry.partial() ? updatedShardGenerations.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
+                    entry.partial() ? updatedShardGensForLiveIndices.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
                     shardFailures,
                     entry.includeGlobalState(),
                     entry.userMetadata(),
@@ -1566,7 +1566,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        snapshotShardGenerations,
+                        updatedShardGenerations,
                         repositoryData.getGenId(),
                         metaForSnapshot,
                         snapshotInfo,
@@ -1583,7 +1583,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 snapshot,
                                 repositoryData,
                                 // we might have written the new root blob before failing here, so we must use the updated shardGenerations
-                                snapshotShardGenerations
+                                updatedShardGenerations
                             )
                         ),
                         () -> snapshotListeners.addListener(new ActionListener<>() {
@@ -1608,7 +1608,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     repositoryData,
                     // a failure here means the root blob was not updated, but the updated shard generation blobs are all in place so we can
                     // use the updated shardGenerations for all pending shard snapshots
-                    snapshotShardGenerations
+                    updatedShardGenerations
                 )
             ));
         }

@@ -930,7 +930,7 @@ setup:
 
 
 ---
-"linear retriever with custom sort and score for nested retrievers":
+"linear retriever with custom sort for nested retrievers":
   - do:
       search:
         index: test
@@ -949,17 +949,18 @@ setup:
                                 {
                                   term: {
                                     keyword: {
-                                      value: "one"  # this will give doc 1 a normalized score of 10 because min == max
+                                      value: "one"
                                     }
                                   }
                                 },
                                 {
                                   term: {
                                     keyword: {
-                                      value: "two" # this will give doc 2 a normalized score of 10 because min == max
+                                      value: "two"
                                     }
                                   }
-                                } ]
+                                }
+                              ]
                             }
                           },
                           boost: 10.0
@@ -1058,11 +1059,11 @@ setup:
           size: 2
 
   - match: { hits.total.value: 3 }
-  - length: {hits.hits: 2}
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 10.5, error: 0.001 } }
+  - close_to: { hits.hits.0._score: { value: 1.5, error: 0.001 } }
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._score: 10 }
+  - match: { hits.hits.1._score: 1 }
 
 ---
 "should throw when rank_window_size is negative":

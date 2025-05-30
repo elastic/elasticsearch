@@ -1391,6 +1391,10 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
     }
 
+    public void testKnnFunctionOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
+    }
+
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertEquals(
@@ -1425,84 +1429,57 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in KqlFunctionTests
     }
 
-    public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("qstr(\"first_name: Anna\")");
-    }
-
-    public void testKqlFunctionWithDisjunctions() {
-        checkWithDisjunctions("kql(\"first_name: Anna\")");
-    }
-
-    public void testMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("match(first_name, \"Anna\")");
-    }
-
-    public void testTermFunctionWithDisjunctions() {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkWithDisjunctions("term(first_name, \"Anna\")");
-    }
-
-    public void testMatchOperatorWithDisjunctions() {
-        checkWithDisjunctions("first_name : \"Anna\"");
-    }
-
-    private void checkWithDisjunctions(String functionInvocation) {
-        query("from test | where " + functionInvocation + " or length(first_name) > 12");
-        query(
-            "from test | where ("
-                + functionInvocation
-                + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
-        );
-        query("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)");
-    }
-
     public void testFullTextFunctionsDisjunctions() {
-        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")", defaultAnalyzer);
-        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)", defaultAnalyzer);
-        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"", defaultAnalyzer);
-        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")", defaultAnalyzer);
-        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")", defaultAnalyzer);
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-dense_vector.json", "test"));
-        checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])", analyzer);
+        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
+        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
+        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
+        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
+        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("term(last_name, \"Smith\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
+        }
     }
 
-    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation, Analyzer analyzer) {
+    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
 
         // Disjunctions with non-pushable functions - scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10", analyzer);
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)", analyzer);
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
         query(
             "from test | where ("
                 + functionInvocation
                 + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
-        , analyzer);
+        );
 
         // Disjunctions with non-pushable functions - no scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10", analyzer);
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)", analyzer);
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
         query(
             "from test | where ("
                 + functionInvocation
                 + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
-        , analyzer);
+        );
 
         // Disjunctions with full text functions - no scoring
-        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")", analyzer);
-        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")", analyzer);
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10", analyzer);
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")", analyzer);
-        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))", analyzer);
+        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
+        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
 
         // Disjunctions with full text functions - scoring
-        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")", analyzer);
-        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")", analyzer);
-        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10", analyzer);
+        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
         query(
             "from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")"
-        , analyzer);
+        );
         query(
             "from test metadata _score | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))"
-        , analyzer);
+        );
 
     }
 
@@ -2175,30 +2152,29 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOptions() {
-        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})", defaultAnalyzer);
+        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})");
     }
 
     public void testMultiMatchOptions() {
         checkOptionDataTypes(
             MultiMatch.OPTIONS,
-            "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})",
-            defaultAnalyzer
+            "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})"
         );
     }
 
     public void testQueryStringOptions() {
-        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})", defaultAnalyzer);
+        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})");
     }
 
     public void testKnnOptions() {
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-colors.json", "colors"));
-        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM colors | WHERE KNN(rgb_vector, [0.1, 0.2, 0.3], {\"%s\": %s})", analyzer);
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
     }
 
     /**
      * Check all data types for available options. When conversion is not possible, checks that it's an error
      */
-    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate, Analyzer analyzer) {
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
         for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
@@ -2217,10 +2193,10 @@ public class VerifierTests extends ESTestCase {
                     // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
                     // If no exception was thrown, conversion is possible and should be done
-                    query(query, analyzer);
+                    query(query);
                 } catch (InvalidArgumentException e) {
                     // Conversion is not possible, query should fail
-                    String error = error(query, analyzer);
+                    String error = error(query);
                     assertThat(error, containsString("Invalid option [" + optionName + "]"));
                     assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
@@ -2228,7 +2204,7 @@ public class VerifierTests extends ESTestCase {
         }
 
         String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
-        assertThat(error(errorQuery, analyzer), containsString("Invalid option [unknown_option]"));
+        assertThat(error(errorQuery), containsString("Invalid option [unknown_option]"));
     }
 
     private static String exampleValueForType(DataType currentType) {
@@ -2270,10 +2246,6 @@ public class VerifierTests extends ESTestCase {
             "1:47: [MultiMatch] function cannot be used after STATS",
             error("from test | STATS c = AVG(salary) BY gender | where multi_match(\"F\", gender)")
         );
-    }
-
-    public void testMultiMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("multi_match(\"Anna\", first_name, last_name)");
     }
 
     public void testMultiMatchFunctionWithNonBooleanFunctions() {

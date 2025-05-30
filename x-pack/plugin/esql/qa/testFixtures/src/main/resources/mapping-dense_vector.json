@@ -3,12 +3,6 @@
     "id": {
       "type": "long"
     },
-    "first_name": {
-      "type": "text"
-    },
-    "last_name": {
-      "type": "text"
-    },
     "vector": {
       "type": "dense_vector",
       "similarity": "l2_norm"

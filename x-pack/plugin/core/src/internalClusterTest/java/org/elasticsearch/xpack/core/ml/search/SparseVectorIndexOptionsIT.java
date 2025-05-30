@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.search;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +47,5 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         return params;
     }
 
-    public void testItPrunesTokensIfIndexOptions() {
-    }
+    public void testItPrunesTokensIfIndexOptions() {}
 }

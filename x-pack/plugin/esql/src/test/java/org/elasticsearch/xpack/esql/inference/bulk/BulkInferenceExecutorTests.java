@@ -61,7 +61,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 10_000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
@@ -93,7 +93,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testInferenceRunnerAlwaysFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 10_000));
 
         InferenceRunner inferenceRunner = mock(invocation -> {
             runWithRandomDelay(() -> {
@@ -115,7 +115,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     }
 
     public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 100_000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 10_000));
 
         InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);

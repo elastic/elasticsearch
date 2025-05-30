@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
@@ -197,6 +198,7 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1414,6 +1416,191 @@ public class SnapshotResiliencyTests extends ESTestCase {
         safeAwait(testListener); // shouldn't throw
     }
 
+    /**
+     * A device for allowing a test precise control over the order in which shard-snapshot updates are processed by the master. The test
+     * must install the result of {@link #newTransportInterceptor} on the master node and may then call {@link #releaseBlock} as needed to
+     * release blocks on the processing of individual shard snapshot updates.
+     */
+    private static class ShardSnapshotUpdatesSequencer {
+
+        private final Map<String, Map<String, SubscribableListener<Void>>> shardSnapshotUpdatesBlockMap = new HashMap<>();
+
+        private static final SubscribableListener<Void> ALWAYS_PROCEED = SubscribableListener.newSucceeded(null);
+
+        private SubscribableListener<Void> listenerFor(String snapshot, String index) {
+            if ("last-snapshot".equals(snapshot)) {
+                return ALWAYS_PROCEED;
+            }
+
+            return shardSnapshotUpdatesBlockMap
+                //
+                .computeIfAbsent(snapshot, v -> new HashMap<>())
+                .computeIfAbsent(index, v -> new SubscribableListener<>());
+        }
+
+        void releaseBlock(String snapshot, String index) {
+            listenerFor(snapshot, index).onResponse(null);
+        }
+
+        /**
+         * @return a {@link TransportInterceptor} which enforces the sequencing of shard snapshot updates
+         */
+        TransportInterceptor newTransportInterceptor() {
+            return new TransportInterceptor() {
+                @Override
+                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                    String action,
+                    Executor executor,
+                    boolean forceExecution,
+                    TransportRequestHandler<T> actualHandler
+                ) {
+                    if (action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                        return (request, channel, task) -> ActionListener.run(
+                            ActionTestUtils.<TransportResponse>assertNoFailureListener(new ChannelActionListener<>(channel)::onResponse),
+                            l -> {
+                                final var updateRequest = asInstanceOf(UpdateIndexShardSnapshotStatusRequest.class, request);
+                                listenerFor(updateRequest.snapshot().getSnapshotId().getName(), updateRequest.shardId().getIndexName()).<
+                                    TransportResponse>andThen(
+                                        ll -> actualHandler.messageReceived(request, new TestTransportChannel(ll), task)
+                                    ).addListener(l);
+                            }
+                        );
+                    } else {
+                        return actualHandler;
+                    }
+                }
+            };
+        }
+    }
+
+    public void testDeleteIndexBetweenSuccessAndFinalization() {
+
+        final var sequencer = new ShardSnapshotUpdatesSequencer();
+
+        setupTestCluster(
+            1,
+            1,
+            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR
+        );
+
+        final var masterNode = testClusterNodes.randomMasterNodeSafe();
+        final var client = masterNode.client;
+        final var masterClusterService = masterNode.clusterService;
+
+        final var snapshotCount = between(3, 5);
+        final var indices = IntStream.range(0, snapshotCount + 1).mapToObj(i -> "index-" + i).toList();
+        final var repoName = "repo";
+        final var indexToDelete = "index-" + snapshotCount;
+
+        var testListener = SubscribableListener
+
+            // Create the repo and indices
+            .<Void>newForked(stepListener -> {
+                try (var listeners = new RefCountingListener(stepListener)) {
+                    client().admin()
+                        .cluster()
+                        .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                        .execute(listeners.acquire(createRepoResponse -> {}));
+
+                    for (final var index : indices) {
+                        client.admin()
+                            .indices()
+                            .create(
+                                new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL).settings(defaultIndexSettings(1)),
+                                listeners.acquire(createIndexResponse -> {})
+                            );
+                    }
+                }
+            });
+
+        // Start some snapshots such that snapshot-{i} contains index-{i} and index-{snapshotCount} so that we can control the order in
+        // which they finalize by controlling the order in which the shard snapshot updates are processed
+        for (int i = 0; i < snapshotCount; i++) {
+            final var snapshotName = "snapshot-" + i;
+            final var indexName = "index-" + i;
+            testListener = testListener.andThen(
+                stepListener -> client.admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                    .setIndices(indexName, indexToDelete)
+                    .setPartial(true)
+                    .execute(stepListener.map(createSnapshotResponse -> null))
+            );
+        }
+
+        testListener = testListener
+
+            // wait for the target index to complete in snapshot-1
+            .andThen(l -> {
+                sequencer.releaseBlock("snapshot-0", indexToDelete);
+                sequencer.releaseBlock("snapshot-1", indexToDelete);
+
+                ClusterServiceUtils.addTemporaryStateListener(
+                    masterClusterService,
+                    clusterState -> SnapshotsInProgress.get(clusterState)
+                        .asStream()
+                        .mapToLong(
+                            e -> e.shards()
+                                .entrySet()
+                                .stream()
+                                .filter(
+                                    e2 -> e2.getKey().getIndexName().equals(indexToDelete)
+                                        && e2.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                                )
+                                .count()
+                        )
+                        .sum() == 2
+                ).addListener(l.map(v -> null));
+            })
+
+            // delete the target index
+            .andThen(l -> client.admin().indices().delete(new DeleteIndexRequest(indexToDelete), l.map(acknowledgedResponse -> null)))
+
+            // wait for snapshot-1 to complete
+            .andThen(l -> {
+                sequencer.releaseBlock("snapshot-1", "index-1");
+                ClusterServiceUtils.addTemporaryStateListener(
+                    masterClusterService,
+                    cs -> SnapshotsInProgress.get(cs).asStream().noneMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-1"))
+                ).addListener(l.map(v -> null));
+            })
+
+            // wait for all the other snapshots to complete
+            .andThen(l -> {
+                for (int i = 0; i < snapshotCount; i++) {
+                    sequencer.releaseBlock("snapshot-" + i, indexToDelete);
+                    sequencer.releaseBlock("snapshot-" + i, "index-" + i);
+                }
+                ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty())
+                    .addListener(l.map(v -> null));
+            })
+            .andThen(l -> {
+                client.admin()
+                    .cluster()
+                    .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+                    .setSnapshots(IntStream.range(0, snapshotCount).mapToObj(i -> "snapshot-" + i).toArray(String[]::new))
+                    .execute(ActionTestUtils.assertNoFailureListener(getSnapshotsResponse -> {
+                        for (final var snapshot : getSnapshotsResponse.getSnapshots()) {
+                            assertThat(snapshot.state(), is(SnapshotState.SUCCESS));
+                            final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
+                            // Does not contain the deleted index in the snapshot
+                            assertThat(snapshot.indices(), contains("index-" + snapshotName.charAt(snapshotName.length() - 1)));
+                        }
+                        l.onResponse(null);
+                    }));
+            });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(
+            "executed all runnable tasks but test steps are still incomplete: "
+                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+            testListener.isDone()
+        );
+        safeAwait(testListener); // shouldn't throw
+    }
+
     @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testFullSnapshotUnassignedShards() {
         setupTestCluster(1, 0); // no data nodes, we want unassigned shards
@@ -2553,6 +2740,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 actions.put(
                     TransportCloneSnapshotAction.TYPE,
                     new TransportCloneSnapshotAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
+                );
+                actions.put(
+                    TransportGetSnapshotsAction.TYPE,
+                    new TransportGetSnapshotsAction(transportService, clusterService, threadPool, repositoriesService, actionFilters)
                 );
                 actions.put(
                     TransportClusterRerouteAction.TYPE,

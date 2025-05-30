@@ -16,8 +16,8 @@ import com.microsoft.graph.models.odataerrors.ODataError;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
-import com.microsoft.graph.users.item.transitivememberof.graphgroup.GraphGroupRequestBuilder;
 import com.microsoft.graph.users.item.transitivememberof.TransitiveMemberOfRequestBuilder;
+import com.microsoft.graph.users.item.transitivememberof.graphgroup.GraphGroupRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -47,9 +47,9 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 

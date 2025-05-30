@@ -12,8 +12,6 @@ package org.elasticsearch.xpack.security.authz.microsoft;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
-import com.microsoft.graph.models.DirectoryObject;
-import com.microsoft.graph.models.DirectoryObjectCollectionResponse;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;

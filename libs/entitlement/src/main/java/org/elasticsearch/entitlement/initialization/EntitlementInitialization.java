@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.lang.instrument.Instrumentation;
@@ -75,25 +77,6 @@ public class EntitlementInitialization {
         DynamicInstrumentation.initialize(inst, latestCheckerInterface, verifyBytecode);
     }
 
-    private static PolicyManager createPolicyManager() {
-        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
-        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        PathLookup pathLookup = bootstrapArgs.pathLookup();
-
-        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
-
-        return new PolicyManager(
-            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), bootstrapArgs.serverPolicyPatch()),
-            HardcodedEntitlements.agentEntitlements(),
-            pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
-            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            ENTITLEMENTS_MODULE,
-            pathLookup,
-            bootstrapArgs.suppressFailureLogPackages()
-        );
-    }
-
     /**
      * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
      * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
@@ -105,7 +88,9 @@ public class EntitlementInitialization {
         var classesToInitialize = Set.of(
             "sun.net.www.protocol.http.HttpURLConnection",
             "sun.nio.ch.SocketChannelImpl",
-            "java.net.ProxySelector"
+            "java.net.ProxySelector",
+            "sun.nio.ch.DatagramChannelImpl",
+            "sun.nio.ch.ServerSocketChannelImpl"
         );
         for (String className : classesToInitialize) {
             try {
@@ -117,7 +102,7 @@ public class EntitlementInitialization {
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
+        final PolicyChecker policyChecker = createPolicyChecker();
 
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
@@ -126,14 +111,38 @@ public class EntitlementInitialization {
 
         Constructor<?> constructor;
         try {
-            constructor = clazz.getConstructor(PolicyManager.class);
+            constructor = clazz.getConstructor(PolicyChecker.class);
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
         }
         try {
-            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }
     }
+
+    private static PolicyCheckerImpl createPolicyChecker() {
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
+        PathLookup pathLookup = bootstrapArgs.pathLookup();
+
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
+
+        PolicyManager policyManager = new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), bootstrapArgs.serverPolicyPatch()),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
+            pathLookup
+        );
+        return new PolicyCheckerImpl(
+            bootstrapArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            bootstrapArgs.pathLookup()
+        );
+    }
+
 }

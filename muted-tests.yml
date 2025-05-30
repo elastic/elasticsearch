@@ -266,6 +266,9 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/128174
 
 # Examples:
 #

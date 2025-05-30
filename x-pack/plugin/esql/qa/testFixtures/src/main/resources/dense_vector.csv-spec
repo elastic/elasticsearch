@@ -35,7 +35,7 @@ required_capability: dense_vector_field_type
 FROM dense_vector 
 | EVAL v = vector 
 | RENAME v AS new_vector 
-| DROP vector
+| DROP vector, first_name, last_name
 | SORT id
 ;
 

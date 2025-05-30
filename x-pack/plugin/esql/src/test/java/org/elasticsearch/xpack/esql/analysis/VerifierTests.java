@@ -1426,27 +1426,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+        checkWithDisjunctions("qstr(\"first_name: Anna\")");
     }
 
     public void testKqlFunctionWithDisjunctions() {
-        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
+        checkWithDisjunctions("kql(\"first_name: Anna\")");
     }
 
     public void testMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
+        checkWithDisjunctions("match(first_name, \"Anna\")");
     }
 
     public void testTermFunctionWithDisjunctions() {
         assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
+        checkWithDisjunctions("term(first_name, \"Anna\")");
     }
 
     public void testMatchOperatorWithDisjunctions() {
-        checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
+        checkWithDisjunctions("first_name : \"Anna\"");
     }
 
-    private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
+    private void checkWithDisjunctions(String functionInvocation) {
         query("from test | where " + functionInvocation + " or length(first_name) > 12");
         query(
             "from test | where ("
@@ -1457,50 +1457,52 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsDisjunctions() {
-        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
-        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
-        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
-        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
-        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
+        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")", defaultAnalyzer);
+        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)", defaultAnalyzer);
+        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"", defaultAnalyzer);
+        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")", defaultAnalyzer);
+        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")", defaultAnalyzer);
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-dense_vector.json", "test"));
+        checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])", analyzer);
     }
 
-    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
+    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation, Analyzer analyzer) {
 
         // Disjunctions with non-pushable functions - scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10");
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query("from test | where " + functionInvocation + " or length(first_name) > 10", analyzer);
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)", analyzer);
         query(
             "from test | where ("
                 + functionInvocation
                 + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
-        );
+        , analyzer);
 
         // Disjunctions with non-pushable functions - no scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10");
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query("from test | where " + functionInvocation + " or length(first_name) > 10", analyzer);
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)", analyzer);
         query(
             "from test | where ("
                 + functionInvocation
                 + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
-        );
+        , analyzer);
 
         // Disjunctions with full text functions - no scoring
-        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
-        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
-        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
+        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")", analyzer);
+        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")", analyzer);
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10", analyzer);
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")", analyzer);
+        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))", analyzer);
 
         // Disjunctions with full text functions - scoring
-        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")");
-        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")");
-        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")", analyzer);
+        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")", analyzer);
+        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10", analyzer);
         query(
             "from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")"
-        );
+        , analyzer);
         query(
             "from test metadata _score | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))"
-        );
+        , analyzer);
 
     }
 
@@ -2271,7 +2273,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMultiMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
+        checkWithDisjunctions("multi_match(\"Anna\", first_name, last_name)");
     }
 
     public void testMultiMatchFunctionWithNonBooleanFunctions() {

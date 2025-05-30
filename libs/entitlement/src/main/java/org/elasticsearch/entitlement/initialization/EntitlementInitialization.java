@@ -138,7 +138,6 @@ public class EntitlementInitialization {
             throw new AssertionError(e);
         }
 
-
         return checker;
     }
 

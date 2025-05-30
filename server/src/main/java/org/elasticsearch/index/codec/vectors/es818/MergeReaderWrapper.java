@@ -86,7 +86,9 @@ class MergeReaderWrapper extends FlatVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return mainReader.getOffHeapByteSize(fieldInfo);
+        // TODO: https://github.com/elastic/elasticsearch/issues/128672
+        // return mainReader.getOffHeapByteSize(fieldInfo);
+        return Map.of(); // no off-heap when using direct IO
     }
 
     @Override

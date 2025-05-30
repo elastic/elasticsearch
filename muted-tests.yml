@@ -492,6 +492,12 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
   method: testSymlinkUpdateTriggerReload
   issue: https://github.com/elastic/elasticsearch/issues/128619
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test085EnvironmentVariablesAreRespectedUnderDockerExec
+  issue: https://github.com/elastic/elasticsearch/issues/128115
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/128651
 
 # Examples:
 #

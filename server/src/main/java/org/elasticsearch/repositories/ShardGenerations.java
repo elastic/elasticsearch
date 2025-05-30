@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.repositories.FinalizeSnapshotContext.*;
+import static org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 
 /**
  * Represents the current {@link ShardGeneration} for each shard in a repository.

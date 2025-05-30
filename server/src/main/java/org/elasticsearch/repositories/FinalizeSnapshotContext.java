@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -107,8 +106,6 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot(), updatedShardGenerations);
         // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
         // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
-
-        final Collection<IndexId> deletedIndices = updatedShardGenerations.deletedIndices.indices();
         obsoleteGenerations.set(
             SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
@@ -127,7 +124,9 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     /**
      * A record used to track the new shard generations that have been written for each shard in a snapshot.
      * An index may be deleted after the shard generation is written but before the snapshot is finalized.
-     * In this case, its shard generation is tracked in {@link #deletedIndices} because it's still a valid shard generation blob that exists in the repository and may be used by subsequent snapshots, even though the index will not be included in the snapshot being finalized. Otherwise, it is tracked in
+     * In this case, its shard generation is tracked in {@link #deletedIndices} because it's still a valid
+     * shard generation blob that exists in the repository and may be used by subsequent snapshots, even though
+     * the index will not be included in the snapshot being finalized. Otherwise, it is tracked in
      * {@link #liveIndices}.
      */
     public record UpdatedShardGenerations(ShardGenerations liveIndices, ShardGenerations deletedIndices) {

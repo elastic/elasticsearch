@@ -63,6 +63,7 @@ public class EntitlementInitialization {
      * @param inst the JVM instrumentation class instance
      */
     public static void initialize(Instrumentation inst) throws Exception {
+        // the checker _MUST_ be set before _any_ instrumentation is done
         checker = initChecker(createPolicyManager());
         initInstrumentation(inst);
     }

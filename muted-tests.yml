@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testThrottleStats
-  issue: https://github.com/elastic/elasticsearch/issues/126359
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009
@@ -492,6 +489,21 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
   method: testSymlinkUpdateTriggerReload
   issue: https://github.com/elastic/elasticsearch/issues/128619
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test085EnvironmentVariablesAreRespectedUnderDockerExec
+  issue: https://github.com/elastic/elasticsearch/issues/128115
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/128651
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128676
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128677
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/128678
 
 # Examples:
 #

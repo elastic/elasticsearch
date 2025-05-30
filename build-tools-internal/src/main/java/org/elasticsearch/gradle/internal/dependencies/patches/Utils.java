@@ -28,7 +28,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;

@@ -495,6 +495,15 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/128651
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128676
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128677
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/128678
 
 # Examples:
 #

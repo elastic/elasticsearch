@@ -63,7 +63,8 @@ public class EntitlementInitialization {
      * @param inst the JVM instrumentation class instance
      */
     public static void initialize(Instrumentation inst) throws Exception {
-        checker = initChecker(inst, createPolicyManager());
+        checker = initChecker(createPolicyManager());
+        initInstrumentation(inst);
     }
 
     private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
@@ -115,7 +116,7 @@ public class EntitlementInitialization {
         }
     }
 
-    static ElasticsearchEntitlementChecker initChecker(Instrumentation inst, PolicyManager policyManager) throws Exception {
+    static ElasticsearchEntitlementChecker initChecker(PolicyManager policyManager) {
         final PolicyChecker policyChecker = createPolicyChecker(policyManager);
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
@@ -136,17 +137,21 @@ public class EntitlementInitialization {
             throw new AssertionError(e);
         }
 
+
+        return checker;
+    }
+
+    static void initInstrumentation(Instrumentation instrumentation) throws Exception {
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
         DynamicInstrumentation.initialize(
-            inst,
+            instrumentation,
             EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
             verifyBytecode
         );
 
-        return checker;
     }
 }

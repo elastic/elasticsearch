@@ -611,7 +611,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // update the per-element budget (these are all the elements that are using any budget)
                 unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e.element()));
                 // available budget is decreased by the used per-element budget (for all dequeued elements that are still in use)
-                this.availableBudget -= unreleasedBudgetPerElement.values().stream().reduce(0L, Long::sum);
+                this.availableBudget -= unreleasedBudgetPerElement.values().stream().mapToLong(i -> i).sum();
                 elementAvailable.signalAll();
             } finally {
                 lock.unlock();

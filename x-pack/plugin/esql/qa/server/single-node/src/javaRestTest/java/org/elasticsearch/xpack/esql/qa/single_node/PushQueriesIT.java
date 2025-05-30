@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -21,6 +22,8 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matcher;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -39,6 +42,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjec
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfile;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -49,7 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -79,7 +83,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "match_only_text", "semantic_text" -> true;
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, filterInCompute, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), filterInCompute, true);
     }
 
     public void testEqualityTooBigToPush() throws IOException {
@@ -93,7 +97,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, true, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, true);
     }
 
     /**
@@ -111,7 +115,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, true, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, true);
     }
 
     public void testEqualityOrOther() throws IOException {
@@ -131,7 +135,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "match_only_text", "semantic_text" -> true;
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, filterInCompute, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), filterInCompute, true);
     }
 
     public void testEqualityAndOther() throws IOException {
@@ -140,15 +144,18 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" AND foo == 1
             """;
-        String luceneQuery = switch (type) {
-            case "text", "auto" -> "#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]";
-            case "match_only_text" -> "foo:[1 TO 1]";
+        List<String> luceneQueryOptions = switch (type) {
+            case "text", "auto" -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
+            case "match_only_text" -> List.of("foo:[1 TO 1]");
             case "semantic_text" ->
                 /*
                  * single_value_match is here because there are extra documents hiding in the index
                  * that don't have the `foo` field.
                  */
-                "#foo:[1 TO 1] #single_value_match(foo)";
+                List.of(
+                    "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                    "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]"
+                );
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
         boolean filterInCompute = switch (type) {
@@ -156,7 +163,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "match_only_text", "semantic_text" -> true;
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, filterInCompute, true);
+        testPushQuery(value, esqlQuery, luceneQueryOptions, filterInCompute, true);
     }
 
     public void testInequality() throws IOException {
@@ -171,7 +178,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, true, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, true);
     }
 
     public void testInequalityTooBigToPush() throws IOException {
@@ -185,7 +192,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, true, false);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, false);
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
@@ -199,10 +206,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, luceneQuery, true, true);
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, true);
     }
 
-    private void testPushQuery(String value, String esqlQuery, String luceneQuery, boolean filterInCompute, boolean found)
+    private void testPushQuery(String value, String esqlQuery, List<String> luceneQueryOptions, boolean filterInCompute, boolean found)
         throws IOException {
         indexValue(value);
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
@@ -222,6 +229,12 @@ public class PushQueriesIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", "text")),
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
+        Matcher<String> luceneQueryMatcher = anyOf(
+            () -> Iterators.map(
+                luceneQueryOptions.iterator(),
+                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
+            )
+        );
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
@@ -232,7 +245,7 @@ public class PushQueriesIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, luceneQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue)));
+                sig.add(checkOperatorProfile(o, luceneQueryMatcher));
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -279,13 +292,30 @@ public class PushQueriesIT extends ESRestTestCase {
                   "number_of_shards": 1
                 }
               }""";
-        if (false == "auto".equals(type)) {
-            json += """
+        json += switch (type) {
+            case "auto" -> "";
+            case "semantic_text" -> """
                 ,
                 "mappings": {
                   "properties": {
                     "test": {
-                      "type": "%type",
+                      "type": "semantic_text",
+                      "inference_id": "test",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                }""";
+            default -> """
+                  ,
+                  "mappings": {
+                    "properties": {
+                      "test": {
+                        "type": "%type",
                         "fields": {
                           "keyword": {
                             "type": "keyword",
@@ -296,7 +326,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     }
                   }
                 }""".replace("%type", type);
-        }
+        };
         json += "}";
         createIndex.setJsonEntity(json);
         Response createResponse = client().performRequest(createIndex);
@@ -317,7 +347,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
-    private static String checkOperatorProfile(Map<String, Object> o, String query) {
+    private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");
         name = TO_NAME.matcher(name).replaceAll("");
         if (name.equals("LuceneSourceOperator")) {
@@ -337,5 +367,29 @@ public class PushQueriesIT extends ESRestTestCase {
     protected boolean preserveClusterUponCompletion() {
         // Preserve the cluser to speed up the semantic_text tests
         return true;
+    }
+
+    private static boolean setupEmbeddings = false;
+
+    @Before
+    public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
+        if (type.equals("semantic_text") == false || setupEmbeddings) {
+            return;
+        }
+        setupEmbeddings = true;
+        Request request = new Request("PUT", "_inference/text_embedding/test");
+        request.setJsonEntity("""
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                     "model": "my_model",
+                     "api_key": "abc64",
+                     "dimensions": 128
+                   },
+                   "task_settings": {
+                   }
+                 }
+            """);
+        adminClient().performRequest(request);
     }
 }

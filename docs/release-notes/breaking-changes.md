@@ -12,6 +12,16 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+```{applies_to}
+stack: coming 9.0.2
+```
+## 9.0.2 [elasticsearch-9.0.2-breaking-changes]
+
+Snapshot/Restore:
+* Make S3 custom query parameter optional [#128043](https://github.com/elastic/elasticsearch/pull/128043)
+
+
+
 ## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
 
 No breaking changes in this version.

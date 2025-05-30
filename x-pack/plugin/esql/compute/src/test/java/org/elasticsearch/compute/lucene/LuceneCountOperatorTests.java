@@ -90,7 +90,13 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         } else {
             query = LongPoint.newRangeQuery("s", 0, numDocs);
         }
-        return new LuceneCountOperator.Factory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), limit);
+        return new LuceneCountOperator.Factory(
+            List.of(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            limit
+        );
     }
 
     @Override

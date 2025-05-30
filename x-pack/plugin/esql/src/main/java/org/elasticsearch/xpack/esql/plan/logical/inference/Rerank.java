@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Rerank extends InferencePlan<Rerank> implements SortAgnostic, SurrogateLogicalPlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
+    public static final Object DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;

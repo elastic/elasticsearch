@@ -14,7 +14,7 @@ set -euo pipefail
 # Select the most recent build from the current branch.
 # We collect snapshots, order by date, then collect BCs, order by date, and concat them; then we select the last.
 # So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
-MANIFEST="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
+MANIFEST_URL="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
 jq ".releases[] |
 select(.branch == \"$BUILDKITE_BRANCH\") |
 select(.active_release == true) |
@@ -22,25 +22,26 @@ select(.active_release == true) |
 (.build_candidates | to_entries | sort_by(.value.completed_at))) |
 last | .value.manifest_url")"
 
-if [[ -z "$MANIFEST" ]]; then
+if [[ -z "$MANIFEST_URL" ]]; then
    echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]"
    exit 0
 fi
 
-
-TARGET_COMMIT_HASH="$(eval "curl -s $MANIFEST" | jq .projects.elasticsearch.commit_hash)"
-
-if [[ -z "$TARGET_COMMIT_HASH" ]]; then
-   echo "Cannot get the elasticsearch commit hash from [$MANIFEST]"
+MANIFEST="$(eval "curl -s $MANIFEST_URL")"
+if [[ -z "$MANIFEST" ]]; then
+   echo "Cannot get the build manifest from [$MANIFEST_URL]"
    exit 1
 fi
 
-echo "Running bc-bwc tests on commit [$TARGET_COMMIT_HASH]"
+TARGET_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
+TARGET_VERSION=$(echo "$MANIFEST" | jq .version)
+
+echo "Running bc-bwc tests on [$TARGET_VERSION] commit [$TARGET_COMMIT_HASH]"
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
     - label: $BUILDKITE_BRANCH / bc-bwc
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=9.1.0 -Dtests.bwc.refspec.main=${TARGET_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${TARGET_VERSION} -Dtests.bwc.refspec.main=${TARGET_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
       timeout_in_minutes: 300
       agents:
         provider: gcp

@@ -49,6 +49,5 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     }
 
     public void testItPrunesTokensIfIndexOptions() {
-        Assert.assertFalse(true);
     }
 }

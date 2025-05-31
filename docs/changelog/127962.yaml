@@ -1,0 +1,6 @@
+pr: 127962
+summary: Support DATE_NANOS in LOOKUP JOIN
+area: ES|QL
+type: bug
+issues:
+ - 127249

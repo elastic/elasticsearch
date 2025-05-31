@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1309,12 +1310,11 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String[] header = generateRandomStringArray(1000, randomIntBetween(5, 50), false, false);
         String quote = randomFrom("\"", "'");
-        String quotePattern = quote.replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
-        String optQuotePattern = quotePattern + "?";
         char delimiter = randomFrom(',', ';', '\t', '|');
-        String delimiterPattern = (delimiter == '\t')
-            ? "\\t"
-            : String.valueOf(delimiter).replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+
+        String quotePattern = Pattern.quote(quote);
+        String optQuotePattern = quotePattern + "?";
+        String delimiterPattern = (delimiter == '\t') ? "\\t" : Pattern.quote(String.valueOf(delimiter));
 
         String excludeLinesPattern = DelimitedTextStructureFinder.makeExcludeLinesPattern(header, quote, optQuotePattern, delimiterPattern);
 

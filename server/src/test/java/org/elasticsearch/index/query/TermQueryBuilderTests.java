@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.hamcrest.CoreMatchers;
 
@@ -96,7 +96,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class))
-                .or(instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class))
+                .or(instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery termQuery) {

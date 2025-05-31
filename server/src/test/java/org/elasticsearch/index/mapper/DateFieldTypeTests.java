@@ -20,7 +20,6 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchParseException;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -374,7 +374,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
+        Query expected = new XIndexSortSortedNumericDocValuesRangeQuery(
             "field",
             instant1,
             instant2,
@@ -383,7 +383,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         ft = new DateFieldType("field", false);
-        expected = new IndexSortSortedNumericDocValuesRangeQuery("field", instant1, instant2, dvQuery);
+        expected = new XIndexSortSortedNumericDocValuesRangeQuery("field", instant1, instant2, dvQuery);
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
 

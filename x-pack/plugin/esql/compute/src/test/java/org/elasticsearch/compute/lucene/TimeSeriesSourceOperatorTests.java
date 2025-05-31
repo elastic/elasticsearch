@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
-import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.lucene.document.NumericField;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -300,7 +300,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
             }
             try (var reader = writer.getReader()) {
                 var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                Query query = randomFrom(NumericField.newRangeLongQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
                 var timeSeriesFactory = TimeSeriesSourceOperatorFactory.create(
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),

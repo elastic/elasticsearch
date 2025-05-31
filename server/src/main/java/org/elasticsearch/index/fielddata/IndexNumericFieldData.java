@@ -125,7 +125,22 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 // floats uses longs for doc-values, but Lucene's FloatComparator::getValueForDoc converts long value to float
                 sortField.setOptimizeSortWithPoints(isIndexed());
                 break;
-
+            case BYTE:
+            case SHORT:
+            case INT:
+                if (isIndexed()) {
+                    sortField = new SortedNumericSortField(getFieldName(), SortField.Type.INT, reverse, selectorType);
+                    sortField.setMissingValue(source.missingObject(missingValue, reverse, SortField.Type.INT));
+                }
+                sortField.setOptimizeSortWithPoints(isIndexed());
+                break;
+            case FLOAT:
+                if (isIndexed()) {
+                    sortField = new SortedNumericSortField(getFieldName(), SortField.Type.FLOAT, reverse, selectorType);
+                    sortField.setMissingValue(source.missingObject(missingValue, reverse, SortField.Type.FLOAT));
+                }
+                sortField.setOptimizeSortWithPoints(isIndexed());
+                break;
             default:
                 sortField.setOptimizeSortWithPoints(false);
                 break;

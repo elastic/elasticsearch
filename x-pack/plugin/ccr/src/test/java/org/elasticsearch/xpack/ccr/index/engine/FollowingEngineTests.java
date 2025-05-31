@@ -34,6 +34,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.engine.TranslogHandler;
@@ -275,7 +276,8 @@ public class FollowingEngineTests extends ESTestCase {
             null,
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP
         );
     }
 

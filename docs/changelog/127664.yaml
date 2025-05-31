@@ -1,0 +1,5 @@
+pr: 127664
+summary: Exclude `semantic_text` subfields from field capabilities API
+area: "Mapping"
+type: enhancement
+issues: []

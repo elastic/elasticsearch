@@ -268,6 +268,15 @@ public class ObjectMapper extends Mapper {
         return sum;
     }
 
+    @Override
+    public List<Mapper> getSourceMappers() {
+        List<Mapper> fields = new ArrayList<>();
+        for (Mapper mapper : mappers.values()) {
+            fields.addAll(mapper.getSourceMappers());
+        }
+        return fields;
+    }
+
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public boolean supportsVersion(IndexVersion indexCreatedVersion) {

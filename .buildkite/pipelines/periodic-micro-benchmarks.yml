@@ -1,7 +1,7 @@
 steps:
   - label: periodic-micro-benchmarks
     command: |
-      .ci/scripts/run-gradle.sh -p benchmarks/ run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
+      .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
     timeout_in_minutes: 300
     agents:
       provider: gcp

@@ -50,7 +50,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -189,7 +188,8 @@ import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
@@ -995,7 +995,7 @@ class NodeConstruction {
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
-        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class);
+        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -1599,11 +1599,11 @@ class NodeConstruction {
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);
     }
 
-    private List<ReservedClusterStateHandler<ClusterState, ?>> buildReservedClusterStateHandlers(
-        List<? extends ReservedClusterStateHandlerProvider> handlers,
+    private List<ReservedClusterStateHandler<?>> buildReservedClusterStateHandlers(
+        List<? extends ReservedStateHandlerProvider> handlers,
         SettingsModule settingsModule
     ) {
-        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
         // add all reserved state handlers from server
         reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
@@ -1614,8 +1614,8 @@ class NodeConstruction {
         return reservedStateHandlers;
     }
 
-    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
-        List<? extends ReservedClusterStateHandlerProvider> handlers,
+    private List<ReservedProjectStateHandler<?>> buildReservedProjectStateHandlers(
+        List<? extends ReservedStateHandlerProvider> handlers,
         SettingsModule settingsModule,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -1624,7 +1624,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
+        List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
         var templateService = new MetadataIndexTemplateService(
             clusterService,

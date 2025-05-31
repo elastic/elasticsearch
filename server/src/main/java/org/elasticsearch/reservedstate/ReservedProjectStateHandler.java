@@ -9,12 +9,14 @@
 
 package org.elasticsearch.reservedstate;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 /**
- * {@link ReservedStateHandler} for updating cluster-wide cluster state.
+ * {@link ReservedStateHandler} for updating project-specific cluster state.
  *
  * @param <T> The type used to represent the state update
  */
-public interface ReservedClusterStateHandler<T> extends ReservedStateHandler<T> {
+public interface ReservedProjectStateHandler<T> extends ReservedStateHandler<T> {
 
     /**
      * The transformation method implemented by the handler.
@@ -27,11 +29,12 @@ public interface ReservedClusterStateHandler<T> extends ReservedStateHandler<T> 
      * {@link TransformState}, which contains the current cluster state as well as any previous keys
      * set by this handler on prior invocation.
      *
-     * @param source    The parsed information specific to this handler from the combined cluster state content
+     * @param projectId The project id for the update state content
+     * @param source The parsed information specific to this handler from the combined cluster state content
      * @param prevState The previous cluster state and keys set by this handler (if any)
      * @return The modified state and the current keys set by this handler
      * @throws Exception
      */
-    TransformState transform(T source, TransformState prevState) throws Exception;
+    TransformState transform(ProjectId projectId, T source, TransformState prevState) throws Exception;
 
 }

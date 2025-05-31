@@ -9,9 +9,6 @@
 
 package org.elasticsearch.reservedstate;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-
 import java.util.Collection;
 import java.util.Set;
 
@@ -19,18 +16,18 @@ import java.util.Set;
  * SPI service interface for supplying {@link ReservedClusterStateHandler} implementations to Elasticsearch
  * from plugins/modules.
  */
-public interface ReservedClusterStateHandlerProvider {
+public interface ReservedStateHandlerProvider {
     /**
      * Returns a list of {@link ReservedClusterStateHandler} implementations for updating cluster state.
      */
-    default Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
+    default Collection<ReservedClusterStateHandler<?>> clusterHandlers() {
         return Set.of();
     }
 
     /**
      * Returns a list of {@link ReservedClusterStateHandler} implementations for updating project state.
      */
-    default Collection<ReservedClusterStateHandler<ProjectMetadata, ?>> projectHandlers() {
+    default Collection<ReservedProjectStateHandler<?>> projectHandlers() {
         return Set.of();
     }
 }

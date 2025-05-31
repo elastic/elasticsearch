@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.security.action.rolemapping;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -32,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove role mappings. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedRoleMappingAction implements ReservedClusterStateHandler<ProjectMetadata, List<PutRoleMappingRequest>> {
+public class ReservedRoleMappingAction implements ReservedProjectStateHandler<List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
 
     @Override
@@ -41,19 +43,19 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Pr
     }
 
     @Override
-    public TransformState<ProjectMetadata> transform(List<PutRoleMappingRequest> source, TransformState<ProjectMetadata> prevState)
-        throws Exception {
+    public TransformState transform(ProjectId projectId, List<PutRoleMappingRequest> source, TransformState prevState) throws Exception {
         Set<ExpressionRoleMapping> roleMappings = validateAndTranslate(source);
+        ProjectMetadata projectMetadata = prevState.state().getMetadata().getProject(projectId);
         RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
-        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromProject(prevState.state()))) {
+        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromProject(projectMetadata))) {
             return prevState;
         } else {
-            ProjectMetadata newState = newRoleMappingMetadata.updateProject(prevState.state());
+            ProjectMetadata newProjectMetadata = newRoleMappingMetadata.updateProject(projectMetadata);
             Set<String> entities = newRoleMappingMetadata.getRoleMappings()
                 .stream()
                 .map(ExpressionRoleMapping::getName)
                 .collect(Collectors.toSet());
-            return new TransformState<>(newState, entities);
+            return new TransformState(ClusterState.builder(prevState.state()).putProjectMetadata(newProjectMetadata).build(), entities);
         }
     }
 

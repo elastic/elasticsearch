@@ -211,9 +211,7 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -254,6 +252,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -474,8 +473,8 @@ public class ActionModule extends AbstractModule {
         TelemetryProvider telemetryProvider,
         ClusterService clusterService,
         RerouteService rerouteService,
-        List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers,
-        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers,
+        List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers,
+        List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers,
         RestExtension restExtension,
         IncrementalBulkService bulkService,
         ProjectIdResolver projectIdResolver

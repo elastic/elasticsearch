@@ -56,7 +56,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
-    private final IngestConditionalScript precompiledConditionScript;
+    private final IngestConditionalScript.Factory precompiledConditionScriptFactory;
 
     ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
         this(tag, description, script, scriptService, processor, System::nanoTime);
@@ -78,12 +78,10 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         this.relativeTimeProvider = relativeTimeProvider;
 
         try {
-            final IngestConditionalScript.Factory factory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
             if (ScriptType.INLINE.equals(script.getType())) {
-                precompiledConditionScript = factory.newInstance(script.getParams());
+                precompiledConditionScriptFactory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
             } else {
-                // stored script, so will have to compile at runtime
-                precompiledConditionScript = null;
+                precompiledConditionScriptFactory = null;
             }
         } catch (ScriptException e) {
             throw newConfigurationException(TYPE, tag, null, e);
@@ -141,12 +139,12 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     boolean evaluate(IngestDocument ingestDocument) {
-        IngestConditionalScript script = precompiledConditionScript;
-        if (script == null) {
-            IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
-            script = factory.newInstance(condition.getParams());
+        IngestConditionalScript.Factory factory = precompiledConditionScriptFactory;
+        if (factory == null) {
+            factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
         }
-        return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
+        return factory.newInstance(condition.getParams(), ingestDocument.getCtxMap())
+            .execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
     }
 
     public Processor getInnerProcessor() {

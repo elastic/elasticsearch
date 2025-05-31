@@ -126,7 +126,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     QueryParameters.QUERY_PARAMETERS,
                     queryParameters,
                     CustomServiceSettings.REQUEST,
-                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    requestContentString,
                     CustomServiceSettings.RESPONSE,
                     new HashMap<>(
                         Map.of(
@@ -179,7 +179,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     CustomServiceSettings.URL,
                     url,
                     CustomServiceSettings.REQUEST,
-                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    requestContentString,
                     CustomServiceSettings.RESPONSE,
                     new HashMap<>(
                         Map.of(
@@ -243,7 +243,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     CustomServiceSettings.HEADERS,
                     headersWithNulls,
                     CustomServiceSettings.REQUEST,
-                    new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                    requestContentString,
                     CustomServiceSettings.RESPONSE,
                     new HashMap<>(
                         Map.of(
@@ -304,7 +304,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", 1)),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -353,7 +353,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 QueryParameters.QUERY_PARAMETERS,
                 List.of(List.of("key", 1)),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -393,7 +393,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 "invalid_request",
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -413,13 +413,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
         );
 
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Validation Failed: 1: [service_settings] does not contain the required setting [request];"
-                    + "2: [service_settings] does not contain the required setting [content];"
-            )
-        );
+        assertThat(exception.getMessage(), is("Validation Failed: 1: [service_settings] does not contain the required setting [request];"));
     }
 
     public void testFromMap_ReturnsError_IfResponseMapIsMissing() {
@@ -433,7 +427,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 "invalid_response",
                 new HashMap<>(
                     Map.of(
@@ -464,46 +458,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public void testFromMap_ReturnsError_IfRequestMapIsNotEmptyAfterParsing() {
-        String url = "http://www.abc.com";
-        String requestContentString = "request body";
-
-        var mapSettings = new HashMap<String, Object>(
-            Map.of(
-                CustomServiceSettings.URL,
-                url,
-                CustomServiceSettings.HEADERS,
-                new HashMap<>(Map.of("key", "value")),
-                CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString, "key", "value")),
-                CustomServiceSettings.RESPONSE,
-                new HashMap<>(
-                    Map.of(
-                        CustomServiceSettings.JSON_PARSER,
-                        new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
-                    )
-                )
-            )
-        );
-
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
-        );
-
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Configuration contains unknown settings [{key=value}] while parsing field [request]"
-                    + " for settings [custom_service_settings]"
-            )
-        );
-    }
-
     public void testFromMap_ReturnsError_IfJsonParserMapIsNotEmptyAfterParsing() {
         String url = "http://www.abc.com";
         String requestContentString = "request body";
@@ -515,7 +469,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -560,7 +514,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -602,7 +556,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -642,7 +596,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, requestContentString)),
+                requestContentString,
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -687,9 +641,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "headers": {
                     "key": "value"
                 },
-                "request": {
-                    "content": "string"
-                },
+                "request": "string",
                 "response": {
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"

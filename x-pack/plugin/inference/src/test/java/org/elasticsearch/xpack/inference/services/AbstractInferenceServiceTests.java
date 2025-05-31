@@ -54,7 +54,7 @@ import static org.mockito.Mockito.mock;
  * To use this class, extend it and pass the constructor a configuration.
  * </p>
  */
-public abstract class AbstractServiceTests extends ESTestCase {
+public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
     protected final MockWebServer webServer = new MockWebServer();
     protected ThreadPool threadPool;
@@ -80,7 +80,7 @@ public abstract class AbstractServiceTests extends ESTestCase {
 
     private final TestConfiguration testConfiguration;
 
-    public AbstractServiceTests(TestConfiguration testConfiguration) {
+    public AbstractInferenceServiceTests(TestConfiguration testConfiguration) {
         this.testConfiguration = Objects.requireNonNull(testConfiguration);
     }
 

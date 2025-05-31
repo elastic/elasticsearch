@@ -22,7 +22,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -652,7 +651,7 @@ public final class ServiceUtils {
         }
     }
 
-    public static Map<String, SerializableSecureString> convertMapStringsToSecureString(
+    public static Map<String, SecureString> convertMapStringsToSecureString(
         Map<String, ?> map,
         String settingName,
         ValidationException validationException
@@ -661,11 +660,11 @@ public final class ServiceUtils {
             return Map.of();
         }
 
-        validateMapStringValues(map, settingName, validationException, true);
+        var validatedMap = validateMapStringValues(map, settingName, validationException, true);
 
-        return map.entrySet()
+        return validatedMap.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SerializableSecureString((String) e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SecureString(e.getValue().toCharArray())));
     }
 
     /**

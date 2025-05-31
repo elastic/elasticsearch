@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.RerankResponse
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -123,7 +123,7 @@ public class CustomServiceTests extends AbstractServiceTests {
         assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
         assertThat(
             customModel.getSecretSettings().getSecretParameters(),
-            is(Map.of("test_key", new SerializableSecureString("test_value")))
+            is(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
 
         return customModel;
@@ -249,7 +249,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
+            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
     }
 
@@ -271,7 +271,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
+            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
     }
 

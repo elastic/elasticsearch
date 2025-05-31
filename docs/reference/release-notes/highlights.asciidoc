@@ -33,12 +33,102 @@ Other versions:
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[upgrade_repository_s3_to_aws_sdk_v2]]
+=== Upgrade `repository-s3` to AWS SDK v2
+In earlier versions of {es} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we have migrated this plugin to the newer AWS SDK v2.
+The two SDKs are not quite compatible, so please check the breaking changes documentation and test the new version thoroughly before upgrading any production workloads.
+
+{es-pull}126843[#126843]
+
+[discrete]
+[[add_ability_to_redirect_ingestion_failures_on_data_streams_to_failure_store]]
+=== Add ability to redirect ingestion failures on data streams to a failure store
+Documents that encountered ingest pipeline failures or mapping conflicts
+would previously be returned to the client as errors in the bulk and
+index operations. Many client applications are not equipped to respond
+to these failures. This leads to the failed documents often being
+dropped by the client which cannot hold the broken documents
+indefinitely. In many end user workloads, these failed documents
+represent events that could be critical signals for observability or
+security use cases.
+
+To help mitigate this problem, data streams can now maintain a "failure
+store" which is used to accept and hold documents that fail to be
+ingested due to preventable configuration errors. The data stream's
+failure store operates like a separate set of backing indices with their
+own mappings and access patterns that allow Elasticsearch to accept
+documents that would otherwise be rejected due to unhandled ingest
+pipeline exceptions or mapping conflicts.
+
+Users can enable redirection of ingest failures to the failure store on
+new data streams by specifying it in the new `data_stream_options` field
+inside of a component or index template:
+
+[source,yaml]
+----
+PUT _index_template/my-template
+{
+  "index_patterns": ["logs-test-*"],
+  "data_stream": {},
+  "template": {
+    "data_stream_options": {
+      "failure_store": {
+        "enabled": true
+      }
+    }
+  }
+}'
+----
+
+Existing data streams can be configured with the new data stream
+`_options` endpoint:
+
+[source,yaml]
+----
+PUT _data_stream/logs-test-apache/_options
+{
+  "failure_store": {
+    "enabled": "true"
+  }
+}
+----
+
+When redirection is enabled, any ingestion related failures will be
+captured in the failure store if the cluster is able to, along with the
+timestamp that the failure occurred, details about the error
+encountered, and the document that could not be ingested. Since failure
+stores are a kind of Elasticsearch index, we can search the data stream
+for the failures that it has collected. The failures are not shown by
+default as they are stored in different indices than the normal data
+stream data. In order to retrieve the failures, we use the `_search` API
+along with a new bit of index pattern syntax, the `::` selector.
+
+[source,yaml]
+----
+POST logs-test-apache::failures/_search
+----
+
+This index syntax informs the search operation to target the indices in
+its failure store instead of its backing indices. It can be mixed in a
+number of ways with other index patterns to include their failure store
+indices in the search operation:
+
+[source,yaml]
+----
+POST logs-*::failures/_search
+POST logs-*,logs-*::failures/_search
+POST *::failures/_search
+POST _query
+{
+  "query": "FROM my_data_stream*::failures"
+}
+----
+
+{es-pull}126973[#126973]
+
 // end::notable-highlights[]
+
 

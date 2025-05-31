@@ -1,0 +1,67 @@
+[[release-notes-8.18.2]]
+== {es} version 8.18.2
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[breaking-8.18.2]]
+[float]
+=== Breaking changes
+
+Snapshot/Restore::
+* Make S3 custom query parameter optional {es-pull}128043[#128043]
+
+[[bug-8.18.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix a bug in `significant_terms` {es-pull}127975[#127975]
+
+Audit::
+* Handle streaming request body in audit log {es-pull}127798[#127798]
+
+Data streams::
+* Fix system data streams incorrectly showing up in the list of template validation problems {es-pull}128161[#128161]
+
+Downsampling::
+* Downsampling does not consider passthrough fields as dimensions {es-pull}127752[#127752] (issue: {es-issue}125156[#125156])
+
+ES|QL::
+* Ensure ordinal builder emit ordinal blocks {es-pull}127949[#127949]
+* Fix union types in CCS {es-pull}128111[#128111]
+
+Infra/Core::
+* Add missing `outbound_network` entitlement to x-pack-core {es-pull}126992[#126992] (issue: {es-issue}127003[#127003])
+* Check hidden frames in entitlements {es-pull}127877[#127877]
+
+Infra/Scripting::
+* Avoid nested docs in painless execute api {es-pull}127991[#127991] (issue: {es-issue}41004[#41004])
+
+Logs::
+* Fix an authorization error when LogsPatternUsageService attempts to update `logsdb.prior_logs_usage` cluster setting. {es-pull}128050[#128050]
+
+Machine Learning::
+* Append all data to Chat Completion buffer {es-pull}127658[#127658]
+* Fix services API Google Vertex AI Rerank location field requirement {es-pull}127856[#127856]
+* Use internal user for internal inference action {es-pull}128327[#128327]
+
+Relevance::
+* Fix: Add `NamedWriteable` for `RuleQueryRankDoc` {es-pull}128153[#128153] (issue: {es-issue}126071[#126071])
+
+Security::
+* Remove dangling spaces wherever found {es-pull}127475[#127475]
+
+Snapshot/Restore::
+* Add missing entitlement to `repository-azure` {es-pull}128047[#128047] (issue: {es-issue}128046[#128046])
+
+TSDB::
+* Skip the validation when retrieving the index mode during reindexing a time series data stream {es-pull}127824[#127824]
+
+[[enhancement-8.18.2]]
+[float]
+=== Enhancements
+
+Authentication::
+* Http proxy support in JWT realm {es-pull}127337[#127337] (issue: {es-issue}114956[#114956])
+
+

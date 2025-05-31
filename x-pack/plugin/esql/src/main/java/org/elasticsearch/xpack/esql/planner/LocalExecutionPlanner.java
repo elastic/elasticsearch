@@ -476,6 +476,16 @@ public class LocalExecutionPlanner {
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
         }
+        List<TopNOperator.Partition> partitions = topNExec.partition().stream().map(partition -> {
+            int partitionByChannel;
+            if (partition.child() instanceof Attribute a) {
+                partitionByChannel = source.layout.get(a.id()).channel();
+            } else {
+                throw new EsqlIllegalArgumentException("partition by expression must be an attribute");
+            }
+            return new TopNOperator.Partition(partitionByChannel);
+        }).toList();
+
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
             int sortByChannel;
             if (order.child() instanceof Attribute a) {
@@ -498,7 +508,7 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), partitions, orders, context.pageSize(rowSize)),
             source.layout
         );
     }

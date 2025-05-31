@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -95,6 +96,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
      */
     private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
 
+    private final ProjectId projectId;
+
     GeoIpDownloader(
         Client client,
         HttpClient httpClient,
@@ -109,7 +112,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Map<String, String> headers,
         Supplier<TimeValue> pollIntervalSupplier,
         Supplier<Boolean> eagerDownloadSupplier,
-        Supplier<Boolean> atLeastOneGeoipProcessorSupplier
+        Supplier<Boolean> atLeastOneGeoipProcessorSupplier,
+        ProjectId projectId
     ) {
         super(id, type, action, description, parentTask, headers);
         this.client = client;
@@ -120,6 +124,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
+        this.projectId = projectId;
     }
 
     void setState(GeoIpTaskState state) {
@@ -134,16 +139,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
-            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+            if (clusterState.routingTable(projectId).index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 logger.debug(
                     "Not updating geoip database because not all primary shards of the [" + DATABASES_INDEX + "] index are active."
                 );
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(projectId, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 logger.debug(
                     "Not updating geoip database because there is a write block on the " + geoipIndex.getWriteIndex().getName() + " index",

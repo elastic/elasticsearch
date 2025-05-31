@@ -12,7 +12,7 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -25,7 +25,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
+public class InternalFilterTests extends SingleBucketAggregationTestCase<InternalFilter> {
     @Override
     protected InternalFilter createTestInstance(
         String name,

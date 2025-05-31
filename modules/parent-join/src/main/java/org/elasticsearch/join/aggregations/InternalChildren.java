@@ -11,7 +11,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Results of the {@link ParentToChildrenAggregator}.
  */
-public class InternalChildren extends InternalSingleBucketAggregation {
+public class InternalChildren extends SingleBucketAggregation {
     public InternalChildren(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }
@@ -37,7 +37,7 @@ public class InternalChildren extends InternalSingleBucketAggregation {
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalChildren(name, docCount, subAggregations, getMetadata());
     }
 }

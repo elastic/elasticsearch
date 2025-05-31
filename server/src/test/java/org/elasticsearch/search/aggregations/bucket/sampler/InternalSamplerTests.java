@@ -9,12 +9,12 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalSamplerTests extends InternalSingleBucketAggregationTestCase<InternalSampler> {
+public class InternalSamplerTests extends SingleBucketAggregationTestCase<InternalSampler> {
     @Override
     protected InternalSampler createTestInstance(
         String name,

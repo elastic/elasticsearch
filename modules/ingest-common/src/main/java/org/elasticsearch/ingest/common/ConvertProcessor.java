@@ -34,7 +34,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    String strValue = value.toString();
+                    String strValue = (String) STRING.convert(value);
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
                         return Integer.decode(strValue);
                     }
@@ -49,7 +49,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    String strValue = value.toString();
+                    String strValue = (String) STRING.convert(value);
                     if (strValue.startsWith("0x") || strValue.startsWith("-0x")) {
                         return Long.decode(strValue);
                     }
@@ -102,6 +102,12 @@ public final class ConvertProcessor extends AbstractProcessor {
         STRING {
             @Override
             public Object convert(Object value) {
+                if (isExactIntegerDouble(value)) {
+                    return String.valueOf(((Double) value).longValue());
+                }
+                if (isExactIntegerFloat(value)) {
+                    return String.valueOf(((Float) value).longValue());
+                }
                 return value.toString();
             }
         },
@@ -148,6 +154,24 @@ public final class ConvertProcessor extends AbstractProcessor {
                     "type [" + type + "] not supported, cannot convert field."
                 );
             }
+        }
+
+        private static boolean isExactIntegerFloat(Object value) {
+            final float ABS_MAX_EXACT_FLOAT = (float) 0x1p24 - 1;
+            if (value instanceof Float == false) {
+                return false;
+            }
+            float v = ((Float) value).floatValue();
+            return v == (long) v && -ABS_MAX_EXACT_FLOAT <= v && v <= ABS_MAX_EXACT_FLOAT;
+        }
+
+        private static boolean isExactIntegerDouble(Object value) {
+            final double ABS_MAX_EXACT_DOUBLE = 0x1p53 - 1;
+            if (value instanceof Double == false) {
+                return false;
+            }
+            double v = ((Double) value).doubleValue();
+            return v == (long) v && -ABS_MAX_EXACT_DOUBLE <= v && v <= ABS_MAX_EXACT_DOUBLE;
         }
     }
 

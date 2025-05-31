@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessors;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -145,7 +146,13 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
             result.put(
                 ThreadPool.Names.MERGE,
-                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5), true)
+                new ScalingExecutorBuilder(
+                    ThreadPool.Names.MERGE,
+                    1,
+                    halfAllocatedProcessors(allocatedProcessors),
+                    TimeValue.timeValueMinutes(5),
+                    true
+                )
             );
         }
         result.put(

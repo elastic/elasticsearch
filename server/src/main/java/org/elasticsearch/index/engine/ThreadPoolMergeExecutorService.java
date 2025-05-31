@@ -9,15 +9,33 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -25,13 +43,104 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongUnaryOperator;
+import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
+import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 
-public class ThreadPoolMergeExecutorService {
+public class ThreadPoolMergeExecutorService implements Closeable {
+    /** How frequently we check disk usage (default: 5 seconds). */
+    public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
+        "indices.merge.disk.check_interval",
+        TimeValue.timeValueSeconds(5),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<RelativeByteSizeValue> INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING = new Setting<>(
+        "indices.merge.disk.watermark.high",
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
+        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "indices.merge.disk.watermark.high"),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(RelativeByteSizeValue value) {}
+
+            @Override
+            public void validate(RelativeByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                    throw new IllegalArgumentException(
+                        "indices merge watermark setting is only effective when ["
+                            + USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey()
+                            + "] is set to [true]"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING, USE_THREAD_POOL_MERGE_SCHEDULER_SETTING);
+                return res.iterator();
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING = new Setting<>(
+        "indices.merge.disk.watermark.high.max_headroom",
+        (settings) -> {
+            if (INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.exists(settings)) {
+                return "-1";
+            } else {
+                return CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings).toString();
+            }
+        },
+        (s) -> ByteSizeValue.parseBytesSizeValue(s, "indices.merge.disk.watermark.high.max_headroom"),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent) {
+                    if (value.equals(ByteSizeValue.MINUS_ONE)) {
+                        throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+                    }
+                    if (settings.get(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING).equals(Boolean.FALSE)) {
+                        throw new IllegalArgumentException(
+                            "indices merge max headroom setting is only effective when ["
+                                + USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey()
+                                + "] is set to [true]"
+                        );
+                    }
+                }
+                final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING);
+                final RelativeByteSizeValue highWatermark = (RelativeByteSizeValue) settings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING);
+                if (highWatermark.isAbsolute() && highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
+                    throw new IllegalArgumentException(
+                        "indices merge max headroom setting is set, but disk watermark value is not a relative value"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(
+                    INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+                    INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+                    USE_THREAD_POOL_MERGE_SCHEDULER_SETTING
+                );
+                return res.iterator();
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
@@ -74,27 +183,57 @@ public class ThreadPoolMergeExecutorService {
     private final int maxConcurrentMerges;
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
+    private final BudgetTracker<MergeTask> budgetTracker;
+    private final AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor;
 
     private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
-        Settings settings
+        Settings settings,
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
     ) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
-            return new ThreadPoolMergeExecutorService(threadPool);
+            return new ThreadPoolMergeExecutorService(threadPool, settings, clusterSettings, nodeEnvironment);
         } else {
             return null;
         }
     }
 
-    private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
+    private ThreadPoolMergeExecutorService(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
+    ) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
         // the intent here is to throttle down whenever we submit a task and no other task is running
         this.concurrentMergesFloorLimitForThrottling = 2;
         this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
         assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
+        this.budgetTracker = new BudgetTracker<>(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE, queuedMergeTasks::add);
+        this.availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
+            nodeEnvironment.dataPaths(),
+            threadPool,
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.get(settings),
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING.get(settings),
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.get(settings),
+            (availableDiskSpaceByteSize) -> budgetTracker.updateBudget(availableDiskSpaceByteSize.getBytes())
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setHighStageWatermark
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setHighStageMaxHeadroom
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
+            this.availableDiskSpacePeriodicMonitor::setCheckInterval
+        );
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -164,7 +303,7 @@ public class ThreadPoolMergeExecutorService {
                 while (true) {
                     MergeTask smallestMergeTask;
                     try {
-                        // will block if there are backlogged merges until they're enqueued again
+                        // will block if there are backlogged or over-budget merges until they're enqueued again
                         smallestMergeTask = queuedMergeTasks.take();
                     } catch (InterruptedException e) {
                         // An active worker thread has been interrupted while waiting for backlogged merges to be re-enqueued.
@@ -175,18 +314,21 @@ public class ThreadPoolMergeExecutorService {
                         // is also drained, so any queued merge tasks are also forgotten.
                         break;
                     }
-                    // let the task's scheduler decide if it can actually run the merge task now
-                    ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
-                    if (schedule == RUN) {
-                        runMergeTask(smallestMergeTask);
-                        break;
-                    } else if (schedule == ABORT) {
-                        abortMergeTask(smallestMergeTask);
-                        break;
-                    } else {
-                        assert schedule == BACKLOG;
-                        // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                        // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
+                    try (var budgetRelease = budgetTracker.checkBudget(smallestMergeTask)) {
+                        ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
+                        if (schedule == RUN) {
+                            runMergeTask(smallestMergeTask);
+                            break;
+                        } else if (schedule == ABORT) {
+                            abortMergeTask(smallestMergeTask);
+                            break;
+                        } else {
+                            assert schedule == BACKLOG;
+                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
+                        }
+                    } catch (BudgetTracker.BudgetOverflowException e) {
+                        // continue to poll for new merge tasks, over-budget merge task will be reenqueued
                     }
                 }
             });
@@ -228,6 +370,194 @@ public class ThreadPoolMergeExecutorService {
             }
             mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
         }
+    }
+
+    static class AvailableDiskSpacePeriodicMonitor implements Closeable {
+        private static final Logger LOGGER = LogManager.getLogger(AvailableDiskSpacePeriodicMonitor.class);
+        private final NodeEnvironment.DataPath[] dataPaths;
+        private final ThreadPool threadPool;
+        private volatile RelativeByteSizeValue highStageWatermark;
+        private volatile ByteSizeValue highStageMaxHeadroom;
+        private volatile TimeValue checkInterval;
+        private final Consumer<ByteSizeValue> updateConsumer;
+        private volatile boolean closed;
+        private volatile Scheduler.Cancellable monitor;
+
+        AvailableDiskSpacePeriodicMonitor(
+            NodeEnvironment.DataPath[] dataPaths,
+            ThreadPool threadPool,
+            RelativeByteSizeValue highStageWatermark,
+            ByteSizeValue highStageMaxHeadroom,
+            TimeValue checkInterval,
+            Consumer<ByteSizeValue> updateConsumer
+        ) {
+            this.dataPaths = dataPaths;
+            this.threadPool = threadPool;
+            this.highStageWatermark = highStageWatermark;
+            this.highStageMaxHeadroom = highStageMaxHeadroom;
+            this.checkInterval = checkInterval;
+            this.updateConsumer = updateConsumer;
+            this.closed = false;
+            reschedule();
+            // early monitor run in the constructor
+            run();
+        }
+
+        public void setCheckInterval(TimeValue checkInterval) {
+            this.checkInterval = checkInterval;
+            reschedule();
+        }
+
+        public void setHighStageWatermark(RelativeByteSizeValue highStageWatermark) {
+            this.highStageWatermark = highStageWatermark;
+        }
+
+        public void setHighStageMaxHeadroom(ByteSizeValue highStageMaxHeadroom) {
+            this.highStageMaxHeadroom = highStageMaxHeadroom;
+        }
+
+        private synchronized void reschedule() {
+            if (monitor != null) {
+                monitor.cancel();
+            }
+            if (closed == false && checkInterval.duration() > 0) {
+                monitor = threadPool.scheduleWithFixedDelay(this::run, checkInterval, threadPool.generic());
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            reschedule();
+        }
+
+        private void run() {
+            if (closed) {
+                return;
+            }
+            FsInfo.Path mostAvailablePath = null;
+            IOException fsInfoException = null;
+            for (NodeEnvironment.DataPath dataPath : dataPaths) {
+                try {
+                    FsInfo.Path fsInfo = getFSInfo(dataPath); // uncached
+                    if (mostAvailablePath == null || mostAvailablePath.getAvailable().getBytes() < fsInfo.getAvailable().getBytes()) {
+                        mostAvailablePath = fsInfo;
+                    }
+                } catch (IOException e) {
+                    if (fsInfoException == null) {
+                        fsInfoException = e;
+                    } else {
+                        fsInfoException.addSuppressed(e);
+                    }
+                }
+            }
+            if (fsInfoException != null) {
+                LOGGER.warn("unexpected exception reading filesystem info", fsInfoException);
+            }
+            if (mostAvailablePath == null) {
+                LOGGER.error("Cannot read filesystem info for node data paths " + Arrays.toString(dataPaths));
+                return;
+            }
+            long mostAvailableDiskSpaceBytes = mostAvailablePath.getAvailable().getBytes();
+            // subtract the configured free disk space threshold
+            mostAvailableDiskSpaceBytes -= getFreeBytesThreshold(mostAvailablePath.getTotal(), highStageWatermark, highStageMaxHeadroom)
+                .getBytes();
+            // clamp available space to 0
+            long maxMergeSizeLimit = Math.max(0L, mostAvailableDiskSpaceBytes);
+            updateConsumer.accept(ByteSizeValue.ofBytes(maxMergeSizeLimit));
+        }
+
+        private static ByteSizeValue getFreeBytesThreshold(
+            ByteSizeValue total,
+            RelativeByteSizeValue watermark,
+            ByteSizeValue maxHeadroom
+        ) {
+            // If bytes are given, they can be readily returned as free bytes.
+            // If percentages are given, we need to calculate the free bytes.
+            if (watermark.isAbsolute()) {
+                return watermark.getAbsolute();
+            }
+            return ByteSizeValue.subtract(total, watermark.calculateValue(total, maxHeadroom));
+        }
+    }
+
+    static class BudgetTracker<E> {
+        private final ToLongFunction<? super E> budgetFunction;
+        private long availableBudget;
+        private final IdentityHashMap<E, Long> commitedBudgetPerElement;
+        private final List<E> budgetOverflow;
+        private final Consumer<? super E> budgetOverflowConsumer;
+        private final Object mutex = new Object();
+
+        BudgetTracker(ToLongFunction<? super E> budgetFunction, long availableBudget, Consumer<? super E> budgetOverflowConsumer) {
+            this.budgetFunction = budgetFunction;
+            this.availableBudget = availableBudget;
+            this.commitedBudgetPerElement = new IdentityHashMap<>();
+            this.budgetOverflow = new ArrayList<>();
+            this.budgetOverflowConsumer = budgetOverflowConsumer;
+        }
+
+        Releasable checkBudget(E element) throws BudgetOverflowException {
+            long elementBudget = budgetFunction.applyAsLong(element);
+            synchronized (mutex) {
+                if (elementBudget > availableBudget) {
+                    budgetOverflow.add(element);
+                    throw new BudgetOverflowException();
+                } else {
+                    assert commitedBudgetPerElement.containsKey(element) == false;
+                    commitedBudgetPerElement.put(element, elementBudget);
+                    availableBudget -= elementBudget;
+                    assert availableBudget > 0;
+                    return () -> {
+                        synchronized (mutex) {
+                            assert commitedBudgetPerElement.containsKey(element);
+                            availableBudget += commitedBudgetPerElement.remove(element);
+                            dropBudgetOverflow();
+                        }
+                    };
+                }
+            }
+        }
+
+        void updateBudget(long availableBudget) {
+            assert availableBudget > 0;
+            synchronized (mutex) {
+                long previouslyAvailableBudget = this.availableBudget;
+                this.availableBudget = availableBudget;
+                // update the per-element budget
+                commitedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e));
+                // update available budget given the per-element budget
+                this.availableBudget -= commitedBudgetPerElement.values().stream().reduce(0L, Long::sum);
+                if (this.availableBudget > previouslyAvailableBudget) {
+                    dropBudgetOverflow();
+                }
+            }
+        }
+
+        private void dropBudgetOverflow() {
+            synchronized (mutex) {
+                for (E element : budgetOverflow) {
+                    budgetOverflowConsumer.accept(element);
+                }
+                budgetOverflow.clear();
+            }
+        }
+
+        static final class BudgetOverflowException extends Exception {
+            public BudgetOverflowException() {
+                super("budget overflow");
+            }
+
+            @Override
+            public Throwable fillInStackTrace() {
+                return this; // this exception doesn't imply a bug, no need for a stack trace
+            }
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        availableDiskSpacePeriodicMonitor.close();
     }
 
     private static long newTargetIORateBytesPerSec(
@@ -302,8 +632,8 @@ public class ThreadPoolMergeExecutorService {
     }
 
     // exposed for tests
-    PriorityBlockingQueue<MergeTask> getQueuedMergeTasks() {
-        return queuedMergeTasks;
+    int getMergeTasksQueueLength() {
+        return queuedMergeTasks.size();
     }
 
     // exposed for tests and stats

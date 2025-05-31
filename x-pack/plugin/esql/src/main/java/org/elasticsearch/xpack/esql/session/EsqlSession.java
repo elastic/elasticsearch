@@ -97,7 +97,6 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -237,12 +236,11 @@ public class EsqlSession {
             });
         });
 
-        Iterator<PlanTuple> iterator = subplans.iterator();
-
         // TODO: merge into one method
         if (subplans.size() > 0) {
             // code-path to execute subplans
-            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
+            int currentSubPlan = 0;
+            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, subplans, currentSubPlan, executionInfo, runner, listener);
         } else {
             // execute main plan
             runner.run(physicalPlan, listener);
@@ -252,12 +250,13 @@ public class EsqlSession {
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         PhysicalPlan plan,
-        Iterator<PlanTuple> subPlanIterator,
+        List<PlanTuple> subPlans,
+        int currentSubPlan,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         ActionListener<Result> listener
     ) {
-        PlanTuple tuple = subPlanIterator.next();
+        PlanTuple tuple = subPlans.get(currentSubPlan);
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
@@ -275,16 +274,30 @@ public class EsqlSession {
                     );
                 });
 
-                if (subPlanIterator.hasNext() == false) {
+                if (currentSubPlan + 1 == subPlans.size()) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
                         finalListener.onResponse(
                             new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
                         );
                     }));
-                } else {
-                    // continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
+                } else {// continue executing the subplans
+                    // update all the current subplans with the updated information from the freshly executed subplan
+                    for (int i = currentSubPlan + 1; i < subPlans.size(); i++) {
+                        var nextSubPlan = subPlans.get(i);
+                        PhysicalPlan newNextSubPlan = nextSubPlan.physical().transformUp(FragmentExec.class, f -> {
+                            LogicalPlan frag = f.fragment();
+                            return f.withFragment(
+                                frag.transformUp(
+                                    InlineJoin.class,
+                                    ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                                )
+                            );
+                        });
+
+                        subPlans.set(i, new PlanTuple(newNextSubPlan, nextSubPlan.logical()));
+                    }
+                    executeSubPlan(completionInfoAccumulator, newPlan, subPlans, currentSubPlan + 1, executionInfo, runner, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

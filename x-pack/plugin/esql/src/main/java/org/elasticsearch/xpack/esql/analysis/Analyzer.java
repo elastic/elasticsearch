@@ -617,7 +617,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression prompt = p.prompt();
 
             if (targetField instanceof UnresolvedAttribute ua) {
-                targetField = new ReferenceAttribute(ua.source(), ua.name(), TEXT);
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), KEYWORD);
             }
 
             if (prompt.resolved() == false) {

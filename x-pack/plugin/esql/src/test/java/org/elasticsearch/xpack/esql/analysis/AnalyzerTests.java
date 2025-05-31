@@ -3764,7 +3764,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionDefaultTargetField() {
@@ -3776,7 +3776,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("completion", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("completion", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionPrompt() {
@@ -3814,7 +3814,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.KEYWORD)));
 
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));

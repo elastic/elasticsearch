@@ -67,14 +67,11 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasRerankInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
@@ -138,12 +135,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
-            createInferenceEndpoint(client());
-        }
-
-        if (supportsInferenceTestService() && clusterHasRerankInferenceEndpoint(client()) == false) {
-            createRerankInferenceEndpoint(client());
+        if (supportsInferenceTestService()) {
+            createInferenceEndpoints(adminClient());
         }
 
         boolean supportsLookup = supportsIndexModeLookup();
@@ -164,8 +157,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
 
-        deleteInferenceEndpoint(client());
-        deleteRerankInferenceEndpoint(client());
+        deleteInferenceEndpoints(adminClient());
+
     }
 
     public boolean logResults() {
@@ -254,7 +247,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean requiresInferenceEndpoint() {
-        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName())
+        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName(), COMPLETION.capabilityName())
             .anyMatch(testCase.requiredCapabilities::contains);
     }
 

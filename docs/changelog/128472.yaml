@@ -1,0 +1,7 @@
+pr: 128472
+summary: "Aggs: Fix significant terms not finding background docuemnts for nested\
+  \ fields"
+area: Aggregations
+type: bug
+issues:
+ - 101163

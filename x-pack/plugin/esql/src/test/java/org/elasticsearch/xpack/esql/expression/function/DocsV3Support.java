@@ -605,10 +605,6 @@ public abstract class DocsV3Support {
             String appliesToTextWithAT = appliesToText(functionAppliesTos);
             String appliesToText = appliesToTextWithoutAppliesTo(functionAppliesTos);
             StringBuilder previewText = new StringBuilder();
-            if (preview) {
-                // We have a preview flag, use the WARNING callout
-                previewText.append(makeCallout("warning", "\n" + PREVIEW_CALLOUT + "\n")).append("\n");
-            }
             if (appliesToTextWithAT.isEmpty() == false) {
                 // No additional text, just use the plan applies_to syntax
                 previewText.append(appliesToTextWithAT);
@@ -631,9 +627,6 @@ public abstract class DocsV3Support {
                     appliesToText.append("product: ");
                     appendLifeCycleAndVersion(appliesToText, appliesTo);
                     appliesToText.append("\n");
-                    if (appliesTo.serverless() && appliesTo.lifeCycle().serverlessLifecycle() == GA) {
-                        appliesToText.append("serverless: ").append(GA).append("\n");
-                    }
                 }
                 appliesToText.append("```\n");
             }
@@ -660,7 +653,7 @@ public abstract class DocsV3Support {
         }
 
         private void appendLifeCycleAndVersion(StringBuilder appliesToText, FunctionAppliesTo appliesTo) {
-            appliesToText.append(appliesTo.lifeCycle().name());
+            appliesToText.append(appliesTo.lifeCycle().name().toLowerCase(Locale.ROOT));
             if (appliesTo.version().isEmpty() == false) {
                 appliesToText.append(" ").append(appliesTo.version());
             }
@@ -1025,6 +1018,12 @@ public abstract class DocsV3Support {
             builder.append("**Examples**\n\n");
         }
         for (Example example : info.examples()) {
+            if (example.applies_to().isEmpty() == false) {
+                builder.append("**Advanced:**\n");
+                builder.append("```{applies_to}\n");
+                builder.append("product: ").append(example.applies_to()).append("\n");
+                builder.append("```\n\n");
+            }
             if (example.description().isEmpty() == false) {
                 builder.append(replaceLinks(example.description().trim()));
                 builder.append("\n\n");

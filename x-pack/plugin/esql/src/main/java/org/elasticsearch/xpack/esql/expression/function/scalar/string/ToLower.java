@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -30,17 +28,12 @@ public class ToLower extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
-        examples = { @Example(file = "string", tag = "to_lower"), @Example(file = "string", tag = "to_lower_mv"), },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                version = "9.1.0",
-                description = "Support for multivalued parameters is only available from 9.1.0"
-            ) }
+        examples = { @Example(file = "string", tag = "to_lower"), @Example(file = "string", tag = "to_lower_mv", applies_to = "ga 9.1") }
     )
     public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
-        String expression. If `null`, the function returns `null`.
-        The input can be a single- or multi-valued column or an expression.""") Expression field, Configuration configuration) {
+        String expression. If `null`, the function returns `null`. The input can be:
+        - a single-valued column or expression
+        - a multi-valued column or expression {applies_to}`ga 9.1`""") Expression field, Configuration configuration) {
         super(source, field, configuration, Case.LOWER);
     }
 

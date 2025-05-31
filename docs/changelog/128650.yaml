@@ -1,0 +1,5 @@
+pr: 128650
+summary: Always update `shardGenerations` for previous in-progress snapshots
+area: Snapshot/Restore
+type: enhancement
+issues: []

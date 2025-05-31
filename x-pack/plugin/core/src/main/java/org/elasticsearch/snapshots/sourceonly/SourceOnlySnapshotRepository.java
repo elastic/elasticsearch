@@ -102,7 +102,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
-                metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
+                metadataToSnapshot(
+                    finalizeSnapshotContext.updatedShardGenerations().liveIndices().indices(),
+                    finalizeSnapshotContext.clusterMetadata()
+                ),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 finalizeSnapshotContext,

@@ -184,27 +184,34 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         if (count == 0) {
             return null;
         }
-        return maybeExecuteFinalReduce(context, count == 1 ? reduce(aggs.next(), context) : reduce(aggs, count, context));
+        var first = aggs.next();
+        List<InternalAggregation> reducedInternalAggs;
+        if (count == 1) {
+            if (context.isFinalReduce() == false) {
+                return reduce(first, context);
+            }
+            reducedInternalAggs = finalTopLevelReduce(context, first);
+        } else {
+            // general case
+            try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, count)) {
+                reducer.accept(first);
+                aggs.forEachRemaining(reducer::accept);
+                if (context.isFinalReduce() == false) {
+                    return reducer.get();
+                }
+                reducedInternalAggs = reducer.get(agg -> reducePipelines(context, agg));
+            }
+        }
+        for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+            SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+            InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
+            reducedInternalAggs.add(newAgg);
+        }
+        return from(reducedInternalAggs);
     }
 
-    private static InternalAggregations maybeExecuteFinalReduce(AggregationReduceContext context, InternalAggregations reduced) {
-        if (reduced == null) {
-            return null;
-        }
-        if (context.isFinalReduce()) {
-            List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations()
-                .stream()
-                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
-                .collect(Collectors.toCollection(ArrayList::new));
-
-            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
-                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
-                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
-                reducedInternalAggs.add(newAgg);
-            }
-            return from(reducedInternalAggs);
-        }
-        return reduced;
+    private static InternalAggregation reducePipelines(AggregationReduceContext context, InternalAggregation agg) {
+        return agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName()));
     }
 
     /**
@@ -216,7 +223,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
-        return maybeExecuteFinalReduce(context, reduce(aggregationsList, context));
+        return topLevelReduce(aggregationsList.iterator(), aggregationsList.size(), context);
     }
 
     /**
@@ -229,25 +236,16 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         if (aggregationsList.isEmpty()) {
             return null;
         }
+        var first = aggregationsList.getFirst();
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            return reduce(aggregationsList.getFirst(), context);
+            return reduce(first, context);
         }
         // general case
-        try (AggregatorsReducer reducer = new AggregatorsReducer(aggregationsList.get(0), context, aggregationsList.size())) {
+        try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, aggregationsList.size())) {
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }
-            return reducer.get();
-        }
-    }
-
-    private static InternalAggregations reduce(Iterator<InternalAggregations> aggsIterator, int count, AggregationReduceContext context) {
-        // general case
-        var first = aggsIterator.next();
-        try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, count)) {
-            reducer.accept(first);
-            aggsIterator.forEachRemaining(reducer::accept);
             return reducer.get();
         }
     }
@@ -273,6 +271,26 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             }
         }
         return noneReduced ? aggregations : from(reduced);
+    }
+
+    private static ArrayList<InternalAggregation> finalTopLevelReduce(AggregationReduceContext context, InternalAggregations aggregations) {
+        final List<InternalAggregation> internalAggregations = aggregations.asList();
+        int size = internalAggregations.size();
+        if (size == 0) {
+            return new ArrayList<>(internalAggregations);
+        }
+        final ArrayList<InternalAggregation> reduced = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            InternalAggregation aggregation = internalAggregations.get(i);
+            if (aggregation.mustReduceOnSingleInternalAgg()) {
+                try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context.forAgg(aggregation.getName()), 1)) {
+                    aggregatorReducer.accept(aggregation);
+                    aggregation = aggregatorReducer.get();
+                }
+            }
+            reduced.add(reducePipelines(context, aggregation));
+        }
+        return reduced;
     }
 
     /**

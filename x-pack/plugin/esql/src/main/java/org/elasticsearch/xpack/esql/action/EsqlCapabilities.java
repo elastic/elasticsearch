@@ -938,6 +938,11 @@ public class EsqlCapabilities {
         MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Support for unified match and multi-match functions.
+         */
+        MULTI_MATCH_UNIFIED_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,

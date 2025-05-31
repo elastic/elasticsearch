@@ -3,11 +3,11 @@
 #
 
 multiMatchWithField
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 // tag::multi-match-with-field[]
 FROM books
-| WHERE MULTI_MATCH("Faulkner", author, description)
+| WHERE MULTI_MATCH(author, description, "Faulkner")
 | KEEP book_no, author
 | SORT book_no
 | LIMIT 5
@@ -25,10 +25,10 @@ book_no:keyword | author:text
 ;
 
 testMultiMatchWithOptionsFuzziness
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
-| where multi_match("Pings", title, description, {"fuzziness": 1})  
+| where multi_match(title, description, "Pings", {"fuzziness": 1})  
 | keep book_no;
 ignoreOrder:true
 
@@ -46,11 +46,11 @@ book_no:keyword
 ;
 
 testMultiMatchWithOptionsOperator
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 // tag::multi-match-with-named-function-params[]
 FROM books
-| WHERE MULTI_MATCH("Hobbit Back Again", title, description, {"operator": "AND"})
+| WHERE MULTI_MATCH(title, description, "Hobbit Back Again", {"operator": "AND"})
 | KEEP title;
 // end::multi-match-with-named-function-params[]
 
@@ -61,10 +61,10 @@ The Hobbit or There and Back Again
 ;
 
 testMultiMatchWithOptionsMinimumShouldMatch
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
-| where multi_match("here back again", title, description, {"minimum_should_match": 2, "operator": "OR"})
+| where multi_match(title, description, "here back again", {"minimum_should_match": 2, "operator": "OR"})
 | sort book_no
 | keep title;
 
@@ -74,11 +74,11 @@ The Hobbit or There and Back Again
 ;
 
 testMultiMatchWithNonPushableDisjunctions
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
-| where multi_match("lord", title, description) or length(title) > 130 
+| where multi_match(title, description, "lord") or length(title) > 130 
 | keep book_no
 ;
 ignoreOrder: true
@@ -97,10 +97,10 @@ book_no:keyword
 ;
 
 testMultiMatchPhraseQuery
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
-| where multi_match("Lord of the rings", title, description, { "type": "phrase" } )
+| where multi_match(title, description, "Lord of the rings", { "type": "phrase" } )
 | keep title
 ;
 ignoreOrder: true
@@ -117,10 +117,10 @@ Return of the King Being the Third Part of The Lord of the Rings
 ;
 
 testMultiMatchPhrasePrefixQuery
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 
 from books 
-| where multi_match("Lord of the ri", title, { "type": "phrase_prefix" } )
+| where multi_match(title, "Lord of the ri", { "type": "phrase_prefix" } )
 | keep title
 ;
 ignoreOrder: true

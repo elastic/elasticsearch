@@ -34,8 +34,7 @@ public class MultiMatchTests extends MatchTests {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        // Note we are reversing the order of arguments here.
-        MultiMatch mm = new MultiMatch(source, args.get(1), List.of(args.get(0)), args.get(2));
+        MultiMatch mm = new MultiMatch(source, List.of(args.get(0)), args.get(1), args.get(2));
         // We need to add the QueryBuilder to the multi_match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (mm.query().foldable() && mm.fields().stream().allMatch(field -> field instanceof FieldAttribute)) {

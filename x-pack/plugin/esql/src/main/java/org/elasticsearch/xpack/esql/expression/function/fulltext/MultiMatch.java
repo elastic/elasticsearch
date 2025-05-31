@@ -153,15 +153,15 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     public MultiMatch(
         Source source,
         @Param(
-            name = "query",
-            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "text", "unsigned_long", "version" },
-            description = "Value to find in the provided fields."
-        ) Expression query,
-        @Param(
             name = "fields",
-            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "text", "unsigned_long", "version" },
             description = "Fields to use for matching"
         ) List<Expression> fields,
+        @Param(
+            name = "query",
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Value to find in the provided fields."
+        ) Expression query,
         @MapParam(
             name = "options",
             params = {
@@ -262,7 +262,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             optional = true
         ) Expression options
     ) {
-        this(source, query, fields, options, null);
+        this(source, fields, query, options, null);
     }
 
     // Due to current limitations, the options field may contain a field, in which case treat it as a field, and use "null" for actual
@@ -277,7 +277,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         return (options == null ? fieldsAndQuery : Stream.concat(fieldsAndQuery, Stream.of(options))).toList();
     }
 
-    private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
+    private MultiMatch(Source source, List<Expression> fields, Expression query, Expression options, QueryBuilder queryBuilder) {
         super(source, query, initChildren(query, fields, options), queryBuilder);
         this.fieldsOriginal = fields;
         this.optionsOriginal = options;
@@ -296,7 +296,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         Expression query = in.readNamedWriteable(Expression.class);
         List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new MultiMatch(source, query, fields, null, queryBuilder);
+        return new MultiMatch(source, fields, query, null, queryBuilder);
     }
 
     @Override
@@ -314,24 +314,25 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
+        // "query" is the first child.
         if (newChildren.getLast() instanceof MapExpression || newChildren.size() == children().size()) {
             // if the last child is a MapExpression, it is the options map
             return new MultiMatch(
                 source(),
-                newChildren.getFirst(),
                 newChildren.subList(1, newChildren.size() - 1),
+                newChildren.getFirst(),
                 newChildren.getLast(),
                 queryBuilder()
             );
         }
 
-        return new MultiMatch(source(), newChildren.getFirst(), newChildren.subList(1, newChildren.size()), null, queryBuilder());
+        return new MultiMatch(source(), newChildren.subList(1, newChildren.size()), newChildren.getFirst(), null, queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         // Specifically create new instance with original arguments.
-        return NodeInfo.create(this, MultiMatch::new, query(), fieldsOriginal, optionsOriginal);
+        return NodeInfo.create(this, MultiMatch::new, fieldsOriginal, query(), optionsOriginal);
     }
 
     @Override
@@ -349,7 +350,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         // Specifically create new instance with original arguments.
-        return new MultiMatch(source(), query(), fieldsOriginal, optionsOriginal, queryBuilder);
+        return new MultiMatch(source(), fieldsOriginal, query(), optionsOriginal, queryBuilder);
     }
 
     public List<Expression> fields() {
@@ -384,7 +385,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                         field,
                         FIELD_DATA_TYPES::contains,
                         sourceText(),
-                        SECOND,
+                        FIRST,
                         "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
                     )
                 )
@@ -419,14 +420,14 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             query(),
             QUERY_DATA_TYPES::contains,
             sourceText(),
-            FIRST,
+            SECOND,
             "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNullAndFoldable(query(), sourceText(), FIRST));
+        ).and(isNotNullAndFoldable(query(), sourceText(), SECOND));
     }
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveFields()).and(resolveOptions());
+        return resolveFields().and(resolveQuery()).and(resolveOptions());
     }
 
     @Override

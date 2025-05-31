@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
@@ -75,7 +76,8 @@ public class GoogleVertexAiService extends SenderService {
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.RERANK,
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        TaskType.COMPLETION
     );
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
@@ -220,11 +222,11 @@ public class GoogleVertexAiService extends SenderService {
             return;
         }
 
-        GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
+        var completionModel = (GoogleVertexAiCompletionModel) model;
 
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
-        var action = googleVertexAiModel.accept(actionCreator, taskSettings);
+        var action = completionModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 
@@ -368,6 +370,16 @@ public class GoogleVertexAiService extends SenderService {
                 context
             );
 
+            case COMPLETION -> new GoogleVertexAiCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
+
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -396,10 +408,11 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
-                        "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                            + "For more information, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
+                        .setDescription(
+                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
+                                + "For more information, refer to the {geminiVertexAIDocs}."
+                        )
                         .setLabel("GCP Region")
                         .setRequired(true)
                         .setSensitive(false)

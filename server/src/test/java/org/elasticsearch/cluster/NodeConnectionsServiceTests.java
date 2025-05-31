@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -74,6 +75,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private TransportService transportService;
     private Map<DiscoveryNode, CheckedRunnable<Exception>> nodeConnectionBlocks;
+    private Map<DiscoveryNode, Exception> nodeCloseExceptions;
 
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
@@ -245,13 +247,77 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(transportService, targetNodes);
     }
 
+    public void testConnectionHistoryLogging() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10ms");
+
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+
+        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
+        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final NodeConnectionsService service = new NodeConnectionsService(
+            settings.build(),
+            deterministicTaskQueue.getThreadPool(),
+            transportService
+        );
+        service.start();
+
+        final DiscoveryNode gracefulClose = DiscoveryNodeUtils.create("gracefulClose");
+        final DiscoveryNode exceptionalClose = DiscoveryNodeUtils.create("exceptionalClose");
+
+        nodeCloseExceptions.put(exceptionalClose, new RuntimeException());
+
+        final AtomicBoolean connectionCompleted = new AtomicBoolean();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(gracefulClose).add(exceptionalClose).build();
+
+        service.connectToNodes(nodes, () -> connectionCompleted.set(true));
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(connectionCompleted.get());
+
+        try (var mockLog = MockLog.capture(NodeConnectionsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reconnect after graceful close",
+                    NodeConnectionsService.class.getCanonicalName(),
+                    Level.WARN,
+                    "reopened transport connection to node ["
+                        + gracefulClose.descriptionWithoutAttributes()
+                        + "] which disconnected gracefully [*ms] ago "
+                        + "but did not restart, so the disconnection is unexpected; "
+                        + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reconnect after exceptional close",
+                    NodeConnectionsService.class.getCanonicalName(),
+                    Level.WARN,
+                    "reopened transport connection to node ["
+                        + exceptionalClose.descriptionWithoutAttributes()
+                        + "] which disconnected exceptionally [*ms] ago "
+                        + "but did not restart, so the disconnection is unexpected; "
+                        + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                )
+            );
+            transportService.disconnectFromNode(gracefulClose);
+            transportService.disconnectFromNode(exceptionalClose);
+
+            runTasksUntil(deterministicTaskQueue, 1000);
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     public void testOnlyBlocksOnConnectionsToNewNodes() throws Exception {
         final NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
 
         final AtomicReference<ActionListener<DiscoveryNode>> disconnectListenerRef = new AtomicReference<>();
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
                 final ActionListener<DiscoveryNode> disconnectListener = disconnectListenerRef.getAndSet(null);
                 if (disconnectListener != null) {
                     disconnectListener.onResponse(node);
@@ -525,6 +591,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         this.threadPool = threadPool;
         nodeConnectionBlocks = newConcurrentMap();
+        nodeCloseExceptions = newConcurrentMap();
         transportService = new TestTransportService(new MockTransport(threadPool), threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -643,7 +710,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
                         @Override
                         public void close() {
-                            closeListener.onResponse(null);
+                            Exception closeException = nodeCloseExceptions.get(node);
+                            if (closeException != null) {
+                                closeListener.onFailure(closeException);
+                            } else {
+                                closeListener.onResponse(null);
+                            }
                         }
 
                         @Override

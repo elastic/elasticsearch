@@ -229,11 +229,23 @@ public class ClusterConnectionManager implements ConnectionManager {
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.running(() -> {
-                                    connectedNodes.remove(node, conn);
-                                    connectionListener.onNodeDisconnected(node, conn);
-                                    managerRefs.decRef();
-                                }));
+                                conn.addCloseListener(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void ignored) {
+                                        handleClose(null);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        handleClose(e);
+                                    }
+
+                                    void handleClose(@Nullable Exception e) {
+                                        connectedNodes.remove(node, conn);
+                                        connectionListener.onNodeDisconnected(node, conn, e);
+                                        managerRefs.decRef();
+                                    }
+                                });
 
                                 conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {

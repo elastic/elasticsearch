@@ -17,15 +17,19 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -79,12 +83,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     private final TimeValue reconnectInterval;
     private volatile ConnectionChecker connectionChecker;
+    private final ConnectionHistoryListener connectionHistoryListener;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
+        this.connectionHistoryListener = new ConnectionHistoryListener();
     }
 
     /**
@@ -209,11 +215,16 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
+    record ConnectionHistory(String ephemeralId, long disconnectTime, Exception disconnectCause) {}
+
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
+
+        // access is synchronized by the service mutex
+        protected ConnectionHistory connectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -344,6 +355,75 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         public String toString() {
             synchronized (mutex) {
                 return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
+            }
+        }
+    }
+
+    private class ConnectionHistoryListener implements TransportConnectionListener {
+        /**
+         * Receives connection/disconnection events from the transport, and records in per-node ConnectionHistory
+         * structures for logging network issues. ConnectionHistory records are stored in ConnectionTargets.
+         *
+         * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
+         * and it has the same ephemeral Id as it did during the last connection.
+         */
+        ConnectionHistoryListener() {
+            transportService.addConnectionListener(ConnectionHistoryListener.this);
+        }
+
+        @Override
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            ConnectionHistory connectionHistory = null;
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionHistory = connectionTarget.connectionHistory;
+                    connectionTarget.connectionHistory = null;
+                }
+            }
+
+            if (connectionHistory != null && connectionHistory.ephemeralId.equals(connection.getNode().getEphemeralId())) {
+                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - connectionHistory.disconnectTime;
+                if (connectionHistory.disconnectCause != null) {
+                    logger.warn(
+                        () -> format(
+                            "reopened transport connection to node [%s] "
+                                + "which disconnected exceptionally [%dms] ago but did not "
+                                + "restart, so the disconnection is unexpected; "
+                                + "see [%s] for troubleshooting guidance",
+                            connection.getNode().descriptionWithoutAttributes(),
+                            millisSinceDisconnect,
+                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                        ),
+                        connectionHistory.disconnectCause
+                    );
+                } else {
+                    logger.warn(
+                        """
+                            reopened transport connection to node [{}] \
+                            which disconnected gracefully [{}ms] ago but did not \
+                            restart, so the disconnection is unexpected; \
+                            see [{}] for troubleshooting guidance""",
+                        connection.getNode().descriptionWithoutAttributes(),
+                        millisSinceDisconnect,
+                        ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                    );
+                }
+            }
+        }
+
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            ConnectionHistory connectionHistory = new ConnectionHistory(
+                connection.getNode().getEphemeralId(),
+                threadPool.absoluteTimeInMillis(),
+                closeException
+            );
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionTarget.connectionHistory = connectionHistory;
+                }
             }
         }
     }

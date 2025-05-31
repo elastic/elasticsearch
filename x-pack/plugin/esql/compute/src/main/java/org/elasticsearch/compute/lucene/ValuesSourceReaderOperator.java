@@ -105,6 +105,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * {@code blockLoader} maps shard index to the {@link BlockLoader}s
      * which load the actual blocks.
      */
+    // TODO: enforce a FieldName at compile time
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
     public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}

@@ -9,10 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
 
@@ -47,5 +53,47 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testMissingStats() throws IOException {
+        final var populatedStats = createTestInstance();
+        final var missingStats = SnapshotStats.forMissingStats();
+        assertEquals(0L, missingStats.getStartTime());
+        assertEquals(0L, missingStats.getTime());
+        assertEquals(-1, missingStats.getTotalFileCount());
+        assertEquals(-1, missingStats.getIncrementalFileCount());
+        assertEquals(-1, missingStats.getProcessedFileCount());
+        assertEquals(-1L, missingStats.getTotalSize());
+        assertEquals(-1L, missingStats.getIncrementalSize());
+        assertEquals(-1L, missingStats.getProcessedSize());
+
+        // Verify round trip serialization.
+        for (var transportVersion : List.of(
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS,
+            TransportVersion.current()
+        )) {
+
+            for (var stats : List.of(populatedStats, missingStats)) {
+                final var bytesOut = new ByteArrayOutputStream();
+
+                try (var streamOut = new OutputStreamStreamOutput(bytesOut)) {
+                    streamOut.setTransportVersion(transportVersion);
+
+                    if (transportVersion.onOrAfter(TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) || stats != missingStats) {
+                        stats.writeTo(streamOut);
+                    } else {
+                        assertThrows(IllegalStateException.class, () -> stats.writeTo(streamOut));
+                        continue;
+                    }
+                }
+
+                try (var streamIn = new ByteArrayStreamInput(bytesOut.toByteArray())) {
+                    streamIn.setTransportVersion(transportVersion);
+                    final var statsRead = new SnapshotStats(streamIn);
+                    assertEquals(stats, statsRead);
+                }
+            }
+        }
     }
 }

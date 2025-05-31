@@ -54,6 +54,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+// TODO: Add simplified format tests
+
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 

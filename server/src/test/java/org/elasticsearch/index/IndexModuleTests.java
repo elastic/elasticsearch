@@ -67,6 +67,8 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchLoadRateProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -250,7 +252,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -279,7 +282,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -306,7 +310,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -661,7 +666,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -685,7 +691,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -725,7 +732,12 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                ShardSearchLoadRateProvider.DEFAULT
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 
@@ -789,7 +801,8 @@ public class IndexModuleTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             emptyList(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

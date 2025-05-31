@@ -106,7 +106,6 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
         examples = {

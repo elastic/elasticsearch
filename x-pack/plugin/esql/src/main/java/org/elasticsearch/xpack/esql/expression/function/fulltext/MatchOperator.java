@@ -28,7 +28,6 @@ public class MatchOperator extends Match {
     @FunctionInfo(
         returnType = "boolean",
         operator = ":",
-        preview = true,
         description = """
             Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.

@@ -229,54 +229,43 @@ public class ClusterConnectionManager implements ConnectionManager {
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.running(() -> {
-                                    connectedNodes.remove(node, conn);
-                                    connectionListener.onNodeDisconnected(node, conn);
-                                    managerRefs.decRef();
-                                }));
-
                                 conn.addCloseListener(new ActionListener<Void>() {
                                     @Override
                                     public void onResponse(Void ignored) {
-                                        if (connectingRefCounter.hasReferences() == false) {
-                                            logger.trace("connection manager shut down, closing transport connection to [{}]", node);
-                                        } else if (conn.hasReferences()) {
-                                            logger.info(
-                                                """
-                                                    transport connection to [{}] closed by remote; \
-                                                    if unexpected, see [{}] for troubleshooting guidance""",
-                                                node.descriptionWithoutAttributes(),
-                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
-                                            );
-                                            // In production code we only close connections via ref-counting, so this message confirms that
-                                            // a 'node-left ... reason: disconnected' event was caused by external factors. Put
-                                            // differently, if a node leaves the cluster with "reason: disconnected" but without this
-                                            // message being logged then that's a bug.
-                                        } else {
-                                            logger.debug("closing unused transport connection to [{}]", node);
-                                        }
+                                        handleClose(null);
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        if (conn.hasReferences()) {
-                                            logger.warn(
-                                                """
-                                                    transport connection to [{}] closed by remote with exception [{}]; \
-                                                    if unexpected, see [{}] for troubleshooting guidance""",
-                                                node.descriptionWithoutAttributes(),
-                                                e,
-                                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
-                                            );
-                                        } else {
-                                            logger.debug(
-                                                "closing unused transport connection to [{}], exception [{}]",
-                                                node.descriptionWithoutAttributes(),
-                                                e
-                                            );
-                                        }
+                                        handleClose(e);
+                                    }
+
+                                    void handleClose(@Nullable Exception e) {
+                                        connectedNodes.remove(node, conn);
+                                        connectionListener.onNodeDisconnected(node, conn, e);
+                                        managerRefs.decRef();
                                     }
                                 });
+
+                                conn.addCloseListener(ActionListener.running(() -> {
+                                    if (connectingRefCounter.hasReferences() == false) {
+                                        logger.trace("connection manager shut down, closing transport connection to [{}]", node);
+                                    } else if (conn.hasReferences()) {
+                                        logger.info(
+                                            """
+                                                transport connection to [{}] closed by remote; \
+                                                if unexpected, see [{}] for troubleshooting guidance""",
+                                            node.descriptionWithoutAttributes(),
+                                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                        );
+                                        // In production code we only close connections via ref-counting, so this message confirms that a
+                                        // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
+                                        // node leaves the cluster with "reason: disconnected" but without this message being logged then
+                                        // that's a bug.
+                                    } else {
+                                        logger.debug("closing unused transport connection to [{}]", node);
+                                    }
+                                }));
                             }
                         }
                     } finally {

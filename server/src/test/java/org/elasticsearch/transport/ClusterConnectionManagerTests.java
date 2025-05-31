@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -101,7 +102,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -160,45 +161,24 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final DiscoveryNode remoteClose = nodeFactory.get();
         final DiscoveryNode localClose = nodeFactory.get();
         final DiscoveryNode shutdownClose = nodeFactory.get();
-        final DiscoveryNode localException = nodeFactory.get();
-        final DiscoveryNode remoteException = nodeFactory.get();
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
             final DiscoveryNode discoveryNode = (DiscoveryNode) invocationOnMock.getArguments()[0];
-            Transport.Connection conn;
-            if (discoveryNode == localException || discoveryNode == remoteException) {
-                conn = new TestConnect(discoveryNode) {
-                    @Override
-                    public void close() {
-                        closeAndFail(new RuntimeException());
-                    }
-                };
-            } else {
-                conn = new TestConnect(discoveryNode);
-            }
-            listener.onResponse(conn);
+            listener.onResponse(new TestConnect(discoveryNode));
             return null;
         }).when(transport).openConnection(any(), eq(connectionProfile), anyActionListener());
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
         final AtomicReference<Releasable> toClose = new AtomicReference<>();
-        final AtomicReference<Releasable> localExceptionReleasable = new AtomicReference<>();
 
         safeAwait(l -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, l.map(x -> null)));
         safeAwait(l -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, l.map(x -> null)));
         safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(toClose::getAndSet)));
-        safeAwait(
-            l -> connectionManager.connectToNode(localException, connectionProfile, validator, l.map(localExceptionReleasable::getAndSet))
-        );
-        safeAwait(l -> connectionManager.connectToNode(remoteException, connectionProfile, validator, l.map(x -> null)));
 
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
-
-        final Releasable localExceptionRef = localExceptionReleasable.getAndSet(null);
-        assertThat(localExceptionRef, notNullValue());
 
         try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
             mockLog.addExpectation(
@@ -228,36 +208,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "connection manager shut down, closing transport connection to [" + shutdownClose + "]"
                 )
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "locally-triggered close message with exception",
-                    ClusterConnectionManager.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "closing unused transport connection to ["
-                        + localException.descriptionWithoutAttributes()
-                        + "], exception [java.lang.RuntimeException]"
-                )
-            );
-
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "remotely-triggered close message with exception",
-                    ClusterConnectionManager.class.getCanonicalName(),
-                    Level.WARN,
-                    "transport connection to ["
-                        + remoteException.descriptionWithoutAttributes()
-                        + "] closed by remote with exception [java.lang.RuntimeException]; "
-                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
-                )
-            );
 
             Releasables.close(localConnectionRef);
-
-            Releasables.close(localExceptionRef);
-            safeAwait(l -> connectionManager.connectToNode(localException, connectionProfile, validator, l.map(x -> null)));
-
             connectionManager.disconnectFromNode(remoteClose);
-            connectionManager.disconnectFromNode(remoteException);
             connectionManager.close();
 
             mockLog.assertAllExpectationsMatched();
@@ -706,7 +659,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -746,7 +699,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });

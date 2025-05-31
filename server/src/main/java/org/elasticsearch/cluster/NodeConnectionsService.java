@@ -22,7 +22,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -40,7 +39,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -85,14 +83,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     private final TimeValue reconnectInterval;
     private volatile ConnectionChecker connectionChecker;
-    private final ConnectionHistory connectionHistory;
+    private final ConnectionHistoryListener connectionHistoryListener;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
-        this.connectionHistory = new ConnectionHistory();
+        this.connectionHistoryListener = new ConnectionHistoryListener();
     }
 
     /**
@@ -109,7 +107,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         try (var refs = new RefCountingRunnable(onCompletion)) {
             synchronized (mutex) {
-                connectionHistory.reserveConnectionHistoryForNodes(DiscoveryNodes);
                 // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, just iterate over discoveryNodes here
                 for (final Iterator<DiscoveryNode> iterator = discoveryNodes.mastersFirstStream().iterator(); iterator.hasNext();) {
                     final DiscoveryNode discoveryNode = iterator.next();
@@ -146,7 +143,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 nodesToDisconnect.remove(discoveryNode);
             }
 
-            connectionHistory.removeConnectionHistoryForNodes(nodesToDisconnect);
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
                 runnables.add(targetsByNode.remove(discoveryNode)::disconnect);
             }
@@ -219,11 +215,16 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
+    record ConnectionHistory(String ephemeralId, long disconnectTime, Exception disconnectCause) {}
+
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
+
+        // access is synchronized by the service mutex
+        protected ConnectionHistory connectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -358,112 +359,72 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    private class ConnectionHistory {
-        record NodeConnectionHistory(String ephemeralId, long disconnectTime, Exception disconnectCause) {}
-
+    private class ConnectionHistoryListener implements TransportConnectionListener {
         /**
-         * Holds the DiscoveryNode nodeId to connection history record.
+         * Receives connection/disconnection events from the transport, and records in per-node ConnectionHistory
+         * structures for logging network issues. ConnectionHistory records are stored in ConnectionTargets.
          *
-         * Entries for each node are reserved during NodeConnectionsService.connectToNodes, by placing a (nodeId, dummy) entry
-         * for each node in the cluster. On node disconnect, this entry is updated with its NodeConnectionHistory. On node
-         * connect, this entry is reset to the dummy value. On NodeConnectionsService.disconnectFromNodesExcept, node entries
-         * are removed.
-         *
-         * Each node in the cluster always has a nodeHistory entry that is either the dummy value or a connection history record. This
-         * allows node disconnect callbacks to discard their entry if the disconnect occurred because of a change in cluster state.
+         * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
+         * and it has the same ephemeral Id as it did during the last connection.
          */
-        private final NodeConnectionHistory dummy = new NodeConnectionHistory("", 0, null);
-        private final ConcurrentMap<String, NodeConnectionHistory> nodeHistory = ConcurrentCollections.newConcurrentMap();
-
-        ConnectionHistory() {
-            NodeConnectionsService.this.transportService.addConnectionListener(new TransportConnectionListener() {
-                @Override
-                public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-                    // log case where the remote node has same ephemeralId as its previous connection
-                    // (the network was disrupted, but not the remote process)
-                    NodeConnectionHistory nodeConnectionHistory = nodeHistory.get(node.getId());
-                    if (nodeConnectionHistory != null) {
-                        nodeHistory.replace(node.getId(), nodeConnectionHistory, dummy);
-                    }
-
-                    if (nodeConnectionHistory != null
-                        && nodeConnectionHistory != dummy
-                        && nodeConnectionHistory.ephemeralId.equals(node.getEphemeralId())) {
-                        if (nodeConnectionHistory.disconnectCause != null) {
-                            logger.warn(
-                                () -> format(
-                                    "reopened transport connection to node [%s] "
-                                        + "which disconnected exceptionally [%dms] ago but did not "
-                                        + "restart, so the disconnection is unexpected; "
-                                        + "if unexpected, see [{}] for troubleshooting guidance",
-                                    node.descriptionWithoutAttributes(),
-                                    nodeConnectionHistory.disconnectTime,
-                                    ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
-                                ),
-                                nodeConnectionHistory.disconnectCause
-                            );
-                        } else {
-                            logger.warn(
-                                """
-                                    reopened transport connection to node [{}] \
-                                    which disconnected gracefully [{}ms] ago but did not \
-                                    restart, so the disconnection is unexpected; \
-                                    if unexpected, see [{}] for troubleshooting guidance""",
-                                node.descriptionWithoutAttributes(),
-                                nodeConnectionHistory.disconnectTime,
-                                ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
-                            );
-                        }
-                    }
-                }
-
-                @Override
-                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-                    connection.addCloseListener(new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void ignored) {
-                            insertNodeConnectionHistory(null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            insertNodeConnectionHistory(e);
-                        }
-
-                        private void insertNodeConnectionHistory(@Nullable Exception e) {
-                            final long disconnectTime = threadPool.absoluteTimeInMillis();
-                            final NodeConnectionHistory nodeConnectionHistory = new NodeConnectionHistory(
-                                node.getEphemeralId(),
-                                disconnectTime,
-                                e
-                            );
-                            final String nodeId = node.getId();
-                            NodeConnectionHistory previousConnectionHistory = nodeHistory.get(nodeId);
-                            if (previousConnectionHistory != null) {
-                                nodeHistory.replace(nodeId, previousConnectionHistory, nodeConnectionHistory);
-                            }
-                        }
-                    });
-                }
-            });
+        ConnectionHistoryListener() {
+            transportService.addConnectionListener(ConnectionHistoryListener.this);
         }
 
-        void reserveConnectionHistoryForNodes(DiscoveryNodes nodes) {
-            for (DiscoveryNode node : nodes) {
-                nodeHistory.put(node.getId(), dummy);
+        @Override
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            ConnectionHistory connectionHistory = null;
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionHistory = connectionTarget.connectionHistory;
+                    connectionTarget.connectionHistory = null;
+                }
+            }
+
+            if (connectionHistory != null && connectionHistory.ephemeralId.equals(connection.getNode().getEphemeralId())) {
+                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - connectionHistory.disconnectTime;
+                if (connectionHistory.disconnectCause != null) {
+                    logger.warn(
+                        () -> format(
+                            "reopened transport connection to node [%s] "
+                                + "which disconnected exceptionally [%dms] ago but did not "
+                                + "restart, so the disconnection is unexpected; "
+                                + "see [%s] for troubleshooting guidance",
+                            connection.getNode().descriptionWithoutAttributes(),
+                            millisSinceDisconnect,
+                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                        ),
+                        connectionHistory.disconnectCause
+                    );
+                } else {
+                    logger.warn(
+                        """
+                            reopened transport connection to node [{}] \
+                            which disconnected gracefully [{}ms] ago but did not \
+                            restart, so the disconnection is unexpected; \
+                            see [{}] for troubleshooting guidance""",
+                        connection.getNode().descriptionWithoutAttributes(),
+                        millisSinceDisconnect,
+                        ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                    );
+                }
             }
         }
 
-        void removeConnectionHistoryForNodes(Set<DiscoveryNode> nodes) {
-            final int startSize = nodeHistory.size();
-            for (DiscoveryNode node : nodes) {
-                nodeHistory.remove(node.getId());
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            ConnectionHistory connectionHistory = new ConnectionHistory(
+                connection.getNode().getEphemeralId(),
+                threadPool.absoluteTimeInMillis(),
+                closeException
+            );
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionTarget.connectionHistory = connectionHistory;
+                }
             }
-            logger.trace("Connection history garbage-collected from {} to {} entries", startSize, nodeHistory.size());
-        }
-
-        int connectionHistorySize() {
-            return nodeHistory.size();
         }
     }
 }

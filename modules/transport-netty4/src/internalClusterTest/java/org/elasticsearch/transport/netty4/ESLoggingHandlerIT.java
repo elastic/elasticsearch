@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
 
@@ -28,7 +27,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class, ClusterConnectionManager.class);
+        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {

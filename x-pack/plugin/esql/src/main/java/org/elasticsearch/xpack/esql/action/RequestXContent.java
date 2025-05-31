@@ -54,7 +54,7 @@ final class RequestXContent {
         }
 
         String fields() {
-            StringBuffer s = new StringBuffer();
+            StringBuilder s = new StringBuilder();
             for (Map.Entry<?, ?> entry : fields.entrySet()) {
                 if (s.length() > 0) {
                     s.append(", ");

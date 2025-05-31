@@ -155,7 +155,7 @@ public final class NativeMemoryCalculator {
         );
     }
 
-    public static long dynamicallyCalculateJvmSizeFromNodeSize(long nodeSize) {
+    public static long dynamicallyCalculateJvmHeapSizeFromNodeSize(long nodeSize) {
         // This must match the logic in MachineDependentHeap.MachineNodeRole.ML_ONLY,
         // including rounding down to the next lower multiple of 4 megabytes.
         if (nodeSize <= JVM_SIZE_KNOT_POINT) {
@@ -167,26 +167,28 @@ public final class NativeMemoryCalculator {
         );
     }
 
+    public static long dynamicallyCalculateJvmSizeFromNodeSize(long nodeSize) {
+        // The direct memory size is half of the JVM heap size.
+        return dynamicallyCalculateJvmHeapSizeFromNodeSize(nodeSize) * 3 / 2;
+    }
+
     public static long dynamicallyCalculateJvmSizeFromMlNativeMemorySize(long mlNativeMemorySize) {
-        // For <= 16GB node, the JVM is 0.4 * total_node_size. This means the rest is 0.6 the node size.
-        // So, nativeAndOverhead = 0.6 * total_node_size => total_node_size = (nativeAndOverhead / 0.6)
-        // Consequently jvmSize = (nativeAndOverhead / 0.6) * 0.4 = nativeAndOverhead * 2 / 3
+        // For <= 16GB node, the JVM heap is 40% of te memory, direct memory is 20% and the
+        // remainder of 40% is for ML + OS. Therefore, heapSize = nativeAndOverhead.
         //
-        // For > 16GB node, the JVM is 0.4 * 16GB + 0.1 * (total_node_size - 16GB).
-        // nativeAndOverheadAbove16GB = 0.9 * total_node_size_above_16GB
-        // Also, nativeAndOverheadAbove16GB = nativeAndOverhead - nativeAndOverheadBelow16GB = nativeAndOverhead - 0.6 * 16GB
-        // Consequently jvmSize = 0.4 * 16GB + (nativeAndOverheadAbove16GB / 0.9) * 0.1
-        //
-        // In both cases JVM size is rounded down to the next lower multiple of 4 megabytes to match
-        // MachineDependentHeap.MachineNodeRole.ML_ONLY.
+        // For > 16GB node, the JVM heap is 40% of the first 16GB plus 10% of the remainder.
+        // The direct memory is half of the heap (so 20% of 16GB + 5% of remainder)
+        // ML + OS gets the rest of the memory (so 40% of 16GB + 85% of the remainder).
         long nativeAndOverhead = mlNativeMemorySize + OS_OVERHEAD;
-        long higherAnswer;
+        long heapSize;
         if (nativeAndOverhead <= (JVM_SIZE_KNOT_POINT - dynamicallyCalculateJvmSizeFromNodeSize(JVM_SIZE_KNOT_POINT))) {
-            higherAnswer = (nativeAndOverhead * 2 / 3 / BYTES_IN_4MB) * BYTES_IN_4MB;
+            heapSize = nativeAndOverhead;
         } else {
-            double nativeAndOverheadAbove16GB = nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.6;
-            higherAnswer = ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.9 * 0.1) / BYTES_IN_4MB) * BYTES_IN_4MB;
+            double nativeAndOverheadAbove16GB = nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.4;
+            heapSize = ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.85 * 0.1));
         }
+        // Round JVM size to the next lower multiple of 4 megabytes to match MachineDependentHeap.MachineNodeRole.ML_ONLY.
+        heapSize = heapSize / BYTES_IN_4MB * BYTES_IN_4MB;
         // Because we're rounding JVM size to a multiple of 4MB there will be a range of node sizes that can satisfy the required
         // amount of ML memory. It's better to choose the lower size, because it avoids waste and avoids the possibility of a
         // scale up followed by a scale down. For example, suppose we asked for a 2049MB node when the job would also fit on a
@@ -194,14 +196,18 @@ public final class NativeMemoryCalculator {
         // shows up as wasteful in the ML overview in the UI where the user can visually see that half the ML memory is unused.
         // And an hour later the downscale will realise that the job could fit on a smaller node and will downscale to a 2048MB
         // node. So it's better all round to choose the slightly lower size from the start if everything will still fit.
-        if (higherAnswer > BYTES_IN_4MB) {
-            long lowerAnswer = higherAnswer - BYTES_IN_4MB;
-            long nodeSizeImpliedByLowerAnswer = nativeAndOverhead + lowerAnswer;
-            if (dynamicallyCalculateJvmSizeFromNodeSize(nodeSizeImpliedByLowerAnswer) == lowerAnswer) {
-                return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(lowerAnswer, STATIC_JVM_UPPER_THRESHOLD));
+        while (heapSize > BYTES_IN_4MB) {
+            long lowerAnswer = heapSize - BYTES_IN_4MB;
+            long nodeSizeImpliedByLowerAnswer = nativeAndOverhead + lowerAnswer * 3 / 2;
+            if (dynamicallyCalculateJvmHeapSizeFromNodeSize(nodeSizeImpliedByLowerAnswer) == lowerAnswer) {
+                heapSize = lowerAnswer;
+            } else {
+                break;
             }
         }
-        return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(higherAnswer, STATIC_JVM_UPPER_THRESHOLD));
+        heapSize = Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(heapSize, STATIC_JVM_UPPER_THRESHOLD));
+        long directMemorySize = heapSize / 2;
+        return heapSize + directMemorySize;
     }
 
     /**

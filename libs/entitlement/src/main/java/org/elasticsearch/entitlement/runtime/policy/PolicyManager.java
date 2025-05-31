@@ -376,12 +376,19 @@ public class PolicyManager {
             generalLogger.debug("Entitlement trivially allowed from outermost frame");
             return true;
         }
-        if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
+        if (isTrustedSystemClass(requestingClass)) {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * The main decision point for what counts as a trusted built-in JDK class.
+     */
+    protected boolean isTrustedSystemClass(Class<?> requestingClass) {
+        return SYSTEM_LAYER_MODULES.contains(requestingClass.getModule());
     }
 
     @Override

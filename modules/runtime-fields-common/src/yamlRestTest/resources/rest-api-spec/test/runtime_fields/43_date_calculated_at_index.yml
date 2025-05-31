@@ -60,6 +60,11 @@ setup:
                 type: double
               node:
                 type: keyword
+              ingest_time:
+                type: date
+                script:
+                  source: |
+                    emit(new Date().getTime());
 
   - do:
       bulk:
@@ -124,6 +129,27 @@ setup:
         - 2018-01-23T17:41:34.000Z
         - 2018-01-24T17:41:34.000Z
   - match: {hits.hits.0.fields.formatted_tomorrow: [2018-01-19] }
+
+---
+"script runs at index time":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - ingest_time
+  - match: {hits.total.value: 6}
+  - set: { hits.hits.0.fields.ingest_time.0: ingest_time }
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              ingest_time: $ingest_time
+  - gt: {hits.total.value: 0}
 
 ---
 "docvalue_fields":

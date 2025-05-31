@@ -293,6 +293,8 @@ public class GoogleVertexAiService extends SenderService {
                 serviceSettings.location(),
                 serviceSettings.projectId(),
                 serviceSettings.modelId(),
+                serviceSettings.endpointId(),
+                serviceSettings.isDedicatedEndpoint(),
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 embeddingSize,

@@ -60,6 +60,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
                     location,
                     projectId,
                     model,
+                    null, // TODO: Randomize this
+                    null, // TODO: Randomize this
                     dimensionsSetByUser,
                     maxInputTokens,
                     dims,
@@ -75,6 +77,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             "location",
             "projectId",
             "modelId",
+            null, // TODO: Set this value
+            null, // TODO: Set this value
             true,
             10,
             10,
@@ -107,6 +111,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             "location",
             "projectId",
             "modelId",
+            null, // TODO: Set this value
+            null, // TODO: Set this value
             true,
             10,
             10,
@@ -162,6 +168,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
+            null, // TODO: Randomize this value
+            null, // TODO: Randomize this value
             randomBoolean(),
             randomFrom(new Integer[] { null, randomNonNegativeInt() }),
             randomFrom(new Integer[] { null, randomNonNegativeInt() }),

@@ -22,5 +22,5 @@ You can monitor memory usage for field data as well as the field data circuit br
 
 
 `indices.fielddata.cache.size`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The max size of the field data cache, eg `38%` of node heap space, or an absolute value, eg `12GB`. Defaults to unbounded. If you choose to set it, it should be smaller than [Field data circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#fielddata-circuit-breaker) limit.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The max size of the field data cache, eg `38%` of node heap space, or an absolute value, eg `12GB`. Defaults to unbounded. If you choose to set it, it should be smaller than [Field data circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#fielddata-circuit-breaker) limit.
 

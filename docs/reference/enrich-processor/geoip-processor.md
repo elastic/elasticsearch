@@ -271,21 +271,21 @@ Note that these settings are node settings and apply to all `geoip` and `ip_loca
 $$$ingest-geoip-downloader-enabled$$$
 
 `ingest.geoip.downloader.enabled`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Boolean) If `true`, {{es}} automatically downloads and manages updates for IP geolocation databases from the `ingest.geoip.downloader.endpoint`. If `false`, {{es}} does not download updates and deletes all downloaded databases. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) If `true`, {{es}} automatically downloads and manages updates for IP geolocation databases from the `ingest.geoip.downloader.endpoint`. If `false`, {{es}} does not download updates and deletes all downloaded databases. Defaults to `true`.
 
 $$$ingest-geoip-downloader-eager-download$$$
 
 `ingest.geoip.downloader.eager.download`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), Boolean) If `true`, {{es}} downloads IP geolocation databases immediately, regardless of whether a pipeline exists with a geoip processor. If `false`, {{es}} only begins downloading the databases if a pipeline with a geoip processor exists or is added. Defaults to `false`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) If `true`, {{es}} downloads IP geolocation databases immediately, regardless of whether a pipeline exists with a geoip processor. If `false`, {{es}} only begins downloading the databases if a pipeline with a geoip processor exists or is added. Defaults to `false`.
 
 $$$ingest-geoip-downloader-endpoint$$$
 
 `ingest.geoip.downloader.endpoint`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Endpoint URL used to download updates for IP geolocation databases. For example, `https://myDomain.com/overview.json`. Defaults to `https://geoip.elastic.co/v1/database`. {{es}} stores downloaded database files in each node’s [temporary directory](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#es-tmpdir) at `$ES_TMPDIR/geoip-databases/<node_id>`. Note that {{es}} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`, expecting the list of metadata about databases typically found in `overview.json`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), string) Endpoint URL used to download updates for IP geolocation databases. For example, `https://myDomain.com/overview.json`. Defaults to `https://geoip.elastic.co/v1/database`. {{es}} stores downloaded database files in each node’s [temporary directory](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#es-tmpdir) at `$ES_TMPDIR/geoip-databases/<node_id>`. Note that {{es}} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`, expecting the list of metadata about databases typically found in `overview.json`.
 
 The downloader uses the JDK’s builtin cacerts. If you’re using a custom endpoint, add the custom https endpoint cacert(s) to the JDK’s truststore.
 
 $$$ingest-geoip-downloader-poll-interval$$$
 
 `ingest.geoip.downloader.poll.interval`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks for IP geolocation database updates at the `ingest.geoip.downloader.endpoint`. Must be greater than `1d` (one day). Defaults to `3d` (three days).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks for IP geolocation database updates at the `ingest.geoip.downloader.endpoint`. Must be greater than `1d` (one day). Defaults to `3d` (three days).

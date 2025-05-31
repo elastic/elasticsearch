@@ -19,7 +19,7 @@ You can also limit the amount of shards a node can have regardless of the index:
 $$$cluster-total-shards-per-node$$$
 
 `cluster.routing.allocation.total_shards_per_node`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Maximum number of primary and replica shards allocated to each node. Defaults to `-1` (unlimited).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards allocated to each node. Defaults to `-1` (unlimited).
 
 {{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` setting of `100` and three nodes with the following shard allocations:
 

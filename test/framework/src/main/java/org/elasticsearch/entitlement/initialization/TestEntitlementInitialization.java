@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initInstrumentation;
+
 /**
  * Test-specific version of {@code EntitlementInitialization}
  */
@@ -45,7 +47,8 @@ public class TestEntitlementInitialization {
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        checker = EntitlementInitialization.initChecker(inst, createPolicyManager(initializeArgs.pathLookup()));
+        checker = EntitlementInitialization.initChecker(createPolicyManager(initializeArgs.pathLookup()));
+        initInstrumentation(inst);
     }
 
     public record InitializeArgs(PathLookup pathLookup) {}

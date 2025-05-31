@@ -1019,7 +1019,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V4(Build.current().isSnapshot()),
+        FORK_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1087,6 +1087,16 @@ public class EsqlCapabilities {
          * Support sum_over_time aggregation that gets evaluated per time-series
          */
         SUM_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support count_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.

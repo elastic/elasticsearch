@@ -1,0 +1,5 @@
+pr: 128627
+summary: Fail `profile` on text response formats
+area: ES|QL
+type: feature
+issues: []

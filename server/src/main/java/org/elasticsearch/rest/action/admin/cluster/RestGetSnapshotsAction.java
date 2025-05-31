@@ -13,9 +13,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -42,6 +45,30 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_RESPONSE_PARAMETERS = Set.of(
+        INCLUDE_REPOSITORY_XCONTENT_PARAM,
+        INDEX_DETAILS_XCONTENT_PARAM,
+        INDEX_NAMES_XCONTENT_PARAM
+    );
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "after",
+        "from_sort_value",
+        "ignore_unavailable",
+        "offset",
+        "order",
+        "size",
+        "slm_policy_filter",
+        "sort",
+        "state",
+        "verbose"
+    );
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, SUPPORTED_RESPONSE_PARAMETERS, Set.of("repository", "snapshot"))
+    );
+
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
     public RestGetSnapshotsAction(Predicate<NodeFeature> clusterSupportsFeature) {
@@ -60,7 +87,17 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM, INDEX_NAMES_XCONTENT_PARAM);
+        return SUPPORTED_RESPONSE_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override
@@ -99,6 +136,14 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
             getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
         } else {
             throw new IllegalStateException("[state] parameter is not supported on all nodes in the cluster");
+        }
+
+        // Consume these response parameters used in SnapshotInfo now, to avoid assertion errors in BaseRestHandler for requests where they
+        // may not get used.
+        if (Assertions.ENABLED) {
+            for (final var responseParameter : SUPPORTED_RESPONSE_PARAMETERS) {
+                request.param(responseParameter);
+            }
         }
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

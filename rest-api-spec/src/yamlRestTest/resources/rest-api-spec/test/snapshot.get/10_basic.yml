@@ -306,6 +306,13 @@ setup:
 
 ---
 "Get snapshot using state parameter":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: GET
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ state ]
+      reason: "state parameter was introduced in 9.1"
 
   - do:
       indices.create:

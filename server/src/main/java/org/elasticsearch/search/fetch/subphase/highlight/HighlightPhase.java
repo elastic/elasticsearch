@@ -14,12 +14,15 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.PerDocumentQueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,8 +44,21 @@ public class HighlightPhase implements FetchSubPhase {
         if (context.highlight() == null) {
             return null;
         }
-
-        return getProcessor(context, context.highlight(), context.parsedQuery().query());
+        // We apply the per-document rewrite context to prevent costly nearest neighbor searches
+        // during query rewriting. Some highlighters (unified, semantic) execute the provided query on a document
+        // to extract a score or determine if it matched a specific clause.
+        // Running a full nearest neighbor search in this context would be inefficient,
+        // so we rely on this rewriting mechanism to avoid unnecessary computation.
+        PerDocumentQueryRewriteContext rewriteContext = new PerDocumentQueryRewriteContext(
+            context.getSearchExecutionContext().getParserConfig(),
+            context.getSearchExecutionContext()::nowInMillis
+        );
+        try {
+            var query = Rewriteable.rewrite(context.userQueryBuilder(), rewriteContext, true).toQuery(context.getSearchExecutionContext());
+            return getProcessor(context, context.highlight(), query);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Exception during the rewrite of the highlight query", e);
+        }
     }
 
     public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {

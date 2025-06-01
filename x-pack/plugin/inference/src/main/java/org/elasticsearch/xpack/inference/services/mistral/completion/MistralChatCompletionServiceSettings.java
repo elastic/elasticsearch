@@ -118,12 +118,12 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MistralChatCompletionServiceSettings that = (MistralChatCompletionServiceSettings) o;
-        return Objects.equals(modelId, that.modelId);
+        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 
 }

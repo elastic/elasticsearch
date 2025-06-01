@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.Boolean;
 import java.util.List;
 import java.util.Map;
 
@@ -78,6 +79,11 @@ public record UnifiedCompletionRequest(
      * {@link #MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
      */
     private static final String MAX_TOKENS_PARAM = "max_tokens_field";
+    /**
+     * Some providers don't support the stream_options field.
+     * This parameter is used to skip the stream_options field in the JSON output.
+     */
+    public static final String SKIP_STREAM_OPTIONS_PARAM = "skip_stream_options";
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
@@ -87,6 +93,21 @@ public record UnifiedCompletionRequest(
     public static Params withMaxTokens(String modelId, Params params) {
         return new DelegatingMapParams(
             Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
+     * - Key: {@link #SKIP_STREAM_OPTIONS_PARAM}, Value: "true"
+     */
+    public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId),
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(SKIP_STREAM_OPTIONS_PARAM, Boolean.TRUE.toString())),
             params
         );
     }

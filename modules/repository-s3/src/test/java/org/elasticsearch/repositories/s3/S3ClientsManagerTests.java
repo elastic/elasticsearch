@@ -14,6 +14,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.regions.Region;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -203,12 +204,15 @@ public class S3ClientsManagerTests extends ESTestCase {
         }
         assertClientNotFound(projectId, clientName);
 
-        assertBusy(() -> assertTrue(clientsHolder.isClosed()));
-        final var e = expectThrows(
-            IllegalStateException.class,
-            () -> clientsHolder.client(createRepositoryMetadata(randomFrom(clientName, anotherClientName)))
-        );
-        assertThat(e.getMessage(), containsString("Project [" + projectId + "] clients holder is closed"));
+        assertBusy(() -> {
+            assertTrue(clientsHolder.isClosed());
+            final var e = expectThrows(AlreadyClosedException.class, () -> {
+                var client = clientsHolder.client(createRepositoryMetadata(randomFrom(clientName, anotherClientName)));
+                client.decRef();
+            });
+            assertThat(e.getMessage(), containsString("Project [" + projectId + "] clients holder is closed"));
+        });
+
     }
 
     public void testClientsForMultipleProjects() throws InterruptedException {
@@ -298,7 +302,7 @@ public class S3ClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
 
-        s3Service.close();
+        s3Service.close()
         assertTrue(s3ClientsManager.isManagerClosed());
         // New holder can be added after the manager is closed, but no actual client can be created
         updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
@@ -306,8 +310,8 @@ public class S3ClientsManagerTests extends ESTestCase {
             assertNotNull(clientsHolder);
             assertFalse(clientsHolder.isClosed());
 
-            final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
+            final var e = expectThrows(
+                AlreadyClosedException.class,
                 () -> s3ClientsManager.client(projectId, createRepositoryMetadata(clientName))
             );
             assertThat(e.getMessage(), containsString("s3 clients manager is closed"));

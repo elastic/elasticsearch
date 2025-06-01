@@ -119,7 +119,7 @@ public class RepositoryDataTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
             ),
-            new UpdatedShardGenerations(shardGenerations),
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
             indexLookup,
             indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
         );
@@ -404,7 +404,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData newRepoData = repositoryData.addSnapshot(
             newSnapshot,
             details,
-            new UpdatedShardGenerations(shardGenerations),
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
             indexLookup,
             newIdentifiers
         );
@@ -483,7 +483,7 @@ public class RepositoryDataTests extends ESTestCase {
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
                 ),
-                new UpdatedShardGenerations(builder.build()),
+                new UpdatedShardGenerations(builder.build(), ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );

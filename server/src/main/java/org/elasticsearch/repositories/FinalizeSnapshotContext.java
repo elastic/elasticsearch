@@ -132,10 +132,6 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     public record UpdatedShardGenerations(ShardGenerations liveIndices, ShardGenerations deletedIndices) {
         public static final UpdatedShardGenerations EMPTY = new UpdatedShardGenerations(ShardGenerations.EMPTY, ShardGenerations.EMPTY);
 
-        public UpdatedShardGenerations(ShardGenerations updated) {
-            this(updated, ShardGenerations.EMPTY);
-        }
-
         public boolean hasShardGen(RepositoryShardId repositoryShardId) {
             return liveIndices.hasShardGen(repositoryShardId) || deletedIndices.hasShardGen(repositoryShardId);
         }

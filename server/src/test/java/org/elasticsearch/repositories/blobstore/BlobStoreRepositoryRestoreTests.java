@@ -171,7 +171,10 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 repository.getMetadata().name(),
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
-            final var snapshotShardGenerations = new UpdatedShardGenerations(ShardGenerations.builder().put(indexId, 0, shardGen).build());
+            final var snapshotShardGenerations = new UpdatedShardGenerations(
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                ShardGenerations.EMPTY
+            );
             final RepositoryData ignoredRepositoryData = safeAwait(
                 listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(

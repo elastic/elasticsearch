@@ -511,7 +511,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repoData = repoData.addSnapshot(
                 snapshotId,
                 details,
-                new UpdatedShardGenerations(shardGenerations),
+                new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );

@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.compute.operator.LimitOperatorTests
   method: testEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/128721
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test040JavaUsesTheOsProvidedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128230
 
 # Examples:
 #

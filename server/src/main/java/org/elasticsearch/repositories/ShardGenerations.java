@@ -278,6 +278,9 @@ public final class ShardGenerations {
         }
 
         public ShardGenerations build() {
+            if (generations.isEmpty()) {
+                return EMPTY;
+            }
             return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
                 final Set<Integer> shardIds = entry.getValue().keySet();
                 assert shardIds.isEmpty() == false;

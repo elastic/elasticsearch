@@ -751,21 +751,26 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private static UpdatedShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
         ShardGenerations.Builder builder = ShardGenerations.builder();
-        ShardGenerations.Builder deletedBuilder = ShardGenerations.builder();
+        ShardGenerations.Builder deletedBuilder = null;
         if (snapshot.isClone()) {
             snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> builder.put(key.index(), key.shardId(), value));
         } else {
-            snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> entry : snapshot.shardSnapshotStatusByRepoShardId().entrySet()) {
+                RepositoryShardId key = entry.getKey();
+                ShardSnapshotStatus value = entry.getValue();
                 final Index index = snapshot.indexByName(key.indexName());
                 if (metadata.findIndex(index).isEmpty()) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                    if (deletedBuilder == null) {
+                        deletedBuilder = ShardGenerations.builder();
+                    }
                     deletedBuilder.put(key.index(), key.shardId(), value);
-                    return;
+                    continue;
                 }
                 builder.put(key.index(), key.shardId(), value);
-            });
+            }
         }
-        return new UpdatedShardGenerations(builder.build(), deletedBuilder.build());
+        return new UpdatedShardGenerations(builder.build(), deletedBuilder == null ? ShardGenerations.EMPTY : deletedBuilder.build());
     }
 
     private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {

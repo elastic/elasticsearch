@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -204,15 +206,19 @@ public class S3ClientsManagerTests extends ESTestCase {
         }
         assertClientNotFound(projectId, clientName);
 
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         assertBusy(() -> {
             assertTrue(clientsHolder.isClosed());
-            final var e = expectThrows(AlreadyClosedException.class, () -> {
-                var client = clientsHolder.client(createRepositoryMetadata(randomFrom(clientName, anotherClientName)));
-                client.decRef();
-            });
-            assertThat(e.getMessage(), containsString("Project [" + projectId + "] clients holder is closed"));
+            try (var client = clientsHolder.client(createRepositoryMetadata(randomFrom(clientName, anotherClientName)))) {
+                fail("client should be closed"); // the cache is still being cleared out
+            } catch (Exception e) {
+                exceptionRef.compareAndSet(null, e); // the first exception must be expected and is checked below
+            }
         });
 
+        final var e = exceptionRef.get();
+        assertThat(e, instanceOf(AlreadyClosedException.class));
+        assertThat(e.getMessage(), containsString("Project [" + projectId + "] clients holder is closed"));
     }
 
     public void testClientsForMultipleProjects() throws InterruptedException {

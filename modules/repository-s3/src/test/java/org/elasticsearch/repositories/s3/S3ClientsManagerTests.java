@@ -302,7 +302,7 @@ public class S3ClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
 
-        s3Service.close()
+        s3Service.close();
         assertTrue(s3ClientsManager.isManagerClosed());
         // New holder can be added after the manager is closed, but no actual client can be created
         updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));

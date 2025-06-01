@@ -348,11 +348,6 @@ public class S3ClientsManager implements ClusterStateApplier {
          */
         public final void close() {
             if (closed.compareAndSet(false, true)) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
                 clearCache();
             }
         }

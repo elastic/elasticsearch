@@ -219,7 +219,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service")
                     );
                 }
             );
@@ -239,7 +239,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
@@ -257,7 +257,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
@@ -275,7 +275,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 fail("Expected exception, but got model: " + model);
             }, e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
+                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);

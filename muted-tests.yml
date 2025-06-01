@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testThrottleStats
-  issue: https://github.com/elastic/elasticsearch/issues/126359
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
   method: testTaskCancellation
   issue: https://github.com/elastic/elasticsearch/issues/128009
@@ -492,6 +489,51 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
   method: testSymlinkUpdateTriggerReload
   issue: https://github.com/elastic/elasticsearch/issues/128619
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test085EnvironmentVariablesAreRespectedUnderDockerExec
+  issue: https://github.com/elastic/elasticsearch/issues/128115
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128676
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128677
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128705
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128706
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128710
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128711
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128712
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128713
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128714
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
+  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128715
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/128716
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
+  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
+  issue: https://github.com/elastic/elasticsearch/issues/128717
+- class: org.elasticsearch.compute.operator.LimitOperatorTests
+  method: testEarlyTermination
+  issue: https://github.com/elastic/elasticsearch/issues/128721
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test040JavaUsesTheOsProvidedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128230
 
 # Examples:
 #

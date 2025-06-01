@@ -638,7 +638,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -660,7 +660,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -682,7 +682,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );

@@ -4596,6 +4596,7 @@ required_capability: date_nanos_lookup_join
 FROM sample_data_ts_nanos
 | LOOKUP JOIN lookup_sample_data_ts_nanos ON @timestamp
 | KEEP @timestamp, client_ip, event_duration, message
+| SORT @timestamp DESC
 ;
 
 @timestamp:date_nanos | client_ip:ip | event_duration:long | message:keyword

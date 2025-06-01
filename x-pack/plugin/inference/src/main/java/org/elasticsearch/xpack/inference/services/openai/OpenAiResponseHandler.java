@@ -89,6 +89,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode >= 300 && statusCode < 400) {
             throw new RetryException(false, buildError(REDIRECTION, request, result));
         } else if (statusCode == 422) {
+            // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
+            // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
             throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, request, result));
         } else if (statusCode == 400) {
             throw new RetryException(false, buildError(BAD_REQUEST, request, result));

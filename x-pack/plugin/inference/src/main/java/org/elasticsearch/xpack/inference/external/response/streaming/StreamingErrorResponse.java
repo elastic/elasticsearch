@@ -16,10 +16,28 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Represents an error response from a streaming inference service.
+ * This class extends {@link ErrorResponse} and provides additional fields
+ * specific to streaming errors, such as code, param, and type.
+ * An example error response for a streaming service might look like:
+ * <pre><code>
+ *     {
+ *         "error": {
+ *             "message": "Invalid input",
+ *             "code": "400",
+ *             "param": "input",
+ *             "type": "invalid_request_error"
+ *         }
+ *     }
+ * </code></pre>
+ * TODO: {@link ErrorMessageResponseEntity} is nearly identical to this, but doesn't parse as many fields. We must remove the duplication.
+ */
 public class StreamingErrorResponse extends ErrorResponse {
     private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
         "streaming_error",

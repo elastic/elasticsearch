@@ -9,12 +9,15 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
+import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.initialization.TestEntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class TestEntitlementBootstrap {
@@ -25,7 +28,14 @@ public class TestEntitlementBootstrap {
      * Activates entitlement checking in tests.
      */
     public static void bootstrap() {
-        TestEntitlementInitialization.initializeArgs = new TestEntitlementInitialization.InitializeArgs(new TestPathLookup());
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            null,
+            Map.of(),
+            c -> { throw new IllegalStateException("Not yet implemented"); },
+            new TestPathLookup(),
+            Map.of(),
+            Set.of()
+        );
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), TestEntitlementInitialization.class.getName());
     }

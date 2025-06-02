@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initInstrumentation;
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initializeArgs;
 
 /**
  * Test-specific version of {@code EntitlementInitialization}
@@ -40,7 +41,6 @@ import static org.elasticsearch.entitlement.initialization.EntitlementInitializa
 public class TestEntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker checker;
-    public static InitializeArgs initializeArgs;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
@@ -51,8 +51,6 @@ public class TestEntitlementInitialization {
         checker = EntitlementInitialization.initChecker(createPolicyManager(initializeArgs.pathLookup()));
         initInstrumentation(inst);
     }
-
-    public record InitializeArgs(PathLookup pathLookup) {}
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 

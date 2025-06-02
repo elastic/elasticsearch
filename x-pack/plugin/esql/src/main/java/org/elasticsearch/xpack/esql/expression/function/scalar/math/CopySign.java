@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,7 +49,11 @@ public class CopySign extends EsqlScalarFunction {
         DataType.FLOAT,
         CopySignFloatEvaluator.Factory::new,
         DataType.DOUBLE,
-        CopySignDoubleEvaluator.Factory::new
+        CopySignDoubleEvaluator.Factory::new,
+        DataType.LONG,
+        CopySignLongEvaluator.Factory::new,
+        DataType.INTEGER,
+        CopySignIntegerEvaluator.Factory::new
     );
 
     private DataType dataType;
@@ -107,7 +110,6 @@ public class CopySign extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-
         if (dataType == null) {
             resolveType();
         }
@@ -127,25 +129,8 @@ public class CopySign extends EsqlScalarFunction {
         if (sign.dataType().isNumeric() == false) {
             return new TypeResolution("Sign must be a numeric type");
         }
-        dataType = EsqlDataTypeConverter.commonType(magnitude.dataType(), sign.dataType());
-        // TypeResolution resolution = TypeResolutions.isType(
-        // magnitude,
-        // t -> t == commonType,
-        // sourceText(),
-        // TypeResolutions.ParamOrdinal.fromIndex(1),
-        // magnitude.dataType().typeName()
-        // );
-        // if (resolution.unresolved()) {
-        // throw new EsqlIllegalArgumentException(
-        // "Magnitude [{}] is not compatible with sign [{}] for function [{}] - common type is [{}]",
-        // magnitude.dataType(),
-        // sign.dataType(),
-        // NAME
-        // ,commonType
-        // );
-        //// return resolution;
-        // }
-        // dataType = commonType;
+        // The return type is the same as the magnitude type, so we can use it directly.
+        dataType = magnitude.dataType();
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -157,12 +142,17 @@ public class CopySign extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dataType = dataType();
-        if (FACTORY_PROVIDERS.containsKey(dataType)) {
-            return FACTORY_PROVIDERS.get(dataType)
-                .create(source(), toEvaluator.apply(children().get(0)), toEvaluator.apply(children().get(1)));
-        } else {
-            throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType, NAME);
+        if (!FACTORY_PROVIDERS.containsKey(dataType)) {
+            throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType(), NAME);
         }
+        var sign = children().get(1);
+        var signFactory = toEvaluator.apply(sign);
+        var magnitude = children().get(0);
+        if (sign.dataType() != dataType) {
+            // If the sign is not the same type as the magnitude, we need to convert it.
+            signFactory = Cast.cast(sign.source(), sign.dataType(), dataType, signFactory);
+        }
+        return FACTORY_PROVIDERS.get(dataType).create(source(), toEvaluator.apply(magnitude), signFactory);
     }
 
     @Evaluator(extraName = "Float")

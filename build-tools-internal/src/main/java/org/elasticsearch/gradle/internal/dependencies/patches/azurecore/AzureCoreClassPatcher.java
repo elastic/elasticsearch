@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.dependencies.patches.azurecore;
 
 import org.elasticsearch.gradle.internal.dependencies.patches.PatcherInfo;
 import org.elasticsearch.gradle.internal.dependencies.patches.Utils;
+import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.artifacts.transform.InputArtifact;
 import org.gradle.api.artifacts.transform.TransformAction;
 import org.gradle.api.artifacts.transform.TransformOutputs;
@@ -26,6 +27,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.internal.dependencies.patches.PatcherInfo.classPatcher;
 
+@CacheableTransform
 public abstract class AzureCoreClassPatcher implements TransformAction<TransformParameters.None> {
 
     private static final String JAR_FILE_TO_PATCH = "azure-core-[\\d.]*\\.jar";

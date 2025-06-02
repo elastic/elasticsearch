@@ -9,5 +9,6 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
+  // disable tests in FIPS mode as we need to use a custom truststore containing the certs used in MicrosoftGraphHttpFixture
   buildParams.withFipsEnabledOnly(it)
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.dependencies.patches.hdfs;
+package org.elasticsearch.gradle.internal.dependencies.patches;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;

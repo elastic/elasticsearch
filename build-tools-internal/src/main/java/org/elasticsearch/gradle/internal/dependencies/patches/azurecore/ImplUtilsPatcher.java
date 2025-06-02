@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.dependencies.patches.azurecore;
 
-import org.elasticsearch.gradle.internal.dependencies.patches.hdfs.MethodReplacement;
+import org.elasticsearch.gradle.internal.dependencies.patches.MethodReplacement;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;

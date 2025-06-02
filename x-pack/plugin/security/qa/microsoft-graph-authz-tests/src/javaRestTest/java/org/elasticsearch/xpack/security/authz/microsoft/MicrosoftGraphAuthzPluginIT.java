@@ -68,7 +68,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         new TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
     );
 
-    private static final MsGraphHttpFixture graphFixture = new MsGraphHttpFixture(TENANT_ID, CLIENT_ID, CLIENT_SECRET, TEST_USERS, 3);
+    private static final MicrosoftGraphHttpFixture graphFixture = new MicrosoftGraphHttpFixture(TENANT_ID, CLIENT_ID, CLIENT_SECRET, TEST_USERS, 3);
 
     public static ElasticsearchCluster cluster = initTestCluster();
 

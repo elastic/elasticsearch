@@ -41,9 +41,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
-public class MsGraphHttpFixture extends ExternalResource {
+public class MicrosoftGraphHttpFixture extends ExternalResource {
 
-    private static final Logger logger = LogManager.getLogger(MsGraphHttpFixture.class);
+    private static final Logger logger = LogManager.getLogger(MicrosoftGraphHttpFixture.class);
 
     private final String tenantId;
     private final String clientId;
@@ -58,7 +58,7 @@ public class MsGraphHttpFixture extends ExternalResource {
 
     private HttpsServer server;
 
-    public MsGraphHttpFixture(String tenantId, String clientId, String clientSecret, List<TestUser> users, int groupsPageSize) {
+    public MicrosoftGraphHttpFixture(String tenantId, String clientId, String clientSecret, List<TestUser> users, int groupsPageSize) {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;

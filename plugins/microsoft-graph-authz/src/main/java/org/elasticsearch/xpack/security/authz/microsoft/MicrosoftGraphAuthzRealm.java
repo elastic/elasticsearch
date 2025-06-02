@@ -14,6 +14,7 @@ import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
+import com.microsoft.graph.models.odataerrors.ODataError;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 
@@ -43,7 +44,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 public class MicrosoftGraphAuthzRealm extends Realm {
 
@@ -64,7 +65,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final UserRoleMapper roleMapper;
     private final GraphServiceClient client;
     private final XPackLicenseState licenseState;
-    private final ExecutorService genericExecutor;
+    private final ThreadPool threadPool;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, ThreadPool threadPool) {
         super(config);
@@ -74,19 +75,12 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         require(MicrosoftGraphAuthzRealmSettings.CLIENT_ID);
+        require(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
         require(MicrosoftGraphAuthzRealmSettings.TENANT_ID);
-
-        if (clientSecret.isEmpty()) {
-            throw new SettingsException(
-                "The configuration setting ["
-                    + RealmSettings.getFullSettingKey(config, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET)
-                    + "] is required"
-            );
-        }
 
         this.client = buildClient(clientSecret);
         this.licenseState = XPackPlugin.getSharedLicenseState();
-        this.genericExecutor = threadPool.generic();
+        this.threadPool = threadPool;
     }
 
     // for testing
@@ -102,12 +96,12 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         this.roleMapper = roleMapper;
         this.client = client;
         this.licenseState = licenseState;
-        this.genericExecutor = threadPool.generic();
+        this.threadPool = threadPool;
     }
 
-    private void require(Setting.AffixSetting<String> setting) {
+    private <T> void require(Setting.AffixSetting<T> setting) {
         final var value = config.getSetting(setting);
-        if (value.isEmpty()) {
+        if (value.toString().isEmpty()) {
             throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting) + "] is required");
         }
     }
@@ -134,12 +128,11 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             return;
         }
 
-        genericExecutor.execute(() -> {
+        threadPool.generic().execute(() -> {
             try {
-                final var userProperties = sdkFetchUserProperties(client, principal);
-                final var groups = sdkFetchGroupMembership(client, principal);
+                final var userProperties = fetchUserProperties(client, principal);
+                final var groups = fetchGroupMembership(client, principal);
 
-                // TODO confirm we don't need any other fields
                 final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
 
                 roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
@@ -151,10 +144,10 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                         Map.of(),
                         true
                     );
-                    logger.trace("Entra ID user {}", user);
+                    logger.trace("Authorized user from Microsoft Graph {}", user);
                     l.onResponse(user);
                 }));
-            } catch (Exception e) {
+            } catch (ReflectiveOperationException | ODataError e) {
                 logger.error("failed to authenticate with realm", e);
                 listener.onFailure(e);
             }
@@ -162,7 +155,6 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     }
 
     private GraphServiceClient buildClient(SecureString clientSecret) {
-        logger.trace("building client");
         final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
         )
@@ -183,17 +175,17 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         );
     }
 
-    private Tuple<String, String> sdkFetchUserProperties(GraphServiceClient client, String userId) {
+    private Tuple<String, String> fetchUserProperties(GraphServiceClient client, String userId) {
         var response = client.users()
             .byUserId(userId)
             .get(requestConfig -> requestConfig.queryParameters.select = new String[] { "displayName", "mail" });
 
-        logger.trace("User [{}] has email [{}]", response.getDisplayName(), response.getMail());
+        logger.trace("Fetched user with name [{}] and email [{}] from Microsoft Graph", response.getDisplayName(), response.getMail());
 
         return Tuple.tuple(response.getDisplayName(), response.getMail());
     }
 
-    private List<String> sdkFetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
+    private List<String> fetchGroupMembership(GraphServiceClient client, String userId) throws ReflectiveOperationException {
         List<String> groups = new ArrayList<>();
 
         var groupMembership = client.users().byUserId(userId).transitiveMemberOf().graphGroup().get(requestConfig -> {
@@ -216,6 +208,10 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             .build();
 
         pageIterator.iterate();
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("Fetched [{}] groups from Microsoft Graph: [{}]", groups.size(), String.join(", ", groups));
+        }
 
         return groups;
     }

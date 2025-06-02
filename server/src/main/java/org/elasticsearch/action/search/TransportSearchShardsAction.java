@@ -156,17 +156,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
-                    },
-                        aliasFilters,
-                        Map.of(),
-                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-                        searchRequest,
-                        shardIts,
-                        timeProvider,
-                        (SearchTask) task,
-                        false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
-                    )
+                    }, aliasFilters, Map.of(), searchRequest, shardIts, timeProvider, (SearchTask) task, false, false, searchService)
                         .addListener(
                             delegate.map(
                                 its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters)

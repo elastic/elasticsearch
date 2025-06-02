@@ -8,6 +8,6 @@ dependencies {
   clusterModules project(":modules:analysis-common")
 }
 
-tasks.named("javaRestTest").configureEach {
+tasks.named("javaRestTest").configure {
   buildParams.withFipsEnabledOnly(it)
 }

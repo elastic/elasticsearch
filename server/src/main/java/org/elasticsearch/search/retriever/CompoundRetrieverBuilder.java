@@ -295,6 +295,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return rankWindowSize;
     }
 
+    public static RetrieverSource convertToRetrieverSource(RetrieverBuilder retrieverBuilder) {
+        return new RetrieverSource(retrieverBuilder, null);
+    }
+
     protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
@@ -330,10 +334,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     @SuppressWarnings("unchecked")
     protected T doRewrite(QueryRewriteContext ctx) {
         return (T) this;
-    }
-
-    protected static RetrieverSource convertToRetrieverSource(RetrieverBuilder retrieverBuilder) {
-        return new RetrieverSource(retrieverBuilder, null);
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

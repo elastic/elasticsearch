@@ -57,9 +57,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<ShardId, Long> shardDataSetSizes;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, HeapUsage> nodeHeapUsage;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -79,7 +80,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
-        Map<NodeAndPath, ReservedSpace> reservedSpace
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, HeapUsage> nodeHeapUsage
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -87,6 +89,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
+        this.nodeHeapUsage = Map.copyOf(nodeHeapUsage);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -98,6 +101,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+            this.nodeHeapUsage = in.readImmutableMap(HeapUsage::new);
+        } else {
+            this.nodeHeapUsage = Map.of();
+        }
     }
 
     @Override
@@ -112,6 +120,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
         out.writeMap(this.reservedSpace);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+            out.writeMap(this.nodeHeapUsage, StreamOutput::writeWriteable);
+        }
     }
 
     /**

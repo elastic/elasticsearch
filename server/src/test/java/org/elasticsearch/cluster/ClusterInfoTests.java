@@ -41,8 +41,26 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardSizes(),
             randomDataSetSizes(),
             randomRoutingToDataPath(),
-            randomReservedSpace()
+            randomReservedSpace(),
+            randomNodeHeapUsage()
         );
+    }
+
+    private static Map<String, HeapUsage> randomNodeHeapUsage() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, HeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
+            final HeapUsage diskUsage = new HeapUsage(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                totalBytes,
+                randomIntBetween(0, totalBytes)
+            );
+            nodeHeapUsage.put(key, diskUsage);
+        }
+        return nodeHeapUsage;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

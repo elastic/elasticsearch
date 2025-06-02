@@ -89,6 +89,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
+    private volatile Map<String, HeapUsage> nodeHeapUsages;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -104,6 +105,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
+        this.nodeHeapUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -413,7 +415,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace
+            indicesStatsSummary.reservedSpace,
+            nodeHeapUsages
         );
     }
 

@@ -47,7 +47,7 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         assertThat(validationException.validationErrors().get(1), containsString("acs is missing"));
     }
 
-    public void testDuplicateAttributeKeysValidation() {
+    public void testBlankAttributeKeysValidation() {
         // Create request with valid required fields
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://kibana_url");

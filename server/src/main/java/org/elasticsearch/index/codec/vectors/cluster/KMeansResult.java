@@ -14,11 +14,11 @@ package org.elasticsearch.index.codec.vectors.cluster;
  */
 public class KMeansResult {
     private float[][] centroids;
-    private final short[] assignments;
+    private final int[] assignments;
     private final int[] assignmentOrds;
-    private short[] soarAssignments;
+    private int[] soarAssignments;
 
-    KMeansResult(float[][] centroids, short[] assignments, int[] assignmentOrds, short[] soarAssignments) {
+    KMeansResult(float[][] centroids, int[] assignments, int[] assignmentOrds, int[] soarAssignments) {
         assert centroids != null;
         assert assignments != null;
         assert assignmentOrds != null;
@@ -29,20 +29,20 @@ public class KMeansResult {
         this.soarAssignments = soarAssignments;
     }
 
-    KMeansResult(float[][] centroids, short[] assignments, int[] assignmentOrdinals) {
-        this(centroids, assignments, assignmentOrdinals, new short[0]);
+    KMeansResult(float[][] centroids, int[] assignments, int[] assignmentOrdinals) {
+        this(centroids, assignments, assignmentOrdinals, new int[0]);
     }
 
     KMeansResult() {
-        this(new float[0][0], new short[0], new int[0], new short[0]);
+        this(new float[0][0], new int[0], new int[0], new int[0]);
     }
 
     KMeansResult(float[][] centroids) {
-        this(centroids, new short[0], new int[0], new short[0]);
+        this(centroids, new int[0], new int[0], new int[0]);
     }
 
-    KMeansResult(float[][] centroids, short[] assignments) {
-        this(centroids, assignments, new int[0], new short[0]);
+    KMeansResult(float[][] centroids, int[] assignments) {
+        this(centroids, assignments, new int[0], new int[0]);
     }
 
     public float[][] centroids() {
@@ -53,7 +53,7 @@ public class KMeansResult {
         this.centroids = centroids;
     }
 
-    public short[] assignments() {
+    public int[] assignments() {
         return assignments;
     }
 
@@ -61,11 +61,11 @@ public class KMeansResult {
         return assignmentOrds;
     }
 
-    public short[] soarAssignments() {
+    public int[] soarAssignments() {
         return soarAssignments;
     }
 
-    public void setSoarAssignments(short[] soarAssignments) {
+    public void setSoarAssignments(int[] soarAssignments) {
         this.soarAssignments = soarAssignments;
     }
 

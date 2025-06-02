@@ -31,7 +31,7 @@ public class KMeansLocalTests extends ESTestCase {
         float[][] centroids = KMeans.pickInitialCentroids(vectors, sampleSize, nClusters);
         KMeans.cluster(vectors, centroids, sampleSize, maxIterations);
 
-        short[] assignments = new short[vectors.size()];
+        int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;
@@ -71,7 +71,7 @@ public class KMeansLocalTests extends ESTestCase {
         float[][] centroids = KMeans.pickInitialCentroids(fvv, sampleSize, nClusters);
         KMeans.cluster(fvv, centroids, sampleSize, maxIterations);
 
-        short[] assignments = new short[vectors.size()];
+        int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;

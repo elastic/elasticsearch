@@ -9,13 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-record CentroidAssignments(int numCentroids, float[][] cachedCentroids, short[] assignments, short[] soarAssignments) {
+record CentroidAssignments(int numCentroids, float[][] cachedCentroids, int[] assignments, int[] soarAssignments) {
 
-    CentroidAssignments(float[][] centroids, short[] assignments, short[] soarAssignments) {
+    CentroidAssignments(float[][] centroids, int[] assignments, int[] soarAssignments) {
         this(centroids.length, centroids, assignments, soarAssignments);
     }
 
-    CentroidAssignments(int numCentroids, short[] assignments, short[] soarAssignments) {
+    CentroidAssignments(int numCentroids, int[] assignments, int[] soarAssignments) {
         this(numCentroids, null, assignments, soarAssignments);
     }
 }

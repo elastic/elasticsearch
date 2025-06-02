@@ -25,9 +25,9 @@ import java.util.List;
  */
 class KMeansLocal extends KMeans {
 
-    final short clustersPerNeighborhood;
+    final int clustersPerNeighborhood;
 
-    KMeansLocal(int sampleSize, int maxIterations, short clustersPerNeighborhood) {
+    KMeansLocal(int sampleSize, int maxIterations, int clustersPerNeighborhood) {
         super(sampleSize, maxIterations);
         this.clustersPerNeighborhood = clustersPerNeighborhood;
     }
@@ -66,13 +66,13 @@ class KMeansLocal extends KMeans {
     }
 
     @Override
-    short getBestCentroidOffset(float[][] centroids, float[] vector, int vectorIdx, ClusteringAugment augment) {
+    int getBestCentroidOffset(float[][] centroids, float[] vector, int vectorIdx, ClusteringAugment augment) {
         assert augment instanceof NeighborsClusteringAugment;
 
-        short centroidIdx = ((NeighborsClusteringAugment) augment).getCentroidIdx(vectorIdx);
+        int centroidIdx = ((NeighborsClusteringAugment) augment).getCentroidIdx(vectorIdx);
         List<int[]> neighborhoods = ((NeighborsClusteringAugment) augment).neighborhoods;
 
-        short bestCentroidOffset = centroidIdx;
+        int bestCentroidOffset = centroidIdx;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
 
         int[] neighborOffsets = neighborhoods.get(centroidIdx);
@@ -80,13 +80,13 @@ class KMeansLocal extends KMeans {
             float dsq = VectorUtil.squareDistance(vector, centroids[neighborOffset]);
             if (dsq < minDsq) {
                 minDsq = dsq;
-                bestCentroidOffset = (short) neighborOffset;
+                bestCentroidOffset = neighborOffset;
             }
         }
         return bestCentroidOffset;
     }
 
-    private short[] assignSpilled(FloatVectorValues vectors, List<int[]> neighborhoods, float[][] centroids, short[] assignments)
+    private int[] assignSpilled(FloatVectorValues vectors, List<int[]> neighborhoods, float[][] centroids, int[] assignments)
         throws IOException {
         // SOAR uses an adjusted distance for assigning spilled documents which is
         // given by:
@@ -97,15 +97,15 @@ class KMeansLocal extends KMeans {
         // centroid the document was assigned to. The document is assigned to the
         // cluster with the smallest soar(x, c).
 
-        short[] spilledAssignments = new short[assignments.length];
+        int[] spilledAssignments = new int[assignments.length];
 
         float[] diffs = new float[vectors.dimension()];
         for (int i = 0; i < vectors.size(); i++) {
             float[] vector = vectors.vectorValue(i);
 
-            short currAssignment = assignments[i];
+            int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
-            for (int j = 0; j < vectors.dimension(); j++) {
+            for (short j = 0; j < vectors.dimension(); j++) {
                 float diff = vector[j] - currentCentroid[j];
                 diffs[j] = diff;
             }
@@ -128,7 +128,7 @@ class KMeansLocal extends KMeans {
                 }
             }
 
-            spilledAssignments[i] = (short) bestAssignment;
+            spilledAssignments[i] = bestAssignment;
         }
 
         return spilledAssignments;
@@ -156,7 +156,7 @@ class KMeansLocal extends KMeans {
     @Override
     void cluster(FloatVectorValues vectors, KMeansResult kMeansResult) throws IOException {
         float[][] centroids = kMeansResult.centroids();
-        short[] assignments = kMeansResult.assignments();
+        int[] assignments = kMeansResult.assignments();
 
         assert assignments != null;
         assert assignments.length == vectors.size();
@@ -174,14 +174,14 @@ class KMeansLocal extends KMeans {
 
     static class NeighborsClusteringAugment extends ClusteringAugment {
         final List<int[]> neighborhoods;
-        final short[] assignments;
+        final int[] assignments;
 
-        NeighborsClusteringAugment(short[] assignments, List<int[]> neighborhoods) {
+        NeighborsClusteringAugment(int[] assignments, List<int[]> neighborhoods) {
             this.neighborhoods = neighborhoods;
             this.assignments = assignments;
         }
 
-        public short getCentroidIdx(int vectorIdx) {
+        public int getCentroidIdx(int vectorIdx) {
             return this.assignments[vectorIdx];
         }
     }

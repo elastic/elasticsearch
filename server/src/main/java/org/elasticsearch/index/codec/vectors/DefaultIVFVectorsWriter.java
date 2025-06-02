@@ -64,8 +64,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         BinarizedFloatVectorValues binarizedByteVectorValues = new BinarizedFloatVectorValues(floatVectorValues, quantizer);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
 
-        short[] assignments = centroidAssignments.assignments();
-        short[] soarAssignments = centroidAssignments.soarAssignments();
+        int[] assignments = centroidAssignments.assignments();
+        int[] soarAssignments = centroidAssignments.soarAssignments();
 
         int[][] clustersForMetrics = null;
         if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
@@ -298,8 +298,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         KMeansResult kMeansResult = new HierarchicalKMeans().cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
-        short[] assignments = kMeansResult.assignments();
-        short[] soarAssignments = kMeansResult.soarAssignments();
+        int[] assignments = kMeansResult.assignments();
+        int[] soarAssignments = kMeansResult.soarAssignments();
 
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation

@@ -292,7 +292,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     success = true;
                 } finally {
                     if (success == false && centroidTempName != null) {
-                        org.apache.lucene.util.IOUtils.closeWhileHandlingException(centroidTemp);
+                        IOUtils.closeWhileHandlingException(centroidTemp);
                         org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, centroidTempName);
                     }
                 }
@@ -301,11 +301,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         centroidOffset = ivfCentroids.getFilePointer();
                         writeMeta(fieldInfo, centroidOffset, 0, new long[0], null);
                         CodecUtil.writeFooter(centroidTemp);
-                        org.apache.lucene.util.IOUtils.close(centroidTemp);
+                        IOUtils.close(centroidTemp);
                         return;
                     }
                     CodecUtil.writeFooter(centroidTemp);
-                    org.apache.lucene.util.IOUtils.close(centroidTemp);
+                    IOUtils.close(centroidTemp);
                     centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
                     try (IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
                         ivfCentroids.copyBytes(centroidsInput, centroidsInput.length() - CodecUtil.footerLength());

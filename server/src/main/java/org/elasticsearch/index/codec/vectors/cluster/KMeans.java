@@ -70,13 +70,8 @@ public class KMeans {
         return centroids;
     }
 
-    private boolean stepLloyd(
-        FloatVectorValues vectors,
-        float[][] centroids,
-        short[] assignments,
-        int sampleSize,
-        ClusteringAugment augment
-    ) throws IOException {
+    private boolean stepLloyd(FloatVectorValues vectors, float[][] centroids, int[] assignments, int sampleSize, ClusteringAugment augment)
+        throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
         long[] centroidCounts = new long[centroids.length];
@@ -84,7 +79,7 @@ public class KMeans {
 
         for (int i = 0; i < sampleSize; i++) {
             float[] vector = vectors.vectorValue(i);
-            short bestCentroidOffset = getBestCentroidOffset(centroids, vector, i, augment);
+            int bestCentroidOffset = getBestCentroidOffset(centroids, vector, i, augment);
             if (assignments[i] != bestCentroidOffset) {
                 changed = true;
             }
@@ -98,7 +93,7 @@ public class KMeans {
         for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
             if (centroidCounts[clusterIdx] > 0) {
                 float countF = (float) centroidCounts[clusterIdx];
-                for (int d = 0; d < dim; d++) {
+                for (short d = 0; d < dim; d++) {
                     centroids[clusterIdx][d] = nextCentroids[clusterIdx][d] / countF;
                 }
             }
@@ -107,10 +102,10 @@ public class KMeans {
         return changed;
     }
 
-    short getBestCentroidOffset(float[][] centroids, float[] vector, int vectorIdx, ClusteringAugment augment) {
-        short bestCentroidOffset = -1;
+    int getBestCentroidOffset(float[][] centroids, float[] vector, int vectorIdx, ClusteringAugment augment) {
+        int bestCentroidOffset = -1;
         float minDsq = Float.MAX_VALUE;
-        for (short j = 0; j < centroids.length; j++) {
+        for (int j = 0; j < centroids.length; j++) {
             float dsq = VectorUtil.squareDistance(vector, centroids[j]);
             if (dsq < minDsq) {
                 minDsq = dsq;
@@ -142,7 +137,7 @@ public class KMeans {
             return;
         }
 
-        short[] assignments = new short[n];
+        int[] assignments = new int[n];
         for (int i = 0; i < maxIterations; i++) {
             if (stepLloyd(vectors, centroids, assignments, sampleSize, augment) == false) {
                 break;

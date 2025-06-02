@@ -375,6 +375,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             pruningConfigToUse = pruningConfigToUse == null ? asSVFieldType.getIndexOptions().getPruningConfig() : pruningConfigToUse;
         }
 
+        // do not prune if shouldQueryPruneTokens is explicitly set to false
         if (shouldQueryPruneTokens != null && shouldQueryPruneTokens == false) {
             return null;
         }

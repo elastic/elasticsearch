@@ -490,19 +490,6 @@ public class ServiceAccountIT extends ESRestTestCase {
             )
         );
 
-        final Request getServiceAccountRequestEnterpriseSearchService = new Request(
-            "GET",
-            "_security/service/elastic/enterprise-search-server"
-        );
-        final Response getServiceAccountResponseEnterpriseSearchService = client().performRequest(
-            getServiceAccountRequestEnterpriseSearchService
-        );
-        assertServiceAccountRoleDescriptor(
-            getServiceAccountResponseEnterpriseSearchService,
-            "elastic/enterprise-search-server",
-            ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR
-        );
-
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
         final Response getServiceAccountResponse4 = client().performRequest(getServiceAccountRequest4);

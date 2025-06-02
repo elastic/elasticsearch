@@ -638,7 +638,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -660,7 +660,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -682,7 +682,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -1292,7 +1292,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 {
                        "service": "hugging_face",
                        "name": "Hugging Face",
-                       "task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"],
+                       "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
                                "description": "API Key for the provider you're connecting to.",
@@ -1301,7 +1301,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": true,
                                "updatable": true,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -1310,7 +1310,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "url": {
                                "description": "The URL endpoint to use for the requests.",
@@ -1319,7 +1319,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion", "chat_completion"]
                            }
                        }
                    }

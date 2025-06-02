@@ -176,14 +176,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
-                                queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
-                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
@@ -206,6 +198,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
+                            );
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                configuration.allowPartialResults() == false,
+                                pagesFetched::incrementAndGet,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
                             );
                         }
                     })
@@ -328,8 +328,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-                SearchContext context = null;
                 for (IndexShard shard : targetShards) {
+                    SearchContext context = null;
                     try {
                         var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
                         var shardRequest = new ShardSearchRequest(

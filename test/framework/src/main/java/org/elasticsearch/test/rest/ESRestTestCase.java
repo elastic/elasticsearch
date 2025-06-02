@@ -1369,16 +1369,13 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (mustClear.get()) {
             request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                for (String warning : warnings) {
-                    if (warning.contains("xpack.monitoring")) {
-                        SUITE_LOGGER.warn("Ignoring xpack monitoring warning during test cleanup: {}", warning);
-                    } else if (warning.contains("name begins with a dot")) {
-                        SUITE_LOGGER.warn("Ignoring dot prefix warning during test cleanup: {}", warning);
-                    } else {
-                        return true;
-                    }
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).contains("xpack.monitoring") == false;
                 }
-                return false;
             }));
             cleanupClient().performRequest(request);
         }

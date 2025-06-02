@@ -155,6 +155,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         final String indexName = "index_fulfilling";
         final String roleName = "taskCancellationRoleName";
         final String userName = "taskCancellationUsername";
+        String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
         try {
             // create some index on the fulfilling cluster, to be searched from the querying cluster
             {
@@ -206,13 +207,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "name": "*:*",
                           "error_type": "exception",
-                          "stall_time_seconds": 60
+                          "stall_time_seconds": 10
                         }
                       ]
                     }
                   }
                 }""");
-            String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
             submitAsyncSearchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
@@ -308,6 +308,27 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/user/" + userName)));
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/role/" + roleName)));
             assertOK(performRequestAgainstFulfillingCluster(new Request("DELETE", indexName)));
+            // wait for search related tasks to finish on the query cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    AtomicBoolean searchTasksFound = new AtomicBoolean(false);
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            searchTasksFound.set(true);
+                        }
+                    });
+                    assertFalse("Expected no search tasks to be running", searchTasksFound.get());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
     }
 

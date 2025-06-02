@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -288,8 +287,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
+            final var project = currentState.metadata().getDefaultProject();
+            RepositoriesMetadata repositories = RepositoriesMetadata.get(project);
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                 if (repositoryMetadata.name().equals(request.name())) {
@@ -347,10 +346,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             if (found == false) {
                 repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
             }
-            repositories = new RepositoriesMetadata(repositoriesMetadata);
-            mdBuilder.putDefaultProjectCustom(RepositoriesMetadata.TYPE, repositories);
             changed = true;
-            return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            var updatedRepositories = new RepositoriesMetadata(repositoriesMetadata);
+            return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(RepositoriesMetadata.TYPE, updatedRepositories));
         }
     }
 
@@ -445,16 +443,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata currentReposMetadata = RepositoriesMetadata.get(currentState);
+                    final var project = currentState.metadata().getProject();
+                    final RepositoriesMetadata currentReposMetadata = RepositoriesMetadata.get(project);
 
                     final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
                     if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
                         return currentState;
                     } else {
                         final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
-                        final Metadata.Builder metadata = Metadata.builder(currentState.metadata())
-                            .putDefaultProjectCustom(RepositoriesMetadata.TYPE, newReposMetadata);
-                        return ClusterState.builder(currentState).metadata(metadata).build();
+                        return currentState.copyAndUpdateProject(
+                            project.id(),
+                            builder -> builder.putCustom(RepositoriesMetadata.TYPE, newReposMetadata)
+                        );
                     }
                 }
 
@@ -519,8 +519,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
+            final var project = currentState.metadata().getDefaultProject();
+            RepositoriesMetadata repositories = RepositoriesMetadata.get(project);
             if (repositories.repositories().size() > 0) {
                 List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size());
                 boolean changed = false;
@@ -535,9 +535,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                 }
                 if (changed) {
-                    repositories = new RepositoriesMetadata(repositoriesMetadata);
-                    mdBuilder.putDefaultProjectCustom(RepositoriesMetadata.TYPE, repositories);
-                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                    final var updatedRepositories = new RepositoriesMetadata(repositoriesMetadata);
+                    return currentState.copyAndUpdateProject(
+                        project.id(),
+                        builder -> builder.putCustom(RepositoriesMetadata.TYPE, updatedRepositories)
+                    );
                 }
             }
             if (Regex.isMatchAllPattern(request.name())) { // we use a wildcard so we don't barf if it's not present.

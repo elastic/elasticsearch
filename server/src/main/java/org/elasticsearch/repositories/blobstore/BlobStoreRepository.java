@@ -2406,16 +2406,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.getMetadata())
-                    .putDefaultProjectCustom(
-                        RepositoriesMetadata.TYPE,
-                        RepositoriesMetadata.get(currentState)
-                            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
-                    )
-            )
-            .build();
+        final var project = currentState.metadata().getDefaultProject();
+        final var updatedMetadata = RepositoriesMetadata.get(project)
+            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId());
+        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(RepositoriesMetadata.TYPE, updatedMetadata));
     }
 
     /**
@@ -2925,17 +2919,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(currentState)
+                    final var project = currentState.metadata().getProject();
+                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(project)
                         .withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
                     final ClusterState newClusterState = stateFilter.apply(
-                        ClusterState.builder(currentState)
-                            .metadata(
-                                Metadata.builder(currentState.getMetadata()).putDefaultProjectCustom(RepositoriesMetadata.TYPE, withUuid)
-                            )
-                            .build()
+                        currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(RepositoriesMetadata.TYPE, withUuid))
                     );
                     return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);
                 }

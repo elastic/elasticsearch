@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
-  method: testTaskCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/128009
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055

@@ -131,8 +131,11 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testIndexWithAlias() {
         String indexName = "index_1";
         String alias = "alias_1";
-        assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(10, 0))
-            .addAlias(new Alias(alias).filter("{\"term\":{\"tag\":\"a\"}}")));
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(10, 0))
+                .addAlias(new Alias(alias).filter("{\"term\":{\"tag\":\"a\"}}"))
+        );
 
         Random random = new Random();
         int numDocs = randomIntBetween(50, 150);
@@ -141,10 +144,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             boolean isA = random.nextBoolean();
             if (isA) countTagA++;
-            prepareIndex(indexName)
-                .setId(Integer.toString(i))
-                .setSource("tag", isA ? "a" : "b")
-                .get();
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("tag", isA ? "a" : "b").get();
         }
 
         refresh(indexName);
@@ -152,14 +152,15 @@ public class PointInTimeIT extends ESIntegTestCase {
 
         try {
             int finalCountTagA = countTagA;
-            assertResponse(prepareSearch()
-                    .setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1)))
+            assertResponse(
+                prepareSearch().setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1)))
                     .setSize(0)
                     .setQuery(new MatchAllQueryBuilder()),
                 resp1 -> {
                     assertThat(resp1.pointInTimeId(), equalTo(pitId));
                     assertHitCount(resp1, finalCountTagA);
-                });
+                }
+            );
         } finally {
             closePointInTime(pitId);
         }

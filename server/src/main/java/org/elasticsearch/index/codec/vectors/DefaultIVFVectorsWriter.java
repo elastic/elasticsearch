@@ -21,7 +21,6 @@ import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
-import org.elasticsearch.index.codec.vectors.cluster.KMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
@@ -35,7 +34,7 @@ import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.packA
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.IVF_VECTOR_COMPONENT;
 
 /**
- * Default implementation of {@link IVFVectorsWriter}. It uses {@link KMeans} algorithm to
+ * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */

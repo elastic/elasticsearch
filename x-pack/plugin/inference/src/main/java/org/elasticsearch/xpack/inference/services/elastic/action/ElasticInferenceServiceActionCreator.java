@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -52,7 +53,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
         var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
         var errorMessage = constructFailedToSendRequestMessage(
-            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
+            Strings.format("%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }

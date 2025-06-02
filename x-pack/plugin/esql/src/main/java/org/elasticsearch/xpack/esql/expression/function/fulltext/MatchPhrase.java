@@ -186,8 +186,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new MatchPhrase(source, field, query, null, queryBuilder);
     }
 

@@ -137,7 +137,8 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex(indexName).setId(id).setSource("value", i).get();
         }
         refresh(indexName);
-        BytesReference pitId = openPointInTime(new String[]{alias}, TimeValue.timeValueMinutes(1)).getPointInTimeId();;
+        BytesReference pitId = openPointInTime(new String[] { alias }, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+        ;
         try {
             assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
                 assertThat(resp1.pointInTimeId(), equalTo(pitId));

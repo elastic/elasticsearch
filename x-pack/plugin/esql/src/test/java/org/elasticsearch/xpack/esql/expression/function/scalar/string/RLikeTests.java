@@ -94,8 +94,15 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             return new TextAndPattern(text, escapeString.apply(text));
         }, true);
         cases(cases, title + " matches self case insensitive", () -> {
-            String text = textSupplier.get();
-            return new TextAndPattern(randomCasing(text), escapeString.apply(text));
+            // RegExp doesn't support case-insensitive matching for Unicodes whose length changes when the case changes.
+            // Example: a case-insensitive ES regexp query for the pattern `weiß` won't match the value `WEISS` (but will match `WEIß`).
+            // Or `ŉ` (U+0149) vs. `ʼN` (U+02BC U+004E).
+            String text, caseChanged;
+            for (text = textSupplier.get(), caseChanged = randomCasing(text); text.length() != caseChanged.length(); ) {
+                text = textSupplier.get();
+                caseChanged = randomCasing(text);
+            }
+            return new TextAndPattern(caseChanged, escapeString.apply(text));
         }, true, true);
         cases(cases, title + " doesn't match self with trailing", () -> {
             String text = textSupplier.get();

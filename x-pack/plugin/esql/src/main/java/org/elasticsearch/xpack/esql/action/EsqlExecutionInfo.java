@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -73,6 +74,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipUnavailablePredicate;
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
+
+    // Track failures that occur during the resolution phase on the coordinator. These will be reported in the final response.
+    private transient Map<String, ResolutionFailure> resolutionFailures = Map.of();
 
     // start time for the ESQL query for calculating time spans relative to the beginning of the query
     private final transient TimeSpan.Builder relativeStart;
@@ -159,6 +163,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return includeCCSMetadata;
     }
 
+    public void setResolutionFailures(Map<String, ResolutionFailure> resolutionFailures) {
+        this.resolutionFailures = resolutionFailures;
+    }
+
+    public ResolutionFailure getResolutionFailure(String clusterAlias) {
+        return resolutionFailures.get(clusterAlias);
+    }
+
     /**
      * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
      * Note this is currently only built for a single phase planning/execution model. When INLINESTATS
@@ -181,6 +193,23 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
         overallTimeSpan = relativeStart.stop();
         overallTook = overallTimeSpan.toTimeValue();
+        // combines with the resolution failures.
+        for (String clusterAlias : clusterInfo.keySet()) {
+            ResolutionFailure resolutionFailure = resolutionFailures.get(clusterAlias);
+            if (resolutionFailure == null) {
+                continue;
+            }
+            isPartial = true;
+            swapCluster(clusterAlias, (k, c) -> {
+                List<ShardSearchFailure> mergedFailures = new ArrayList<>(c.failures.size() + resolutionFailure.failures().size());
+                mergedFailures.addAll(c.failures);
+                for (Exception e : resolutionFailure.failures()) {
+                    mergedFailures.add(new ShardSearchFailure(e));
+                }
+                var status = c.status == Cluster.Status.SUCCESSFUL ? Cluster.Status.PARTIAL : c.status;
+                return new Cluster.Builder(c).setStatus(status).setFailures(mergedFailures).build();
+            });
+        }
     }
 
     // for testing only - use markEndQuery in production code

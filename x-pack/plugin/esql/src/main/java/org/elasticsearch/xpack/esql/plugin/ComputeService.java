@@ -419,7 +419,12 @@ public class ComputeService {
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
-                    if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
+                    final var resolutionFailure = execInfo.getResolutionFailure(LOCAL_CLUSTER);
+                    if (configuration.allowPartialResults() == false && resolutionFailure != null) {
+                        for (Exception failure : resolutionFailure.failures()) {
+                            localListener.acquireAvoid().onFailure(failure);
+                        }
+                    } else if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
                         final var dataNodesListener = localListener.acquireCompute();
                         dataNodeComputeHandler.startComputeOnDataNodes(
                             sessionId,
@@ -462,8 +467,18 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    String clusterAlias = cluster.clusterAlias();
+                    if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
+                    }
+                    final var resolutionFailure = execInfo.getResolutionFailure(clusterAlias);
+                    if (configuration.allowPartialResults() == false
+                        && execInfo.isSkipUnavailable(clusterAlias) == false
+                        && resolutionFailure != null) {
+                        for (Exception failure : resolutionFailure.failures()) {
+                            computeListener.acquireAvoid().onFailure(new RemoteException(clusterAlias, failure));
+                        }
                         continue;
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(
@@ -486,9 +501,9 @@ public class ComputeService {
                              * wrapped.
                              */
                             if (ex instanceof TransportException te) {
-                                l.onFailure(new RemoteException(cluster.clusterAlias(), FailureCollector.unwrapTransportException(te)));
+                                l.onFailure(new RemoteException(clusterAlias, FailureCollector.unwrapTransportException(te)));
                             } else {
-                                l.onFailure(new RemoteException(cluster.clusterAlias(), ex));
+                                l.onFailure(new RemoteException(clusterAlias, ex));
                             }
                         })
                     );

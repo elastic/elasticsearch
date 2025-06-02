@@ -74,8 +74,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         // The sparse_vector field is not supported on versions 8.0 to 8.10. Because of this we'll only allow
         // index versions after its reintroduction.
         indexVersionToTest = randomBoolean()
-                             ? IndexVersion.current()
-                             : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
+            ? IndexVersion.current()
+            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
     }
 
     @Override
@@ -195,7 +195,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             return true;
         }
 
-        if (indexVersionToTest.between(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+        if (indexVersionToTest.between(
+            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X,
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+        )) {
             return true;
         }
 

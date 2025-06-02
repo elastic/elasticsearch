@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name = 'metrics'
@@ -21,11 +20,23 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(':modules:data-streams')
 
-  implementation "io.opentelemetry:opentelemetry-api:1.48.0"
-  implementation "io.opentelemetry:opentelemetry-context:1.48.0"
+
+  def otelVersion = "1.48.0"
+  implementation "io.opentelemetry:opentelemetry-api:$otelVersion"
+  implementation "io.opentelemetry:opentelemetry-context:$otelVersion"
   // TODO this is explicitly marked as "not for production" but it's good for now
   implementation "io.opentelemetry.proto:opentelemetry-proto:1.5.0-alpha"
+  testImplementation("io.opentelemetry:opentelemetry-sdk:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-sdk-common:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-exporter-common:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion")
+  testImplementation("io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion")
 
   implementation "com.google.protobuf:protobuf-java:4.30.2"
   implementation 'com.dynatrace.hash4j:hash4j:0.22.0'

@@ -17,17 +17,20 @@ import org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtil;
 public class GeoHexBoundedPredicate {
 
     private final boolean crossesDateline;
-    private final GeoBoundingBox bbox, scratch;
+    private final GeoBoundingBox bbox;
 
     GeoHexBoundedPredicate(GeoBoundingBox bbox) {
         this.crossesDateline = bbox.right() < bbox.left();
         // TODO remove this once we get serverless flaky tests to pass
         // assert this.crossesDateline == false;
         this.bbox = bbox;
-        scratch = new GeoBoundingBox(new org.elasticsearch.common.geo.GeoPoint(), new org.elasticsearch.common.geo.GeoPoint());
     }
 
     public boolean validHex(long hex) {
+        GeoBoundingBox scratch = new GeoBoundingBox(
+            new org.elasticsearch.common.geo.GeoPoint(),
+            new org.elasticsearch.common.geo.GeoPoint()
+        );
         H3SphericalUtil.computeGeoBounds(hex, scratch);
         if (bbox.top() > scratch.bottom() && bbox.bottom() < scratch.top()) {
             if (scratch.left() > scratch.right()) {

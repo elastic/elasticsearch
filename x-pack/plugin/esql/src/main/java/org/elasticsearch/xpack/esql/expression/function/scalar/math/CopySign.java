@@ -142,7 +142,7 @@ public class CopySign extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dataType = dataType();
-        if (!FACTORY_PROVIDERS.containsKey(dataType)) {
+        if (FACTORY_PROVIDERS.containsKey(dataType) == false) {
             throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType(), NAME);
         }
         var sign = children().get(1);
@@ -150,7 +150,7 @@ public class CopySign extends EsqlScalarFunction {
         var magnitude = children().get(0);
         if (sign.dataType() != dataType) {
             // If the sign is not the same type as the magnitude, we need to convert it.
-            signFactory = Cast.cast(sign.source(), sign.dataType(), dataType, signFactory);
+            signFactory = Cast.cast(source(), sign.dataType(), dataType, signFactory);
         }
         return FACTORY_PROVIDERS.get(dataType).create(source(), toEvaluator.apply(magnitude), signFactory);
     }

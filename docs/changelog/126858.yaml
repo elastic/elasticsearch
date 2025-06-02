@@ -1,0 +1,6 @@
+pr: 126858
+summary: Leverage threadpool schedule for inference api to avoid long running thread
+area: Machine Learning
+type: bug
+issues:
+ - 126853

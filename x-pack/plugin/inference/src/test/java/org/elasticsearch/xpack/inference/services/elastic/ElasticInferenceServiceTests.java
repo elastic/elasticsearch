@@ -156,7 +156,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -171,7 +171,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -185,7 +185,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -199,7 +199,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }

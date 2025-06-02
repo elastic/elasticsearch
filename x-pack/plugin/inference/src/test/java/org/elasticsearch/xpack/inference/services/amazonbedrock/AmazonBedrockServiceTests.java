@@ -349,7 +349,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     exception.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -368,7 +368,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -390,7 +390,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -412,7 +412,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 

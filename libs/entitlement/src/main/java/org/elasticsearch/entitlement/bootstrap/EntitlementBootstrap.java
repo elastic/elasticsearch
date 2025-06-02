@@ -14,11 +14,9 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
-import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -33,35 +31,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Objects.requireNonNull;
-
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(
-        @Nullable Policy serverPolicyPatch,
-        Map<String, Policy> pluginPolicies,
-        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
-        PathLookup pathLookup,
-        Map<String, Path> sourcePaths,
-        Set<Package> suppressFailureLogPackages
-    ) {
-        public BootstrapArgs {
-            requireNonNull(pluginPolicies);
-            requireNonNull(scopeResolver);
-            requireNonNull(pathLookup);
-            requireNonNull(sourcePaths);
-            requireNonNull(suppressFailureLogPackages);
-        }
-    }
-
-    private static BootstrapArgs bootstrapArgs;
-
-    public static BootstrapArgs bootstrapArgs() {
-        return bootstrapArgs;
-    }
-
     /**
-     * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
+     * Main entry point that activates entitlement checking. Once this method returns,
+     * calls to methods protected by entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      *
      * @param serverPolicyPatch a policy with additional entitlements to patch the embedded server layer policy
@@ -98,10 +72,10 @@ public class EntitlementBootstrap {
         Set<Package> suppressFailureLogPackages
     ) {
         logger.debug("Loading entitlement agent");
-        if (EntitlementBootstrap.bootstrapArgs != null) {
-            throw new IllegalStateException("plugin data is already set");
+        if (EntitlementInitialization.initializeArgs != null) {
+            throw new IllegalStateException("initialization data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             serverPolicyPatch,
             pluginPolicies,
             scopeResolver,
@@ -122,7 +96,7 @@ public class EntitlementBootstrap {
             suppressFailureLogPackages
         );
         exportInitializationToAgent();
-        loadAgent(findAgentJar());
+        loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static Path getUserHome() {
@@ -134,11 +108,11 @@ public class EntitlementBootstrap {
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
-    private static void loadAgent(String agentPath) {
+    static void loadAgent(String agentPath, String entitlementInitializationClassName) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath, EntitlementInitialization.class.getName());
+                vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
@@ -154,7 +128,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    public static String findAgentJar() {
+    static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {

@@ -893,7 +893,12 @@ public class EsqlCapabilities {
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
-        TO_LOWER_EMPTY_STRING;
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support parameters for LiMIT command.
+         */
+        PARAMETER_FOR_LIMIT;
 
         private final boolean enabled;
 

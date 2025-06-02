@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -1272,15 +1273,16 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return luceneQuery;
     }
 
-    /**
+    /*
      * Expects
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
-     * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
-     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
+     * \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     * ges{f}#5, first_name{r}#3 AS last_name, long_noidx{f}#12, emp_no{r}#2 AS salary]]
+     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, hire_date{f}#9, job{..]<[],[]>
      *       \_EvalExec[[null[INTEGER] AS emp_no, null[KEYWORD] AS first_name]]
-     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[1000], sort[] estimatedRowSize[270]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#13], limit[1000], sort[] estimatedRowSize[278]
      */
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
@@ -1307,9 +1309,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             )
         );
         // emp_no
-        assertThat(projections.get(1), instanceOf(FieldAttribute.class));
+        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
         // first_name
-        assertThat(projections.get(2), instanceOf(FieldAttribute.class));
+        assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
 
         // last_name --> first_name
         var nullAlias = Alias.unwrap(projections.get(8));

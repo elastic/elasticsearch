@@ -56,7 +56,7 @@ public class CompletionOperator extends InferenceOperator {
             super.addInput(input.appendBlock(promptEvaluator.eval(input)));
         } catch (Exception e) {
             releasePageOnAnyThread(input);
-            throw (e);
+            throw e;
         }
     }
 

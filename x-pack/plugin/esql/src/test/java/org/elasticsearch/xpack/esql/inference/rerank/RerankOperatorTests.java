@@ -11,19 +11,14 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
-import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,18 +30,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> fieldEvaluators = Map.of(
-            new ColumnInfoImpl(randomIdentifier(), DataType.TEXT, List.of()),
-            evaluatorFactory(0)
-        );
-
-        return new RerankOperator.Factory(
-            mockedSimpleInferenceRunner(),
-            SIMPLE_INFERENCE_ID,
-            SIMPLE_QUERY,
-            XContentRowEncoder.yamlRowEncoderFactory(fieldEvaluators),
-            1
-        );
+        return new RerankOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, SIMPLE_QUERY, evaluatorFactory(0), 1);
     }
 
     @Override

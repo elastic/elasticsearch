@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -54,10 +56,11 @@ public class RerankOperator extends InferenceOperator {
     @Override
     public void addInput(Page input) {
         try {
-            super.addInput(input.appendBlock(rowEncoder.eval(input)));
+            Block inputBlock = rowEncoder.eval(input);
+            super.addInput(input.appendBlock(inputBlock));
         } catch (Exception e) {
             releasePageOnAnyThread(input);
-            throw (e);
+            throw e;
         }
     }
 
@@ -85,8 +88,9 @@ public class RerankOperator extends InferenceOperator {
      */
     @Override
     protected RerankOperatorOutputBuilder outputBuilder(Page input) {
+        DoubleBlock.Builder outputBlockBuilder = blockFactory().newDoubleBlockBuilder(input.getPositionCount());
         return new RerankOperatorOutputBuilder(
-            blockFactory().newDoubleBlockBuilder(input.getPositionCount()),
+            outputBlockBuilder,
             input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray()),
             scoreChannel
         );

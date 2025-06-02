@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -78,8 +79,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        int minSize = Integer.min(1, size / 10);
-        return new AbstractBlockSourceOperator(blockFactory, between(minSize, 8 * 1024)) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
             @Override
             protected int remaining() {
                 return size - currentPosition;
@@ -87,9 +87,10 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             @Override
             protected Page createPage(int positionOffset, int length) {
+                length = Integer.min(length, remaining());
                 try (var builder = blockFactory.newBytesRefVectorBuilder(length)) {
                     for (int i = 0; i < length; i++) {
-                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(1000)));
+                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                     }
                     currentPosition += length;
                     return new Page(builder.build().asBlock());
@@ -195,9 +196,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return context -> new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                Block b = page.getBlock(channel);
-                b.incRef();
-                return b;
+                return BlockUtils.deepCopyOf(page.getBlock(channel), blockFactory());
             }
 
             @Override

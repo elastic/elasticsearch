@@ -98,10 +98,19 @@ public class MachineDependentHeap {
              * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
+                /*
+                 * An ML node used to have 40% of the total memory for the Java heap, and the remainder
+                 * for ML and overhead (the operating system). This did not account for the Java direct
+                 * memory, which equals half of the heap size (see JvmErgonomics).
+                 * Right now, a factor of 2/3 is applied to the heap size here, leaving the ML memory
+                 * formula the same. That means the formula now also correctly accounts for direct memory,
+                 * since the heap (2/3 * 40% of the memory) plus the direct memory (1/3 * 40% of the memory)
+                 * equals the original 40% of the total memory.
+                 */
                 if (availableMemory <= (GB * 16)) {
-                    yield mb((long) (availableMemory * .4), 4);
+                    yield mb((long) (availableMemory * .4 * 2/3), 4);
                 } else {
-                    yield mb((long) min((GB * 16) * .4 + (availableMemory - GB * 16) * .1, MAX_HEAP_SIZE), 4);
+                    yield mb((long) min(((GB * 16) * .4 + (availableMemory - GB * 16) * .1) * 2/3, MAX_HEAP_SIZE), 4);
                 }
             }
             /*

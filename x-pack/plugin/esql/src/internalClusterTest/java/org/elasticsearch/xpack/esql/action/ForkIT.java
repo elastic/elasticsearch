@@ -599,9 +599,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("c"));
             assertColumnTypes(resp.columns(), List.of("long"));
-            Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(7L)
-            );
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(7L));
             assertValues(resp.values(), expectedValues);
         }
     }
@@ -618,9 +616,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("c"));
             assertColumnTypes(resp.columns(), List.of("long"));
 
-            Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(2L)
-            );
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(2L));
             assertValues(resp.values(), expectedValues);
         }
     }

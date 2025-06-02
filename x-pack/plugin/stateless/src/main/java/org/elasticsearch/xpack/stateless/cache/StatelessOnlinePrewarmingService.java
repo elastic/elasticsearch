@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
+import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
@@ -184,14 +185,16 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                         i,
                         range,
                         blobLength,
-                        new SequentialRangeMissingHandler(
-                            this,
-                            cacheKey.fileName(),
-                            range,
-                            cacheBlobReader,
-                            () -> writeBuffer.get().clear(),
-                            bytesCopiedForShard::addAndGet,
-                            PREWARM_THREAD_POOL
+                        new LazyRangeMissingHandler<>(
+                            () -> new SequentialRangeMissingHandler(
+                                this,
+                                cacheKey.fileName(),
+                                range,
+                                cacheBlobReader,
+                                () -> writeBuffer.get().clear(),
+                                bytesCopiedForShard::addAndGet,
+                                PREWARM_THREAD_POOL
+                            )
                         ),
                         fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
                             @Override

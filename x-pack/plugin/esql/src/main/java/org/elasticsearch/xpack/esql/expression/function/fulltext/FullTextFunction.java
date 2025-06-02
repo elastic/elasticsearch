@@ -212,7 +212,7 @@ public abstract class FullTextFunction extends Function
             checkCommandsBeforeExpression(
                 plan,
                 condition,
-                MultiMatch.class,
+                Match.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures

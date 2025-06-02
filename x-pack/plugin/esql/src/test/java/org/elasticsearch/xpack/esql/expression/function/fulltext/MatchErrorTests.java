@@ -37,7 +37,7 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        Match match = new Match(source, List.of(args.get(0)), args.get(1), args.size() > 2 ? args.get(2) : null);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {

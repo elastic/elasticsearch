@@ -260,11 +260,11 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
         Match conditionCompletion = new Match(
             EMPTY,
-            completion.targetField(),
+            List.of(completion.targetField()),
             randomLiteral(DataType.TEXT),
-            mock(Expression.class),
-            mock(QueryBuilder.class)
+            mock(Expression.class)
         );
+        conditionCompletion.replaceQueryBuilder(mock(QueryBuilder.class));
         Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 
         LogicalPlan expectedOptimizedPlan = new Filter(

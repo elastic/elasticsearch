@@ -8,11 +8,29 @@
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.
 
-`analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
-
 `minimum_should_match`
 :   (integer) Minimum number of clauses that must match for a document to be returned.
+
+`fuzzy_transpositions`
+:   (boolean) If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.
+
+`tie_breaker`
+:   (float) Controls how score is blended together between field groups. Defaults to 0 (best score from each group).
+
+`type`
+:   (object) Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.
+
+`lenient`
+:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.
+
+`operator`
+:   (keyword) Boolean logic used to interpret text in the query value. Defaults to OR.
+
+`max_expansions`
+:   (integer) Maximum number of terms to which the query will expand. Defaults to 50.
+
+`analyzer`
+:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
 
 `zero_terms_query`
 :   (keyword) Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.
@@ -20,21 +38,9 @@
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
 
-`fuzzy_transpositions`
-:   (boolean) If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.
-
 `fuzzy_rewrite`
 :   (keyword) Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.
 
 `prefix_length`
 :   (integer) Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.
-
-`lenient`
-:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.
-
-`operator`
-:   (keyword) Boolean logic used to interpret text in the query value. Defaults to OR.
-
-`max_expansions`
-:   (integer) Maximum number of terms to which the query will expand. Defaults to 50.
 

@@ -7729,8 +7729,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Filter filter = as(limit.child(), Filter.class);
 
         Match match = as(filter.condition(), Match.class);
-        assertTrue(match.field() instanceof FieldAttribute);
-        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+        var fields = match.fields();
+        assertEquals(1, fields.size());
+        var field = fields.getFirst();
+        assertTrue(field instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) field).field().getName());
 
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
@@ -7761,8 +7764,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Filter filter = as(topN.child(), Filter.class);
 
         Match match = as(filter.condition(), Match.class);
-        assertTrue(match.field() instanceof FieldAttribute);
-        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
+        var fields = match.fields();
+        assertEquals(1, fields.size());
+        var field = fields.getFirst();
+        assertTrue(field instanceof FieldAttribute);
+        assertEquals("first_name", ((FieldAttribute) field).field().getName());
 
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -1217,22 +1216,22 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
         assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
+            "1:24: [Match] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
         assertEquals(
-            "1:47: [MATCH] function cannot be used after STATS",
+            "1:47: [Match] function cannot be used after STATS",
             error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
         );
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
         assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
+            "1:24: [Match] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
         assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
+            "1:24: [Match] function cannot be used after LIMIT",
             error("from test | limit 10 | where match ( first_name, \"Anna\" ) ")
         );
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
@@ -1242,18 +1241,18 @@ public class VerifierTests extends ESTestCase {
     // These should pass eventually once we lift some restrictions on match function
     public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
         assertEquals(
-            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
+            "1:67: [Match] function cannot operate on [initial], which is not a field from an index mapping",
             error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
         );
         assertEquals(
-            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
+            "1:67: [Match] function cannot operate on [text], which is not a field from an index mapping",
             error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
         );
     }
 
     public void testMatchFunctionIsNotNullable() {
         assertEquals(
-            "1:48: [MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            "1:48: [Match] function cannot operate on [text::keyword], which is not a field from an index mapping",
             error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
         );
     }
@@ -1379,7 +1378,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("Match", "match(first_name, \"Anna\")", "function");
     }
 
     public void testTermFunctionOnlyAllowedInWhere() throws Exception {
@@ -1458,7 +1457,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsDisjunctions() {
         checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
-        checkWithFullTextFunctionsDisjunctions("multi_match(first_name, last_name, \"Smith\")");
+        checkWithFullTextFunctionsDisjunctions("match(first_name, last_name, \"Smith\")");
         checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
         checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
@@ -1513,7 +1512,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("Match", "match(first_name, \"Anna\")", "function");
     }
 
     public void testTermFunctionWithNonBooleanFunctions() {
@@ -2188,7 +2187,7 @@ public class VerifierTests extends ESTestCase {
 
         // Check all data types for available options
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : Match.OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
             // Check every possible type for the option - we'll try to convert it to the expected type
@@ -2321,24 +2320,24 @@ public class VerifierTests extends ESTestCase {
 
     public void testMultiMatchOptions() {
         // Check positive cases
-        query("FROM test | WHERE MULTI_MATCH(first_name, \"Jean\")");
-        query("FROM test | WHERE MULTI_MATCH(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"slop\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"max_expansions\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"operator\": \"AND\"})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"prefix_length\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"tie_breaker\": 1.0})");
-        query("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"type\": \"best_fields\"})");
+        query("FROM test | WHERE MATCH(first_name, \"Jean\")");
+        query("FROM test | WHERE MATCH(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"slop\": 10})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"fuzziness\": 2})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"lenient\": false})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"max_expansions\": 10})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"operator\": \"AND\"})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"prefix_length\": 2})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"tie_breaker\": 1.0})");
+        query("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"type\": \"best_fields\"})");
 
         // Check all data types for available options
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : MultiMatch.OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : Match.OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
             // Check every possible type for the option - we'll try to convert it to the expected type
@@ -2357,7 +2356,7 @@ public class VerifierTests extends ESTestCase {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\""
+                String query = "FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\""
                     + optionName
                     + "\": "
                     + queryOptionValue
@@ -2372,7 +2371,7 @@ public class VerifierTests extends ESTestCase {
                     assertEquals(
                         "1:19: Invalid option ["
                             + optionName
-                            + "] in [MULTI_MATCH(first_name, last_name, \"Jean\", {\""
+                            + "] in [MATCH(first_name, last_name, \"Jean\", {\""
                             + optionName
                             + "\": "
                             + queryOptionValue
@@ -2392,9 +2391,9 @@ public class VerifierTests extends ESTestCase {
         }
 
         assertThat(
-            error("FROM test | WHERE MULTI_MATCH(first_name, last_name, \"Jean\", {\"unknown_option\": true})"),
+            error("FROM test | WHERE MATCH(first_name, last_name, \"Jean\", {\"unknown_option\": true})"),
             containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(first_name, last_name, \"Jean\", "
+                "1:19: Invalid option [unknown_option] in [MATCH(first_name, last_name, \"Jean\", "
                     + "{\"unknown_option\": true})], expected one of "
             )
         );
@@ -2402,39 +2401,39 @@ public class VerifierTests extends ESTestCase {
 
     public void testMultiMatchFunctionIsNotNullable() {
         assertEquals(
-            "1:54: [MultiMatch] function cannot operate on [text::keyword], which is not a field from an index mapping",
-            error("row n = null | eval text = n + 5 | where multi_match(text::keyword, \"Anna\")")
+            "1:48: [Match] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
         );
     }
 
     public void testMultiMatchWithNonIndexedColumnCurrentlyUnsupported() {
         assertEquals(
-            "1:73: [MultiMatch] function cannot operate on [initial], which is not a field from an index mapping",
-            error("from test | eval initial = substring(first_name, 1) | where multi_match(initial, \"A\")")
+            "1:67: [Match] function cannot operate on [initial], which is not a field from an index mapping",
+            error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
         );
         assertEquals(
-            "1:73: [MultiMatch] function cannot operate on [text], which is not a field from an index mapping",
-            error("from test | eval text=concat(first_name, last_name) | where multi_match(text, \"cat\")")
+            "1:67: [Match] function cannot operate on [text], which is not a field from an index mapping",
+            error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
         );
     }
 
     public void testMultiMatchFunctionNotAllowedAfterCommands() throws Exception {
         assertEquals(
-            "1:24: [MultiMatch] function cannot be used after LIMIT",
-            error("from test | limit 10 | where multi_match(first_name, \"Anna\")")
+            "1:24: [Match] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
         assertEquals(
-            "1:47: [MultiMatch] function cannot be used after STATS",
-            error("from test | STATS c = AVG(salary) BY gender | where multi_match(gender, \"F\")")
+            "1:47: [Match] function cannot be used after STATS",
+            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
         );
     }
 
     public void testMultiMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MultiMatch", "multi_match(first_name, last_name, \"Anna\")", "function");
+        checkWithDisjunctions("MultiMatch", "match(first_name, last_name, \"Anna\")", "function");
     }
 
     public void testMultiMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(first_name, last_name, \"Anna\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("Match", "match(first_name, last_name, \"Anna\")", "function");
     }
 
     public void testMultiMatchFunctionArgNotConstant() throws Exception {
@@ -2452,35 +2451,35 @@ public class VerifierTests extends ESTestCase {
     // Should pass eventually once we lift some restrictions on the multi-match function.
     public void testMultiMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
         assertEquals(
-            "1:74: Unknown column [first_name]\nline 1:86: Unknown column [last_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where multi_match(first_name, last_name, \"Anna\")")
+            "1:68: Unknown column [first_name]\nline 1:80: Unknown column [last_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, last_name, \"Anna\")")
         );
     }
 
     public void testMultiMatchFunctionNullArgs() throws Exception {
         assertEquals(
-            "1:19: second argument of [multi_match(\"query\", null)] cannot be null, received [null]",
-            error("from test | where multi_match(\"query\", null)")
+            "1:19: second argument of [match(\"query\", null)] cannot be null, received [null]",
+            error("from test | where match(\"query\", null)")
         );
         assertEquals(
-            "1:19: second argument of [multi_match(first_name, null)] cannot be null, received [null]",
-            error("from test | where multi_match(first_name, null)")
+            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
+            error("from test | where match(first_name, null)")
         );
     }
 
     public void testMultiMatchTargetsExistingField() throws Exception {
         assertEquals(
-            "1:45: Unknown column [first_name]\nline 1:57: Unknown column [last_name]",
-            error("from test | keep emp_no | where multi_match(first_name, last_name, \"Anna\")")
+            "1:39: Unknown column [first_name]\nline 1:51: Unknown column [last_name]",
+            error("from test | keep emp_no | where match(first_name, last_name, \"Anna\")")
         );
     }
 
     public void testMultiMatchInsideEval() throws Exception {
-        assumeTrue("MultiMatch operator is available just for snapshots", Build.current().isSnapshot());
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
-            "1:36: [MultiMatch] function is only supported in WHERE and STATS commands\n"
-                + "line 1:48: [MultiMatch] function cannot operate on [title], which is not a field from an index mapping",
-            error("row title = \"brown fox\" | eval x = multi_match(title, \"fox\")")
+            "1:36: [Match] function is only supported in WHERE and STATS commands\n"
+                + "line 1:48: [Match] function cannot operate on [title], which is not a field from an index mapping",
+            error("row title = \"brown fox\" | eval x = match(title, \"fox\")")
         );
     }
 
@@ -2495,7 +2494,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
-        checkFullTextFunctionsInStats("multi_match(first_name, last_name, \"Smith\")");
+        checkFullTextFunctionsInStats("match(first_name, last_name, \"Smith\")");
         checkFullTextFunctionsInStats("last_name : \"Smith\"");
         checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
         checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,6 +39,26 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     @FunctionalInterface
     protected interface TriFunction<T, U, V, R> {
         R apply(T t, U u, V v);
+    }
+
+    /**
+     * All spatial grid functions have one license requirement in common, and that is that they are licensed aty PLATINUM level
+     * oif the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
+     * of the spatial aggregations.
+     * @param fieldTypes (null for the function itself, otherwise a map of field named to types)
+     * @return The license requirement for the function with that type signature
+     */
+    protected static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        if (fieldTypes == null || fieldTypes.isEmpty()) {
+            // The function itself is not licensed, but the field types are.
+            return License.OperationMode.BASIC;
+        }
+        if (DataType.isSpatialShape(fieldTypes.getFirst())) {
+            // Only aggregations over shapes are licensed under platinum.
+            return License.OperationMode.PLATINUM;
+        }
+        // All other field types are licensed under basic.
+        return License.OperationMode.BASIC;
     }
 
     private static String getFunctionClassName() {

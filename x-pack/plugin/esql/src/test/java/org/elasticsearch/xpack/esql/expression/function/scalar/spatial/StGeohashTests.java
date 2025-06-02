@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +29,14 @@ import static org.hamcrest.Matchers.containsString;
 public class StGeohashTests extends SpatialGridFunctionTestCase {
     public StGeohashTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    /**
+     * Since geo grid functions are primarily used for spatial aggregations,
+     * we use the same license requirement as the spatial aggregations.
+     */
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return SpatialGridFunctionTestCase.licenseRequirement(fieldTypes);
     }
 
     @ParametersFactory

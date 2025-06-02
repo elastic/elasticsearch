@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +29,14 @@ import static org.hamcrest.Matchers.containsString;
 public class StGeohexTests extends SpatialGridFunctionTestCase {
     public StGeohexTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    /**
+     * Other geo grid functions use the same type-specific license requirement as the spatial aggregations, but geohex is licensed
+     * more strictly, at platinum for all field types.
+     */
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return License.OperationMode.PLATINUM;
     }
 
     @ParametersFactory

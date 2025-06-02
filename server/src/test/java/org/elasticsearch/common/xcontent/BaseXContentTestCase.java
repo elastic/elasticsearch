@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -377,15 +378,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'text':''}", () -> builder().startObject().field("text", new Text("")).endObject());
         assertResult("{'text':'foo bar'}", () -> builder().startObject().field("text", new Text("foo bar")).endObject());
 
-        final var random = ByteBuffer.wrap(randomBytes());
-        XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
+        final var random = randomBytes();
+        XContentBuilder builder = builder().startObject().field("text", new Text(new XContentString.EncodedBytes(random))).endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
             assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "text");
             assertTrue(parser.nextToken().isValue());
-            assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(StandardCharsets.UTF_8.decode(random).toString()));
+            assertThat(
+                new BytesRef(parser.charBuffer()).utf8ToString(),
+                equalTo(StandardCharsets.UTF_8.decode(ByteBuffer.wrap(random)).toString())
+            );
             assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
@@ -593,7 +597,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':['a','b','c']}", new Object[] { "a", "b", "c" });
         objects.put(
             "{'objects':['a','b','c']}",
-            new Object[] { new Text("a"), new Text(StandardCharsets.UTF_8.encode("b")), new Text("c") }
+            new Object[] { new Text("a"), new Text(new XContentString.EncodedBytes("b".getBytes(StandardCharsets.UTF_8))), new Text("c") }
         );
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[] { null, null, null });
@@ -640,7 +644,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':1}", (short) 1);
         object.put("{'object':'string'}", "string");
         object.put("{'object':'a'}", new Text("a"));
-        object.put("{'object':'b'}", new Text(StandardCharsets.UTF_8.encode("b")));
+        object.put("{'object':'b'}", new Text(new XContentString.EncodedBytes("b".getBytes(StandardCharsets.UTF_8))));
         object.put("{'object':null}", null);
         object.put("{'object':'OPEN'}", IndexMetadata.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);

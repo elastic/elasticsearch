@@ -29,6 +29,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -395,8 +396,8 @@ public abstract class StreamInput extends InputStream {
         if (length > 0) {
             readBytes(bytes, 0, length);
         }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        var encoded = new XContentString.EncodedBytes(bytes);
+        return new Text(encoded);
     }
 
     public Text readText() throws IOException {
@@ -406,8 +407,8 @@ public abstract class StreamInput extends InputStream {
         if (length > 0) {
             readBytes(bytes, 0, length);
         }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        var encoded = new XContentString.EncodedBytes(bytes);
+        return new Text(encoded);
     }
 
     @Nullable

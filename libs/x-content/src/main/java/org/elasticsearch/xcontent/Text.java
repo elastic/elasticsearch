@@ -13,8 +13,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Both {@link String} and {@link ByteBuffer} representation of the text. Starts with one of those, and if
- * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
+ * Both {@link String} and {@link EncodedBytes} representation of the text. Starts with one of those, and if
+ * the other is requested, caches the other one in a local reference so no additional conversion will be needed.
  */
 public final class Text implements XContentString, Comparable<Text>, ToXContentFragment {
 
@@ -31,7 +31,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
         return texts;
     }
 
-    private ByteBuffer bytes;
+    private EncodedBytes bytes;
     private String text;
     private int hash;
     private int stringLength = -1;
@@ -40,7 +40,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
      * Construct a Text from a UTF-8 encoded ByteBuffer. Since no string length is specified, {@link #stringLength()}
      * will perform a string conversion to measure the string length.
      */
-    public Text(ByteBuffer bytes) {
+    public Text(EncodedBytes bytes) {
         this.bytes = bytes;
     }
 
@@ -48,7 +48,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
      * Construct a Text from a UTF-8 encoded ByteBuffer and an explicit string length. Used to avoid string conversion
      * in {@link #stringLength()}.
      */
-    public Text(ByteBuffer bytes, int stringLength) {
+    public Text(EncodedBytes bytes, int stringLength) {
         this.bytes = bytes;
         this.stringLength = stringLength;
     }
@@ -58,16 +58,18 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     }
 
     /**
-     * Whether a {@link ByteBuffer} view of the data is already materialized.
+     * Whether an {@link EncodedBytes} view of the data is already materialized.
      */
     public boolean hasBytes() {
         return bytes != null;
     }
 
     @Override
-    public ByteBuffer bytes() {
+    public EncodedBytes bytes() {
         if (bytes == null) {
-            bytes = StandardCharsets.UTF_8.encode(text);
+            var byteBuff = StandardCharsets.UTF_8.encode(text);
+            assert byteBuff.hasArray();
+            bytes = new EncodedBytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
         }
         return bytes;
     }
@@ -82,7 +84,8 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public String string() {
         if (text == null) {
-            text = StandardCharsets.UTF_8.decode(bytes).toString();
+            var byteBuff = ByteBuffer.wrap(bytes.bytes(), bytes.offset(), bytes.length());
+            text = StandardCharsets.UTF_8.decode(byteBuff).toString();
         }
         return text;
     }
@@ -131,8 +134,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
         } else {
             // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
             // request to jackson to support InputStream as well?
-            assert bytes.hasArray();
-            return builder.utf8Value(bytes.array(), bytes.arrayOffset() + bytes.position(), bytes.remaining());
+            return builder.utf8Value(bytes.bytes(), bytes.offset(), bytes.length());
         }
     }
 }

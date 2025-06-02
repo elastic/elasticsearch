@@ -62,7 +62,6 @@ import java.util.Objects;
  */
 public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
 
-
     private final String field;
     private final long lowerValue;
     private final long upperValue;
@@ -76,8 +75,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
      * @param upperValue The upper end of the range (exclusive).
      * @param fallbackQuery A query to fall back to if the optimization cannot be applied.
      */
-    public XIndexSortSortedNumericDocValuesRangeQuery(
-        String field, long lowerValue, long upperValue, Query fallbackQuery) {
+    public XIndexSortSortedNumericDocValuesRangeQuery(String field, long lowerValue, long upperValue, Query fallbackQuery) {
         this.field = Objects.requireNonNull(field);
         this.lowerValue = lowerValue;
         this.upperValue = upperValue;
@@ -118,12 +116,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         if (this.field.equals(field) == false) {
             b.append(this.field).append(":");
         }
-        return b.append("[")
-            .append(lowerValue)
-            .append(" TO ")
-            .append(upperValue)
-            .append("]")
-            .toString();
+        return b.append("[").append(lowerValue).append(" TO ").append(upperValue).append("]").toString();
     }
 
     @Override
@@ -139,14 +132,12 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         if (rewrittenFallback == fallbackQuery) {
             return this;
         } else {
-            return new XIndexSortSortedNumericDocValuesRangeQuery(
-                field, lowerValue, upperValue, rewrittenFallback);
+            return new XIndexSortSortedNumericDocValuesRangeQuery(field, lowerValue, upperValue, rewrittenFallback);
         }
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
-        throws IOException {
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         Weight fallbackWeight = fallbackQuery.createWeight(searcher, scoreMode, boost);
 
         return new ConstantScoreWeight(this, boost) {
@@ -217,46 +208,45 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         byte[] value,
         boolean allowEqual,
         ByteArrayComparator comparator,
-        boolean lastDoc)
-        throws IOException {
+        boolean lastDoc
+    ) throws IOException {
         int cmp = comparator.compare(pointTree.getMaxPackedValue(), 0, value, 0);
         if (cmp < 0 || (cmp == 0 && allowEqual == false)) {
             return null;
         }
         if (pointTree.moveToChild() == false) {
             ValueAndDoc vd = new ValueAndDoc();
-            pointTree.visitDocValues(
-                new IntersectVisitor() {
+            pointTree.visitDocValues(new IntersectVisitor() {
 
-                    @Override
-                    public void visit(int docID, byte[] packedValue) throws IOException {
-                        if (vd.value == null) {
-                            int cmp = comparator.compare(packedValue, 0, value, 0);
-                            if (cmp > 0 || (cmp == 0 && allowEqual)) {
-                                vd.value = packedValue.clone();
-                                vd.docID = docID;
-                            }
-                        } else if (lastDoc && vd.done == false) {
-                            int cmp = comparator.compare(packedValue, 0, vd.value, 0);
-                            assert cmp >= 0;
-                            if (cmp > 0) {
-                                vd.done = true;
-                            } else {
-                                vd.docID = docID;
-                            }
+                @Override
+                public void visit(int docID, byte[] packedValue) throws IOException {
+                    if (vd.value == null) {
+                        int cmp = comparator.compare(packedValue, 0, value, 0);
+                        if (cmp > 0 || (cmp == 0 && allowEqual)) {
+                            vd.value = packedValue.clone();
+                            vd.docID = docID;
+                        }
+                    } else if (lastDoc && vd.done == false) {
+                        int cmp = comparator.compare(packedValue, 0, vd.value, 0);
+                        assert cmp >= 0;
+                        if (cmp > 0) {
+                            vd.done = true;
+                        } else {
+                            vd.docID = docID;
                         }
                     }
+                }
 
-                    @Override
-                    public void visit(int docID) throws IOException {
-                        throw new UnsupportedOperationException();
-                    }
+                @Override
+                public void visit(int docID) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
 
-                    @Override
-                    public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                        return Relation.CELL_CROSSES_QUERY;
-                    }
-                });
+                @Override
+                public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                    return Relation.CELL_CROSSES_QUERY;
+                }
+            });
             if (vd.value != null) {
                 return vd;
             } else {
@@ -282,12 +272,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
      * its first doc ID or last doc ID depending on {@code lastDoc}. This method returns -1 if there
      * is no greater value in the dataset.
      */
-    private static int nextDoc(
-        PointTree pointTree,
-        byte[] value,
-        boolean allowEqual,
-        ByteArrayComparator comparator,
-        boolean lastDoc)
+    private static int nextDoc(PointTree pointTree, byte[] value, boolean allowEqual, ByteArrayComparator comparator, boolean lastDoc)
         throws IOException {
         ValueAndDoc vd = findNextValue(pointTree, value, allowEqual, comparator, lastDoc);
         if (vd == null) {
@@ -312,16 +297,14 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
      * greater than the current leaf node that the provided {@link PointTree} is positioned on. This
      * returns -1 if no other leaf node contains the provided {@code value}.
      */
-    private static int lastDoc(PointTree pointTree, byte[] value, ByteArrayComparator comparator)
-        throws IOException {
+    private static int lastDoc(PointTree pointTree, byte[] value, ByteArrayComparator comparator) throws IOException {
         // Create a stack of nodes that may contain value that we'll use to search for the last leaf
         // node that contains `value`.
         // While the logic looks a bit complicated due to the fact that the PointTree API doesn't allow
         // moving back to previous siblings, this effectively performs a binary search.
         Deque<PointTree> stack = new ArrayDeque<>();
 
-        outer:
-        while (true) {
+        outer: while (true) {
 
             // Move to the next node
             while (pointTree.moveToSibling() == false) {
@@ -343,28 +326,27 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         while (stack.isEmpty() == false) {
             PointTree next = stack.pop();
             if (next.moveToChild() == false) {
-                int[] lastDoc = {-1};
-                next.visitDocValues(
-                    new IntersectVisitor() {
+                int[] lastDoc = { -1 };
+                next.visitDocValues(new IntersectVisitor() {
 
-                        @Override
-                        public void visit(int docID) throws IOException {
-                            throw new UnsupportedOperationException();
-                        }
+                    @Override
+                    public void visit(int docID) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
 
-                        @Override
-                        public void visit(int docID, byte[] packedValue) throws IOException {
-                            int cmp = comparator.compare(value, 0, packedValue, 0);
-                            if (cmp == 0) {
-                                lastDoc[0] = docID;
-                            }
+                    @Override
+                    public void visit(int docID, byte[] packedValue) throws IOException {
+                        int cmp = comparator.compare(value, 0, packedValue, 0);
+                        if (cmp == 0) {
+                            lastDoc[0] = docID;
                         }
+                    }
 
-                        @Override
-                        public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                            return Relation.CELL_CROSSES_QUERY;
-                        }
-                    });
+                    @Override
+                    public Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                        return Relation.CELL_CROSSES_QUERY;
+                    }
+                });
                 if (lastDoc[0] != -1) {
                     return lastDoc[0];
                 }
@@ -383,30 +365,23 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         return -1;
     }
 
-    private boolean matchNone(PointValues points, byte[] queryLowerPoint, byte[] queryUpperPoint)
-        throws IOException {
+    private boolean matchNone(PointValues points, byte[] queryLowerPoint, byte[] queryUpperPoint) throws IOException {
         assert points.getNumDimensions() == 1;
-        final ByteArrayComparator comparator =
-            ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
+        final ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
         return comparator.compare(points.getMinPackedValue(), 0, queryUpperPoint, 0) > 0
             || comparator.compare(points.getMaxPackedValue(), 0, queryLowerPoint, 0) < 0;
     }
 
-    private boolean matchAll(PointValues points, byte[] queryLowerPoint, byte[] queryUpperPoint)
-        throws IOException {
+    private boolean matchAll(PointValues points, byte[] queryLowerPoint, byte[] queryUpperPoint) throws IOException {
         assert points.getNumDimensions() == 1;
-        final ByteArrayComparator comparator =
-            ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
+        final ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
         return comparator.compare(points.getMinPackedValue(), 0, queryLowerPoint, 0) >= 0
             && comparator.compare(points.getMaxPackedValue(), 0, queryUpperPoint, 0) <= 0;
     }
 
-    private IteratorAndCount getDocIdSetIteratorOrNullFromBkd(
-        LeafReaderContext context, DocIdSetIterator delegate) throws IOException {
+    private IteratorAndCount getDocIdSetIteratorOrNullFromBkd(LeafReaderContext context, DocIdSetIterator delegate) throws IOException {
         Sort indexSort = context.reader().getMetaData().getSort();
-        if (indexSort == null
-            || indexSort.getSort().length == 0
-            || indexSort.getSort()[0].getField().equals(field) == false) {
+        if (indexSort == null || indexSort.getSort().length == 0 || indexSort.getSort()[0].getField().equals(field) == false) {
             return null;
         }
 
@@ -421,8 +396,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
             return null;
         }
 
-        if (points.getBytesPerDimension() != Long.BYTES
-            && points.getBytesPerDimension() != Integer.BYTES) {
+        if (points.getBytesPerDimension() != Long.BYTES && points.getBytesPerDimension() != Integer.BYTES) {
             return null;
         }
 
@@ -453,8 +427,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         }
 
         int minDocId, maxDocId;
-        final ByteArrayComparator comparator =
-            ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
+        final ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(points.getBytesPerDimension());
 
         if (reverse) {
             minDocId = nextDoc(points.getPointTree(), queryUpperPoint, false, comparator, true) + 1;
@@ -495,8 +468,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
             return IteratorAndCount.empty();
         }
 
-        SortedNumericDocValues sortedNumericValues =
-            DocValues.getSortedNumeric(context.reader(), field);
+        SortedNumericDocValues sortedNumericValues = DocValues.getSortedNumeric(context.reader(), field);
         NumericDocValues numericValues = DocValues.unwrapSingleton(sortedNumericValues);
         if (numericValues != null) {
             IteratorAndCount itAndCount = getDocIdSetIteratorOrNullFromBkd(context, numericValues);
@@ -504,9 +476,7 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
                 return itAndCount;
             }
             Sort indexSort = context.reader().getMetaData().getSort();
-            if (indexSort != null
-                && indexSort.getSort().length > 0
-                && indexSort.getSort()[0].getField().equals(field)) {
+            if (indexSort != null && indexSort.getSort().length > 0 && indexSort.getSort()[0].getField().equals(field)) {
 
                 final SortField sortField = indexSort.getSort()[0];
                 final SortField.Type sortFieldType = getSortFieldType(sortField);
@@ -535,8 +505,8 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         SortField sortField,
         SortField.Type sortFieldType,
         LeafReaderContext context,
-        DocIdSetIterator delegate)
-        throws IOException {
+        DocIdSetIterator delegate
+    ) throws IOException {
         long lower = sortField.getReverse() ? upperValue : lowerValue;
         long upper = sortField.getReverse() ? lowerValue : upperValue;
         int maxDoc = context.reader().maxDoc();
@@ -598,12 +568,10 @@ public class XIndexSortSortedNumericDocValuesRangeQuery extends Query {
         int compare(int docID) throws IOException;
     }
 
-    private static ValueComparator loadComparator(
-        SortField sortField, SortField.Type type, long topValue, LeafReaderContext context)
+    private static ValueComparator loadComparator(SortField sortField, SortField.Type type, long topValue, LeafReaderContext context)
         throws IOException {
         @SuppressWarnings("unchecked")
-        FieldComparator<Number> fieldComparator =
-            (FieldComparator<Number>) sortField.getComparator(1, Pruning.NONE);
+        FieldComparator<Number> fieldComparator = (FieldComparator<Number>) sortField.getComparator(1, Pruning.NONE);
         if (type == Type.INT) {
             fieldComparator.setTopValue((int) topValue);
         } else {

@@ -462,7 +462,7 @@ public final class FetchPhase {
      * Returns {@code null} when vectors should not be filtered out.
      */
     private static SourceFilter maybeExcludeNonSemanticTextVectors(SearchContext context) {
-        if (shouldExcludeVectorsFromSource(context)) {
+        if (shouldExcludeVectorsFromSource(context) == false) {
             return null;
         }
         var lookup = context.getSearchExecutionContext().getMappingLookup();

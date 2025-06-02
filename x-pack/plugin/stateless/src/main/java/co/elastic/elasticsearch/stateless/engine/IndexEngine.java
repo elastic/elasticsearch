@@ -57,6 +57,7 @@ import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
+import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -759,7 +760,16 @@ public class IndexEngine extends InternalEngine {
                 this::estimateMergeBytes
             );
         } else {
-            return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            if (threadPoolMergeExecutorService != null) {
+                return new StatelessThreadPoolMergeScheduler(
+                    shardId,
+                    indexSettings,
+                    threadPoolMergeExecutorService,
+                    this::estimateMergeBytes
+                );
+            } else {
+                return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            }
         }
     }
 
@@ -775,6 +785,83 @@ public class IndexEngine extends InternalEngine {
 
     public boolean hasQueuedOrRunningMerges() {
         return queuedOrRunningMergesCount.get() > 0;
+    }
+
+    private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
+        private final boolean prewarm;
+
+        StatelessThreadPoolMergeScheduler(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMemoryEstimateProvider mergeMemoryEstimateProvider
+        ) {
+            super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider);
+            prewarm = ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings());
+        }
+
+        @Override
+        protected void beforeMerge(OnGoingMerge merge) {
+            if (prewarm) {
+                cacheWarmingService.warmCacheForMerge(merge.getId(), shardId, store, merge.getMerge(), fileName -> {
+                    BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
+                    BlobLocation blobLocation = statelessCommitService.getBlobLocation(shardId, fileName);
+                    if (blobLocation != null && latestUploadedBcc != null) {
+                        // Only return the location if the file is uploaded as we don't want to try warming an un-uploaded file
+                        if (blobLocation.getBatchedCompoundCommitTermAndGeneration()
+                            .compareTo(latestUploadedBcc.primaryTermAndGeneration()) <= 0) {
+                            return blobLocation;
+                        }
+                    }
+                    return null;
+                });
+            }
+        }
+
+        @Override
+        protected void afterMerge(OnGoingMerge merge) {
+            onAfterMerge(merge);
+        }
+
+        @Override
+        protected void mergeQueued(OnGoingMerge merge) {
+            onMergeEnqueued(merge);
+        }
+
+        @Override
+        protected void mergeExecutedOrAborted(OnGoingMerge merge) {
+            onMergeExecutedOrAborted(merge);
+        }
+
+        @Override
+        protected boolean shouldSkipMerge() {
+            return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
+        }
+
+        @Override
+        protected boolean isAutoThrottle() {
+            return false;
+        }
+
+        @Override
+        protected int getMaxMergeCount() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        protected int getMaxThreadCount() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public void refreshConfig() {
+            // no-op
+        }
+
+        @Override
+        protected void handleMergeException(Throwable t) {
+            mergeException(t);
+        }
     }
 
     public record EngineMetrics(

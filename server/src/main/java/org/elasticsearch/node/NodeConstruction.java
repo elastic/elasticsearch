@@ -1173,7 +1173,7 @@ class NodeConstruction {
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
             () -> OnlinePrewarmingServiceProvider.DEFAULT
-        ).create(clusterService.getSettings(), threadPool, clusterService);
+        ).create(clusterService.getSettings(), threadPool, clusterService, telemetryProvider);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,

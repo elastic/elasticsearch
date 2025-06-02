@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -79,9 +78,6 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         return List.of(XPackClientPlugin.class);
     }
 
-    static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
-    static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
-
     @Before
     public void setup() {
         assertAcked(prepareCreate(TEST_INDEX_NAME).setMapping(getTestIndexMapping()));
@@ -113,7 +109,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         int actualTotalHits = (int) mapHitsTotal.get("value");
         int numHitsExpected = expectedIds.size();
 
-        // assertEquals(getAssertMessage("Search result total hits count mismatch"), numHitsExpected, actualTotalHits);
+        assertEquals(getAssertMessage("Search result total hits count mismatch"), numHitsExpected, actualTotalHits);
 
         List<Map<String, Object>> hits = (List<Map<String, Object>>) mapHits.get("hits");
         List<String> actualDocIds = new ArrayList<>();

@@ -425,13 +425,13 @@ public final class RepositoryData {
             // the new master, so we make the operation idempotent
             return this;
         }
-        final var shardGenerations = updatedShardGenerations.liveIndices();
+        final var liveIndexIds = updatedShardGenerations.liveIndices().indices();
         Map<String, SnapshotId> snapshots = new HashMap<>(snapshotIds);
         snapshots.put(snapshotId.getUUID(), snapshotId);
         Map<String, SnapshotDetails> newSnapshotDetails = new HashMap<>(snapshotsDetails);
         newSnapshotDetails.put(snapshotId.getUUID(), details);
         Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
-        for (final IndexId indexId : shardGenerations.indices()) {
+        for (final IndexId indexId : liveIndexIds) {
             final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
@@ -447,11 +447,8 @@ public final class RepositoryData {
                 : "Index meta generations should have been empty but was [" + indexMetaDataGenerations + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
-            assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet())
-                : "Shard generations contained indices "
-                    + shardGenerations.indices()
-                    + " but indexMetaData was given for "
-                    + indexMetaBlobs.keySet();
+            assert indexMetaBlobs.isEmpty() || liveIndexIds.equals(indexMetaBlobs.keySet())
+                : "Shard generations contained indices " + liveIndexIds + " but indexMetaData was given for " + indexMetaBlobs.keySet();
             newIndexMetaGenerations = indexMetaDataGenerations.withAddedSnapshot(snapshotId, indexMetaBlobs, newIdentifiers);
         }
 

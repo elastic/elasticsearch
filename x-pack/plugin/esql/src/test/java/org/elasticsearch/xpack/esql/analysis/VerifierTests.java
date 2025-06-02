@@ -1341,27 +1341,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS commands", error("row a = qstr(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
-    }
-
-    public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS commands", error("row a = kql(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
-    }
-
-    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
+    public void testFullTextFunctionsOnlyAllowedInWhere() throws Exception {
         checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
+        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1378,6 +1368,12 @@ public class VerifierTests extends ESTestCase {
             "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
             error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
+        if( "KQL".equals(functionName) || "QSTR".equals(functionName)) {
+            assertEquals(
+                "1:9: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
+                error("row a = " + functionInvocation)
+            );
+        }
     }
 
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
@@ -1396,29 +1392,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:19: argument of [kql(null)] cannot be null, received [null]", error("from test | where kql(null)"));
         // Other value types are tested in KqlFunctionTests
-    }
-
-    public void testFullTextFunctionsWithDisjunctions() {
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
-        checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
-        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
-        }
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name)", "function");
-        }
-    }
-
-    private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
-        query("from test | where " + functionInvocation + " or length(first_name) > 12");
-        query(
-            "from test | where ("
-                + functionInvocation
-                + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
-        );
-        query("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)");
     }
 
     public void testFullTextFunctionsDisjunctions() {
@@ -1472,25 +1445,20 @@ public class VerifierTests extends ESTestCase {
 
     }
 
-    public void testQueryStringFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
-    }
-
-    public void testKqlFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
-    }
-
-    public void testMatchFunctionWithNonBooleanFunctions() {
+    public void testFullTextFunctionsWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionWithNonBooleanFunctions() {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatorWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
+        }
     }
 
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
@@ -1561,18 +1529,6 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in QueryStringFunctionTests
     }
 
-    // These should pass eventually once we lift some restrictions on match function
-    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assertEquals(
-            "1:68: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
-        );
-        assertEquals(
-            "1:62: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
-        );
-    }
-
     public void testMatchFunctionNullArgs() throws Exception {
         assertEquals(
             "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
@@ -1600,15 +1556,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval query = concat(\"first\", \" name\") | where term(first_name, query)")
         );
         // Other value types are tested in QueryStringFunctionTests
-    }
-
-    // These should pass eventually once we lift some restrictions on match function
-    public void testTermFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:67: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where term(first_name, \"Anna\")")
-        );
     }
 
     public void testTermFunctionNullArgs() throws Exception {
@@ -2140,16 +2087,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchOptions() {
+    public void testFullTextFunctionOptions() {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})");
-    }
-
-    public void testMultiMatchOptions() {
-        checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
-    }
-
-    public void testQueryStringOptions() {
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()){
+            checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2200,39 +2146,6 @@ public class VerifierTests extends ESTestCase {
         };
     }
 
-    public void testMultiMatchFunctionIsNotNullable() {
-        assertEquals(
-            "1:62: [MultiMatch] function cannot operate on [text::keyword], which is not a field from an index mapping",
-            error("row n = null | eval text = n + 5 | where multi_match(\"Anna\", text::keyword)")
-        );
-    }
-
-    public void testMultiMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        assertEquals(
-            "1:78: [MultiMatch] function cannot operate on [initial], which is not a field from an index mapping",
-            error("from test | eval initial = substring(first_name, 1) | where multi_match(\"A\", initial)")
-        );
-        assertEquals(
-            "1:80: [MultiMatch] function cannot operate on [text], which is not a field from an index mapping",
-            error("from test | eval text=concat(first_name, last_name) | where multi_match(\"cat\", text)")
-        );
-    }
-
-    public void testMultiMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assertEquals(
-            "1:24: [MultiMatch] function cannot be used after LIMIT",
-            error("from test | limit 10 | where multi_match(\"Anna\", first_name)")
-        );
-        assertEquals(
-            "1:47: [MultiMatch] function cannot be used after STATS",
-            error("from test | STATS c = AVG(salary) BY gender | where multi_match(\"F\", gender)")
-        );
-    }
-
-    public void testMultiMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
-    }
-
     public void testMultiMatchFunctionArgNotConstant() throws Exception {
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
@@ -2242,14 +2155,24 @@ public class VerifierTests extends ESTestCase {
             "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
             error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
         );
-        // Other value types are tested in QueryStringFunctionTests
     }
 
-    // Should pass eventually once we lift some restrictions on the multi-match function.
+    // Should pass eventually once we lift some restrictions on full text search functions.
     public void testMultiMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assertEquals(
-            "1:82: Unknown column [first_name]\nline 1:94: Unknown column [last_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where multi_match(\"Anna\", first_name, last_name)")
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(first_name, \"Anna\")");
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("first_name : \"Anna\"");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Anna\", first_name)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(first_name, \"Anna\")");
+        }
+    }
+
+    private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
+        assertThat(
+            error("from test | stats max_salary = max(salary) by emp_no | where " + functionInvocation),
+            containsString("Unknown column [first_name]")
         );
     }
 

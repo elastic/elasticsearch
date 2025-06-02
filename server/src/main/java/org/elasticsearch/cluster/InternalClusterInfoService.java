@@ -89,11 +89,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
-    private volatile Map<String, HeapUsage> nodeHeapUsages;
+    private volatile Map<String, HeapUsage> nodesHeapUsage;
 
     private final ThreadPool threadPool;
     private final Client client;
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
+    private final HeapUsageSupplier heapUsageSupplier;
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
@@ -102,13 +103,20 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private RefreshScheduler refreshScheduler;
 
     @SuppressWarnings("this-escape")
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public InternalClusterInfoService(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        HeapUsageSupplier heapUsageSupplier
+    ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
-        this.nodeHeapUsages = Map.of();
+        this.nodesHeapUsage = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
+        this.heapUsageSupplier = heapUsageSupplier;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -175,6 +183,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
                 leastAvailableSpaceUsages = Map.of();
                 mostAvailableSpaceUsages = Map.of();
+                nodesHeapUsage = Map.of();
                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 callListeners();
                 return;
@@ -189,7 +198,24 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchIndicesStats();
                 }
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodesHeapUsage();
+                }
             }
+        }
+
+        private void fetchNodesHeapUsage() {
+            heapUsageSupplier.getClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Map<String, HeapUsage> stringHeapUsageMap) {
+                    nodesHeapUsage = stringHeapUsageMap;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to fetch heap usage for nodes", e);
+                }
+            }, fetchRefs.acquire()));
         }
 
         private void fetchIndicesStats() {
@@ -416,7 +442,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace,
-            nodeHeapUsages
+            nodesHeapUsage
         );
     }
 

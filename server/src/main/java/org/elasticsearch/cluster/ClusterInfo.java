@@ -36,7 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
@@ -57,7 +57,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<ShardId, Long> shardDataSetSizes;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
-    final Map<String, HeapUsage> nodeHeapUsage;
+    final Map<String, HeapUsage> nodesHeapUsage;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -81,7 +81,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, HeapUsage> nodeHeapUsage
+        Map<String, HeapUsage> nodesHeapUsage
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -89,7 +89,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
-        this.nodeHeapUsage = Map.copyOf(nodeHeapUsage);
+        this.nodesHeapUsage = Map.copyOf(nodesHeapUsage);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -102,9 +102,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
-            this.nodeHeapUsage = in.readImmutableMap(HeapUsage::new);
+            this.nodesHeapUsage = in.readImmutableMap(HeapUsage::new);
         } else {
-            this.nodeHeapUsage = Map.of();
+            this.nodesHeapUsage = Map.of();
         }
     }
 
@@ -121,7 +121,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         }
         out.writeMap(this.reservedSpace);
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
-            out.writeMap(this.nodeHeapUsage, StreamOutput::writeWriteable);
+            out.writeMap(this.nodesHeapUsage, StreamOutput::writeWriteable);
         }
     }
 
@@ -202,7 +202,17 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 return builder.endObject(); // NodeAndPath
             }),
-            endArray() // end "reserved_sizes"
+            chunk(
+                (builder, p) -> builder.endArray() // end "reserved_sizes"
+                    .startObject("heap_usage")
+            ),
+            Iterators.map(nodesHeapUsage.entrySet().iterator(), c -> (builder, p) -> {
+                builder.startObject(c.getKey());
+                c.getValue().toShortXContent(builder);
+                builder.endObject();
+                return builder;
+            }),
+            endObject() // end "heap_usage"
         );
     }
 

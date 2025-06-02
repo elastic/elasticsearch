@@ -71,7 +71,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
-        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            HeapUsageSupplier.EMPTY
+        );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 

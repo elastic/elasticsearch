@@ -12,6 +12,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.HeapUsageSupplier;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +29,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -44,6 +46,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -74,7 +77,14 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final HeapUsageSupplier heapUsageSupplier = getHeapUsageSupplier(pluginsService);
+        final InternalClusterInfoService service = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            heapUsageSupplier
+        );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
             clusterService.addListener(service);
@@ -145,5 +155,17 @@ class NodeServiceProvider {
 
     ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
         return new ReadinessService(clusterService, environment);
+    }
+
+    private static HeapUsageSupplier getHeapUsageSupplier(PluginsService pluginsService) {
+        final var heapUsageSuppliers = pluginsService.filterPlugins(ClusterPlugin.class)
+            .map(ClusterPlugin::getHeapUsageSupplier)
+            .filter(Objects::nonNull)
+            .toList();
+        return switch (heapUsageSuppliers.size()) {
+            case 0 -> HeapUsageSupplier.EMPTY;
+            case 1 -> heapUsageSuppliers.getFirst();
+            default -> throw new IllegalArgumentException("multiple plugins define heap usage suppliers, which is not permitted");
+        };
     }
 }

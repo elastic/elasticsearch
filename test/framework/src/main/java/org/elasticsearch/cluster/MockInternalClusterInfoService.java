@@ -43,7 +43,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
     public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
-        super(settings, clusterService, threadPool, client);
+        super(settings, clusterService, threadPool, client, HeapUsageSupplier.EMPTY);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {

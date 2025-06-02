@@ -35,15 +35,20 @@ public record HeapUsage(String nodeId, String nodeName, long totalBytes, long fr
         out.writeVLong(this.freeBytes);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("node_id", this.nodeId);
+    public XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("node_name", this.nodeName);
         builder.humanReadableField("total_heap_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
         builder.humanReadableField("used_heap_bytes", "used", ByteSizeValue.ofBytes(this.usedBytes()));
         builder.humanReadableField("free_heap_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes));
         builder.field("free_heap_percent", truncatePercent(this.freeHeapAsPercentage()));
         builder.field("used_heap_percent", truncatePercent(this.usedHeapAsPercentage()));
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node_id", this.nodeId);
+        toShortXContent(builder);
         return builder;
     }
 

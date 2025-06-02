@@ -241,7 +241,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders()
                 .add(
                     () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base" + File.pathSeparator + "/Users/prdoyle/IdeaProjects/elasticsearch/libs/entitlement/bridge/build/distributions/elasticsearch-entitlement-bridge-9.1.0-SNAPSHOT.jar",
                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                     )
                 );

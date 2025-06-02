@@ -206,14 +206,33 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection agentFiles = agentJarConfig;
 
+        String bridgeProject = ":libs:entitlement:bridge";
+        Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
+        bridgeJarConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", bridgeProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection bridgeFiles = bridgeJarConfig;
+
         project.getTasks().withType(Test.class).configureEach(test -> {
             // See also SystemJvmOptions.maybeAttachEntitlementAgent.
-            // We don't need the module-related options from there because tests don't run with modules
+
+            // Agent
             var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
             test.dependsOn(agentFiles);
             systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
             systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
-//            "-XX:+EnableDynamicAgentLoading"
+
+            // Bridge
+            String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+            test.dependsOn(bridgeFiles);
+            // Tests may not be modular, but the JDK still is
+            System.out.println("PATDOYLE: --patch-module=java.base=" + bridgeFiles.getAsPath());
+            System.out.println("--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                + modulesContainingEntitlementInstrumentation);
+//            test.jvmArgs("--patch-module=java.base=" + bridgeFiles.getAsPath());
+            test.jvmArgs("--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                + modulesContainingEntitlementInstrumentation);
         });
     }
 

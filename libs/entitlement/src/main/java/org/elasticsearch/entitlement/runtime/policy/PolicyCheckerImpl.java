@@ -473,7 +473,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         if (suppressFailureLogPackages.contains(callerClass.getPackage()) == false) {
             entitlements.logger().warn("Not entitled: {}", message, exception);
         }
-        throw exception;
+        //throw exception;
     }
 
     @Override

@@ -537,6 +537,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.release.ReleaseNotesGeneratorTest
   method: generateFile_index_rendersCorrectMarkup
   issue: https://github.com/elastic/elasticsearch/issues/128772
+- class: org.elasticsearch.gradle.internal.release.ReleaseNotesGeneratorTest
+  method: generateFile_index_noHighlights_rendersCorrectMarkup
+  issue: https://github.com/elastic/elasticsearch/issues/128773
 
 # Examples:
 #

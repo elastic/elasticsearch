@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.hamcrest.Matchers;
@@ -41,11 +40,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     private final boolean testIndexShouldPrune;
     private final boolean testQueryShouldNotPrune;
 
-    public SparseVectorIndexOptionsIT(
-        boolean setIndexOptions,
-        boolean setIndexShouldPrune,
-        boolean setQueryShouldNotPrune
-    ) {
+    public SparseVectorIndexOptionsIT(boolean setIndexOptions, boolean setIndexShouldPrune, boolean setQueryShouldNotPrune) {
         this.testHasIndexOptions = setIndexOptions;
         this.testIndexShouldPrune = setIndexShouldPrune;
         this.testQueryShouldNotPrune = setQueryShouldNotPrune;
@@ -114,7 +109,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         List<Map<String, Object>> hits = (List<Map<String, Object>>) mapHits.get("hits");
         List<String> actualDocIds = new ArrayList<>();
         for (Map<String, Object> doc : hits) {
-            actualDocIds.add((String)doc.get("_id"));
+            actualDocIds.add((String) doc.get("_id"));
         }
 
         assertEquals(getAssertMessage("Result document ids mismatch"), expectedIds, actualDocIds);
@@ -131,18 +126,10 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
             + TEST_PRUNING_TOKENS_WEIGHT_THRESHOLD
             + "}";
 
-        String pruningMappingString = testIndexShouldPrune
-                                      ? "\"prune\":true," + testPruningConfigMapping
-                                      : "\"prune\":false";
-        String indexOptionsString = testHasIndexOptions
-                                    ? ",\"index_options\":{" + pruningMappingString + "}"
-                                    : "";
+        String pruningMappingString = testIndexShouldPrune ? "\"prune\":true," + testPruningConfigMapping : "\"prune\":false";
+        String indexOptionsString = testHasIndexOptions ? ",\"index_options\":{" + pruningMappingString + "}" : "";
 
-        return "{\"properties\":{\""
-            + SPARSE_VECTOR_FIELD
-            + "\":{\"type\":\"sparse_vector\""
-            + indexOptionsString
-            + "}}}";
+        return "{\"properties\":{\"" + SPARSE_VECTOR_FIELD + "\":{\"type\":\"sparse_vector\"" + indexOptionsString + "}}}";
     }
 
     private boolean isRunningAgainstOldCluster() {
@@ -157,9 +144,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
         if (testHasIndexOptions) {
             // index has set index options in the mapping
-            return testIndexShouldPrune
-                ? EXPECTED_DOC_IDS_WITH_PRUNING
-                : EXPECTED_DOC_IDS_WITHOUT_PRUNING;
+            return testIndexShouldPrune ? EXPECTED_DOC_IDS_WITH_PRUNING : EXPECTED_DOC_IDS_WITHOUT_PRUNING;
         }
 
         // default pruning should be true with default configuration
@@ -174,7 +159,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private String getBuilderForSearch() {
         boolean shouldUseDefaultTokens = (testQueryShouldNotPrune == false && testHasIndexOptions == false);
-        SparseVectorQueryBuilder queryBuilder =  new SparseVectorQueryBuilder(
+        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
             SPARSE_VECTOR_FIELD,
             shouldUseDefaultTokens ? SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS : SEARCH_WEIGHTED_TOKENS,
             null,
@@ -218,9 +203,12 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     }
 
     private static final Map<String, String> TEST_DOCUMENTS = Map.of(
-        "1", "{\"sparse_vector_field\":{\"cheese\": 2.671405,\"is\": 0.11809908,\"comet\": 0.26088917}}",
-        "2", "{\"sparse_vector_field\":{\"planet\": 2.3438394,\"is\": 0.54600334,\"astronomy\": 0.36015007,\"moon\": 0.20022368}}",
-        "3", "{\"sparse_vector_field\":{\"is\": 0.6891394,\"globe\": 0.484035,\"ocean\": 0.080102935,\"underground\": 0.053516876}}"
+        "1",
+        "{\"sparse_vector_field\":{\"cheese\": 2.671405,\"is\": 0.11809908,\"comet\": 0.26088917}}",
+        "2",
+        "{\"sparse_vector_field\":{\"planet\": 2.3438394,\"is\": 0.54600334,\"astronomy\": 0.36015007,\"moon\": 0.20022368}}",
+        "3",
+        "{\"sparse_vector_field\":{\"is\": 0.6891394,\"globe\": 0.484035,\"ocean\": 0.080102935,\"underground\": 0.053516876}}"
     );
 
     private static final List<WeightedToken> SEARCH_WEIGHTED_TOKENS = List.of(
@@ -232,13 +220,9 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         new WeightedToken("is", 0.54600334f)
     );
 
-    private static final List<WeightedToken> SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS = List.of(
-        new WeightedToken("planet", 0.2f)
-    );
+    private static final List<WeightedToken> SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS = List.of(new WeightedToken("planet", 0.2f));
 
-    private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of(
-        "1", "3", "2"
-    );
+    private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of("1", "3", "2");
 
     private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of("1");
 

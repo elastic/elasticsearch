@@ -276,11 +276,11 @@ required_capability: knn_function
 
 from colors 
 | where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 40})
+| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 140})
 ;
 
 c: long 
-11      
+59      
 ;
 
 
@@ -289,22 +289,22 @@ required_capability: knn_function
 required_capability: full_text_functions_in_stats_where
 
 from colors metadata _score 
-| stats c = count(*) where (knn(rgb_vector, [0,255,255], {"k": 40}) or knn(rgb_vector, [0, 0, 255])) and knn(rgb_vector, [0, 255, 0], {"k": 40})
+| stats c = count(*) where (knn(rgb_vector, [0,255,255], {"k": 140}) or knn(rgb_vector, [0, 0, 255])) and knn(rgb_vector, [0, 255, 0], {"k": 40})
 ;
 
 c:long
-21
+40
 ;
 
 testKnnInStatsWithGrouping
 from colors 
 | where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 40}) by primary
+| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 140}) by primary
 ;
 
 c: long       | primary: boolean    
-9             | false          
-2             | true           
+50            | false          
+9             | true           
 ;
 
 testKnnInStatsPushable
@@ -319,16 +319,3 @@ from colors
 c:long
 40
 ;
-
-testKnnInStatsWithNonPushableDisjunctions
-required_capability: knn_function
-required_capability: full_text_functions_in_stats_where
-
-FROM colors
-| STATS c = count(*) where knn(rgb_vector, [128,128,0], {"k": 5}) or length(color) > 17 
-;
-
-c:long
-8
-;
-

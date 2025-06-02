@@ -332,10 +332,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             // The merge task is backlogged by the merge scheduler, try to get the next smallest one.
                             // It's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when
                             // itself decides that the merge task could be run. Note that it is possible that this merge
-                            // task is re-enqueued and re-took before the budget hold-up here is released below.
+                            // task is re-enqueued and re-took before the budget hold-up here is released upon the next
+                            // {@link PriorityBlockingQueueWithBudget#updateBudget} invocation.
                         }
                     } finally {
-                        // releases any budget that is still being allocated for the merge task
+                        // signals that the merge task is not in use anymore, so the budget (i.e. disk space) it's holding so far won't be
+                        // deducted from the total available
                         smallestMergeTaskWithReleasableBudget.close();
                     }
                 }
@@ -645,7 +647,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
 
             /**
-             * Must be invoked when the caller is done with the element that it took from the queue.
+             * Must be invoked when the caller is done with the element that it previously took from the queue.
+             * The budget it's holding is not immediately released, but the next time {@link #updateBudget(long)}
+             * is invoked this element's budget won't deduct from the total available.
              */
             @Override
             public void close() {
@@ -653,9 +657,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 lock.lock();
                 try {
                     assert unreleasedBudgetPerElement.containsKey(wrappedElement);
-                    // when the taken element is not used anymore, the budget it holds is released
-                    availableBudget += unreleasedBudgetPerElement.remove(wrappedElement);
-                    elementAvailable.signalAll();
+                    // when the taken element is not used anymore, it will not influence subsequent available budget computations
+                    unreleasedBudgetPerElement.remove(wrappedElement);
                 } finally {
                     lock.unlock();
                 }

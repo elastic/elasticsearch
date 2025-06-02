@@ -466,7 +466,9 @@ public final class FetchPhase {
             return null;
         }
         var lookup = context.getSearchExecutionContext().getMappingLookup();
-        List<String> inferencePatterns = lookup.inferenceFields().isEmpty() ? null : lookup.inferenceFields().keySet().stream().toList();
+        List<String> inferencePatterns = lookup.inferenceFields().isEmpty()
+            ? null
+            : lookup.inferenceFields().keySet().stream().map(f -> f + "*").toList();
         var excludes = lookup.getFullNameToFieldType()
             .values()
             .stream()

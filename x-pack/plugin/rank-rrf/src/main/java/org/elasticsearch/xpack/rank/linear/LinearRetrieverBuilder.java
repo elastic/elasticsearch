@@ -49,11 +49,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final float DEFAULT_SCORE = 0f;
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
+    private final Float minScore;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -62,6 +64,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         args -> {
             List<LinearRetrieverComponent> retrieverComponents = (List<LinearRetrieverComponent>) args[0];
             int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
+            Float minScore = (Float) args[2];
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             float[] weights = new float[retrieverComponents.size()];
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
@@ -72,13 +75,14 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 normalizers[index] = component.normalizer;
                 index++;
             }
-            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers, minScore);
         }
     );
 
     static {
         PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -105,14 +109,15 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()));
+        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()), null);
     }
 
     public LinearRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         int rankWindowSize,
         float[] weights,
-        ScoreNormalizer[] normalizers
+        ScoreNormalizer[] normalizers, 
+        Float minScore
     ) {
         super(innerRetrievers, rankWindowSize);
         if (weights.length != innerRetrievers.size()) {
@@ -121,13 +126,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (normalizers.length != innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
+        if (minScore != null && minScore < 0.0f) {
+            throw new IllegalArgumentException("[" + MIN_SCORE_FIELD.getPreferredName() + "] must be greater than or equal to 0, was: " + minScore);
+        }
         this.weights = weights;
         this.normalizers = normalizers;
+        this.minScore = minScore;
     }
 
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
+        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers, minScore);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -175,6 +184,20 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         // sort the results based on the final score, tiebreaker based on smaller doc id
         LinearRankDoc[] sortedResults = docsToRankResults.values().toArray(LinearRankDoc[]::new);
         Arrays.sort(sortedResults);
+
+        final LinearRankDoc[] resultsToConsider;
+        if (minScore != null) { // Check if minScore was actually set
+            List<LinearRankDoc> filteredList = new ArrayList<>(sortedResults.length);
+            for (LinearRankDoc doc : sortedResults) {
+                if (doc.score >= minScore) {
+                    filteredList.add(doc);
+                }
+            }
+            resultsToConsider = filteredList.toArray(LinearRankDoc[]::new);
+        } else {
+            resultsToConsider = sortedResults; // No filtering if minScore is null
+        }
+
         // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
         LinearRankDoc[] topResults = new LinearRankDoc[Math.min(rankWindowSize, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
@@ -204,5 +227,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
     }
 }

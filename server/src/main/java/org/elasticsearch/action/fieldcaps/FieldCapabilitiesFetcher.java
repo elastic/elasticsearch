@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -256,6 +258,13 @@ class FieldCapabilitiesFetcher {
             Set<String> acceptedTypes = Set.of(fieldTypes);
             fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
         }
+
+        Collection<InferenceFieldMetadata> inferenceFields = context.getMappingLookup().inferenceFields().values();
+        for (InferenceFieldMetadata inferenceField : inferenceFields) {
+            Predicate<MappedFieldType> next = ft -> ft.name().startsWith(inferenceField.getName() + ".inference") == false;
+            fcf = fcf == null ? next : fcf.and(next);
+        }
+
         for (String filter : filters) {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
                 continue;
@@ -269,6 +278,7 @@ class FieldCapabilitiesFetcher {
             };
             fcf = fcf == null ? next : fcf.and(next);
         }
+
         return fcf;
     }
 

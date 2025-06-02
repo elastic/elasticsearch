@@ -34,7 +34,7 @@ if [[ -z "$MANIFEST" ]]; then
    exit 1
 fi
 
-CURRENT_VERSION = $(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
+CURRENT_VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
 BC_VERSION=$(echo "$MANIFEST" | jq .version)
 BC_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)

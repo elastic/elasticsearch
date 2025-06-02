@@ -63,7 +63,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
-import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1541,22 +1540,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         QueryBuilder query = source.query();
-        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(
-            context.getSearchExecutionContext().getParserConfig(),
-            context::getRelativeTimeInMillis
-        );
         if (query != null) {
-            QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(query, innerHitsRewriteContext, true);
             if (false == source.skipInnerHits()) {
-                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+                InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
             }
             searchExecutionContext.setAliasFilter(context.request().getAliasFilter().getQueryBuilder());
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {
-            QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(source.postFilter(), innerHitsRewriteContext, true);
             if (false == source.skipInnerHits()) {
-                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+                InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
             }
             context.parsedPostFilter(searchExecutionContext.toQuery(source.postFilter()));
         }

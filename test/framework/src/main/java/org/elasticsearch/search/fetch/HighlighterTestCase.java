@@ -19,7 +19,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -112,7 +111,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
     private static FetchContext fetchContext(SearchExecutionContext context, SearchSourceBuilder search) throws IOException {
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
-        when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
+        when(fetchContext.userQueryBuilder()).thenReturn(search.query());
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(null, false));
         return fetchContext;

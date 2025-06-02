@@ -20,6 +20,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -137,6 +138,11 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public String source() {
+        return null;
+    }
+
+    @Override
+    public QueryBuilder userQueryBuilder() {
         return null;
     }
 

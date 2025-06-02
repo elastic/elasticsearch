@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.request.completion;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChat
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests.createCompletionModel;
 
 public class MistralChatCompletionRequestEntityTests extends ESTestCase {
@@ -45,8 +45,6 @@ public class MistralChatCompletionRequestEntityTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        String jsonString = Strings.toString(builder);
         String expectedJson = """
             {
                 "messages": [
@@ -60,6 +58,6 @@ public class MistralChatCompletionRequestEntityTests extends ESTestCase {
                 "stream": true
             }
             """;
-        assertJsonEquals(jsonString, expectedJson);
+        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
     }
 }

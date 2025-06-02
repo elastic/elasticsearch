@@ -808,7 +808,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
                 // "closed" took elements should not impact budget computation
                 tookElements.removeIf(PriorityBlockingQueueWithBudget.ElementWithReleasableBudget::isClosed);
-                long expectedBudget = availableBudget - tookElements.stream().mapToLong(e -> e.element().estimatedRemainingMergeSize()).sum();
+                long expectedBudget = availableBudget - tookElements.stream()
+                    .mapToLong(e -> e.element().estimatedRemainingMergeSize())
+                    .sum();
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
                 assertThat(afterBudget, is(expectedBudget));
             }
@@ -847,8 +849,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             } else if (randomBoolean()) {
                 // "closes" a previously took element to simulate it has gone out of scope
                 int index = randomValueOtherThanMany(
-                        i -> tookElements.get(i).isClosed(),
-                        () -> randomIntBetween(0, tookElements.size() - 1)
+                    i -> tookElements.get(i).isClosed(),
+                    () -> randomIntBetween(0, tookElements.size() - 1)
                 );
                 var elementToClose = tookElements.remove(index);
                 long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
@@ -859,8 +861,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             } else {
                 // update the remaining merge size of a took (but not "closed") merge task
                 int index = randomValueOtherThanMany(
-                        i -> tookElements.get(i).isClosed(),
-                        () -> randomIntBetween(0, tookElements.size() - 1)
+                    i -> tookElements.get(i).isClosed(),
+                    () -> randomIntBetween(0, tookElements.size() - 1)
                 );
                 var elementToUpdate = tookElements.get(index);
                 long prevElementBudget = elementToUpdate.element().estimatedRemainingMergeSize();

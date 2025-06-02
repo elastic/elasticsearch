@@ -203,16 +203,8 @@ public final class RemoteClusterService extends RemoteClusterAware
     ) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         final Map<String, List<String>> groupedIndices;
-        /*
-         * We could use IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY but that'd require adding dependency on its
-         * module and doing so results in a circular dependency warnings.
-         */
         if (returnLocalAll == false && IndexNameExpressionResolver.isNoneExpression(indices)) {
             groupedIndices = Map.of();
-            /*
-             * We set returnLocalAll to false because this semantic ["*", "-*"] specifically means that it's alright to return
-             * an empty response and in this context we do not want to fallback to the local cluster.
-             */
         } else {
             groupedIndices = groupClusterIndices(remoteClusterNames, indices);
         }

@@ -569,11 +569,26 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 var slice = slices.get(n);
                 long skipBytes = Math.max(0L, offset - slice.getKey());
                 assert skipBytes == 0 || n == 0 : "can be non-zero only for the first entry, but got: " + skipBytes + " for slice " + n;
-                var stream = (skipBytes == 0L)
-                    ? slice.getValue().getInputStream() // try to checksum the file when possible
-                    : slice.getValue().getInputStream(skipBytes, Long.MAX_VALUE);
-                assert stream.markSupported();
-                return stream;
+                if (skipBytes > 0) {
+                    // make sure that we validate the checksum of any file we reach the end of. To do this we need to read from the
+                    // beginning of this file even when we're starting at an offset. We do want to avoid reading skipped bytes if we are
+                    // not reaching the end of the file in this slice to minimize overread, so we only read skipped bytes if the end of the
+                    // first file in this slice is contained in the slice.
+                    final long chunkEnd = offset + length;
+                    final Long higherKey = internalDataReadersByOffset.higherKey(offset);
+                    final long fileEnd = higherKey == null ? getTotalSizeInBytes() : higherKey;
+                    final boolean overread = fileEnd <= chunkEnd;
+                    var stream = overread ? slice.getValue().getInputStream() : slice.getValue().getInputStream(skipBytes, Long.MAX_VALUE);
+                    if (overread) {
+                        stream.skipNBytes(skipBytes);
+                    }
+                    assert stream.markSupported();
+                    return stream;
+                } else {
+                    var stream = slice.getValue().getInputStream();
+                    assert stream.markSupported();
+                    return stream;
+                }
             }
 
             @Override

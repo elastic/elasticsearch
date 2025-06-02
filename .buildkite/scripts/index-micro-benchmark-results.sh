@@ -1,13 +1,9 @@
 #!/bin/bash
 
-METRICS_HOST=$(vault read -field=es_host /secret/performance/employees/cloud/esbench-metrics)
-METRICS_INDEX_NAME="dummy-micro-benchmarks"
-METRICS_USERNAME=$(vault read -field=es_username /secret/performance/employees/cloud/esbench-metrics)
-METRICS_PASSWORD=$(vault read -field=es_password /secret/performance/employees/cloud/esbench-metrics)
-
 jq -c '.[]' "benchmarks/build/result.json" | while read -r doc; do
-  curl -s -X POST "https://$METRICS_HOST/$METRICS_INDEX_NAME/_doc" \
-    -u "$METRICS_USERNAME:$METRICS_PASSWORD" \
+  echo "Indexing $(echo "$doc" | jq -r '.benchmark')"
+  curl -s -X POST "https://$PERF_METRICS_HOST/$PERF_METRICS_INDEX/_doc" \
+    -u "$PERF_METRICS_USERNAME:$PERF_METRICS_PASSWORD" \
     -H 'Content-Type: application/json' \
     -d "$doc"
 done

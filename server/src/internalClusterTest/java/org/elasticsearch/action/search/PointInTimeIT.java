@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -121,6 +122,27 @@ public class PointInTimeIT extends ESIntegTestCase {
                     assertThat(resp3.pointInTimeId(), equalTo(pitId));
                 }
             );
+        } finally {
+            closePointInTime(pitId);
+        }
+    }
+
+    public void testIndexWithAlias() {
+        String indexName = "index_1";
+        String alias = "alias_1";
+        assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(10, 0)).addAlias(new Alias(alias)));
+        int numDocs = randomIntBetween(50, 150);
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            prepareIndex(indexName).setId(id).setSource("value", i).get();
+        }
+        refresh(indexName);
+        BytesReference pitId = openPointInTime(new String[]{alias}, TimeValue.timeValueMinutes(1)).getPointInTimeId();;
+        try {
+            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
+                assertThat(resp1.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp1, numDocs);
+            });
         } finally {
             closePointInTime(pitId);
         }

@@ -58,8 +58,8 @@ public class IndexSortIT extends ESIntegTestCase {
     public void testIndexSort() {
         SortField dateSort = new SortedNumericSortField("date", SortField.Type.LONG, false);
         dateSort.setMissingValue(Long.MAX_VALUE);
-        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.LONG, false);
-        numericSort.setMissingValue(Long.MAX_VALUE);
+        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.INT, false);
+        numericSort.setMissingValue(Integer.MAX_VALUE);
         SortField keywordSort = new SortedSetSortField("keyword_dv", false);
         keywordSort.setMissingValue(SortField.STRING_LAST);
         Sort indexSort = new Sort(dateSort, numericSort, keywordSort);

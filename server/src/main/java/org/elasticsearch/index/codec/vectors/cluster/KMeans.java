@@ -17,11 +17,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm
  */
-public class KMeans {
+class KMeans {
 
     final int sampleSize;
     final int maxIterations;
@@ -29,6 +30,20 @@ public class KMeans {
     KMeans(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
+    }
+
+    // FIXME: use me or remove me
+    private static void shuffle(int[] items, Random random) {
+        if (items == null || items.length < 2) {
+            return;
+        }
+
+        for (int i = items.length - 1; i > 0; i--) {
+            int index = random.nextInt(i + 1);
+            int temp = items[i];
+            items[i] = items[index];
+            items[index] = temp;
+        }
     }
 
     /**
@@ -40,8 +55,13 @@ public class KMeans {
      * @return randomly selected centroids that are the min of centroidCount and sampleSize
      * @throws IOException is thrown if vectors is inaccessible
      */
-    public static float[][] pickInitialCentroids(FloatVectorValues vectors, int sampleSize, int centroidCount) throws IOException {
+    static float[][] pickInitialCentroids(FloatVectorValues vectors, int sampleSize, int centroidCount) throws IOException {
         // Choose data points as random ensuring we have distinct points where possible
+
+        // FIXME: use me or remove me
+//        int[] candidates = IntStream.range(0, sampleSize).toArray();
+//        shuffle(candidates, new Random(42L));
+
         List<Integer> candidates = new ArrayList<>(sampleSize);
         for (int i = 0; i < sampleSize; i++) {
             candidates.add(i);

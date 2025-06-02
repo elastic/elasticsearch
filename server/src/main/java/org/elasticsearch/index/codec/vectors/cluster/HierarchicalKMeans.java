@@ -129,9 +129,7 @@ public class HierarchicalKMeans {
             }
         }
 
-        int[] assignmentOrdinals = new int[vectors.slice.length];
-        System.arraycopy(vectors.slice, 0, assignmentOrdinals, 0, assignmentOrdinals.length);
-
+        int[] assignmentOrdinals = vectors.slice();
         kMeansResult = new KMeansResult(centroids, assignments, assignmentOrdinals);
 
         if (effectiveK == 1) {

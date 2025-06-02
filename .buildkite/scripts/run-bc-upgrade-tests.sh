@@ -14,9 +14,10 @@ set -euo pipefail
 # Select the most recent build from the current branch.
 # We collect snapshots, order by date, then collect BCs, order by date, and concat them; then we select the last.
 # So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
+FIXME revert branch
 MANIFEST_URL="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
 jq ".releases[] |
-select(.branch == \"$BUILDKITE_BRANCH\") |
+select(.branch == \"main\") |
 select(.active_release == true) |
 ((.snapshots | to_entries | sort_by(.value.completed_at)) +
 (.build_candidates | to_entries | sort_by(.value.completed_at))) |

@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.elastic.rerank.ElasticInferenceServiceRerankRequest;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRerankRequestManager;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -22,6 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
 
@@ -30,6 +36,11 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
     private final ServiceComponents serviceComponents;
 
     private final TraceContext traceContext;
+
+    static final ResponseHandler RERANK_HANDLER = new ElasticInferenceServiceResponseHandler(
+        "elastic rerank",
+        (request, response) -> ElasticInferenceServiceRerankResponseEntity.fromResponse(response)
+    );
 
     public ElasticInferenceServiceActionCreator(Sender sender, ServiceComponents serviceComponents, TraceContext traceContext) {
         this.sender = Objects.requireNonNull(sender);
@@ -48,7 +59,15 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
     @Override
     public ExecutableAction create(ElasticInferenceServiceRerankModel model) {
-        var requestManager = new ElasticInferenceServiceRerankRequestManager(model, serviceComponents, traceContext);
+        var threadPool = serviceComponents.threadPool();
+        var requestManager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            RERANK_HANDLER,
+            (rerankInput) -> new ElasticInferenceServiceRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model,
+                traceContext, extractRequestMetadataFromThreadContext(threadPool.getThreadContext())),
+            QueryAndDocsInputs.class
+        );
         var errorMessage = constructFailedToSendRequestMessage(
             String.format(Locale.ROOT, "%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );

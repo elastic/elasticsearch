@@ -66,27 +66,6 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
         }
     }
 
-    public record RerankExpectation(int index, float relevanceScore) {}
-
-    public static Map<String, Object> buildExpectationRankedDocResults(List<RerankExpectation> rerankExpectations) {
-        return Map.of(
-            RankedDocsResults.RERANK,
-            rerankExpectations.stream()
-                .map(
-                    rerankExpectation -> Map.of(
-                        RankedDocsResults.RankedDoc.NAME,
-                        Map.of(
-                            RankedDocsResults.RankedDoc.INDEX,
-                            rerankExpectation.index,
-                            RankedDocsResults.RankedDoc.RELEVANCE_SCORE,
-                            rerankExpectation.relevanceScore
-                        )
-                    )
-                )
-                .toList()
-        );
-    }
-
     private List<RankedDocsResults.RankedDoc> rankedDocsNullStringToEmpty(List<RankedDocsResults.RankedDoc> rankedDocs) {
         var result = new ArrayList<RankedDocsResults.RankedDoc>(rankedDocs.size());
         for (var doc : rankedDocs) {

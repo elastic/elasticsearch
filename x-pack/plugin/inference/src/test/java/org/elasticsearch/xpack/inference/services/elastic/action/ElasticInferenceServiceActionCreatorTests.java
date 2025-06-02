@@ -225,10 +225,10 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(
                 result.asMap(),
                 equalTo(
-                    RankedDocsResultsTests.buildExpectationRankedDocResults(
+                    RankedDocsResultsTests.buildExpectationRerank(
                         List.of(
-                            new RankedDocsResultsTests.RerankExpectation(0, 0.94f),
-                            new RankedDocsResultsTests.RerankExpectation(1, 0.21f)
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.21f))
                         )
                     )
                 )

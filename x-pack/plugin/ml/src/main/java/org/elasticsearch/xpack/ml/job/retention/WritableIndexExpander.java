@@ -66,7 +66,7 @@ public class WritableIndexExpander {
     }
 
     private Boolean isIndexReadOnly(String indexName) {
-        IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(indexName);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
         if (indexMetadata == null) {
             throw new IllegalArgumentException("Failed to identify if index is read-only: index [" + indexName + "] not found");
         }

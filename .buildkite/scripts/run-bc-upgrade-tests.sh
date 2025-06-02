@@ -39,7 +39,7 @@ CURRENT_VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' 
 BC_VERSION=$(echo "$MANIFEST" | jq .version)
 BC_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
 
-if [ "$CURRENT_VERSION" != "$BC_VERSION" ]; then
+if [ "$CURRENT_VERSION-SNAPSHOT" != "$BC_VERSION" ]; then
     echo "Version [$BC_VERSION] of BC (or snapshot) does not match current version [$CURRENT_VERSION] of branch [$BUILDKITE_BRANCH]."
     echo "Skipping BC upgrade tests."
     exit 0

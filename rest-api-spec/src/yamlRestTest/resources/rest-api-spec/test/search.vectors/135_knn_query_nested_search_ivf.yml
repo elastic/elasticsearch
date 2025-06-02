@@ -40,9 +40,9 @@ setup:
           name: cow.jpg
           nested:
           - paragraph_id: 0
-            vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+            vector: [230, 300.33, -34.8988, 15.555, -200]
           - paragraph_id: 1
-            vector: [240.0, 300, -3, 1, -20]
+            vector: [240, 300, -3, 1, -20]
 
   - do:
       index:
@@ -52,11 +52,11 @@ setup:
           name: moose.jpg
           nested:
           - paragraph_id: 0
-            vector: [-0.5, 100.0, -13, 14.8, -156.0]
+            vector: [-0.5, 100, -13, 14.8, -156]
           - paragraph_id: 2
-            vector: [0, 100.0, 0, 14.8, -156.0]
+            vector: [0, 100, 0, 14.8, -156]
           - paragraph_id: 3
-            vector: [0, 1.0, 0, 1.8, -15.0]
+            vector: [0, 1, 0, 1.8, -15]
 
   - do:
       index:
@@ -66,7 +66,7 @@ setup:
           name: rabbit.jpg
           nested:
             - paragraph_id: 0
-              vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+              vector: [0.5, 111.3, -13, 14.8, -156]
   - do:
       indices.forcemerge:
         index: test
@@ -88,8 +88,9 @@ setup:
               query:
                 knn:
                   field: nested.vector
-                  query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                  query_vector: [-0.5, 90, -10, 14.8, -156]
                   num_candidates: 3
+  - match: {hits.total.value: 3}
 
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
@@ -108,7 +109,7 @@ setup:
               query:
                 knn:
                   field: nested.vector
-                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  query_vector: [ -0.5, 90, -10, 14.8, -156 ]
                   num_candidates: 3
               inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
 

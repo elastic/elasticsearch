@@ -72,6 +72,8 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
@@ -117,6 +119,7 @@ import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
+    private static final Logger logger = LogManager.getLogger(DenseVectorFieldMapper.class);
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
@@ -2518,17 +2521,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
-                knnQuery = parentFilter != null ?
-                new DiversifyingChildrenIVFKnnFloatVectorQuery(
-                    name(),
-                    queryVector,
-                    adjustedK,
-                    numCands,
-                    filter,
-                    parentFilter,
-                    bbqIndexOptions.defaultNProbe
-                ) :
-                    new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
+                knnQuery = parentFilter != null
+                    ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        parentFilter,
+                        bbqIndexOptions.defaultNProbe
+                    )
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -2558,6 +2561,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, elementType, dims)
                 );
             }
+            logger.warn("Executing knn query [{}]", knnQuery);
             return knnQuery;
         }
 

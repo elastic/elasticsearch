@@ -276,7 +276,7 @@ Each entry specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
+    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
@@ -285,7 +285,6 @@ Each entry specifies the following parameters:
         score = (score - min) / (max - min)
         ```
 
-    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 

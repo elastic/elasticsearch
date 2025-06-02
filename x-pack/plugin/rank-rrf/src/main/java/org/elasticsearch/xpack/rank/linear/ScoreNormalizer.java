@@ -17,9 +17,6 @@ public abstract class ScoreNormalizer {
     public static ScoreNormalizer valueOf(String normalizer) {
         if (MinMaxScoreNormalizer.NAME.equalsIgnoreCase(normalizer)) {
             return MinMaxScoreNormalizer.INSTANCE;
-        } else if (L2ScoreNormalizer.NAME.equalsIgnoreCase(normalizer)) {
-            return L2ScoreNormalizer.INSTANCE;
-
         } else if (IdentityScoreNormalizer.NAME.equalsIgnoreCase(normalizer)) {
             return IdentityScoreNormalizer.INSTANCE;
 

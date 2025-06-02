@@ -71,7 +71,7 @@ public class StringUtilsTests extends ESTestCase {
         assertThat(luceneWildcardToRegExp("foo\\?bar\\?"), is("foo\\?bar\\?"));
         assertThat(luceneWildcardToRegExp("foo\\?bar\\"), is("foo\\?bar\\\\"));
         // reserved characters
-        assertThat(luceneWildcardToRegExp("[](){}^$.|+"), is("\\[\\]\\(\\)\\{\\}\\^\\$\\.\\|\\+"));
+        assertThat(luceneWildcardToRegExp("\"[](){}^$.|+"), is("\\\"\\[\\]\\(\\)\\{\\}\\^\\$\\.\\|\\+"));
         // reserved "optional" characters
         assertThat(luceneWildcardToRegExp("#&<>"), is("\\#\\&\\<\\>"));
         assertThat(luceneWildcardToRegExp("foo\\\uD83D\uDC14bar"), is("foo\uD83D\uDC14bar"));

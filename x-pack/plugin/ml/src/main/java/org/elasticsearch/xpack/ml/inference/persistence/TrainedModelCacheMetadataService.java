@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -123,9 +122,11 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
                 return initialState;
             }
 
-            return ClusterState.builder(initialState)
-                .metadata(Metadata.builder(initialState.metadata()).putCustom(TrainedModelCacheMetadata.NAME, currentCacheMetadata))
-                .build();
+            final var finalMetadata = currentCacheMetadata;
+            return initialState.copyAndUpdateProject(
+                initialState.metadata().getProject().id(),
+                builder -> builder.putCustom(TrainedModelCacheMetadata.NAME, finalMetadata)
+            );
         }
     }
 }

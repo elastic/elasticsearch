@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -879,7 +880,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name, Index indexToFollow) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+                final var project = currentState.metadata().getProject();
+                AutoFollowMetadata currentAutoFollowMetadata = project.custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
                 if (newFollowedIndexUUIDS.containsKey(name) == false) {
                     // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
@@ -900,9 +902,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     currentAutoFollowMetadata.getHeaders()
                 );
                 return ClusterState.builder(currentState)
-                    .metadata(
-                        Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
-                    )
+                    .putProjectMetadata(ProjectMetadata.builder(project).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
                     .build();
             };
         }
@@ -920,7 +920,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final List<String> autoFollowPatternNames
         ) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+                final var currentProject = currentState.metadata().getProject();
+                AutoFollowMetadata currentAutoFollowMetadata = currentProject.custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs = new HashMap<>(
                     currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
                 );
@@ -957,11 +958,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         autoFollowPatternNameToFollowedIndexUUIDs,
                         currentAutoFollowMetadata.getHeaders()
                     );
-                    return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
-                        )
-                        .build();
+                    return currentState.copyAndUpdateProject(
+                        currentProject.id(),
+                        builder -> builder.putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
+                    );
                 } else {
                     return currentState;
                 }

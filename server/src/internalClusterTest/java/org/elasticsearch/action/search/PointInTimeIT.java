@@ -49,6 +49,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -130,20 +131,35 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testIndexWithAlias() {
         String indexName = "index_1";
         String alias = "alias_1";
-        assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(10, 0)).addAlias(new Alias(alias)));
+        assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(10, 0))
+            .addAlias(new Alias(alias).filter("{\"term\":{\"tag\":\"a\"}}")));
+
+        Random random = new Random();
         int numDocs = randomIntBetween(50, 150);
+
+        int countTagA = 0;
         for (int i = 0; i < numDocs; i++) {
-            String id = Integer.toString(i);
-            prepareIndex(indexName).setId(id).setSource("value", i).get();
+            boolean isA = random.nextBoolean();
+            if (isA) countTagA++;
+            prepareIndex(indexName)
+                .setId(Integer.toString(i))
+                .setSource("tag", isA ? "a" : "b")
+                .get();
         }
+
         refresh(indexName);
         BytesReference pitId = openPointInTime(new String[] { alias }, TimeValue.timeValueMinutes(1)).getPointInTimeId();
-        ;
+
         try {
-            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
-                assertThat(resp1.pointInTimeId(), equalTo(pitId));
-                assertHitCount(resp1, numDocs);
-            });
+            int finalCountTagA = countTagA;
+            assertResponse(prepareSearch()
+                    .setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1)))
+                    .setSize(0)
+                    .setQuery(new MatchAllQueryBuilder()),
+                resp1 -> {
+                    assertThat(resp1.pointInTimeId(), equalTo(pitId));
+                    assertHitCount(resp1, finalCountTagA);
+                });
         } finally {
             closePointInTime(pitId);
         }

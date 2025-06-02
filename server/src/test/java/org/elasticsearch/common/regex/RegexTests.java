@@ -256,11 +256,15 @@ public class RegexTests extends ESTestCase {
     }
 
     public void testIntersectNonDeterminizedAutomaton() {
+        // patterns too complex to determinize within the default limit
         String[] patterns = randomArray(20, 100, size -> new String[size], () -> "*" + randomAlphanumericOfLength(10) + "*");
         Automaton a = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        assertFalse(a.isDeterministic());
         Automaton b = Regex.simpleMatchToNonDeterminizedAutomaton(Arrays.copyOfRange(patterns, patterns.length / 2, patterns.length));
+        assertFalse(b.isDeterministic());
         assertFalse(Operations.isEmpty(Operations.intersection(a, b)));
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> assertMatchesAll(a, "my_test"));
+        // the run automaton expects a deterministic automaton
         assertThat(exc.getMessage(), containsString("deterministic"));
         expectThrows(TooComplexToDeterminizeException.class, () -> Regex.simpleMatchToAutomaton(patterns));
     }

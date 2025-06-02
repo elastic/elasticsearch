@@ -1636,3 +1636,22 @@ max:long
 3450233
 8268153
 ;
+
+nullifiedJoinKeyToPurgeTheJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| RENAME languages AS language_code
+| SORT emp_no, language_code
+| LIMIT 4
+| EVAL language_code = TO_INTEGER(NULL)
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          |null           |null
+10002          |null           |null
+10003          |null           |null
+10004          |null           |null
+;

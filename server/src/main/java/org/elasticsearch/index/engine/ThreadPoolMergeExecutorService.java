@@ -638,10 +638,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 this.wrappedElement = new Wrap<>(element);
                 assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
                 // the taken element holds up some budget
-                var prev = unreleasedBudgetPerElement.put(wrappedElement, budget);
+                var prev = PriorityBlockingQueueWithBudget.this.unreleasedBudgetPerElement.put(wrappedElement, budget);
                 assert prev == null;
-                availableBudget -= budget;
-                assert availableBudget >= 0L;
+                PriorityBlockingQueueWithBudget.this.availableBudget -= budget;
+                assert PriorityBlockingQueueWithBudget.this.availableBudget >= 0L;
             }
 
             /**

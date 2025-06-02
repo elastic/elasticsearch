@@ -21,7 +21,7 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     FloatVectorValuesSlice(FloatVectorValues allValues, int[] slice) {
         assert slice.length <= allValues.size();
         this.allValues = allValues;
-        if(slice.length == allValues.size()) {
+        if (slice.length == allValues.size()) {
             this.slice = null;
         } else {
             this.slice = slice;
@@ -34,7 +34,7 @@ class FloatVectorValuesSlice extends FloatVectorValues {
 
     @Override
     public float[] vectorValue(int ord) throws IOException {
-        if(this.slice == null) {
+        if (this.slice == null) {
             return this.allValues.vectorValue(ord);
         } else {
             return this.allValues.vectorValue(this.slice[ord]);
@@ -48,7 +48,7 @@ class FloatVectorValuesSlice extends FloatVectorValues {
 
     @Override
     public int size() {
-        if(slice == null) {
+        if (slice == null) {
             return allValues.size();
         } else {
             return slice.length;

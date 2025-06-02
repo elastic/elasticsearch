@@ -157,11 +157,9 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private String getBuilderForSearch() {
         boolean shouldUseDefaultTokens = (testQueryShouldNotPrune == false && testHasIndexOptions == false);
-        TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig
-                                                ? new TokenPruningConfig(3f, 0.5f, true)
-                                                : null;
+        TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig ? new TokenPruningConfig(3f, 0.5f, true) : null;
 
-        SparseVectorQueryBuilder queryBuilder =  new SparseVectorQueryBuilder(
+        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
             SPARSE_VECTOR_FIELD,
             shouldUseDefaultTokens ? SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS : SEARCH_WEIGHTED_TOKENS,
             null,

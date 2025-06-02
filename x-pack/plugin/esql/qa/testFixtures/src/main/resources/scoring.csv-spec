@@ -119,7 +119,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match(author, title, "Mark", {"fuzziness": 1})
+| where match(author, title, "Mark", {"fuzziness": 1})
 | keep book_no, title, author, _score;
 ignoreOrder:true
 
@@ -132,7 +132,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match(description, title, "Hobbit", {"type": "best_fields"})
+| where match(description, title, "Hobbit", {"type": "best_fields"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;
@@ -159,7 +159,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match(description, title, "Hobbit", {"type": "most_fields"})
+| where match(description, title, "Hobbit", {"type": "most_fields"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;

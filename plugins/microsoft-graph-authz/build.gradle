@@ -98,4 +98,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: "azure"
   mapping from: /jackson.*/, to: "jackson"
   mapping from: /kotlin.*/, to: "kotlin"
+  mapping from: /msal4j.*/, to: "msal4j"
+  mapping from: /jna.*/, to: "jna"
+  mapping from: /opentelemetry.*/, to: "opentelemetry"
+  mapping from: /okio.*/, to: "okio"
 }

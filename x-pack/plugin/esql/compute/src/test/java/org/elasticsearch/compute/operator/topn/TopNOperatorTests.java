@@ -36,7 +36,6 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -90,7 +89,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -316,22 +314,192 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testBasicTopNWithPartitionField() {
-        List<Tuple<Long, BytesRef>> values = denormalize(List.of(
-            tuple(new BytesRef("a"), Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L)),
-            tuple(new BytesRef("b"), Arrays.asList(6L, 5L, 8L, null, 9L, 14L, null, 24L, 8L, 104L)),
-            tuple(new BytesRef("c"), Arrays.asList(-2L, -1L, -4L, null, -5L, -10L, null, -20L, -4L, -100L)),
-            tuple(new BytesRef(""), Arrays.asList(1L, 2L, 3L))
-        ));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 1, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(1L, "a"), tuple(5L, "b"), tuple(-100L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 1, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(100L, "a"), tuple(104L, "b"), tuple(-1L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 2, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(-100L, "c"), tuple(-20L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 2, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(-1L, "c"), tuple(-2L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 3, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 3, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(1L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(10L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(14L, "b"), tuple(-1L, "c"), tuple(-2L, "c"), tuple(-4L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 4, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(4L, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(8L, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c"), tuple(-5L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 4, false, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(2L, ""), tuple(1L, ""), tuple(100L, "a"), tuple(20L, "a"), tuple(10L, "a"), tuple(5L, "a"), tuple(104L, "b"), tuple(24L, "b"), tuple(14L, "b"), tuple(9L, "b"), tuple(-1L, "c"), tuple(-2L, "c"), tuple(-4L, "c"), tuple(-4L, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 100, true, false), equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(2L, ""), tuple(3L, ""), tuple(1L, "a"), tuple(2L, "a"), tuple(4L, "a"), tuple(4L, "a"), tuple(5L, "a"), tuple(10L, "a"), tuple(20L, "a"), tuple(100L, "a"), tuple(null, "a"), tuple(null, "a"), tuple(5L, "b"), tuple(6L, "b"), tuple(8L, "b"), tuple(8L, "b"), tuple(9L, "b"), tuple(14L, "b"), tuple(24L, "b"), tuple(104L, "b"), tuple(null, "b"), tuple(null, "b"), tuple(-100L, "c"), tuple(-20L, "c"), tuple(-10L, "c"), tuple(-5L, "c"), tuple(-4L, "c"), tuple(-4L, "c"), tuple(-2L, "c"), tuple(-1L, "c"), tuple(null, "c"), tuple(null, "c")))));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
+        List<Tuple<Long, BytesRef>> values = denormalize(
+            List.of(
+                tuple(new BytesRef("a"), Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L)),
+                tuple(new BytesRef("b"), Arrays.asList(6L, 5L, 8L, null, 9L, 14L, null, 24L, 8L, 104L)),
+                tuple(new BytesRef("c"), Arrays.asList(-2L, -1L, -4L, null, -5L, -10L, null, -20L, -4L, -100L)),
+                tuple(new BytesRef(""), Arrays.asList(1L, 2L, 3L))
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 1, true, false),
+            equalTo(stringsToBytesRefs(Arrays.asList(tuple(1L, ""), tuple(1L, "a"), tuple(5L, "b"), tuple(-100L, "c"))))
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 1, false, false),
+            equalTo(stringsToBytesRefs(Arrays.asList(tuple(3L, ""), tuple(100L, "a"), tuple(104L, "b"), tuple(-1L, "c"))))
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 2, true, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(1L, ""),
+                        tuple(2L, ""),
+                        tuple(1L, "a"),
+                        tuple(2L, "a"),
+                        tuple(5L, "b"),
+                        tuple(6L, "b"),
+                        tuple(-100L, "c"),
+                        tuple(-20L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 2, false, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(3L, ""),
+                        tuple(2L, ""),
+                        tuple(100L, "a"),
+                        tuple(20L, "a"),
+                        tuple(104L, "b"),
+                        tuple(24L, "b"),
+                        tuple(-1L, "c"),
+                        tuple(-2L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 3, true, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(1L, ""),
+                        tuple(2L, ""),
+                        tuple(3L, ""),
+                        tuple(1L, "a"),
+                        tuple(2L, "a"),
+                        tuple(4L, "a"),
+                        tuple(5L, "b"),
+                        tuple(6L, "b"),
+                        tuple(8L, "b"),
+                        tuple(-100L, "c"),
+                        tuple(-20L, "c"),
+                        tuple(-10L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 3, false, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(3L, ""),
+                        tuple(2L, ""),
+                        tuple(1L, ""),
+                        tuple(100L, "a"),
+                        tuple(20L, "a"),
+                        tuple(10L, "a"),
+                        tuple(104L, "b"),
+                        tuple(24L, "b"),
+                        tuple(14L, "b"),
+                        tuple(-1L, "c"),
+                        tuple(-2L, "c"),
+                        tuple(-4L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 4, true, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(1L, ""),
+                        tuple(2L, ""),
+                        tuple(3L, ""),
+                        tuple(1L, "a"),
+                        tuple(2L, "a"),
+                        tuple(4L, "a"),
+                        tuple(4L, "a"),
+                        tuple(5L, "b"),
+                        tuple(6L, "b"),
+                        tuple(8L, "b"),
+                        tuple(8L, "b"),
+                        tuple(-100L, "c"),
+                        tuple(-20L, "c"),
+                        tuple(-10L, "c"),
+                        tuple(-5L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 4, false, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(3L, ""),
+                        tuple(2L, ""),
+                        tuple(1L, ""),
+                        tuple(100L, "a"),
+                        tuple(20L, "a"),
+                        tuple(10L, "a"),
+                        tuple(5L, "a"),
+                        tuple(104L, "b"),
+                        tuple(24L, "b"),
+                        tuple(14L, "b"),
+                        tuple(9L, "b"),
+                        tuple(-1L, "c"),
+                        tuple(-2L, "c"),
+                        tuple(-4L, "c"),
+                        tuple(-4L, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 100, true, false),
+            equalTo(
+                stringsToBytesRefs(
+                    Arrays.asList(
+                        tuple(1L, ""),
+                        tuple(2L, ""),
+                        tuple(3L, ""),
+                        tuple(1L, "a"),
+                        tuple(2L, "a"),
+                        tuple(4L, "a"),
+                        tuple(4L, "a"),
+                        tuple(5L, "a"),
+                        tuple(10L, "a"),
+                        tuple(20L, "a"),
+                        tuple(100L, "a"),
+                        tuple(null, "a"),
+                        tuple(null, "a"),
+                        tuple(5L, "b"),
+                        tuple(6L, "b"),
+                        tuple(8L, "b"),
+                        tuple(8L, "b"),
+                        tuple(9L, "b"),
+                        tuple(14L, "b"),
+                        tuple(24L, "b"),
+                        tuple(104L, "b"),
+                        tuple(null, "b"),
+                        tuple(null, "b"),
+                        tuple(-100L, "c"),
+                        tuple(-20L, "c"),
+                        tuple(-10L, "c"),
+                        tuple(-5L, "c"),
+                        tuple(-4L, "c"),
+                        tuple(-4L, "c"),
+                        tuple(-2L, "c"),
+                        tuple(-1L, "c"),
+                        tuple(null, "c"),
+                        tuple(null, "c")
+                    )
+                )
+            )
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 100, false, false),
+            equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null))
+        );
         assertThat(topNLongWithPartitionField(driverContext(), values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
         assertThat(topNLongWithPartitionField(driverContext(), values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
         assertThat(topNLongWithPartitionField(driverContext(), values, 2, true, true), equalTo(Arrays.asList(null, null)));
@@ -340,8 +508,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(topNLongWithPartitionField(driverContext(), values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
         assertThat(topNLongWithPartitionField(driverContext(), values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
         assertThat(topNLongWithPartitionField(driverContext(), values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
-        assertThat(topNLongWithPartitionField(driverContext(), values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 100, true, true),
+            equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L))
+        );
+        assertThat(
+            topNLongWithPartitionField(driverContext(), values, 100, false, true),
+            equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L))
+        );
     }
 
     private static List<Tuple<Long, BytesRef>> denormalize(List<Tuple<BytesRef, List<Long>>> values) {
@@ -375,24 +549,42 @@ public class TopNOperatorTests extends OperatorTestCase {
         final boolean nullsFirst = randomBoolean();
         final int noPartitions = randomIntBetween(1, 20);
         final int limit = randomIntBetween(1, 20);
-        List<Tuple<Long, BytesRef>> inputValues = randomList(0, 5000, () ->
-            Tuple.tuple(
-                randomLongBetween(-10_000, 10_000),
-                new BytesRef("partition_" + randomIntBetween(1, noPartitions))
-            )
+        List<Tuple<Long, BytesRef>> inputValues = randomList(
+            0,
+            5000,
+            () -> Tuple.tuple(randomLongBetween(-10_000, 10_000), new BytesRef("partition_" + randomIntBetween(1, noPartitions)))
         );
         List<Tuple<Long, BytesRef>> expectedOutputValues = inputValues.stream()
-            .collect(groupingBy(Tuple::v2, TreeMap::new, collectingAndThen(toList(),
-                values -> values.stream().sorted(valueComparator).limit(limit).collect(toList()))))
-            .entrySet().stream().flatMap(e -> e.getValue().stream()).toList();
+            .collect(
+                groupingBy(
+                    Tuple::v2,
+                    TreeMap::new,
+                    collectingAndThen(toList(), values -> values.stream().sorted(valueComparator).limit(limit).collect(toList()))
+                )
+            )
+            .entrySet()
+            .stream()
+            .flatMap(e -> e.getValue().stream())
+            .toList();
 
-        List<Tuple<Long, BytesRef>> actualOutputValues =
-            topNLongWithPartitionField(driverContext, inputValues, limit, ascendingOrder, nullsFirst);
+        List<Tuple<Long, BytesRef>> actualOutputValues = topNLongWithPartitionField(
+            driverContext,
+            inputValues,
+            limit,
+            ascendingOrder,
+            nullsFirst
+        );
 
         assertThat(actualOutputValues, equalTo(expectedOutputValues));
     }
 
-    private List<Tuple<Long, BytesRef>> topNLongWithPartitionField(DriverContext driverContext, List<Tuple<Long, BytesRef>> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+    private List<Tuple<Long, BytesRef>> topNLongWithPartitionField(
+        DriverContext driverContext,
+        List<Tuple<Long, BytesRef>> inputValues,
+        int limit,
+        boolean ascendingOrder,
+        boolean nullsFirst
+    ) {
         List<Page> outputPages = new ArrayList<>();
         List<Tuple<Long, BytesRef>> actualOutputValues = new ArrayList<>();
         try (
@@ -424,7 +616,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             runDriver(driver);
         }
         assertDriverContext(driverContext);
-//        outputPages.forEach(Page::releaseBlocks);
+        // outputPages.forEach(Page::releaseBlocks);
         return actualOutputValues;
     }
 

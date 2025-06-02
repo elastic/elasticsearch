@@ -79,10 +79,13 @@ public record UnifiedCompletionRequest(
      */
     private static final String MAX_TOKENS_PARAM = "max_tokens_field";
     /**
-     * Some providers don't support the stream_options field.
-     * This parameter is used to skip the stream_options field in the JSON output.
+     * Indicates whether to include the `stream_options` field in the JSON output.
+     * Some providers do not support this field. In such cases, this parameter should be set to "false",
+     * and the `stream_options` field will be excluded from the output.
+     * For providers that do support stream options, this parameter is left unset (default behavior),
+     * which implicitly includes the `stream_options` field in the output.
      */
-    public static final String SKIP_STREAM_OPTIONS_PARAM = "skip_stream_options";
+    public static final String INCLUDE_STREAM_OPTIONS_PARAM = "include_stream_options";
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
@@ -100,14 +103,14 @@ public record UnifiedCompletionRequest(
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
      * - Key: {@link #MODEL_FIELD}, Value: modelId
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
-     * - Key: {@link #SKIP_STREAM_OPTIONS_PARAM}, Value: "true"
+     * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
      */
     public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
         return new DelegatingMapParams(
             Map.ofEntries(
                 Map.entry(MODEL_ID_PARAM, modelId),
                 Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
-                Map.entry(SKIP_STREAM_OPTIONS_PARAM, Boolean.TRUE.toString())
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
             ),
             params
         );

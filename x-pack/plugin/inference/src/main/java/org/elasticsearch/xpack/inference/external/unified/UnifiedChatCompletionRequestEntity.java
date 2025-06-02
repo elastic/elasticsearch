@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.SKIP_STREAM_OPTIONS_PARAM;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.INCLUDE_STREAM_OPTIONS_PARAM;
 
 /**
  * Represents a unified chat completion request entity.
@@ -49,7 +49,7 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
 
         builder.field(STREAM_FIELD, stream);
         // If request is streamed and skip stream options parameter is not true, include stream options in the request.
-        if (stream == true && params.paramAsBoolean(SKIP_STREAM_OPTIONS_PARAM, false) == false) {
+        if (stream && params.paramAsBoolean(INCLUDE_STREAM_OPTIONS_PARAM, true)) {
             builder.startObject(STREAM_OPTIONS_FIELD);
             builder.field(INCLUDE_USAGE_FIELD, true);
             builder.endObject();

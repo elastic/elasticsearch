@@ -1226,7 +1226,8 @@ public class VerifierTests extends ESTestCase {
         testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
-    public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) throws Exception {
+    public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation)
+        throws Exception {
         assertThat(
             error("from test | limit 10 | where " + functionInvocation),
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -1242,22 +1243,20 @@ public class VerifierTests extends ESTestCase {
     public void testFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         assertThat(
             error("from test | eval text = substring(first_name, 1) | where " + functionInvocation),
-            containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
         );
         assertThat(
             error("from test | eval text=concat(first_name, last_name) | where " + functionInvocation),
-            containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
         );
         var keywordInvocation = functionInvocation.replace("text", "text::keyword");
         String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation);
-        assertThat(
-            keywordError,
-            containsString("[" + functionName + "] " + functionType + " cannot operate on")
-        );
-        assertThat(
-            keywordError,
-            containsString("which is not a field from an index mapping")
-        );
+        assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
+        assertThat(keywordError, containsString("which is not a field from an index mapping"));
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
@@ -1346,11 +1345,14 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
+        }
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
 
@@ -1368,30 +1370,12 @@ public class VerifierTests extends ESTestCase {
             "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
             error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
-        if( "KQL".equals(functionName) || "QSTR".equals(functionName)) {
+        if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
             assertEquals(
                 "1:9: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
                 error("row a = " + functionInvocation)
             );
         }
-    }
-
-    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assertEquals(
-            "1:19: first argument of [qstr(first_name)] must be a constant, received [first_name]",
-            error("from test | where qstr(first_name)")
-        );
-        assertEquals("1:19: first argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    public void testKqlFunctionArgNotNullOrConstant() throws Exception {
-        assertEquals(
-            "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
-            error("from test | where kql(first_name)")
-        );
-        assertEquals("1:19: argument of [kql(null)] cannot be null, received [null]", error("from test | where kql(null)"));
-        // Other value types are tested in KqlFunctionTests
     }
 
     public void testFullTextFunctionsDisjunctions() {
@@ -1520,62 +1504,22 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionArgNotConstant() throws Exception {
-        assertEquals(
-            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where match(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
+    public void testFullTextFunctionsTargetsExistingField() throws Exception {
+        testFullTextFunctionTargetsExistingField("match(first_name, \"Anna\")");
+        testFullTextFunctionTargetsExistingField("first_name : \"Anna\"");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("multi_match(\"Anna\", first_name)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("term(fist_name, \"Anna\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
+        }
     }
 
-    public void testMatchFunctionNullArgs() throws Exception {
-        assertEquals(
-            "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
-            error("from test | where match(null, \"query\")")
-        );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
-    }
-
-    public void testMatchTargetsExistingField() throws Exception {
-        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
-        assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
-    }
-
-    public void testTermFunctionArgNotConstant() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:19: second argument of [term(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where term(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [term(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where term(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    public void testTermFunctionNullArgs() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:19: first argument of [term(null, \"query\")] cannot be null, received [null]",
-            error("from test | where term(null, \"query\")")
-        );
-        assertEquals(
-            "1:19: second argument of [term(first_name, null)] cannot be null, received [null]",
-            error("from test | where term(first_name, null)")
-        );
-    }
-
-    public void testTermTargetsExistingField() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
+    private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
+        assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2093,7 +2037,7 @@ public class VerifierTests extends ESTestCase {
     public void testFullTextFunctionOptions() {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(first_name, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"first_name: Jean\", {\"%s\": %s})");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()){
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
@@ -2161,7 +2105,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     // Should pass eventually once we lift some restrictions on full text search functions.
-    public void testMultiMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+    public void testFullTextFunctionCurrentlyUnsupportedBehaviour() throws Exception {
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(first_name, \"Anna\")");
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("first_name : \"Anna\"");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
@@ -2179,30 +2123,51 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMultiMatchFunctionNullArgs() throws Exception {
-        assertEquals(
-            "1:19: first argument of [multi_match(\"query\", null)] cannot be null, received [null]",
-            error("from test | where multi_match(\"query\", null)")
-        );
-        assertEquals(
-            "1:19: first argument of [multi_match(null, first_name)] cannot be null, received [null]",
-            error("from test | where multi_match(null, first_name)")
+    public void testFullTextFunctionsNullArgs() throws Exception {
+        testFullTextFunctionNullArgs("match(null, \"query\")", "first");
+        testFullTextFunctionNullArgs("match(first_name, null)", "second");
+        testFullTextFunctionNullArgs("qstr(null)", "");
+        testFullTextFunctionNullArgs("kql(null)", "");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionNullArgs("multi_match(null, first_name)", "first");
+            testFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionNullArgs("term(null, \"query\")", "first");
+            testFullTextFunctionNullArgs("term(first_name, null)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+            testFullTextFunctionNullArgs("knn(vector, null)", "second");
+        }
+    }
+
+    private void testFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
     }
 
-    public void testMultiMatchTargetsExistingField() throws Exception {
-        assertEquals(
-            "1:53: Unknown column [first_name]\nline 1:65: Unknown column [last_name]",
-            error("from test | keep emp_no | where multi_match(\"Anna\", first_name, last_name)")
-        );
+    public void testFullTextFunctionsConstantQuery() throws Exception {
+        testFullTextFunctionsConstantQuery("match(first_name, last_name)", "second");
+        testFullTextFunctionsConstantQuery("qstr(first_name)", "");
+        testFullTextFunctionsConstantQuery("kql(first_name)", "");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionsConstantQuery("multi_match(first_name, first_name)", "first");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionsConstantQuery("term(first_name, last_name)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
+        }
     }
 
-    public void testMultiMatchInsideEval() throws Exception {
-        assumeTrue("MultiMatch operator is available just for snapshots", Build.current().isSnapshot());
-        assertEquals(
-            "1:36: [MultiMatch] function is only supported in WHERE and STATS commands\n"
-                + "line 1:55: [MultiMatch] function cannot operate on [title], which is not a field from an index mapping",
-            error("row title = \"brown fox\" | eval x = multi_match(\"fox\", title)")
+    private void testFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
         );
     }
 

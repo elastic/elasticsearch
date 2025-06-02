@@ -323,6 +323,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
         mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+        mv.visitTypeInsn(CHECKCAST, "org/elasticsearch/entitlement/bridge/EntitlementChecker");
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

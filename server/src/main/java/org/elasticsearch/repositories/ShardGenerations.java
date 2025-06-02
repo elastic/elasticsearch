@@ -254,18 +254,18 @@ public final class ShardGenerations {
             return this;
         }
 
-        private Builder updateIfPresent(ShardGenerations shardGenerations) {
+        private void updateIfPresent(ShardGenerations shardGenerations) {
             shardGenerations.shardGenerations.forEach((indexId, gens) -> {
-                if (generations.containsKey(indexId)) {
+                final Map<Integer, ShardGeneration> existingShardGens = generations.get(indexId);
+                if (existingShardGens != null) {
                     for (int i = 0; i < gens.size(); i++) {
                         final ShardGeneration gen = gens.get(i);
                         if (gen != null) {
-                            generations.get(indexId).put(i, gen);
+                            existingShardGens.put(i, gen);
                         }
                     }
                 }
             });
-            return this;
         }
 
         private boolean noDuplicateIndicesWithSameName(IndexId newId) {

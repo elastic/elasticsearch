@@ -1215,44 +1215,37 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match(first_name, \"Anna\")")
-        );
-        assertEquals(
-            "1:47: [MATCH] function cannot be used after STATS",
-            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
-        );
+    public void testFieldBasedFullTextFunctions() throws Exception {
+        testFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
+        testFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
+        testFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+
+        testFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(first_name, \"Anna\")");
+        testFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "first_name : \"Anna\"");
+        testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Anna\", first_name)");
+        testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
-    public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match(first_name, \"Anna\")")
+    public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) throws Exception {
+        assertThat(
+            error("from test | limit 10 | where " + functionInvocation),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match ( first_name, \"Anna\" ) ")
+        String fieldName = "KNN".equals(functionName) ? "vector" : "first_name";
+        assertThat(
+            error("from test | STATS c = COUNT(emp_no) BY " + fieldName + " | where " + functionInvocation),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
-        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
-        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
-    }
-
-    public void testFieldBasedFullTextFunctions() {
-        testFieldBasedWithNonIndexedColumn("MATCH", " match(text, \"cat\")", "function");
-        testFieldBasedWithNonIndexedColumn(":", " text : \"cat\"", "operator");
-        testFieldBasedWithNonIndexedColumn("MultiMatch", " multi_match(\"cat\", text)", "function");
     }
 
     // These should pass eventually once we lift some restrictions on match function
     public void testFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         assertThat(
-            error("from test | eval text = substring(first_name, 1) | where" + functionInvocation),
+            error("from test | eval text = substring(first_name, 1) | where " + functionInvocation),
             containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
         );
         assertThat(
-            error("from test | eval text=concat(first_name, last_name) | where" + functionInvocation),
+            error("from test | eval text=concat(first_name, last_name) | where " + functionInvocation),
             containsString("[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping")
         );
         var keywordInvocation = functionInvocation.replace("text", "text::keyword");

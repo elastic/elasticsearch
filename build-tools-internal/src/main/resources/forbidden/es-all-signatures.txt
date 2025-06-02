@@ -68,3 +68,4 @@ org.apache.lucene.document.LongField#newExactQuery(java.lang.String, long) @ Use
 org.apache.lucene.document.LongField#newRangeQuery(java.lang.String, long, long) @ Use org.elasticsearch.lucene.document.NumericField#newRangeLongQuery(java.lang.String, long, long) instead.
 org.apache.lucene.document.IntField#newExactQuery(java.lang.String, int) @ Use org.elasticsearch.lucene.document.NumericField#newExactIntQuery(java.lang.String, int) instead.
 org.apache.lucene.document.IntField#newRangeQuery(java.lang.String, int, int) @ Use org.elasticsearch.lucene.document.NumericField#newRangeIntQuery(java.lang.String, int, int) instead.
+org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery @ use org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery instead.

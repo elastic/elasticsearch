@@ -28,5 +28,6 @@ tasks.named("shadowJar").configure {
   manifest {
     attributes 'Automatic-Module-Name': 'org.opensaml.security'
   }
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
   exclude 'META-INF/services/org.opensaml.security.crypto.ec.NamedCurve'
 }

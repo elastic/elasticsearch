@@ -180,16 +180,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
         private final IpDatabaseProvider ipDatabaseProvider;
         private final String databaseFile;
         private final String databaseType;
+        private final ProjectId projectId;
 
-        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType) {
+        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType,
+                                         ProjectId projectId) {
             this.ipDatabaseProvider = ipDatabaseProvider;
             this.databaseFile = databaseFile;
             this.databaseType = databaseType;
+            this.projectId = projectId;
         }
 
         @Override
         public IpDatabase get() throws IOException {
-            IpDatabase loader = ipDatabaseProvider.getDatabase(databaseFile);
+            IpDatabase loader = ipDatabaseProvider.getDatabase(projectId, databaseFile);
             if (loader == null) {
                 return null;
             }
@@ -242,7 +245,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
             final String databaseType;
-            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
+            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(projectId, databaseFile)) {
                 if (ipDatabase == null) {
                     // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
                     // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
@@ -302,8 +305,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 processorTag,
                 description,
                 ipField,
-                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
-                () -> ipDatabaseProvider.isValid(databaseFile),
+                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType, projectId),
+                () -> ipDatabaseProvider.isValid(projectId, databaseFile),
                 targetField,
                 ipDataLookup,
                 ignoreMissing,

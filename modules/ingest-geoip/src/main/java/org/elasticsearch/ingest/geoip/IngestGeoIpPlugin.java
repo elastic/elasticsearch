@@ -139,7 +139,7 @@ public class IngestGeoIpPlugin extends Plugin
     public Collection<?> createComponents(PluginServices services) {
         try {
             String nodeId = services.nodeEnvironment().nodeId();
-            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get(), services.projectResolver());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -16,9 +16,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -72,6 +75,7 @@ import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState.getEnterpriseGeoIpTaskState;
+import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.getTaskId;
 import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
 
 /**
@@ -105,8 +109,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     private final Consumer<Runnable> genericExecutor;
     private final ClusterService clusterService;
     private IngestService ingestService;
+    private ProjectResolver projectResolver;
 
-    private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
 
     DatabaseNodeService(
         Environment environment,
@@ -141,9 +146,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         this.clusterService = clusterService;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg,
+                           ProjectResolver projectResolver) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
+        // delete all stale files in the geoip tmp directory
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
@@ -164,7 +171,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
                 if (e instanceof NoSuchFileException == false) {
-                    logger.warn("can't delete stale file [" + file + "]", e);
+                    logger.warn("can't delete stale file [{}]", file, e);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -180,14 +187,15 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         logger.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
         this.ingestService = ingestServiceArg;
         clusterService.addListener(event -> checkDatabases(event.state()));
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    public Boolean isValid(String databaseFile) {
-        ClusterState currentState = clusterService.state();
-        assert currentState != null;
+    public Boolean isValid(ProjectId projectId,String databaseFile) {
+        ProjectState projectState = clusterService.state().projectState(projectId);
+        assert projectState != null;
 
-        GeoIpTaskState state = getGeoIpTaskState(currentState);
+        GeoIpTaskState state = getGeoIpTaskState(projectState.metadata(), getTaskId(projectId, projectResolver.supportsMultipleProjects()));
         if (state == null) {
             return true;
         }
@@ -198,7 +206,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return true;
         }
 
-        boolean valid = metadata.isNewEnough(currentState.metadata().settings());
+        boolean valid = metadata.isNewEnough(projectState.cluster().metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",
@@ -210,11 +218,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     }
 
     // for testing only:
-    DatabaseReaderLazyLoader getDatabaseReaderLazyLoader(String name) {
+    DatabaseReaderLazyLoader getDatabaseReaderLazyLoader(ProjectId projectId, String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
-            DatabaseReaderLazyLoader instance = databases.get(name);
+            DatabaseReaderLazyLoader instance = getProjectLazyLoader(projectId, name);
             if (instance == null) {
                 instance = configDatabases.getDatabase(name);
             }
@@ -227,25 +235,27 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     }
 
     @Override
-    public IpDatabase getDatabase(String name) {
-        return getDatabaseReaderLazyLoader(name);
+    public IpDatabase getDatabase(ProjectId projectId, String name) {
+        return getDatabaseReaderLazyLoader(projectId, name);
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
         List<DatabaseReaderLazyLoader> all = new ArrayList<>(configDatabases.getConfigDatabases().values());
-        this.databases.forEach((key, value) -> all.add(value));
+        this.databases.forEach((key, value) -> all.addAll(value.values()));
         return all;
     }
 
     // for testing only:
-    DatabaseReaderLazyLoader get(String key) {
-        return databases.get(key);
+    DatabaseReaderLazyLoader get(ProjectId projectId, String key) {
+        return databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>()).get(key);
     }
 
     public void shutdown() throws IOException {
         // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
         // that can call a bunch of shutdown methods (rather than close methods)
-        final var loadersToShutdown = databases.values().stream().map(ShutdownCloseable::new).toList();
+        final var loadersToShutdown = databases.values().stream()
+            .flatMap(map -> map.values().stream())
+            .map(ShutdownCloseable::new).toList();
         databases.clear();
         IOUtils.close(loadersToShutdown);
     }
@@ -259,6 +269,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         }
     }
 
+    @FixForMultiProject(description = "revisit, may need to use project specific settings")
     void checkDatabases(ClusterState state) {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
@@ -270,103 +281,117 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
-        if (persistentTasks == null) {
-            logger.trace("Not checking databases because persistent tasks are null");
-            return;
-        }
+        // Optimization: only load the .geoip_databases index for projects that are allocated to this node
+        for (ProjectMetadata projectMetadata : state.getMetadata().projects().values()) {
+            ProjectId projectId = projectMetadata.id();
 
-        IndexAbstraction databasesAbstraction = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
-        if (databasesAbstraction == null) {
-            logger.trace("Not checking databases because geoip databases index does not exist");
-            return;
-        } else {
-            // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-            Index databasesIndex = databasesAbstraction.getWriteIndex();
-            IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(databasesIndex);
-            if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
-                logger.trace("Not checking databases because geoip databases index does not have all active primary shards");
+            PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject(projectId)
+                .custom(PersistentTasksCustomMetadata.TYPE);
+            if (persistentTasks == null) {
+                logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
+                continue;
+            }
+
+            IndexAbstraction databasesAbstraction = projectMetadata.getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+            if (databasesAbstraction == null) {
+                logger.trace("Not checking databases because geoip databases index does not exist for project [{}]", projectId);
                 return;
+            } else {
+                // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                Index databasesIndex = databasesAbstraction.getWriteIndex();
+                IndexRoutingTable databasesIndexRT = state.routingTable(projectId).index(databasesIndex);
+                if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+                    logger.trace("Not checking databases because geoip databases index does not have all active primary shards for" +
+                        " project [{}]", projectId);
+                    return;
+                }
             }
+
+            // we'll consult each of the geoip downloaders to build up a list of database metadatas to work with
+            List<Tuple<String, GeoIpTaskState.Metadata>> validMetadatas = new ArrayList<>();
+
+            // process the geoip task state for the (ordinary) geoip downloader
+            {
+                GeoIpTaskState taskState = getGeoIpTaskState(projectMetadata, getTaskId(projectId,
+                    projectResolver.supportsMultipleProjects()));
+                if (taskState == null) {
+                    // Note: an empty state will purge stale entries in databases map
+                    taskState = GeoIpTaskState.EMPTY;
+                }
+                validMetadatas.addAll(
+                    taskState.getDatabases()
+                        .entrySet()
+                        .stream()
+                        // TODO: revisit to check project specific settings when it is implemented
+                        .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                        .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+                        .toList()
+                );
+            }
+
+            // process the geoip task state for the enterprise geoip downloader
+            {
+                EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(state);
+                if (taskState == null) {
+                    // Note: an empty state will purge stale entries in databases map
+                    taskState = EnterpriseGeoIpTaskState.EMPTY;
+                }
+                validMetadatas.addAll(
+                    taskState.getDatabases()
+                        .entrySet()
+                        .stream()
+                        // TODO: revisit project specific settings when it is implemented
+                        .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                        .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+                        .toList()
+                );
+            }
+
+            // run through all the valid metadatas, regardless of source, and retrieve them if the persistent downloader task
+            // has downloaded a new version of the databases
+            validMetadatas.forEach(e -> {
+                String name = e.v1();
+                GeoIpTaskState.Metadata metadata = e.v2();
+                DatabaseReaderLazyLoader reference = getProjectLazyLoader(projectId, name);
+                String remoteMd5 = metadata.md5();
+                String localMd5 = reference != null ? reference.getMd5() : null;
+                if (Objects.equals(localMd5, remoteMd5)) {
+                    logger.debug("[{}] is up to date [{}] with cluster state [{}]", name, localMd5, remoteMd5);
+                    return;
+                }
+
+                try {
+                    retrieveAndUpdateDatabase(projectId, name, metadata);
+                } catch (Exception ex) {
+                    logger.error(() -> "failed to retrieve database [" + name + "]", ex);
+                }
+            });
+
+            // TODO perhaps we need to handle the license flap persistent task state better than we do
+            // i think the ideal end state is that we *do not* drop the files that the enterprise downloader
+            // handled if they fall out -- which means we need to track that in the databases map itself
+
+            // start with the list of all databases we currently know about in this service,
+            // then drop the ones that didn't check out as valid from the task states
+            Set<String> staleDatabases = databases.get(projectId) == null ? Set.of() : databases.get(projectId).keySet();
+            staleDatabases.removeAll(validMetadatas.stream().map(Tuple::v1).collect(Collectors.toSet()));
+            removeStaleEntries(projectId, staleDatabases);
         }
-
-        // we'll consult each of the geoip downloaders to build up a list of database metadatas to work with
-        List<Tuple<String, GeoIpTaskState.Metadata>> validMetadatas = new ArrayList<>();
-
-        // process the geoip task state for the (ordinary) geoip downloader
-        {
-            GeoIpTaskState taskState = getGeoIpTaskState(state);
-            if (taskState == null) {
-                // Note: an empty state will purge stale entries in databases map
-                taskState = GeoIpTaskState.EMPTY;
-            }
-            validMetadatas.addAll(
-                taskState.getDatabases()
-                    .entrySet()
-                    .stream()
-                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
-                    .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
-                    .toList()
-            );
-        }
-
-        // process the geoip task state for the enterprise geoip downloader
-        {
-            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(state);
-            if (taskState == null) {
-                // Note: an empty state will purge stale entries in databases map
-                taskState = EnterpriseGeoIpTaskState.EMPTY;
-            }
-            validMetadatas.addAll(
-                taskState.getDatabases()
-                    .entrySet()
-                    .stream()
-                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
-                    .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
-                    .toList()
-            );
-        }
-
-        // run through all the valid metadatas, regardless of source, and retrieve them
-        validMetadatas.forEach(e -> {
-            String name = e.v1();
-            GeoIpTaskState.Metadata metadata = e.v2();
-            DatabaseReaderLazyLoader reference = databases.get(name);
-            String remoteMd5 = metadata.md5();
-            String localMd5 = reference != null ? reference.getMd5() : null;
-            if (Objects.equals(localMd5, remoteMd5)) {
-                logger.debug("[{}] is up to date [{}] with cluster state [{}]", name, localMd5, remoteMd5);
-                return;
-            }
-
-            try {
-                retrieveAndUpdateDatabase(name, metadata);
-            } catch (Exception ex) {
-                logger.error(() -> "failed to retrieve database [" + name + "]", ex);
-            }
-        });
-
-        // TODO perhaps we need to handle the license flap persistent task state better than we do
-        // i think the ideal end state is that we *do not* drop the files that the enterprise downloader
-        // handled if they fall out -- which means we need to track that in the databases map itself
-
-        // start with the list of all databases we currently know about in this service,
-        // then drop the ones that didn't check out as valid from the task states
-        List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(validMetadatas.stream().map(Tuple::v1).collect(Collectors.toSet()));
-        removeStaleEntries(staleEntries);
     }
 
-    void retrieveAndUpdateDatabase(String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
+    void retrieveAndUpdateDatabase(ProjectId projectId, String databaseName, GeoIpTaskState.Metadata metadata) throws IOException {
         logger.trace("retrieving database [{}]", databaseName);
         final String recordedMd5 = metadata.md5();
 
-        // This acts as a lock, if this method for a specific db is executed later and downloaded for this db is still ongoing then
-        // FileAlreadyExistsException is thrown and this method silently returns.
+        Path databaseTmpDirectory = getDatabaseTmpDirectory(projectId);
+        // This acts as a lock to avoid multiple retrievals of the same database at the same time. If this method for a specific db is
+        // executed later again while a previous retrival of this db is still ongoing then FileAlreadyExistsException is thrown and
+        // this method silently returns.
         // (this method is never invoked concurrently and is invoked by a cluster state applier thread)
         final Path retrievedFile;
         try {
-            retrievedFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp.retrieved"));
+            // TODO: save to project specific tmp directory
+            retrievedFile = Files.createFile(databaseTmpDirectory.resolve(databaseName + ".tmp.retrieved"));
         } catch (FileAlreadyExistsException e) {
             logger.debug("database update [{}] already in progress, skipping...", databaseName);
             return;
@@ -378,75 +403,83 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         // Thread 2 may have updated the databases map after thread 1 detects that there is no entry (or md5 mismatch) for a database.
         // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
         // twice. This check is here to avoid this:
-        DatabaseReaderLazyLoader lazyLoader = databases.get(databaseName);
+        DatabaseReaderLazyLoader lazyLoader = getProjectLazyLoader(projectId, databaseName);
         if (lazyLoader != null && recordedMd5.equals(lazyLoader.getMd5())) {
             logger.debug("deleting tmp file because database [{}] has already been updated.", databaseName);
             Files.delete(retrievedFile);
             return;
         }
 
-        final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
+        final Path databaseTmpFile = Files.createFile(databaseTmpDirectory.resolve(databaseName + ".tmp"));
         logger.debug("retrieving database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, retrievedFile);
-        retrieveDatabase(databaseName, recordedMd5, metadata, bytes -> Files.write(retrievedFile, bytes, StandardOpenOption.APPEND), () -> {
-            final Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+        // TODO: save to project specific tmp directory
+        retrieveDatabase(
+            projectId,
+            databaseName,
+            recordedMd5,
+            metadata,
+            bytes -> Files.write(retrievedFile, bytes, StandardOpenOption.APPEND),
+            () -> {
+                final Path databaseFile = databaseTmpDirectory.resolve(databaseName);
 
-            boolean isTarGz = MMDBUtil.isGzip(retrievedFile);
-            if (isTarGz) {
-                // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
-                // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                logger.debug("decompressing [{}]", retrievedFile.getFileName());
-                try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(retrievedFile), 8192))) {
-                    TarInputStream.TarEntry entry;
-                    while ((entry = is.getNextEntry()) != null) {
-                        // there might be ./ entry in tar, we should skip it
-                        if (entry.notFile()) {
-                            continue;
-                        }
-                        // flatten structure, remove any directories present from the path (should be ./ only)
-                        String name = entry.name().substring(entry.name().lastIndexOf('/') + 1);
-                        if (name.startsWith(databaseName)) {
-                            Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
-                        } else {
-                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), StandardCopyOption.REPLACE_EXISTING);
+                boolean isTarGz = MMDBUtil.isGzip(retrievedFile);
+                if (isTarGz) {
+                    // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
+                    // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
+                    logger.debug("decompressing [{}]", retrievedFile.getFileName());
+                    try (TarInputStream is = new TarInputStream(new GZIPInputStream(Files.newInputStream(retrievedFile), 8192))) {
+                        TarInputStream.TarEntry entry;
+                        while ((entry = is.getNextEntry()) != null) {
+                            // there might be ./ entry in tar, we should skip it
+                            if (entry.notFile()) {
+                                continue;
+                            }
+                            // flatten structure, remove any directories present from the path (should be ./ only)
+                            String name = entry.name().substring(entry.name().lastIndexOf('/') + 1);
+                            if (name.startsWith(databaseName)) {
+                                Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
+                            } else {
+                                Files.copy(is, databaseTmpDirectory.resolve(databaseName + "_" + name),
+                                    StandardCopyOption.REPLACE_EXISTING);
+                            }
                         }
                     }
+                } else {
+                    /*
+                     * Given that this is not code that will be called extremely frequently, we copy the file to the
+                     * expected location here in order to avoid making the rest of the code more complex to avoid this.
+                     */
+                    Files.copy(retrievedFile, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
                 }
-            } else {
-                /*
-                 * Given that this is not code that will be called extremely frequently, we copy the file to the expected location here in
-                 * order to avoid making the rest of the code more complex to avoid this.
-                 */
-                Files.copy(retrievedFile, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
-            }
-            // finally, atomically move some-database.mmdb.tmp to some-database.mmdb
-            logger.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
-            Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            updateDatabase(databaseName, recordedMd5, databaseFile);
-            Files.delete(retrievedFile);
-        }, failure -> {
-            logger.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
-            try {
-                Files.deleteIfExists(databaseTmpFile);
-                Files.deleteIfExists(retrievedFile);
-            } catch (IOException ioe) {
-                ioe.addSuppressed(failure);
-                logger.error("unable to delete tmp database file after failure", ioe);
-            }
-        });
+                // finally, atomically move some-database.mmdb.tmp to some-database.mmdb
+                logger.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
+                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                updateDatabase(projectId, databaseName, recordedMd5, databaseFile);
+                Files.delete(retrievedFile);
+            },
+            failure -> {
+                logger.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
+                try {
+                    Files.deleteIfExists(databaseTmpFile);
+                    Files.deleteIfExists(retrievedFile);
+                } catch (IOException ioe) {
+                    ioe.addSuppressed(failure);
+                    logger.error("unable to delete tmp database file after failure", ioe);
+                }
+            });
     }
 
-    @FixForMultiProject // Don't use default project id
-    void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
+    void updateDatabase(ProjectId projectId, String databaseFileName, String recordedMd5, Path file) {
         try {
             logger.debug("starting reload of changed database file [{}]", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
-            DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
+            DatabaseReaderLazyLoader existing = databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>())
+                .put(databaseFileName, loader);
             if (existing != null) {
                 existing.shutdown();
             } else {
                 // Loaded a database for the first time, so reload pipelines for which a database was not available:
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
-                var projectId = Metadata.DEFAULT_PROJECT_ID;
                 var ids = ingestService.getPipelineWithProcessorType(
                     projectId,
                     GeoIpProcessor.DatabaseUnavailableProcessor.class,
@@ -479,20 +512,25 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         }
     }
 
-    void removeStaleEntries(Collection<String> staleEntries) {
+    void removeStaleEntries(ProjectId projectId, Collection<String> staleEntries) {
+        ConcurrentMap<String, DatabaseReaderLazyLoader> projectLoaders = databases.get(projectId);
+        assert projectLoaders != null;
         for (String staleEntry : staleEntries) {
             try {
-                logger.debug("database [{}] no longer exists, cleaning up...", staleEntry);
-                DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
+                logger.debug("database [{}] for project [{}] no longer exists, cleaning up...", staleEntry, projectId);
+                DatabaseReaderLazyLoader existing = projectLoaders.remove(staleEntry);
                 assert existing != null;
                 existing.shutdown(true);
             } catch (Exception e) {
-                logger.error(() -> "failed to clean database [" + staleEntry + "]", e);
+                logger.error(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]" , e);
             }
         }
     }
 
+    // This method issues search request to retrieves the database chunks from the .geoip_databases index and passes
+    // them to the chunkConsumer (which appends the data to a tmp file). This method forks to the generic thread pool to do the search.
     void retrieveDatabase(
+        ProjectId projectId,
         String databaseName,
         String expectedMd5,
         GeoIpTaskState.Metadata metadata,
@@ -500,54 +538,60 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         CheckedRunnable<Exception> completedHandler,
         Consumer<Exception> failureHandler
     ) {
-        // Need to run the search from a different thread, since this is executed from cluster state applier thread:
-        genericExecutor.accept(() -> {
-            MessageDigest md = MessageDigests.md5();
-            int firstChunk = metadata.firstChunk();
-            int lastChunk = metadata.lastChunk();
-            try {
-                // TODO: invoke open point in time api when this api is moved from xpack core to server module.
-                // (so that we have a consistent view of the chunk documents while doing the lookups)
-                // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
-                for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
-                    SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.lastUpdate());
-                    searchRequest.source().query(new TermQueryBuilder("_id", id));
+        // Search in the project specific .geoip_databases
+        projectResolver.executeOnProject(projectId, () -> {
+            // Need to run the search from a different thread, since this is executed from cluster state applier thread:
+            genericExecutor.accept(() -> {
+                MessageDigest md = MessageDigests.md5();
+                int firstChunk = metadata.firstChunk();
+                int lastChunk = metadata.lastChunk();
+                try {
+                    // TODO: invoke open point in time api when this api is moved from xpack core to server module.
+                    // (so that we have a consistent view of the chunk documents while doing the lookups)
+                    // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
+                    for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
+                        SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
+                        String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.lastUpdate());
+                        searchRequest.source().query(new TermQueryBuilder("_id", id));
 
-                    // At most once a day a few searches may be executed to fetch the new files,
-                    // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
-                    // This makes the code easier to understand and maintain.
-                    SearchResponse searchResponse = client.search(searchRequest).actionGet();
-                    try {
-                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        // At most once a day a few searches may be executed to fetch the new files,
+                        // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
+                        // This makes the code easier to understand and maintain.
+                        // TODO: we should revisit if blocking the generic thread pool for search is still acceptable,
+                        //  since in multi-project mode each project will have its own geoip databases index search
+                        SearchResponse searchResponse = client.search(searchRequest).actionGet();
+                        try {
+                            SearchHit[] hits = searchResponse.getHits().getHits();
 
-                        if (searchResponse.getHits().getHits().length == 0) {
-                            failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
-                            return;
+                            if (searchResponse.getHits().getHits().length == 0) {
+                                failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
+                                return;
+                            }
+                            byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
+                            md.update(data);
+                            chunkConsumer.accept(data);
+                        } finally {
+                            searchResponse.decRef();
                         }
-                        byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
-                        md.update(data);
-                        chunkConsumer.accept(data);
-                    } finally {
-                        searchResponse.decRef();
                     }
+                    String actualMd5 = MessageDigests.toHexString(md.digest());
+                    if (Objects.equals(expectedMd5, actualMd5)) {
+                        completedHandler.run();
+                    } else {
+                        failureHandler.accept(
+                            new RuntimeException("expected md5 hash [" + expectedMd5 + "], but got md5 hash [" + actualMd5 + "]")
+                        );
+                    }
+                } catch (Exception e) {
+                    failureHandler.accept(e);
                 }
-                String actualMd5 = MessageDigests.toHexString(md.digest());
-                if (Objects.equals(expectedMd5, actualMd5)) {
-                    completedHandler.run();
-                } else {
-                    failureHandler.accept(
-                        new RuntimeException("expected md5 hash [" + expectedMd5 + "], but got md5 hash [" + actualMd5 + "]")
-                    );
-                }
-            } catch (Exception e) {
-                failureHandler.accept(e);
-            }
+            });
         });
     }
 
-    public Set<String> getAvailableDatabases() {
-        return Set.copyOf(databases.keySet());
+    public Set<String> getAvailableDatabases(ProjectId projectId) {
+        var loaders = databases.get(projectId);
+        return loaders == null ? Set.of() : Set.copyOf(loaders.keySet());
     }
 
     public Set<String> getConfigDatabases() {
@@ -583,8 +627,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
     public record ConfigDatabaseDetail(String name, @Nullable String md5, @Nullable Long buildDateInMillis, @Nullable String type) {}
 
-    public Set<String> getFilesInTemp() {
-        try (Stream<Path> files = Files.list(geoipTmpDirectory)) {
+    public Set<String> getFilesInTemp(ProjectId projectId) {
+        try (Stream<Path> files = Files.list(getDatabaseTmpDirectory(projectId))) {
             return files.map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -595,4 +639,19 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         return cache.getCacheStats();
     }
 
+    private DatabaseReaderLazyLoader getProjectLazyLoader(ProjectId projectId, String databaseName) {
+        return databases.computeIfAbsent(projectId, (k) -> new ConcurrentHashMap<>()).get(databaseName);
+    }
+
+    private Path getDatabaseTmpDirectory(ProjectId projectId) {
+        Path path = projectResolver.supportsMultipleProjects() ? geoipTmpDirectory.resolve(projectId.toString()) : geoipTmpDirectory;
+        try {
+            if (Files.exists(path) == false) {
+                Files.createDirectories(path);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to create geoip tmp directory for project [" + projectId + "]", e);
+        }
+        return path;
+    }
 }

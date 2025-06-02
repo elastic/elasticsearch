@@ -108,9 +108,9 @@ public class MachineDependentHeap {
                  * equals the original 40% of the total memory.
                  */
                 if (availableMemory <= (GB * 16)) {
-                    yield mb((long) (availableMemory * .4 * 2/3), 4);
+                    yield mb((long) (availableMemory * .4 * 2 / 3), 4);
                 } else {
-                    yield mb((long) min(((GB * 16) * .4 + (availableMemory - GB * 16) * .1) * 2/3, MAX_HEAP_SIZE), 4);
+                    yield mb((long) min(((GB * 16) * .4 + (availableMemory - GB * 16) * .1) * 2 / 3, MAX_HEAP_SIZE), 4);
                 }
             }
             /*

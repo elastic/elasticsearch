@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -206,13 +207,12 @@ public final class RemoteClusterService extends RemoteClusterAware
          * We could use IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY but that'd require adding dependency on its
          * module and doing so results in a circular dependency warnings.
          */
-        if (indices.length == 2 && indices[0].equals("*") && indices[1].equals("-*")) {
+        if (returnLocalAll == false && IndexNameExpressionResolver.isNoneExpression(indices)) {
             groupedIndices = Map.of();
             /*
              * We set returnLocalAll to false because this semantic ["*", "-*"] specifically means that it's alright to return
              * an empty response and in this context we do not want to fallback to the local cluster.
              */
-            returnLocalAll = false;
         } else {
             groupedIndices = groupClusterIndices(remoteClusterNames, indices);
         }

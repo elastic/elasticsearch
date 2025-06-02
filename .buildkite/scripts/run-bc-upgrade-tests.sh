@@ -60,7 +60,7 @@ steps:
         preemptible: true
       retry:
         automatic:
-          - exit_status: \"-1\"
+          - exit_status: "-1"
             limit: 3
             signal_reason: none
           - signal_reason: agent_stop

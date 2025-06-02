@@ -146,6 +146,15 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         CentroidAssignments centroidAssignments
     ) throws IOException;
 
+    abstract CentroidSupplier createCentroidSupplier(float[][] cachedCentroids) throws IOException;
+
+    abstract CentroidSupplier createCentroidSupplier(
+        IndexInput centroidsInput,
+        int numCentroids,
+        FieldInfo fieldInfo,
+        float[] globalCentroid
+    ) throws IOException;
+
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
@@ -164,7 +173,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 globalCentroid
             );
 
-            CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.cachedCentroids());
+            CentroidSupplier centroidSupplier = createCentroidSupplier(centroidAssignments.cachedCentroids());
 
             long centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
             final long[] offsets = buildAndWritePostingsLists(
@@ -300,7 +309,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         ivfCentroids.copyBytes(centroidsInput, centroidsInput.length() - CodecUtil.footerLength());
                         centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
 
-                        CentroidSupplier centroidSupplier = new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
+                        CentroidSupplier centroidSupplier = createCentroidSupplier(
+                            centroidsInput,
+                            numCentroids,
+                            fieldInfo,
+                            calculatedGlobalCentroid
+                        );
 
                         // build a float vector values with random access
                         // build centroids
@@ -457,57 +471,4 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
         float[] centroid(int centroidOrdinal) throws IOException;
     }
-
-    static class OffHeapCentroidSupplier implements CentroidSupplier {
-        private final IndexInput centroidsInput;
-        private final int numCentroids;
-        private final int dimension;
-        private final float[] scratch;
-        private final long rawCentroidOffset;
-        private int currOrd = -1;
-
-        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
-            this.centroidsInput = centroidsInput;
-            this.numCentroids = numCentroids;
-            this.dimension = info.getVectorDimension();
-            this.scratch = new float[dimension];
-            this.rawCentroidOffset = (dimension + 3 * Float.BYTES + Short.BYTES) * numCentroids;
-        }
-
-        @Override
-        public int size() {
-            return numCentroids;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            if (centroidOrdinal == currOrd) {
-                return scratch;
-            }
-            centroidsInput.seek(rawCentroidOffset + (long) centroidOrdinal * dimension * Float.BYTES);
-            centroidsInput.readFloats(scratch, 0, dimension);
-            this.currOrd = centroidOrdinal;
-            return scratch;
-        }
-    }
-
-    // TODO throw away rawCentroids
-    static class OnHeapCentroidSupplier implements CentroidSupplier {
-        private final float[][] centroids;
-
-        OnHeapCentroidSupplier(float[][] centroids) {
-            this.centroids = centroids;
-        }
-
-        @Override
-        public int size() {
-            return centroids.length;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            return centroids[centroidOrdinal];
-        }
-    }
-
 }

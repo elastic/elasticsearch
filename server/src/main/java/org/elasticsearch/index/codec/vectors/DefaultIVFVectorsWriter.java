@@ -15,6 +15,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.VectorUtil;
@@ -197,6 +198,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    @Override
+    CentroidSupplier createCentroidSupplier(float[][] cachedCentroids) {
+        return new OnHeapCentroidSupplier(cachedCentroids);
+    }
+
+    @Override
+    CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid) {
+        return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
+    }
+
     static void writeCentroids(float[][] centroids, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
         throws IOException {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -369,5 +380,57 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
         assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
         indexOutput.writeShort((short) corrections.quantizedComponentSum());
+    }
+
+    static class OffHeapCentroidSupplier implements CentroidSupplier {
+        private final IndexInput centroidsInput;
+        private final int numCentroids;
+        private final int dimension;
+        private final float[] scratch;
+        private final long rawCentroidOffset;
+        private int currOrd = -1;
+
+        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
+            this.centroidsInput = centroidsInput;
+            this.numCentroids = numCentroids;
+            this.dimension = info.getVectorDimension();
+            this.scratch = new float[dimension];
+            this.rawCentroidOffset = (dimension + 3 * Float.BYTES + Short.BYTES) * numCentroids;
+        }
+
+        @Override
+        public int size() {
+            return numCentroids;
+        }
+
+        @Override
+        public float[] centroid(int centroidOrdinal) throws IOException {
+            if (centroidOrdinal == currOrd) {
+                return scratch;
+            }
+            centroidsInput.seek(rawCentroidOffset + (long) centroidOrdinal * dimension * Float.BYTES);
+            centroidsInput.readFloats(scratch, 0, dimension);
+            this.currOrd = centroidOrdinal;
+            return scratch;
+        }
+    }
+
+    // TODO throw away rawCentroids
+    static class OnHeapCentroidSupplier implements CentroidSupplier {
+        private final float[][] centroids;
+
+        OnHeapCentroidSupplier(float[][] centroids) {
+            this.centroids = centroids;
+        }
+
+        @Override
+        public int size() {
+            return centroids.length;
+        }
+
+        @Override
+        public float[] centroid(int centroidOrdinal) throws IOException {
+            return centroids[centroidOrdinal];
+        }
     }
 }

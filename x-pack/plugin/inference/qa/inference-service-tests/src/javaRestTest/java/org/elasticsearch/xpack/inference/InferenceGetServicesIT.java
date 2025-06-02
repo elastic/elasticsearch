@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,6 +23,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
+
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
 
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();

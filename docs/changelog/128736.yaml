@@ -1,0 +1,5 @@
+pr: 128736
+summary: Readd `index.lifecycle.skip` setting
+area: ILM+SLM
+type: enhancement
+issues: []

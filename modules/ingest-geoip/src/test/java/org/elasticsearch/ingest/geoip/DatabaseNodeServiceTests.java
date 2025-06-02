@@ -136,8 +136,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService,
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault()));
+        databaseNodeService.initialize(
+            "nodeId",
+            resourceWatcherService,
+            ingestService,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @After
@@ -202,7 +206,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
-
 
         ClusterState state = ClusterState.builder(createClusterState(projectId, tasksCustomMetadata))
             .nodes(
@@ -306,7 +309,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
-        databaseNodeService.updateDatabase(projectId,"_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        databaseNodeService.updateDatabase(projectId, "_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
         verify(clusterService, times(1)).addListener(any());

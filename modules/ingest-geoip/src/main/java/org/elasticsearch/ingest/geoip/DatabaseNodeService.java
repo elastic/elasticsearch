@@ -146,8 +146,12 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         this.clusterService = clusterService;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg,
-                           ProjectResolver projectResolver) throws IOException {
+    public void initialize(
+        String nodeId,
+        ResourceWatcherService resourceWatcher,
+        IngestService ingestServiceArg,
+        ProjectResolver projectResolver
+    ) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         // delete all stale files in the geoip tmp directory
@@ -191,7 +195,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     }
 
     @Override
-    public Boolean isValid(ProjectId projectId,String databaseFile) {
+    public Boolean isValid(ProjectId projectId, String databaseFile) {
         ProjectState projectState = clusterService.state().projectState(projectId);
         assert projectState != null;
 
@@ -253,9 +257,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     public void shutdown() throws IOException {
         // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
         // that can call a bunch of shutdown methods (rather than close methods)
-        final var loadersToShutdown = databases.values().stream()
+        final var loadersToShutdown = databases.values()
+            .stream()
             .flatMap(map -> map.values().stream())
-            .map(ShutdownCloseable::new).toList();
+            .map(ShutdownCloseable::new)
+            .toList();
         databases.clear();
         IOUtils.close(loadersToShutdown);
     }
@@ -285,7 +291,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         for (ProjectMetadata projectMetadata : state.getMetadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
 
-            PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject(projectId)
+            PersistentTasksCustomMetadata persistentTasks = state.metadata()
+                .getProject(projectId)
                 .custom(PersistentTasksCustomMetadata.TYPE);
             if (persistentTasks == null) {
                 logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -301,8 +308,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 Index databasesIndex = databasesAbstraction.getWriteIndex();
                 IndexRoutingTable databasesIndexRT = state.routingTable(projectId).index(databasesIndex);
                 if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
-                    logger.trace("Not checking databases because geoip databases index does not have all active primary shards for" +
-                        " project [{}]", projectId);
+                    logger.trace(
+                        "Not checking databases because geoip databases index does not have all active primary shards for"
+                            + " project [{}]",
+                        projectId
+                    );
                     return;
                 }
             }
@@ -312,8 +322,10 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
             // process the geoip task state for the (ordinary) geoip downloader
             {
-                GeoIpTaskState taskState = getGeoIpTaskState(projectMetadata, getTaskId(projectId,
-                    projectResolver.supportsMultipleProjects()));
+                GeoIpTaskState taskState = getGeoIpTaskState(
+                    projectMetadata,
+                    getTaskId(projectId, projectResolver.supportsMultipleProjects())
+                );
                 if (taskState == null) {
                     // Note: an empty state will purge stale entries in databases map
                     taskState = GeoIpTaskState.EMPTY;
@@ -439,8 +451,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                             if (name.startsWith(databaseName)) {
                                 Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
                             } else {
-                                Files.copy(is, databaseTmpDirectory.resolve(databaseName + "_" + name),
-                                    StandardCopyOption.REPLACE_EXISTING);
+                                Files.copy(
+                                    is,
+                                    databaseTmpDirectory.resolve(databaseName + "_" + name),
+                                    StandardCopyOption.REPLACE_EXISTING
+                                );
                             }
                         }
                     }
@@ -466,7 +481,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                     ioe.addSuppressed(failure);
                     logger.error("unable to delete tmp database file after failure", ioe);
                 }
-            });
+            }
+        );
     }
 
     void updateDatabase(ProjectId projectId, String databaseFileName, String recordedMd5, Path file) {
@@ -522,7 +538,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 assert existing != null;
                 existing.shutdown(true);
             } catch (Exception e) {
-                logger.error(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]" , e);
+                logger.error(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]", e);
             }
         }
     }
@@ -558,7 +574,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                         // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
                         // This makes the code easier to understand and maintain.
                         // TODO: we should revisit if blocking the generic thread pool for search is still acceptable,
-                        //  since in multi-project mode each project will have its own geoip databases index search
+                        // since in multi-project mode each project will have its own geoip databases index search
                         SearchResponse searchResponse = client.search(searchRequest).actionGet();
                         try {
                             SearchHit[] hits = searchResponse.getHits().getHits();

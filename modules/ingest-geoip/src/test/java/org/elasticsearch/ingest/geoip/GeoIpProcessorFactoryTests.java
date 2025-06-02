@@ -81,8 +81,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         databaseNodeService = new DatabaseNodeService(geoipTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class),
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault()));
+        databaseNodeService.initialize(
+            "nodeId",
+            mock(ResourceWatcherService.class),
+            mock(IngestService.class),
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @After
@@ -224,7 +228,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     public void testBuildNonExistingDbFile() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
-        databaseNodeService.updateDatabase(projectId,"GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
+        databaseNodeService.updateDatabase(projectId, "GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City.mmdb"));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
 
         Map<String, Object> config = new HashMap<>();

@@ -182,8 +182,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
         private final String databaseType;
         private final ProjectId projectId;
 
-        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType,
-                                         ProjectId projectId) {
+        public DatabaseVerifyingSupplier(
+            IpDatabaseProvider ipDatabaseProvider,
+            String databaseFile,
+            String databaseType,
+            ProjectId projectId
+        ) {
             this.ipDatabaseProvider = ipDatabaseProvider;
             this.databaseFile = databaseFile;
             this.databaseType = databaseType;

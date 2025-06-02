@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,54 +29,85 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
+    public static final ParseField INCLUDE_VECTORS_FIELD = new ParseField("include_vectors");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
-    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
+        false,
+        null,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY
+    );
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
+    private final Boolean includeVectors;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
     }
 
     public static FetchSourceContext of(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes) {
-        if ((includes == null || includes.length == 0) && (excludes == null || excludes.length == 0)) {
+        return of(fetchSource, null, includes, excludes);
+    }
+
+    public static FetchSourceContext of(
+        boolean fetchSource,
+        Boolean includeVectors,
+        @Nullable String[] includes,
+        @Nullable String[] excludes
+    ) {
+        if (includeVectors == null && (includes == null || includes.length == 0) && (excludes == null || excludes.length == 0)) {
             return of(fetchSource);
         }
-        return new FetchSourceContext(fetchSource, includes, excludes);
+        return new FetchSourceContext(fetchSource, includeVectors, includes, excludes);
+    }
+
+    private FetchSourceContext(boolean fetchSource, Boolean includeVectors, @Nullable String[] includes, @Nullable String[] excludes) {
+        this.fetchSource = fetchSource;
+        this.includeVectors = includeVectors;
+        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
+        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
 
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {
         final boolean fetchSource = in.readBoolean();
+        final Boolean includeVectors = isVersionCompatibleWithIncludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
-        return of(fetchSource, includes, excludes);
-    }
-
-    private FetchSourceContext(boolean fetchSource, @Nullable String[] includes, @Nullable String[] excludes) {
-        this.fetchSource = fetchSource;
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        return of(fetchSource, includeVectors, includes, excludes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(fetchSource);
+        if (isVersionCompatibleWithIncludeVectors(out.getTransportVersion())) {
+            out.writeOptionalBoolean(includeVectors);
+        }
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
     }
 
+    private static boolean isVersionCompatibleWithIncludeVectors(TransportVersion version) {
+        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_INCLUDE_VECTORS_PARAM_8_19)
+            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_INCLUDE_VECTORS_PARAM);
+    }
+
     public boolean fetchSource() {
         return this.fetchSource;
+    }
+
+    public Boolean includeVectors() {
+        return this.includeVectors;
     }
 
     public String[] includes() {
@@ -135,6 +168,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
+        Boolean includeVectors = null;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
@@ -169,6 +203,18 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         includes = new String[] { parser.text() };
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = new String[] { parser.text() };
+                    } else if (INCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        includeVectors = parser.booleanValue();
+                    } else {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
+                    }
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (INCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        includeVectors = parser.booleanValue();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -201,7 +247,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 parser.getTokenLocation()
             );
         }
-        return FetchSourceContext.of(fetchSource, includes, excludes);
+        return FetchSourceContext.of(fetchSource, includeVectors, includes, excludes);
     }
 
     private static String[] parseStringArray(XContentParser parser, String currentFieldName) throws IOException {
@@ -227,6 +273,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fetchSource) {
             builder.startObject();
+            if (includeVectors != null) {
+                builder.field(INCLUDE_VECTORS_FIELD.getPreferredName(), includeVectors);
+            }
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
             builder.endObject();
@@ -244,6 +293,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
+        if (includeVectors != that.includeVectors) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
 
@@ -252,7 +302,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = (fetchSource ? 1 : 0);
+        int result = Objects.hash(fetchSource, includeVectors);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
         return result;

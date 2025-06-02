@@ -14,10 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -25,10 +28,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
@@ -45,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -111,7 +117,13 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
-        SourceLoader sourceLoader = context.newSourceLoader(null);
+        // Optionally remove sparse and dense vector fields early to:
+        // - Reduce the in-memory size of the source
+        // - Speed up retrieval of the synthetic source
+        // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
+        // but they are typically accessed through doc values instead (e.g: re-scorer).
+        SourceFilter sourceFilter = maybeExcludeNonSemanticTextVectors(context);
+        SourceLoader sourceLoader = context.newSourceLoader(sourceFilter);
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
@@ -431,5 +443,40 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    /**
+     * Determines whether vector fields should be excluded from the source based on the {@link FetchSourceContext}.
+     * Returns {@code true} if vector fields are explicitly marked to be excluded and {@code false} otherwise.
+     */
+    private static boolean shouldExcludeVectorsFromSource(SearchContext context) {
+        if (context.fetchSourceContext() == null) {
+            return false;
+        }
+        return context.fetchSourceContext().includeVectors() != null && context.fetchSourceContext().includeVectors() == false;
+    }
+
+    /**
+     * Returns a {@link SourceFilter} that excludes vector fields not associated with semantic text fields,
+     * unless vectors are explicitly requested to be included in the source.
+     * Returns {@code null} when vectors should not be filtered out.
+     */
+    private static SourceFilter maybeExcludeNonSemanticTextVectors(SearchContext context) {
+        if (shouldExcludeVectorsFromSource(context)) {
+            return null;
+        }
+        var lookup = context.getSearchExecutionContext().getMappingLookup();
+        List<String> inferencePatterns = lookup.inferenceFields().isEmpty() ? null : lookup.inferenceFields().keySet().stream().toList();
+        var excludes = lookup.getFullNameToFieldType()
+            .values()
+            .stream()
+            .filter(
+                f -> f instanceof DenseVectorFieldMapper.DenseVectorFieldType || f instanceof SparseVectorFieldMapper.SparseVectorFieldType
+            )
+            // Exclude vectors from semantic text fields, as they are processed separately
+            .filter(f -> Regex.simpleMatch(inferencePatterns, f.name()) == false)
+            .map(f -> f.name())
+            .collect(Collectors.toList());
+        return excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
     }
 }

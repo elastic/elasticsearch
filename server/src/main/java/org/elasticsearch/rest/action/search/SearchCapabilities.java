@@ -50,6 +50,8 @@ public final class SearchCapabilities {
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
 
+    private static final String INCLUDE_VECTORS_PARAM = "include_vectors_param";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -69,6 +71,7 @@ public final class SearchCapabilities {
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(INCLUDE_VECTORS_PARAM);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

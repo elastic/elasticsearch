@@ -754,8 +754,8 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     // exposed for tests
-    MergeTaskPriorityBlockingQueue getMergeTasksQueue() {
-        return queuedMergeTasks;
+    long getDiskSpaceAvailableForNewMergeTasks() {
+        return queuedMergeTasks.getAvailableBudget();
     }
 
     // exposed for tests and stats

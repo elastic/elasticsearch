@@ -35,7 +35,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -47,6 +49,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
@@ -324,7 +328,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         }
     }
 
-    public void testUnavailableBudgetBlocksEnqueuedMergeTasks() throws Exception {
+    public void testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(5, 10);
         // fewer merge tasks than pool threads so that there's always a free thread available
         int submittedMergesCount = randomIntBetween(1, mergeExecutorThreadCount - 1);
@@ -332,7 +336,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             .put(this.settings)
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
-            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
             .build();
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
         aFileStore.totalSpace = 150_000L;
@@ -347,7 +351,6 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             aFileStore.usableSpace = 90_000L;
             bFileStore.usableSpace = 110_000L;
         }
-        long smallMergeTaskSize = 10L;
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
                 try (
@@ -356,20 +359,20 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 ) {
                     assert threadPoolMergeExecutorService != null;
                     // wait for the budget to be updated from the available disk space
-                    AtomicLong availableBudget = new AtomicLong();
+                    AtomicLong expectedAvailableBudget = new AtomicLong();
                     assertBusy(() -> {
                         if (aHasMoreSpace) {
                             // 120_000L (available) - 5% (default flood stage level) * 150_000L (total)
-                            assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(112_500L));
-                            availableBudget.set(112_500L);
+                            assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(112_500L));
+                            expectedAvailableBudget.set(112_500L);
                         } else {
                             // 110_000L (available) - 5% (default flood stage level) * 140_000L (total)
-                            assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(103_000L));
-                            availableBudget.set(103_000L);
+                            assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(103_000L));
+                            expectedAvailableBudget.set(103_000L);
                         }
                     });
-                    // tasks that wait on the latch will hold up the budget
-                    CountDownLatch blockMergeTasks = new CountDownLatch(1);
+                    List<ThreadPoolMergeScheduler.MergeTask> runningOrAbortingMergeTasksList = new ArrayList<>();
+                    List<CountDownLatch> latchesBlockingMergeTasksList = new ArrayList<>();
                     // submit merge tasks that don't finish, in order to deplete the available budget
                     while (submittedMergesCount > 0) {
                         ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
@@ -390,57 +393,79 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                             // this task will NOT hold up any budget because it runs quickly (it is not blocked)
                             when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1_000L, 10_000L));
                         } else {
-                            // make sure the available budget is expended
-                            if (submittedMergesCount == 1) {
-                                when(mergeTask.estimatedRemainingMergeSize()).thenReturn(availableBudget.get());
-                            } else {
-                                long taskBudget = randomLongBetween(smallMergeTaskSize + 1L, availableBudget.get());
-                                when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
-                                availableBudget.set(availableBudget.get() - taskBudget);
-                            }
+                            CountDownLatch blockMergeTaskLatch = new CountDownLatch(1);
+                            long taskBudget = randomLongBetween(1L, expectedAvailableBudget.get());
+                            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
+                            expectedAvailableBudget.set(expectedAvailableBudget.get() - taskBudget);
                             submittedMergesCount--;
                             // this task will hold up budget because it blocks when it runs (to simulate it running for a long time)
                             doAnswer(mock -> {
                                 // wait to be signalled before completing (this holds up budget)
-                                blockMergeTasks.await();
+                                blockMergeTaskLatch.await();
                                 return null;
                             }).when(mergeTask).run();
                             doAnswer(mock -> {
                                 // wait to be signalled before completing (this holds up budget)
-                                blockMergeTasks.await();
+                                blockMergeTaskLatch.await();
                                 return null;
                             }).when(mergeTask).abort();
+                            runningOrAbortingMergeTasksList.add(mergeTask);
+                            latchesBlockingMergeTasksList.add(blockMergeTaskLatch);
                         }
                         threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                     }
-                    // running (or aborting) merge tasks have depleted the available budget
-                    assertBusy(() -> { assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(0L)); });
-                    int moreMergeTasksCount = randomIntBetween(1, 10);
-                    // any new merge tasks will only be enqueued but not actually run, until more budget becomes available
-                    for (int i = 0; i < moreMergeTasksCount; i++) {
-                        ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
-                        when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
-                        // even "small" merge tasks cannot run because the available budget is "0"
-                        when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1L, smallMergeTaskSize));
-                        when(mergeTask.schedule()).thenReturn(RUN);
-                        threadPoolMergeExecutorService.submitMergeTask(mergeTask);
-                    }
-                    assertBusy(() -> {
-                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(0L));
-                        // all the newly submitted merge tasks have been enqueued, none executed
-                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), greaterThanOrEqualTo(moreMergeTasksCount));
-                    });
-                    // resume blocked merge tasks which should resume everything back
-                    blockMergeTasks.countDown();
-                    assertBusy(() -> {
-                        assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(0));
-                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
-                        if (aHasMoreSpace) {
-                            assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(112_500L));
+                    // currently running (or aborting) merge tasks have consumed some of the available budget
+                    assertBusy(
+                        () -> assertThat(
+                            threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                            is(expectedAvailableBudget.get())
+                        )
+                    );
+                    while (runningOrAbortingMergeTasksList.isEmpty() == false) {
+                        assertBusy(
+                            () -> assertThat(
+                                threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                                is(expectedAvailableBudget.get())
+                            )
+                        );
+                        ThreadPoolMergeScheduler.MergeTask mergeTask1 = mock(ThreadPoolMergeScheduler.MergeTask.class);
+                        when(mergeTask1.supportsIOThrottling()).thenReturn(randomBoolean());
+                        when(mergeTask1.schedule()).thenReturn(RUN);
+                        ThreadPoolMergeScheduler.MergeTask mergeTask2 = mock(ThreadPoolMergeScheduler.MergeTask.class);
+                        when(mergeTask2.supportsIOThrottling()).thenReturn(randomBoolean());
+                        when(mergeTask2.schedule()).thenReturn(RUN);
+                        boolean task1Runs = randomBoolean();
+                        long currentAvailableBudget = expectedAvailableBudget.get();
+                        long overBudget = randomLongBetween(currentAvailableBudget + 1L, currentAvailableBudget + 100L);
+                        long underBudget = randomLongBetween(0L, currentAvailableBudget);
+                        if (task1Runs) {
+                            // merge task 1 can run because it is under budget
+                            when(mergeTask1.estimatedRemainingMergeSize()).thenReturn(underBudget);
+                            // merge task 2 cannot run because it is over budget
+                            when(mergeTask2.estimatedRemainingMergeSize()).thenReturn(overBudget);
                         } else {
-                            assertThat(threadPoolMergeExecutorService.getMergeTasksQueue().getAvailableBudget(), is(103_000L));
+                            // merge task 1 cannot run because it is over budget
+                            when(mergeTask1.estimatedRemainingMergeSize()).thenReturn(overBudget);
+                            // merge task 2 can run because it is under budget
+                            when(mergeTask2.estimatedRemainingMergeSize()).thenReturn(underBudget);
                         }
-                    });
+                        threadPoolMergeExecutorService.submitMergeTask(mergeTask1);
+                        threadPoolMergeExecutorService.submitMergeTask(mergeTask2);
+                        assertBusy(() -> {
+                            if (task1Runs) {
+                                verify(mergeTask1).run();
+                                verify(mergeTask2, times(0)).run();
+                            } else {
+                                verify(mergeTask2).run();
+                                verify(mergeTask1, times(0)).run();
+                            }
+                        });
+                        // let one task from the bunch tasks, that are holding budget, finish running
+                        int index = randomIntBetween(0, runningOrAbortingMergeTasksList.size() - 1);
+                        latchesBlockingMergeTasksList.remove(index).countDown();
+                        ThreadPoolMergeScheduler.MergeTask completedMergeTask = runningOrAbortingMergeTasksList.remove(index);
+                        expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
+                    }
                 }
             }
         }

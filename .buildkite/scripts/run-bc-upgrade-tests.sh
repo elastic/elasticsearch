@@ -36,8 +36,8 @@ fi
 
 CURRENT_VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
-BC_VERSION=$(echo "$MANIFEST" | jq .version)
-BC_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
+BC_VERSION=$(echo "$MANIFEST" | jq -r .version)
+BC_COMMIT_HASH=$(echo "$MANIFEST" | jq -r .projects.elasticsearch.commit_hash)
 
 if [ "$CURRENT_VERSION-SNAPSHOT" != "$BC_VERSION" ]; then
     echo "Version [$BC_VERSION] of BC (or snapshot) does not match current version [$CURRENT_VERSION] of branch [$BUILDKITE_BRANCH]."

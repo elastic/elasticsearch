@@ -106,11 +106,12 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
             logger,
             clusterService.threadPool().getThreadContext()
         );
-        // We track whether we already notified the listener of cancellation, to avoid invoking the listener twice.
-        final var notifiedCancellation = new AtomicBoolean(false);
+        // We track whether we already notified the listener or started executing the action, to avoid invoking the listener twice.
+        // Because of that second part, we can not use ActionListener#notifyOnce.
+        final var notifiedListener = new AtomicBoolean(false);
         if (task instanceof CancellableTask cancellableTask) {
             cancellableTask.addListener(() -> {
-                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                if (notifiedListener.compareAndSet(false, true) == false) {
                     return;
                 }
                 listener.onFailure(new TaskCancelledException("Task was cancelled"));
@@ -120,7 +121,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                if (notifiedListener.compareAndSet(false, true) == false) {
                     return;
                 }
                 logger.trace("retrying with cluster state version [{}]", state.version());
@@ -129,7 +130,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
             @Override
             public void onClusterServiceClose() {
-                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                if (notifiedListener.compareAndSet(false, true) == false) {
                     return;
                 }
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
@@ -137,7 +138,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                if (notifiedCancellation.compareAndSet(false, true) == false) {
+                if (notifiedListener.compareAndSet(false, true) == false) {
                     return;
                 }
                 logger.debug(

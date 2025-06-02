@@ -258,6 +258,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                 2,
                 ds2.getMetadata(),
                 ds2.getSettings(),
+                ds2.getMappings(),
                 ds2.isHidden(),
                 ds2.isReplicated(),
                 ds2.isSystem(),

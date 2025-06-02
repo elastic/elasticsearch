@@ -54,7 +54,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -1223,7 +1222,6 @@ public class VerifierTests extends ESTestCase {
         testFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(first_name, \"Anna\")");
         testFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "first_name : \"Anna\"");
         testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Anna\", first_name)");
-        testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
     public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation)
@@ -1351,9 +1349,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
-        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1437,9 +1432,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
         }
@@ -1509,9 +1501,6 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Anna\")");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
         }
     }
 
@@ -2037,9 +2026,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"%s\": %s})");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
-        }
     }
 
     /**
@@ -2133,10 +2119,6 @@ public class VerifierTests extends ESTestCase {
             testFullTextFunctionNullArgs("term(null, \"query\")", "first");
             testFullTextFunctionNullArgs("term(first_name, null)", "second");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
-            testFullTextFunctionNullArgs("knn(vector, null)", "second");
-        }
     }
 
     private void testFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
@@ -2155,9 +2137,6 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsConstantQuery("term(first_name, last_name)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
         }
     }
 

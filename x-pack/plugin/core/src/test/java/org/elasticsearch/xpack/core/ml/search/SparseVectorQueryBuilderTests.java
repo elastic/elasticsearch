@@ -63,10 +63,19 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     private static final String SPARSE_VECTOR_FIELD = "mySparseVectorField";
     private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new WeightedToken("foo", .42f));
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
+    private final IndexVersion indexVersionToTest;
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.METHOD)
     public @interface InjectSparseVectorIndexOptions {
+    }
+
+    public SparseVectorQueryBuilderTests() {
+        // The sparse_vector field is not supported on versions 8.0 to 8.10. Because of this we'll only allow
+        // index versions after its reintroduction.
+        indexVersionToTest = randomBoolean()
+                             ? IndexVersion.current()
+                             : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
     }
 
     @Override
@@ -115,12 +124,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
     @Override
     protected Settings createTestIndexSettings() {
-        // The sparse_vector field is not supported on versions 8.0 to 8.10. Because of this we'll only allow
-        // index versions after its reintroduction.
-        final IndexVersion indexVersionCreated = randomBoolean()
-            ? IndexVersion.current()
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionToTest).build();
     }
 
     @Override
@@ -171,6 +175,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     }
 
     private boolean currentTestHasIndexOptions() {
+        if (indexVersionSupportsIndexOptions() == false) {
+            return false;
+        }
+
         Class<?> clazz = this.getClass();
         Class<InjectSparseVectorIndexOptions> injectSparseVectorIndexOptions = InjectSparseVectorIndexOptions.class;
 
@@ -180,6 +188,18 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         } catch (NoSuchMethodException e) {
             return false;
         }
+    }
+
+    private boolean indexVersionSupportsIndexOptions() {
+        if (indexVersionToTest.onOrAfter(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)) {
+            return true;
+        }
+
+        if (indexVersionToTest.between(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+            return true;
+        }
+
+        return false;
     }
 
     @Override
@@ -277,6 +297,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         assertTrue(query instanceof SparseVectorQueryWrapper);
         var sparseQuery = (SparseVectorQueryWrapper) query;
+
+        // check if we have explicit pruning, or pruning via the index_options
         if (queryBuilder.shouldPruneTokens() || currentTestHasIndexOptions()) {
             // It's possible that all documents were pruned for aggressive pruning configurations
             assertTrue(sparseQuery.getTermsQuery() instanceof BooleanQuery || sparseQuery.getTermsQuery() instanceof MatchNoDocsQuery);

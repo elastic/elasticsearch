@@ -1,0 +1,5 @@
+pr: 128534
+summary: "Update default docker base image to Ubuntu 24.04"
+area: Packaging
+type: upgrade
+issues: []

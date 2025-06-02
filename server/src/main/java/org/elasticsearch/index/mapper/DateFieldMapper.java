@@ -21,7 +21,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -46,6 +45,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -627,7 +627,7 @@ public final class DateFieldMapper extends FieldMapper {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 }
                 if (hasDocValues() && context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    query = new XIndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
                 return query;
             });

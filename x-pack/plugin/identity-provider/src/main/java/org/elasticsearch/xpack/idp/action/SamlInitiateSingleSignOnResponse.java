@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 
 import java.io.IOException;
 
@@ -21,7 +20,6 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
     private final String entityId;
     private final String samlStatus;
     private final String error;
-    private final SamlInitiateSingleSignOnAttributes attributes;
 
     public SamlInitiateSingleSignOnResponse(
         String entityId,
@@ -30,23 +28,11 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         String samlStatus,
         @Nullable String error
     ) {
-        this(entityId, postUrl, samlResponse, samlStatus, error, null);
-    }
-
-    public SamlInitiateSingleSignOnResponse(
-        String entityId,
-        String postUrl,
-        String samlResponse,
-        String samlStatus,
-        @Nullable String error,
-        @Nullable SamlInitiateSingleSignOnAttributes attributes
-    ) {
         this.entityId = entityId;
         this.postUrl = postUrl;
         this.samlResponse = samlResponse;
         this.samlStatus = samlStatus;
         this.error = error;
-        this.attributes = attributes;
     }
 
     public String getPostUrl() {
@@ -69,10 +55,6 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         return samlStatus;
     }
 
-    public SamlInitiateSingleSignOnAttributes getAttributes() {
-        return attributes;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(entityId);
@@ -80,7 +62,6 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         out.writeString(samlResponse);
         out.writeString(samlStatus);
         out.writeOptionalString(error);
-        out.writeOptionalWriteable(attributes);
     }
 
     public void toXContent(XContentBuilder builder) throws IOException {

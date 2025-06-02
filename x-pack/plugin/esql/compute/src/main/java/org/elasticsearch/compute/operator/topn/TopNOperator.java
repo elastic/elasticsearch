@@ -605,10 +605,7 @@ public class TopNOperator implements Operator, Accountable {
         size += partitions.size() * Partition.SHALLOW_SIZE;
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        long ramBytesUsedSum = inputQueues.entrySet()
-            .stream()
-            .mapToLong(e -> e.getKey().length + e.getValue().ramBytesUsed())
-            .sum();
+        long ramBytesUsedSum = inputQueues.entrySet().stream().mapToLong(e -> e.getKey().bytes.length + e.getValue().ramBytesUsed()).sum();
         size += ramBytesUsedSum;
         return size;
     }

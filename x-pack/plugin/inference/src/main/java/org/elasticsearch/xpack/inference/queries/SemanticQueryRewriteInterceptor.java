@@ -45,7 +45,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
         if (fieldName == null && getQueryName().equals(MatchAllQueryBuilder.NAME)) {
             return queryBuilder;
-//            return handleMatchAllQuery(queryBuilder, resolvedIndices);
+            // return handleMatchAllQuery(queryBuilder, resolvedIndices);
         }
 
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);

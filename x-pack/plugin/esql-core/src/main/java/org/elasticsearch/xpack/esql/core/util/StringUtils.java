@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -174,6 +175,44 @@ public final class StringUtils {
             }
         }
         regex.append('$');
+
+        return regex.toString();
+    }
+
+    /**
+     * Translates a Lucene wildcard pattern to a Lucene RegExp one.
+     * @param wildcard Lucene wildcard pattern
+     * @return Lucene RegExp pattern
+     */
+    public static String luceneWildcardToRegExp(String wildcard) {
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0, wcLen = wildcard.length(); i < wcLen; i++) {
+            char c = wildcard.charAt(i); // this will work chunking through Unicode as long as all values matched are ASCII
+            switch (c) {
+                case WildcardQuery.WILDCARD_STRING -> regex.append(".*");
+                case WildcardQuery.WILDCARD_CHAR -> regex.append(".");
+                case WildcardQuery.WILDCARD_ESCAPE -> {
+                    if (i + 1 < wcLen) {
+                        // consume the wildcard escaping, consider the next char
+                        char next = wildcard.charAt(i + 1);
+                        i++;
+                        switch (next) {
+                            case WildcardQuery.WILDCARD_STRING, WildcardQuery.WILDCARD_CHAR, WildcardQuery.WILDCARD_ESCAPE ->
+                                // escape `*`, `.`, `\`, since these are special chars in RegExp as well
+                                regex.append("\\");
+                            // default: unnecessary escaping -- just ignore the escaping
+                        }
+                        regex.append(next);
+                    } else {
+                        // "else fallthru, lenient parsing with a trailing \" -- according to WildcardQuery#toAutomaton
+                        regex.append("\\\\");
+                    }
+                }
+                case '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
+                default -> regex.append(c);
+            }
+        }
 
         return regex.toString();
     }

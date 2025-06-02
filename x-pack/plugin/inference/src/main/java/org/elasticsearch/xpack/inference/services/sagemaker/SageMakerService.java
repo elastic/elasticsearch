@@ -45,7 +45,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 
 public class SageMakerService implements InferenceService {
-    public static final String NAME = "sagemaker";
+    public static final String NAME = "amazon_sagemaker";
+    private static final String DISPLAY_NAME = "Amazon SageMaker";
+    private static final List<String> ALIASES = List.of("sagemaker", "amazonsagemaker");
     private static final int DEFAULT_BATCH_SIZE = 256;
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
     private final SageMakerModelBuilder modelBuilder;
@@ -67,7 +69,7 @@ public class SageMakerService implements InferenceService {
         this.threadPool = threadPool;
         this.configuration = new LazyInitializable<>(
             () -> new InferenceServiceConfiguration.Builder().setService(NAME)
-                .setName("Amazon SageMaker")
+                .setName(DISPLAY_NAME)
                 .setTaskTypes(supportedTaskTypes())
                 .setConfigurations(configurationMap.get())
                 .build()
@@ -77,6 +79,11 @@ public class SageMakerService implements InferenceService {
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public List<String> aliases() {
+        return ALIASES;
     }
 
     @Override

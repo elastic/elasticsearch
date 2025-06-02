@@ -2478,7 +2478,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
             "1:36: [Match] function is only supported in WHERE and STATS commands\n"
-                + "line 1:48: [Match] function cannot operate on [title], which is not a field from an index mapping",
+                + "line 1:42: [Match] function cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = match(title, \"fox\")")
         );
     }

@@ -204,7 +204,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: this sorting operation tanks recall for some reason, works fine for small numbers of vectors like in single segment
-        //  need to investigate this further
+        // need to investigate this further
         float[] distances = new float[centroids.length];
         for (int i = 0; i < centroids.length; i++) {
             distances[i] = VectorUtil.squareDistance(centroids[i], globalCentroid);
@@ -247,14 +247,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         // TODO: take advantage of prior generated clusters from mergeState in the future
-        return calculateAndWriteCentroids(
-            fieldInfo,
-            floatVectorValues,
-            centroidOutput,
-            mergeState.infoStream,
-            globalCentroid,
-            false
-        );
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, mergeState.infoStream, globalCentroid, false);
     }
 
     CentroidAssignments calculateAndWriteCentroids(
@@ -264,14 +257,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         InfoStream infoStream,
         float[] globalCentroid
     ) throws IOException {
-        return calculateAndWriteCentroids(
-            fieldInfo,
-            floatVectorValues,
-            centroidOutput,
-            infoStream,
-            globalCentroid,
-            true
-        );
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, infoStream, globalCentroid, true);
     }
 
     /**
@@ -305,7 +291,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         short[] soarAssignments = kMeansResult.soarAssignments();
 
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
-        //   preliminary tests suggest recall is good using only centroids but need to do further evaluation
+        // preliminary tests suggest recall is good using only centroids but need to do further evaluation
         // TODO: push this logic into vector util?
         for (float[] centroid : centroids) {
             for (int j = 0; j < centroid.length; j++) {

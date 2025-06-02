@@ -1786,9 +1786,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         aggExec.forEachDown(EsQueryExec.class, esQueryExec -> { assertNull(esQueryExec.query()); });
     }
 
-    public void testPushDownFieldExtractToTimeSeriesSource() {
+    public void testParallelizeTimeSeriesPlan() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
+        var query = "TS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
         PhysicalPlan plan = optimizer.plan(query);
         var limit = as(plan, LimitExec.class);
@@ -1797,13 +1797,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
         var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
         var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
-        var parallel = as(timeSeriesPartialAgg.child(), ParallelExec.class);
-        var timeSeriesSource = as(parallel.child(), TimeSeriesSourceExec.class);
-        assertThat(timeSeriesSource.attributesToExtract(), hasSize(1));
-        FieldAttribute field = as(timeSeriesSource.attributesToExtract().getFirst(), FieldAttribute.class);
-        assertThat(field.name(), equalTo("network.total_bytes_in"));
-        assertThat(timeSeriesSource.attrs(), hasSize(2));
-        assertTrue(timeSeriesSource.attrs().stream().noneMatch(EsQueryExec::isSourceAttribute));
+        var parallel1 = as(timeSeriesPartialAgg.child(), ParallelExec.class);
+        var eval = as(parallel1.child(), EvalExec.class);
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        var parallel2 = as(fieldExtract.child(), ParallelExec.class);
+        as(parallel2.child(), TimeSeriesSourceExec.class);
     }
 
     /**

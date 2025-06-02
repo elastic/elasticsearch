@@ -57,7 +57,7 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     }
 
     public int[] slice() {
-        if(this.slice == null) {
+        if (this.slice == null) {
             return IntStream.range(0, allValues.size()).toArray();
         } else {
             return this.slice;

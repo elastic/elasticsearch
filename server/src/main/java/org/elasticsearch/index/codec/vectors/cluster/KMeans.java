@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.IntStream;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm
@@ -59,8 +58,8 @@ class KMeans {
         // Choose data points as random ensuring we have distinct points where possible
 
         // FIXME: use me or remove me
-//        int[] candidates = IntStream.range(0, sampleSize).toArray();
-//        shuffle(candidates, new Random(42L));
+        // int[] candidates = IntStream.range(0, sampleSize).toArray();
+        // shuffle(candidates, new Random(42L));
 
         List<Integer> candidates = new ArrayList<>(sampleSize);
         for (int i = 0; i < sampleSize; i++) {

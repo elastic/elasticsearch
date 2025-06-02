@@ -97,4 +97,5 @@ tasks.named("dependencyLicenses").configure {
   mapping from: "microsoft-graph-core", to: "microsoft-graph"
   mapping from: /azure-.*/, to: "azure"
   mapping from: /jackson.*/, to: "jackson"
+  mapping from: /kotlin.*/, to: "kotlin"
 }

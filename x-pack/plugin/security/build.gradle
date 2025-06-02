@@ -416,8 +416,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.xml.bind.UnmarshallerHandler',
     // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
     'org.cryptomator.siv.SivMode',
-    'com.nimbusds.common.contenttype.ContentType',
-    'com.nimbusds.common.contenttype.ContentType$Parameter',
     'javax.activation.ActivationDataFlavor',
     'javax.activation.DataContentHandler',
     'javax.activation.DataHandler',

@@ -117,7 +117,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return watcherThread != null;
     }
 
-    private FileUpdateState readFileUpdateState(Path path) throws IOException, InterruptedException {
+    // package private for testing
+    FileUpdateState readFileUpdateState(Path path) throws IOException, InterruptedException {
         int retryCount = 0;
         do {
             try {
@@ -132,7 +133,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 if (retryCount == ACCESS_DENIED_RETRY_COUNT - 1) {
                     throw e;
                 }
-                logger.debug("Could not update file [{}] attempt [{}]", path, retryCount);
+                logger.debug("Could not read file state [{}] attempt [{}]", path, retryCount);
                 Thread.sleep(retryDelayMillis(retryCount));
                 retryCount++;
             }

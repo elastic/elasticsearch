@@ -1,5 +1,0 @@
-pr: 128745
-summary: Support STATS after FORK
-area: "ES|QL, Search"
-type: bug
-issues: []

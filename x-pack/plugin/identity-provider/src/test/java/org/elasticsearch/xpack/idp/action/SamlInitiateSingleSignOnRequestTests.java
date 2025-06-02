@@ -54,11 +54,10 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         request.setAssertionConsumerService("https://kibana_url/acs");
 
         // Test with valid attribute keys
-        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("key1", Collections.singletonList("value1"));
         attributeMap.put("key2", Arrays.asList("value2A", "value2B"));
-        attributes.setAttributes(attributeMap);
+        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
         request.setAttributes(attributes);
 
         // Should pass validation
@@ -66,11 +65,10 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         assertNull("Request with valid attribute keys should pass validation", validationException);
 
         // Test with empty attribute key - should be invalid
-        attributes = new SamlInitiateSingleSignOnAttributes();
         attributeMap = new HashMap<>();
         attributeMap.put("", Collections.singletonList("value1"));
         attributeMap.put("unique_key", Collections.singletonList("value2"));
-        attributes.setAttributes(attributeMap);
+        attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
         request.setAttributes(attributes);
 
         // Should fail validation with appropriate error message

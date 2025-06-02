@@ -35,24 +35,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
 
     public void testConstructors() throws Exception {
-        // Test default constructor
-        final SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes();
+        final SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes(Collections.emptyMap());
         assertThat(attributes1.getAttributes(), Matchers.anEmptyMap());
-
-        // Test a second instance is also empty (not holding state)
-        final SamlInitiateSingleSignOnAttributes attributes2 = new SamlInitiateSingleSignOnAttributes();
-        assertThat(attributes2.getAttributes(), Matchers.anEmptyMap());
 
         // Test adding attributes
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("key1", Collections.singletonList("value1"));
-        final SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes();
-        attributes3.setAttributes(attributeMap);
+        final SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes(attributeMap);
         assertThat(attributes3.getAttributes().size(), equalTo(1));
     }
 
     public void testEmptyAttributes() throws Exception {
-        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
+        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(Collections.emptyMap());
 
         // Test toXContent
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -70,12 +64,10 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
     }
 
     public void testWithAttributes() throws Exception {
-        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
-
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("key1", Arrays.asList("value1", "value2"));
         attributeMap.put("key2", Collections.singletonList("value3"));
-        attributes.setAttributes(attributeMap);
+        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
 
         // Test getAttributes
         Map<String, List<String>> returnedAttributes = attributes.getAttributes();
@@ -121,10 +113,9 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
     }
 
     public void testToString() {
-        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("key1", Arrays.asList("value1", "value2"));
-        attributes.setAttributes(attributeMap);
+        final SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
 
         String toString = attributes.toString();
         assertThat(toString, containsString("SamlInitiateSingleSignOnAttributes"));
@@ -132,16 +123,8 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         assertThat(toString, containsString("value1"));
         assertThat(toString, containsString("value2"));
 
-        // Add another attribute
-        attributeMap.put("key2", Collections.singletonList("value3"));
-        attributes.setAttributes(attributeMap);
-
-        toString = attributes.toString();
-        assertThat(toString, containsString("key2"));
-        assertThat(toString, containsString("value3"));
-
         // Test empty attributes
-        final SamlInitiateSingleSignOnAttributes emptyAttributes = new SamlInitiateSingleSignOnAttributes();
+        final SamlInitiateSingleSignOnAttributes emptyAttributes = new SamlInitiateSingleSignOnAttributes(Collections.emptyMap());
         toString = emptyAttributes.toString();
         assertThat(toString, containsString("SamlInitiateSingleSignOnAttributes"));
         assertThat(toString, containsString("attributes={}"));
@@ -149,10 +132,9 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
 
     public void testValidation() throws Exception {
         // Test validation with empty key
-        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("", Arrays.asList("value1", "value2"));
-        attributes.setAttributes(attributeMap);
+        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
 
         ActionRequestValidationException validationException = attributes.validate();
         assertNotNull(validationException);
@@ -161,7 +143,7 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         // Test validation with null key
         attributeMap = new HashMap<>();
         attributeMap.put(null, Collections.singletonList("value"));
-        attributes.setAttributes(attributeMap);
+        attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
 
         validationException = attributes.validate();
         assertNotNull(validationException);
@@ -173,19 +155,17 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         attributeMap1.put("key1", Arrays.asList("value1", "value2"));
         attributeMap1.put("key2", Collections.singletonList("value3"));
 
-        SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes();
-        attributes1.setAttributes(attributeMap1);
+        SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes(attributeMap1);
 
         Map<String, List<String>> attributeMap2 = new HashMap<>();
         attributeMap2.put("key1", Arrays.asList("value1", "value2"));
         attributeMap2.put("key2", Collections.singletonList("value3"));
 
-        SamlInitiateSingleSignOnAttributes attributes2 = new SamlInitiateSingleSignOnAttributes();
-        attributes2.setAttributes(attributeMap2);
+        SamlInitiateSingleSignOnAttributes attributes2 = new SamlInitiateSingleSignOnAttributes(attributeMap2);
 
         // Test equals
-        assertTrue(attributes1.equals(attributes2));
-        assertTrue(attributes2.equals(attributes1));
+        assertEquals(attributes1, attributes2);
+        assertEquals(attributes2, attributes1);
 
         // Test hashCode
         assertThat(attributes1.hashCode(), equalTo(attributes2.hashCode()));
@@ -195,19 +175,17 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         attributeMap3.put("key1", Arrays.asList("different", "value2"));
         attributeMap3.put("key2", Collections.singletonList("value3"));
 
-        SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes();
-        attributes3.setAttributes(attributeMap3);
+        SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes(attributeMap3);
 
-        assertFalse(attributes1.equals(attributes3));
+        assertNotEquals(attributes1, attributes3);
 
         // Test with missing key
         Map<String, List<String>> attributeMap4 = new HashMap<>();
         attributeMap4.put("key1", Arrays.asList("value1", "value2"));
 
-        SamlInitiateSingleSignOnAttributes attributes4 = new SamlInitiateSingleSignOnAttributes();
-        attributes4.setAttributes(attributeMap4);
+        SamlInitiateSingleSignOnAttributes attributes4 = new SamlInitiateSingleSignOnAttributes(attributeMap4);
 
-        assertFalse(attributes1.equals(attributes4));
+        assertNotEquals(attributes1, attributes4);
     }
 
     private SamlInitiateSingleSignOnAttributes parseFromJson(String json) throws IOException {

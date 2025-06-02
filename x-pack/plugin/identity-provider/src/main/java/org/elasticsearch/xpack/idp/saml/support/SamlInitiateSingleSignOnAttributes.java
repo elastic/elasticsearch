@@ -29,10 +29,10 @@ import java.util.Objects;
  * Each attribute has a key and a list of values.
  */
 public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContentObject {
-    private Map<String, List<String>> attributes;
+    private final Map<String, List<String>> attributes;
 
-    public SamlInitiateSingleSignOnAttributes() {
-        this.attributes = new HashMap<>();
+    public SamlInitiateSingleSignOnAttributes(Map<String, List<String>> attributes) {
+        this.attributes = attributes;
     }
 
     /**
@@ -40,11 +40,6 @@ public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContent
      */
     public Map<String, List<String>> getAttributes() {
         return Collections.unmodifiableMap(attributes);
-    }
-
-    public SamlInitiateSingleSignOnAttributes setAttributes(Map<String, List<String>> attributes) {
-        this.attributes = new HashMap<>(attributes);
-        return this;
     }
 
     /**
@@ -66,9 +61,7 @@ public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContent
                 attributes.put(key, values);
             }
         }
-        SamlInitiateSingleSignOnAttributes attributesObj = new SamlInitiateSingleSignOnAttributes();
-        attributesObj.setAttributes(attributes);
-        return attributesObj;
+        return new SamlInitiateSingleSignOnAttributes(attributes);
     }
 
     @Override

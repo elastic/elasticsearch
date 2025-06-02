@@ -233,7 +233,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         // Add custom attributes if provided
         if (customAttributes != null && customAttributes.getAttributes().isEmpty() == false) {
             for (Map.Entry<String, List<String>> entry : customAttributes.getAttributes().entrySet()) {
-                Attribute attribute = buildAttribute(entry.getKey(), entry.getKey(), entry.getValue());
+                Attribute attribute = buildAttribute(entry.getKey(), null, entry.getValue());
                 if (attribute != null) {
                     attributes.add(attribute);
                 }
@@ -247,20 +247,22 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return statement;
     }
 
-    private Attribute buildAttribute(String formalName, String friendlyName, String value) {
+    private Attribute buildAttribute(String formalName, @Nullable String friendlyName, String value) {
         if (Strings.isNullOrEmpty(value)) {
             return null;
         }
         return buildAttribute(formalName, friendlyName, List.of(value));
     }
 
-    private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {
+    private Attribute buildAttribute(String formalName, @Nullable String friendlyName, Collection<String> values) {
         if (values.isEmpty() || Strings.isNullOrEmpty(formalName)) {
             return null;
         }
         final Attribute attribute = samlFactory.object(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
         attribute.setName(formalName);
-        attribute.setFriendlyName(friendlyName);
+        if (Strings.isNullOrEmpty(friendlyName) == false) {
+            attribute.setFriendlyName(friendlyName);
+        }
         attribute.setNameFormat(Attribute.URI_REFERENCE);
         for (String val : values) {
             final XSString string = samlFactory.object(XSString.class, AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);

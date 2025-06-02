@@ -62,7 +62,6 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
 
     public void testSignedResponseWithCustomAttributes() throws Exception {
         // Create custom attributes
-        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes();
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("customAttr1", Collections.singletonList("value1"));
 
@@ -70,8 +69,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         multipleValues.add("value2A");
         multipleValues.add("value2B");
         attributeMap.put("customAttr2", multipleValues);
-
-        attributes.setAttributes(attributeMap);
+        SamlInitiateSingleSignOnAttributes attributes = new SamlInitiateSingleSignOnAttributes(attributeMap);
 
         // Build response with custom attributes
         final Response response = buildResponse(attributes);

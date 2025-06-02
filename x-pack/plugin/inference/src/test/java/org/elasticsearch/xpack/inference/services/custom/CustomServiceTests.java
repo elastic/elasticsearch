@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -267,6 +269,42 @@ public class CustomServiceTests extends AbstractServiceTests {
         return taskType == TaskType.TEXT_EMBEDDING
             ? CustomServiceSettings.TextEmbeddingSettings.DEFAULT_FLOAT
             : CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
+    }
+
+    public void testInfer_ReturnsAnError_WithoutParsingTheResponseBody() throws IOException {
+        try (var service = createService(threadPool, clientManager)) {
+            String responseJson = "error";
+
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
+
+            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("test input"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    Strings.format(
+                        "Received an unsuccessful status code for request "
+                            + "from inference entity id [inference_id] status [400]. Error message: [%s]",
+                        responseJson
+                    )
+                )
+            );
+        }
     }
 
     public void testInfer_HandlesTextEmbeddingRequest_OpenAI_Format() throws IOException {

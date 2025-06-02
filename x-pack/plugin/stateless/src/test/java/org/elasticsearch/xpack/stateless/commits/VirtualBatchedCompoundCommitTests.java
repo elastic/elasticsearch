@@ -187,10 +187,23 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             // expect CorruptIndexException when the VBCC upload stream is consumed.
             // At least AWS SDKv1 doesn't read to EOF or close the input stream until after it has finished writing the object
             // (as a way to make reads retryable), so we emulate that here (ES-10931)
+            final int commitSize = (int) virtualBatchedCompoundCommit.getTotalSizeInBytes();
             try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                var output = new byte[(int) virtualBatchedCompoundCommit.getTotalSizeInBytes()];
+                var output = new byte[commitSize];
                 assertThrows(CorruptIndexException.class, () -> Streams.readFully(frozenInputStream, output, 0, output.length));
             }
+
+            // verify that corruption is also detected when reading the VBCC in chunks (as for concurrent multipart uploads)
+            final int chunkSize = randomIntBetween(100, 1000);
+            assertThrows(CorruptIndexException.class, () -> {
+                for (int i = 0; i < commitSize; i += chunkSize) {
+                    int len = Math.min(chunkSize, commitSize - i);
+                    var output = new byte[len];
+                    try (var chunkStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(i, len)) {
+                        Streams.readFully(chunkStream, output, 0, len);
+                    }
+                }
+            });
             virtualBatchedCompoundCommit.close();
         }
     }

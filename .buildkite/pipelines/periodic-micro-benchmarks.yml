@@ -3,6 +3,8 @@ steps:
     command: |
       .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
       .ci/scripts/index-micro-benchmark-results.sh
+    env:
+      USE_PERF_CREDENTIALS: "true"
     timeout_in_minutes: 300
     agents:
       provider: gcp

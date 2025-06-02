@@ -1019,7 +1019,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V4(Build.current().isSnapshot()),
+        FORK_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1089,6 +1089,16 @@ public class EsqlCapabilities {
         SUM_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support count_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -1131,14 +1141,20 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
 
         /**
-         * Dense vector field type support
+         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
 
         /**
          * Support parameters for LiMIT command.
          */
-        PARAMETER_FOR_LIMIT;
+        PARAMETER_FOR_LIMIT,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG);
 
         private final boolean enabled;
 

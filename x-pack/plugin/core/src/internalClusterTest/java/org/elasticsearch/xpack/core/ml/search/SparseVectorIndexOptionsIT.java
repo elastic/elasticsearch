@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,18 +40,20 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     private final boolean testHasIndexOptions;
     private final boolean testIndexShouldPrune;
     private final boolean testQueryShouldNotPrune;
+    private final boolean overrideQueryPruningConfig;
 
     public SparseVectorIndexOptionsIT(boolean setIndexOptions, boolean setIndexShouldPrune, boolean setQueryShouldNotPrune) {
         this.testHasIndexOptions = setIndexOptions;
         this.testIndexShouldPrune = setIndexShouldPrune;
         this.testQueryShouldNotPrune = setQueryShouldNotPrune;
+        this.overrideQueryPruningConfig = (testHasIndexOptions && testIndexShouldPrune) && randomBoolean();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
         // create a matrix of all combinations
-        // of our first three parameters
+        // of our three parameters
         for (int i = 0; i < 8; i++) {
             params.add(new Object[] { (i & 1) == 0, (i & 2) == 0, (i & 4) == 0 });
         }
@@ -64,8 +67,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        return settings.build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
     }
 
     @Override
@@ -116,10 +118,6 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     }
 
     private String getTestIndexMapping() {
-        if (isRunningAgainstOldCluster()) {
-            return "{\"properties\":{\"" + SPARSE_VECTOR_FIELD + "\":{\"type\":\"sparse_vector\"}}}";
-        }
-
         String testPruningConfigMapping = "\"pruning_config\":{\"tokens_freq_ratio_threshold\":"
             + TEST_PRUNING_TOKENS_FREQ_THRESHOLD
             + ",\"tokens_weight_threshold\":"
@@ -132,11 +130,11 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         return "{\"properties\":{\"" + SPARSE_VECTOR_FIELD + "\":{\"type\":\"sparse_vector\"" + indexOptionsString + "}}}";
     }
 
-    private boolean isRunningAgainstOldCluster() {
-        return false;
-    }
-
     private List<String> getTestExpectedDocIds() {
+        if (overrideQueryPruningConfig) {
+            return EXPECTED_DOC_IDS_WITH_QUERY_OVERRIDE;
+        }
+
         if (testQueryShouldNotPrune) {
             // query overrides prune = false in all cases
             return EXPECTED_DOC_IDS_WITHOUT_PRUNING;
@@ -159,13 +157,17 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private String getBuilderForSearch() {
         boolean shouldUseDefaultTokens = (testQueryShouldNotPrune == false && testHasIndexOptions == false);
-        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
+        TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig
+                                                ? new TokenPruningConfig(3f, 0.5f, true)
+                                                : null;
+
+        SparseVectorQueryBuilder queryBuilder =  new SparseVectorQueryBuilder(
             SPARSE_VECTOR_FIELD,
             shouldUseDefaultTokens ? SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS : SEARCH_WEIGHTED_TOKENS,
             null,
             null,
-            testQueryShouldNotPrune ? false : null,
-            null
+            overrideQueryPruningConfig ? Boolean.TRUE : (testQueryShouldNotPrune ? false : null),
+            queryPruningConfig
         );
 
         return "{\"query\":" + Strings.toString(queryBuilder) + "}";
@@ -224,7 +226,9 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of("1", "3", "2");
 
-    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of("1");
+    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of();
 
     private static final List<String> EXPECTED_DOC_IDS_WITH_DEFAULT_PRUNING = List.of("2");
+
+    private static final List<String> EXPECTED_DOC_IDS_WITH_QUERY_OVERRIDE = List.of();
 }

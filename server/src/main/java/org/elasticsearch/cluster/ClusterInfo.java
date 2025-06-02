@@ -322,7 +322,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     // exposed for tests, computed here rather than exposing all the collections separately
     int getChunkCount() {
-        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 6;
+        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size()
+            + nodesHeapUsage.size() + 7;
     }
 
     public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {

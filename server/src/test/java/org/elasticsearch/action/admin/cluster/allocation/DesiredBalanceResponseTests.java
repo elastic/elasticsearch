@@ -337,7 +337,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         Map<String, Object> clusterInfo = (Map<String, Object>) json.get("cluster_info");
         assertThat(
             clusterInfo.keySet(),
-            containsInAnyOrder("nodes", "shard_paths", "shard_sizes", "shard_data_set_sizes", "reserved_sizes")
+            containsInAnyOrder("nodes", "shard_paths", "shard_sizes", "shard_data_set_sizes", "reserved_sizes", "heap_usage")
         );
     }
 

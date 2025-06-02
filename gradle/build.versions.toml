@@ -49,3 +49,4 @@ xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
 ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.2" }
+nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version = "0.1.4" }

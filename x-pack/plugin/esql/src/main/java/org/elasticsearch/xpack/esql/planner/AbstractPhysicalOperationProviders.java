@@ -74,7 +74,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
             assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
         }
-        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
+        if (aggregatorMode == AggregatorMode.INITIAL
+            && aggregateExec.child() instanceof ExchangeSourceExec exchangeSourceExec
+            && exchangeSourceExec.isIntermediateAgg()) {
             // the reducer step at data node (local) level
             aggregatorMode = AggregatorMode.INTERMEDIATE;
         }

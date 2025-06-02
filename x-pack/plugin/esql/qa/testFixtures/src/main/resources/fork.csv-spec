@@ -3,7 +3,7 @@
 //
 
 simpleFork
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE emp_no == 10001 )
@@ -18,7 +18,7 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithWhereSortAndLimit
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | _fork:keyword
 ;
 
 fiveFork
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE emp_no == 10005 )
@@ -59,7 +59,7 @@ fork5         | 10001
 ;
 
 forkWithWhereSortDescAndLimit
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
@@ -76,7 +76,7 @@ fork2         | 10087          | Xinglin
 ;
 
 forkWithCommonPrefilter
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | WHERE emp_no > 10050
@@ -94,7 +94,7 @@ fork2         | 10100
 ;
 
 forkWithSemanticSearchAndScore
-required_capability: fork_v5
+required_capability: fork_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -114,7 +114,7 @@ fork2         | 6.093784261960139E18  | 2           | all we have to decide is w
 ;
 
 forkWithEvals
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
@@ -131,7 +131,7 @@ fork2         | 10087          | def       | null      | 2
 ;
 
 forkWithStats
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
@@ -152,7 +152,7 @@ fork4         | null           | 100    | 10001     | null
 ;
 
 forkWithDissect
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -172,7 +172,7 @@ fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
 ;
 
 forkWithMixOfCommands
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -197,7 +197,7 @@ fork4         | 10081          | abc       | aaa       | null      | null
 ;
 
 forkWithFiltersOnConstantValues
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM employees
 | EVAL z = 1
@@ -218,7 +218,7 @@ fork3         | null           | 100    | 10100     | 10001
 ;
 
 forkWithUnsupportedAttributes
-required_capability: fork_v5
+required_capability: fork_v6
 
 FROM heights
 | FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
@@ -229,4 +229,64 @@ FROM heights
 description:keyword | height_range:unsupported | x:integer | _fork:keyword
 Very Tall           | null                     | 9         | fork1
 Medium Height       | null                     | null      | fork2
+;
+
+forkBeforeStats
+required_capability: fork_v6
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | DISSECT a "%{x} %{y} %{z}"
+        | EVAL y = y::keyword )
+       ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+       ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+       ( EVAL x = "abc" | EVAL y = "aaa" )
+| STATS c = count(*), m = max(_fork)
+;
+
+c:long | m:keyword
+7      | fork4
+;
+
+forkBeforeStatsWithWhere
+required_capability: fork_v6
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | DISSECT a "%{x} %{y} %{z}"
+        | EVAL y = y::keyword )
+       ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+       ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+       ( EVAL x = "abc" | EVAL y = "aaa" )
+| STATS a = count(*) WHERE _fork == "fork1",
+        b = max(_fork)
+;
+
+a:long | b:keyword
+2      | fork4
+;
+
+forkBeforeStatsByWithWhere
+required_capability: fork_v6
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | DISSECT a "%{x} %{y} %{z}"
+        | EVAL y = y::keyword )
+       ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+       ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+       ( EVAL x = "abc" | EVAL y = "aaa" )
+| STATS a = count(*)  WHERE emp_no > 10000,
+        b = max(x) WHERE _fork == "fork1" BY _fork
+| SORT _fork
+;
+
+a:long | b:keyword | _fork:keyword
+2      | Zhongwei  | fork1
+0      | null      | fork2
+2      | null      | fork3
+2      | null      | fork4
 ;

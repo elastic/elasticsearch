@@ -1098,4 +1098,15 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
         assertEquals(List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
     }
+
+    public void testOptimizeSortWithPoints() {
+        NumberType[] numberTypes = new NumberType[] { NumberType.BYTE, NumberType.SHORT, NumberType.FLOAT, NumberType.INTEGER };
+        boolean isIndexed = randomBoolean();
+        NumberType numberType = RandomPicks.randomFrom(random(), numberTypes);
+        NumberFieldType fieldType = new NumberFieldType("field", numberType, isIndexed);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            .build(null, null);
+        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        assertEquals(isIndexed, sortField.getOptimizeSortWithPoints());
+    }
 }

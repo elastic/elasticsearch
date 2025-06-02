@@ -642,6 +642,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // the taken element holds up some budget
                 var prev = PriorityBlockingQueueWithBudget.this.unreleasedBudgetPerElement.put(wrappedElement, budget);
                 assert prev == null;
+                assert isClosed() == false;
                 PriorityBlockingQueueWithBudget.this.availableBudget -= budget;
                 assert PriorityBlockingQueueWithBudget.this.availableBudget >= 0L;
             }
@@ -656,12 +657,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
                 lock.lock();
                 try {
-                    assert unreleasedBudgetPerElement.containsKey(wrappedElement);
+                    assert isClosed() == false;
                     // when the taken element is not used anymore, it will not influence subsequent available budget computations
                     unreleasedBudgetPerElement.remove(wrappedElement);
                 } finally {
                     lock.unlock();
                 }
+            }
+
+            boolean isClosed() {
+                return unreleasedBudgetPerElement.containsKey(wrappedElement) == false;
             }
 
             E element() {

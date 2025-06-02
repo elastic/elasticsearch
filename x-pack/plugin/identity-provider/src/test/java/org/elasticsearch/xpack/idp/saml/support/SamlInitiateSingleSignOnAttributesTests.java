@@ -50,9 +50,7 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
 
         // Test toXContent
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         attributes.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         String json = BytesReference.bytes(builder).utf8ToString();
 
         final SamlInitiateSingleSignOnAttributes parsedAttributes = parseFromJson(json);
@@ -88,9 +86,7 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
 
         // Test toXContent
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         attributes.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         String json = BytesReference.bytes(builder).utf8ToString();
 
         // Test parsing from JSON

@@ -12,12 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -50,57 +50,22 @@ public class SamlInitiateSingleSignOnAttributes implements Writeable, ToXContent
      * @return A new SamlInitiateSingleSignOnAttributes instance
      */
     public static SamlInitiateSingleSignOnAttributes fromXContent(XContentParser parser) throws IOException {
-        Map<String, List<String>> attributes = new HashMap<>();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            String key = parser.currentName();
-            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                List<String> values = new ArrayList<>();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    values.add(parser.text());
-                }
-                attributes.put(key, values);
-            }
-        }
+        final Map<String, List<String>> attributes = parser.map(HashMap::new, p -> XContentParserUtils.parseList(p, XContentParser::text));
         return new SamlInitiateSingleSignOnAttributes(attributes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
-            builder.startArray(entry.getKey());
-            for (String value : entry.getValue()) {
-                builder.value(value);
-            }
-            builder.endArray();
-        }
-        return builder;
+        return builder.map(attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            List<String> values = entry.getValue();
-            out.writeVInt(values.size());
-            for (String value : values) {
-                out.writeString(value);
-            }
-        }
+        out.writeMap(attributes, StreamOutput::writeStringCollection);
     }
 
     public SamlInitiateSingleSignOnAttributes(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        attributes = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String key = in.readString();
-            int valuesSize = in.readVInt();
-            List<String> values = new ArrayList<>(valuesSize);
-            for (int j = 0; j < valuesSize; j++) {
-                values.add(in.readString());
-            }
-            attributes.put(key, values);
-        }
+        this.attributes = in.readImmutableMap(StreamInput::readStringCollectionAsImmutableList);
     }
 
     /**

@@ -33,26 +33,22 @@ public class TestEntitlementBootstrap {
     private record TestPathLookup() implements PathLookup {
         @Override
         public Path pidFile() {
-            throw notYetImplemented();
+            return null;
         }
 
         @Override
         public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-            throw notYetImplemented();
+            return Stream.empty();
         }
 
         @Override
         public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-            throw notYetImplemented();
+            return Stream.empty();
         }
 
         @Override
         public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
-            throw notYetImplemented();
-        }
-
-        private static IllegalStateException notYetImplemented() {
-            return new IllegalStateException("not yet implemented");
+            return Stream.empty();
         }
 
     }

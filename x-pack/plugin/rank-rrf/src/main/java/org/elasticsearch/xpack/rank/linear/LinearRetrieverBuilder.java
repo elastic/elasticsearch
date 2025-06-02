@@ -109,14 +109,20 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()), null);
+        this(
+            innerRetrievers,
+            rankWindowSize,
+            getDefaultWeight(innerRetrievers.size()),
+            getDefaultNormalizers(innerRetrievers.size()),
+            null
+        );
     }
 
     public LinearRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         int rankWindowSize,
         float[] weights,
-        ScoreNormalizer[] normalizers, 
+        ScoreNormalizer[] normalizers,
         Float minScore
     ) {
         super(innerRetrievers, rankWindowSize);
@@ -127,7 +133,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
         if (minScore != null && minScore < 0.0f) {
-            throw new IllegalArgumentException("[" + MIN_SCORE_FIELD.getPreferredName() + "] must be greater than or equal to 0, was: " + minScore);
+            throw new IllegalArgumentException(
+                "[" + MIN_SCORE_FIELD.getPreferredName() + "] must be greater than or equal to 0, was: " + minScore
+            );
         }
         this.weights = weights;
         this.normalizers = normalizers;

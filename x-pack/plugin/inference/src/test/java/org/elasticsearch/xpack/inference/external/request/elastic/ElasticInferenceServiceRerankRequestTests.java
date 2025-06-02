@@ -74,11 +74,12 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         List<String> documents,
         Integer topN
     ) {
-        var rerankModel = ElasticInferenceServiceRerankModelTests.createModel(url, modelId, topN);
+        var rerankModel = ElasticInferenceServiceRerankModelTests.createModel(url, modelId);
 
         return new ElasticInferenceServiceRerankRequest(
             query,
             documents,
+            topN,
             rerankModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata()

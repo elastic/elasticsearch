@@ -213,12 +213,12 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var query = "query";
             var documents = List.of("document 1", "document 2", "document 3");
 
-            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId, topN);
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
             var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

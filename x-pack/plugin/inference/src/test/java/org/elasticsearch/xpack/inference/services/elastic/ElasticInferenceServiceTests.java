@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -387,6 +388,39 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    "search query",
+                    Boolean.TRUE,
+                    10,
+                    List.of("doc1", "doc2", "doc3"),
+                    false,
+                    new HashMap<>(),
+                    InputType.SEARCH,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this service;")
+            );
+        }
+    }
+
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
         var sender = mock(Sender.class);
 
@@ -544,14 +578,14 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId, topN);
+            var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             service.infer(
                 model,
                 "search query",
                 null,
-                null,
+                topN,
                 List.of("doc1", "doc2", "doc3"),
                 false,
                 new HashMap<>(),

@@ -30,12 +30,14 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
 
     private final String query;
     private final List<String> documents;
+    private final Integer topN;
     private final TraceContextHandler traceContextHandler;
     private final ElasticInferenceServiceRerankModel model;
 
     public ElasticInferenceServiceRerankRequest(
         String query,
         List<String> documents,
+        Integer topN,
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata
@@ -43,6 +45,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         super(metadata);
         this.query = query;
         this.documents = documents;
+        this.topN = topN;
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
@@ -51,12 +54,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(getURI());
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceRerankRequestEntity(
-                query,
-                documents,
-                model.getServiceSettings().modelId(),
-                model.getTaskSettings().getTopNDocumentsOnly()
-            )
+            new ElasticInferenceServiceRerankRequestEntity(query, documents, model.getServiceSettings().modelId(), topN)
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

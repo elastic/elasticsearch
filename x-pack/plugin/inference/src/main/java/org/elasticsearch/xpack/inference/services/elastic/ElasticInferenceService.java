@@ -168,6 +168,18 @@ public class ElasticInferenceService extends SenderService {
         authorizationHandler.init();
     }
 
+    @Override
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
+        if (returnDocuments != null) {
+            validationException.addValidationError(
+                org.elasticsearch.core.Strings.format(
+                    "Invalid return_documents [%s]. The return_documents option is not supported by this service",
+                    returnDocuments
+                )
+            );
+        }
+    }
+
     /**
      * Only use this in tests.
      *

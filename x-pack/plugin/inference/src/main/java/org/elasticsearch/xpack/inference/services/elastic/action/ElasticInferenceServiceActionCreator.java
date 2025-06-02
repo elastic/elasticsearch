@@ -68,6 +68,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             (rerankInput) -> new ElasticInferenceServiceRerankRequest(
                 rerankInput.getQuery(),
                 rerankInput.getChunks(),
+                rerankInput.getTopN(),
                 model,
                 traceContext,
                 extractRequestMetadataFromThreadContext(threadPool.getThreadContext())

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -44,7 +46,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
             taskType,
             service,
             ElasticInferenceServiceRerankServiceSettings.fromMap(serviceSettings, context),
-            ElasticInferenceServiceRerankTaskSettings.fromMap(taskSettings),
+            EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents
         );
@@ -55,7 +57,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
         TaskType taskType,
         String service,
         ElasticInferenceServiceRerankServiceSettings serviceSettings,
-        @Nullable ElasticInferenceServiceRerankTaskSettings taskSettings,
+        @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
@@ -76,11 +78,6 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
     @Override
     public ElasticInferenceServiceRerankServiceSettings getServiceSettings() {
         return (ElasticInferenceServiceRerankServiceSettings) super.getServiceSettings();
-    }
-
-    @Override
-    public ElasticInferenceServiceRerankTaskSettings getTaskSettings() {
-        return (ElasticInferenceServiceRerankTaskSettings) super.getTaskSettings();
     }
 
     public URI uri() {

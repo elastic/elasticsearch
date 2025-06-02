@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
@@ -275,6 +276,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
@@ -284,6 +286,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
@@ -468,6 +471,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected S3BlobStore createBlobStore() {
         return new S3BlobStore(
+            getProjectId(),
             service,
             bucket,
             serverSideEncryption,

@@ -80,7 +80,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (BytesReference) a[11],
             (BytesReference) a[21],
             (PhaseExecutionInfo) a[12],
-            (boolean) a[22]
+            Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
         )

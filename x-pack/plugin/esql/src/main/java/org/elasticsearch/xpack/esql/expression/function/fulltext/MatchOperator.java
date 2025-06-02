@@ -78,7 +78,8 @@ public class MatchOperator extends Match {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+        // Query first, then field.
+        return new MatchOperator(source(), newChildren.get(1), newChildren.get(0), queryBuilder());
     }
 
     @Override

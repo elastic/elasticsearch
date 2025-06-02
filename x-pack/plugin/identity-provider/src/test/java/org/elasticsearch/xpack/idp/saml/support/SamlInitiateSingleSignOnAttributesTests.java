@@ -38,7 +38,7 @@ public class SamlInitiateSingleSignOnAttributesTests extends ESTestCase {
         final SamlInitiateSingleSignOnAttributes attributes1 = new SamlInitiateSingleSignOnAttributes(Collections.emptyMap());
         assertThat(attributes1.getAttributes(), Matchers.anEmptyMap());
 
-        // Test adding attributes
+        // Test with non-empty map
         Map<String, List<String>> attributeMap = new HashMap<>();
         attributeMap.put("key1", Collections.singletonList("value1"));
         final SamlInitiateSingleSignOnAttributes attributes3 = new SamlInitiateSingleSignOnAttributes(attributeMap);

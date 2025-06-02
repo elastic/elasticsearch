@@ -64,8 +64,13 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             threadPool,
             model,
             RERANK_HANDLER,
-            (rerankInput) -> new ElasticInferenceServiceRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model,
-                traceContext, extractRequestMetadataFromThreadContext(threadPool.getThreadContext())),
+            (rerankInput) -> new ElasticInferenceServiceRerankRequest(
+                rerankInput.getQuery(),
+                rerankInput.getChunks(),
+                model,
+                traceContext,
+                extractRequestMetadataFromThreadContext(threadPool.getThreadContext())
+            ),
             QueryAndDocsInputs.class
         );
         var errorMessage = constructFailedToSendRequestMessage(

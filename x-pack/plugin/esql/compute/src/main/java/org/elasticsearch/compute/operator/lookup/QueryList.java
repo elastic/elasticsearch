@@ -227,7 +227,7 @@ public abstract class QueryList {
     }
 
     private static class TermQueryList extends QueryList {
-        protected final IntFunction<Object> blockValueReader;
+        private final IntFunction<Object> blockValueReader;
 
         private TermQueryList(
             MappedFieldType field,

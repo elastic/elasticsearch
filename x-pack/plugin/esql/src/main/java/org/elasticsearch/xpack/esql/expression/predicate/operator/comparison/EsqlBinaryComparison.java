@@ -66,10 +66,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTy
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public abstract class EsqlBinaryComparison extends BinaryComparison
-    implements
-        EvaluatorMapper,
-        TranslationAware.SingleValueTranslationAware {
+public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper, TranslationAware {
 
     private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
@@ -367,12 +364,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         );
 
         Query translated = translateOutOfRangeComparisons();
-        return translated != null ? translated : translate(handler);
-    }
-
-    @Override
-    public Expression singleValueField() {
-        return left();
+        return translated != null ? translated : handler.forceToSingleValueQuery(left(), translate(handler));
     }
 
     private Query translate(TranslatorHandler handler) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for pushing queries to lucene.
  */
+//@Repeat(iterations = 10)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
@@ -57,7 +59,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
-        return Stream.of("auto", "text", "match_only_text", "semantic_text").map(s -> new Object[] { s }).toList();
+        return Stream.of("auto", "text_alone", "text", "match_only_text", "semantic_text").map(s -> new Object[] { s }).toList();
     }
 
     private final String type;
@@ -74,13 +76,14 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         String luceneQuery = switch (type) {
             case "text", "auto" -> "#test.keyword:%value -_ignored:test.keyword";
+            case "text_alone" -> "test:%value";
             case "match_only_text" -> "*:*";
             case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
         boolean filterInCompute = switch (type) {
             case "text", "auto" -> false;
-            case "match_only_text", "semantic_text" -> true;
+            case "text_alone", "match_only_text", "semantic_text" -> true;
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), filterInCompute, true);
@@ -92,12 +95,21 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value"
             """;
-        String luceneQuery = switch (type) {
-            case "text", "auto", "match_only_text" -> "*:*";
-            case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQueryOptions = switch (type) {
+            case "text", "auto" -> {
+                // We split tokens at 256 characters by in the standard analyzer.
+                String first = "#test:" + "a".repeat(255);
+                if (value.length() % 255 == 0) {
+                    yield List.of(first);
+                }
+                String rest = "#test:" + "a".repeat(value.length() % 255);
+                yield List.of(first + " " + rest, rest + " " + first);
+            }
+            case "match_only_text" -> List.of("*:*");
+            case "semantic_text" -> List.of("FieldExistsQuery [field=_primary_term]");
             default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), true, true);
+        testPushQuery(value, esqlQuery, luceneQueryOptions, true, true);
     }
 
     /**
@@ -195,6 +207,29 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, esqlQuery, List.of(luceneQuery), true, false);
     }
 
+    /**
+     * {@code NOT !=} should function just like {@code ==}.
+     */
+    public void testNotInequality() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT test != "%value"
+            """;
+        String luceneQuery = switch (type) {
+            case "text", "auto" -> "#test.keyword:%value -_ignored:test.keyword";
+            case "match_only_text" -> "*:*";
+            case "semantic_text" -> "FieldExistsQuery [field=_primary_term]";
+            default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
+        };
+        boolean filterInCompute = switch (type) {
+            case "text", "auto" -> false;
+            case "match_only_text", "semantic_text" -> true;
+            default -> throw new UnsupportedOperationException("unknown type [" + type + "]");
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), filterInCompute, true);
+    }
+
     public void testCaseInsensitiveEquality() throws IOException {
         String value = "a".repeat(between(0, 256));
         String esqlQuery = """
@@ -217,6 +252,7 @@ public class PushQueriesIT extends ESRestTestCase {
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
+        builder.allowPartialResults(false);
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
@@ -310,22 +346,36 @@ public class PushQueriesIT extends ESRestTestCase {
                     }
                   }
                 }""";
-            default -> """
-                  ,
-                  "mappings": {
-                    "properties": {
-                      "test": {
-                        "type": "%type",
-                        "fields": {
-                          "keyword": {
-                            "type": "keyword",
-                            "ignore_above": 256
+            default -> {
+                if (type.endsWith("_alone")) {
+                    yield """
+                      ,
+                      "mappings": {
+                        "properties": {
+                          "test": {
+                            "type": "%type"
                           }
                         }
                       }
-                    }
-                  }
-                }""".replace("%type", type);
+                    }""".replace("%type", type.replace("_alone", ""));
+                }
+                yield """
+                      ,
+                      "mappings": {
+                        "properties": {
+                          "test": {
+                            "type": "%type",
+                            "fields": {
+                              "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }""".replace("%type", type);
+            }
         };
         json += "}";
         createIndex.setJsonEntity(json);
@@ -365,7 +415,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     @Override
     protected boolean preserveClusterUponCompletion() {
-        // Preserve the cluser to speed up the semantic_text tests
+        // Preserve the cluster to speed up the semantic_text tests
         return true;
     }
 

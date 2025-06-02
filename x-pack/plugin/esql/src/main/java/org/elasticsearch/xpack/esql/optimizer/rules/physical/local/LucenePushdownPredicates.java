@@ -49,6 +49,9 @@ public interface LucenePushdownPredicates {
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
+    // NOCOMMIT javadoc this and above
+    boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr);
+
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -123,6 +126,11 @@ public interface LucenePushdownPredicates {
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
             return false;
         }
+
+        @Override
+        public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
+            return false;
+        }
     };
 
     /**
@@ -156,6 +164,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
+                return stats.matchQueryYieldsCandidateMatchesForEquality(attr.field().getName());
             }
         };
     }

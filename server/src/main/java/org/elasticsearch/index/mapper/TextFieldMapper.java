@@ -405,13 +405,33 @@ public final class TextFieldMapper extends FieldMapper {
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
-                    indexPhrases.getValue()
+                    indexPhrases.getValue(),
+                    matchQueryYieldsCandidateMatchesForEquality()
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
                 }
             }
             return ft;
+        }
+
+        /**
+         * Does a `match` query generate all valid candidates for `==`? Meaning,
+         * if I do a match query for any string, say `foo bar baz`, then that
+         * query will find all documents that indexed the same string.
+         * <p>
+         *     This should be true for most sanely configured text fields. That's
+         *     just how we use them for search. But it's quite possible to make
+         *     the index analyzer not agree with the search analyzer, for example.
+         * </p>
+         * <p>
+         *     So this implementation is ultra-paranoid.
+         * </p>
+         */
+        private boolean matchQueryYieldsCandidateMatchesForEquality() {
+            return index.getValue() == Boolean.TRUE
+                && analyzers.indexAnalyzer.isConfigured() == false
+                && analyzers.searchAnalyzer.isConfigured() == false;
         }
 
         private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
@@ -686,6 +706,9 @@ public final class TextFieldMapper extends FieldMapper {
          */
         private final KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate;
 
+        // NOCOMMIT docs
+        private final boolean matchQueryYieldsCandidateMatchesForEquality;
+
         public TextFieldType(
             String name,
             boolean indexed,
@@ -695,7 +718,8 @@ public final class TextFieldMapper extends FieldMapper {
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta,
             boolean eagerGlobalOrdinals,
-            boolean indexPhrases
+            boolean indexPhrases,
+            boolean matchQueryYieldsCandidateMatchesForEquality
         ) {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
@@ -704,6 +728,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.syntheticSourceDelegate = syntheticSourceDelegate;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
+            this.matchQueryYieldsCandidateMatchesForEquality = matchQueryYieldsCandidateMatchesForEquality;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -720,6 +745,7 @@ public final class TextFieldMapper extends FieldMapper {
             syntheticSourceDelegate = null;
             eagerGlobalOrdinals = false;
             indexPhrases = false;
+            matchQueryYieldsCandidateMatchesForEquality = true;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource) {
@@ -732,7 +758,8 @@ public final class TextFieldMapper extends FieldMapper {
                 null,
                 Collections.emptyMap(),
                 false,
-                false
+                false,
+                true
             );
         }
 
@@ -1019,6 +1046,10 @@ public final class TextFieldMapper extends FieldMapper {
             return str.length() <= syntheticSourceDelegate.ignoreAbove();
         }
 
+        public boolean matchQueryYieldsCandidateMatchesForEquality() {
+            return matchQueryYieldsCandidateMatchesForEquality;
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (canUseSyntheticSourceDelegateForLoading()) {
@@ -1208,7 +1239,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, null, meta, false, false);
+            super(name, indexed, stored, tsi, false, null, meta, false, false, /* unused */ false);
         }
 
         public ConstantScoreTextFieldType(String name) {

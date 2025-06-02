@@ -41,6 +41,8 @@ public interface SearchStats {
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
+    boolean matchQueryYieldsCandidateMatchesForEquality(String name);
+
     /**
      * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
      * NULL if the field is not a constant.
@@ -106,6 +108,11 @@ public interface SearchStats {
 
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            return false;
+        }
+
+        @Override
+        public boolean matchQueryYieldsCandidateMatchesForEquality(String name) {
             return false;
         }
     }

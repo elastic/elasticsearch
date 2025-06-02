@@ -307,6 +307,7 @@ setup:
 ---
 "Get snapshot using state parameter":
   - requires:
+      cluster_features: "get.snapshots.state_parameter"
       test_runner_features: capabilities
       capabilities:
         - method: GET

@@ -43,7 +43,7 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class, MetricsPlugin.class);
+        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class, MetricsDBPlugin.class);
     }
 
     @Override

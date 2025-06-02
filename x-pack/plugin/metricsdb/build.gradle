@@ -9,7 +9,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name = 'metrics'
+  name = 'metricsdb'
   description = 'A plugin for metrics related functionality'
   classname ='org.elasticsearch.xpack.metrics.MetricsPlugin'
   extendedPlugins = ['x-pack-core']

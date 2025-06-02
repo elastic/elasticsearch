@@ -77,14 +77,14 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MetricsTransportAction extends HandledTransportAction<
-    MetricsTransportAction.MetricsRequest,
-    MetricsTransportAction.MetricsResponse> {
+public class MetricsDBTransportAction extends HandledTransportAction<
+    MetricsDBTransportAction.MetricsRequest,
+    MetricsDBTransportAction.MetricsResponse> {
 
     public static final String NAME = "indices:data/write/metrics";
-    public static final ActionType<MetricsTransportAction.MetricsResponse> TYPE = new ActionType<>(NAME);
+    public static final ActionType<MetricsDBTransportAction.MetricsResponse> TYPE = new ActionType<>(NAME);
 
-    private static final Logger logger = LogManager.getLogger(MetricsTransportAction.class);
+    private static final Logger logger = LogManager.getLogger(MetricsDBTransportAction.class);
     private static final int MAX_TSID_CACHE_SIZE = 1_000_000;
     private static final Hasher128 HASHER = Hashing.murmur3_128();
     /**
@@ -99,7 +99,7 @@ public class MetricsTransportAction extends HandledTransportAction<
 
 
     @Inject
-    public MetricsTransportAction(
+    public MetricsDBTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,

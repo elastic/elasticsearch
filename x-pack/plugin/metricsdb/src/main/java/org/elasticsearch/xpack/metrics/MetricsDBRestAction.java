@@ -26,7 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class MetricsRestAction extends BaseRestHandler {
+public class MetricsDBRestAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "metrics_action";
@@ -46,17 +46,17 @@ public class MetricsRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.hasContent()) {
-            var transportRequest = new MetricsTransportAction.MetricsRequest(
+            var transportRequest = new MetricsDBTransportAction.MetricsRequest(
                 Boolean.parseBoolean(request.header("X-MetricsDB-Normalized")),
                 Boolean.parseBoolean(request.header("X-MetricsDB-Noop")),
                 request.content().retain()
             );
             return channel -> client.execute(
-                MetricsTransportAction.TYPE,
+                MetricsDBTransportAction.TYPE,
                 transportRequest,
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
-                    public RestResponse buildResponse(MetricsTransportAction.MetricsResponse r) throws Exception {
+                    public RestResponse buildResponse(MetricsDBTransportAction.MetricsResponse r) throws Exception {
                         return successResponse();
                     }
                 })

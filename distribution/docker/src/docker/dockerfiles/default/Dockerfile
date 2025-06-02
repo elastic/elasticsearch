@@ -144,6 +144,8 @@ LABEL name="Elasticsearch" \\
   summary="Elasticsearch" \\
   description="You know, for search."
 
+RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
+
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

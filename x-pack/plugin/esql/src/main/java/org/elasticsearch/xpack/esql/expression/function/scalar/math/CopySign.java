@@ -146,18 +146,23 @@ public class CopySign extends EsqlScalarFunction {
             throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType(), NAME);
         }
         var sign = children().get(1);
-        var signFactory = toEvaluator.apply(sign);
         var magnitude = children().get(0);
-        if (sign.dataType() != dataType) {
-            // If the sign is not the same type as the magnitude, we need to convert it.
-            signFactory = Cast.cast(source(), sign.dataType(), dataType, signFactory);
-        }
-        return FACTORY_PROVIDERS.get(dataType).create(source(), toEvaluator.apply(magnitude), signFactory);
+        return FACTORY_PROVIDERS.get(dataType)
+            .create(
+                source(),
+                toEvaluator.apply(magnitude),
+                // We always cast the sign to double for processing, as the sign can be any numeric type.
+                Cast.cast(source(), sign.dataType(), DataType.DOUBLE, toEvaluator.apply(sign))
+            );
     }
 
     @Evaluator(extraName = "Float")
-    static float processFloat(float magnitude, float sign) {
-        return Math.copySign(magnitude, sign);
+    static float processFloat(float magnitude, double sign) {
+        if (sign < 0) {
+            return magnitude < 0 ? magnitude : -magnitude;
+        } else {
+            return magnitude < 0 ? -magnitude : magnitude;
+        }
     }
 
     @Evaluator(extraName = "Double")
@@ -166,20 +171,20 @@ public class CopySign extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Long")
-    static long processLong(long magnitude, long sign) {
+    static long processLong(long magnitude, double sign) {
         if (sign < 0) {
-            return -Math.abs(magnitude);
+            return magnitude < 0 ? magnitude : -magnitude;
         } else {
-            return Math.abs(magnitude);
+            return magnitude < 0 ? -magnitude : magnitude;
         }
     }
 
     @Evaluator(extraName = "Integer")
-    static int processInteger(int magnitude, int sign) {
+    static int processInteger(int magnitude, double sign) {
         if (sign < 0) {
-            return -Math.abs(magnitude);
+            return magnitude < 0 ? magnitude : -magnitude;
         } else {
-            return Math.abs(magnitude);
+            return magnitude < 0 ? -magnitude : magnitude;
         }
     }
 }

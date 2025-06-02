@@ -1844,26 +1844,26 @@ emp_no:integer | l1:double | l2:double
 ;
 
 copySignWithMixedNumericValues
-required_capability: mixed_numeric_types_in_case_copy_sign
+required_capability: mixed_numeric_types_in_case_greatest_least
 
-ROW cs1=COPY_SIGN(10.0, -5.0), cs2=COPY_SIGN(10.0, null), cs3=COPY_SIGN(1, -5.0);
+ROW cs1=COPY_SIGN(10.0, -5.0), cs2=COPY_SIGN(10, 1), cs3=COPY_SIGN(1, -5.0);
 
-cs1:double | cs2:double | cs3:long
--5.0       | null      | -1
+cs1:double | cs2:integer | cs3:integer
+-10.0       | 10      | -1
 ;
 
 copySignWithMixedNumericValuesWithMV
 required_capability: mixed_numeric_types_in_case_greatest_least
 
 FROM employees
-| EVAL cs1 = COPY_SIGN(salary, salary_change)
+| EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))
 | KEEP emp_no, salary, salary_change, cs1
 | SORT emp_no
 | LIMIT 3
 ;
 
-emp_no:integer | salary:long | salary_change:double | cs1:long
-10001          | 57305       | 1.19                | 57305
-10002          | 56371       | -7.23               | -56371
-10003          | 61805       | 4.0                 | 61805
+    emp_no:integer | salary:integer | salary_change:double | cs1:integer
+    10001          | 57305          | 1.19                 | 57305
+    10002          | 56371          | [-7.23, 11.17]       | -56371  
+    10003          | 61805          | [12.82, 14.68]       | 61805  
 ;

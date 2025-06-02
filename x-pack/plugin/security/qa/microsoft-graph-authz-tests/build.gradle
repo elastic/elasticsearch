@@ -7,3 +7,7 @@ dependencies {
   clusterPlugins project(':plugins:microsoft-graph-authz')
   clusterModules project(":modules:analysis-common")
 }
+
+tasks.named("javaRestTest").configureEach {
+  buildParams.withFipsEnabledOnly(it)
+}

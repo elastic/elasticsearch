@@ -1,0 +1,5 @@
+pr: 128732
+summary: "[8.18] Update docker default base to Ubuntu 24.04"
+area: Packaging
+type: upgrade
+issues: []

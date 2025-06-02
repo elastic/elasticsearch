@@ -83,7 +83,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         resultsProvider = mock(JobResultsProvider.class);
-
         listener = new TestListener();
     }
 
@@ -279,7 +278,44 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        List<SearchResponse> searchResponses = new ArrayList<>();
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("job-1").setModelSnapshotRetentionDays(7L).setModelSnapshotId("active").build()
+        );
+
+        Date now = new Date();
+        Date oneDayAgo = new Date(now.getTime() - TimeValue.timeValueDays(1).getMillis());
+        SearchHit snapshot1 = createModelSnapshotQueryHit("job-1", "fresh-snapshot", oneDayAgo);
+        searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot1)));
+
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
+        Map<String, List<ModelSnapshot>> snapshotResponses = new HashMap<>();
+        snapshotResponses.put(
+            "job-1",
+            Arrays.asList(
+                // Keeping active as its expiration is not known. We can assume "worst case" and verify it is not removed
+                createModelSnapshot("job-1", "active", eightDaysAndOneMsAgo),
+                createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
+            )
+        );
+
+        givenClientRequestsSucceed(searchResponses, snapshotResponses);
+
+        // Create remover with state index not writable
+        createExpiredModelSnapshotsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        listener.waitToCompletion();
+        // Should succeed, but not attempt to delete anything
+        assertThat(listener.success, is(true));
+        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(0));
+    }
+
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator) {
+        return createExpiredModelSnapshotsRemover(jobIterator, true);
+    }
+
+    private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator, boolean isStateIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -290,11 +326,14 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        MockWritableIndexExpander.create(isStateIndexWritable);
+
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
-            threadPool,
             new TaskId("test", 0L),
+            threadPool,
             resultsProvider,
             mock(AnomalyDetectionAuditor.class)
         );

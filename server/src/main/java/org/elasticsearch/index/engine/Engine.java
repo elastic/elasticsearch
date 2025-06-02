@@ -461,7 +461,10 @@ public abstract class Engine implements Closeable {
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
         private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
-        private final boolean pauseWhenThrottled; // Should throttling pause indexing ?
+
+        // Should throttling pause indexing ? This is decided by the
+        // IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE setting for this node.
+        private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
@@ -547,7 +550,7 @@ public abstract class Engine implements Closeable {
         /** Suspend throttling to allow another task such as relocation to acquire all indexing permits */
         public void suspendThrottle() {
             if (pauseWhenThrottled) {
-                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
                     suspendThrottling.setRelease(true);
                     pauseCondition.signalAll();
                 }
@@ -557,7 +560,7 @@ public abstract class Engine implements Closeable {
         /** Reverse what was done in {@link #suspendThrottle()} */
         public void resumeThrottle() {
             if (pauseWhenThrottled) {
-                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
                     suspendThrottling.setRelease(false);
                     pauseCondition.signalAll();
                 }

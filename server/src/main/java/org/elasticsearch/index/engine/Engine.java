@@ -495,6 +495,7 @@ public abstract class Engine implements Closeable {
             startOfThrottleNS = System.nanoTime();
             if (pauseWhenThrottled) {
                 lock = pauseLockReference;
+                System.out.println("Activated index throttling pause");
                 logger.trace("Activated index throttling pause");
             } else {
                 lock = lockReference;

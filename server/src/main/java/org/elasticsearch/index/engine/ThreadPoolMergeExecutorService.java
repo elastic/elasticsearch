@@ -317,7 +317,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         // is also drained, so any queued merge tasks are also forgotten.
                         break;
                     }
-                    try {
+                    try (var ignored = smallestMergeTaskWithReleasableBudget) {
                         MergeTask smallestMergeTask = smallestMergeTaskWithReleasableBudget.element();
                         // let the task's scheduler decide if it can actually run the merge task now
                         ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
@@ -335,10 +335,6 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             // task is re-enqueued and re-took before the budget hold-up here is released upon the next
                             // {@link PriorityBlockingQueueWithBudget#updateBudget} invocation.
                         }
-                    } finally {
-                        // signals that the merge task is not in use anymore, so the budget (i.e. disk space) it's holding so far won't be
-                        // deducted from the total available
-                        smallestMergeTaskWithReleasableBudget.close();
                     }
                 }
             });

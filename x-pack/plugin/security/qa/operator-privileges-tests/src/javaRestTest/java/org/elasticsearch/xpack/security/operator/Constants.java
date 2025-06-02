@@ -637,7 +637,7 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
-        "internal:search/stats",
+        "internal:search/load",
         "indices:admin/migration/reindex_status",
         "indices:admin/data_stream/index/reindex",
         "indices:admin/data_stream/reindex",

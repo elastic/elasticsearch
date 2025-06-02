@@ -85,11 +85,11 @@ public final class ShardSearchStats implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
-            statsHolder.exponentiallyWeightedMovingRate.addIncrement(tookInNanos, System.nanoTime());
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.suggestMetric.inc(tookInNanos);
             statsHolder.suggestCurrent.dec();
         } : statsHolder -> {
-            statsHolder.exponentiallyWeightedMovingRate.addIncrement(tookInNanos, System.nanoTime());
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.queryMetric.inc(tookInNanos);
             statsHolder.queryCurrent.dec();
         });
@@ -111,7 +111,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
-            statsHolder.exponentiallyWeightedMovingRate.addIncrement(tookInNanos, System.nanoTime());
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
         });
@@ -183,11 +183,11 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric queryFailure = new CounterMetric();
         final CounterMetric fetchFailure = new CounterMetric();
 
-        final ExponentiallyWeightedMovingRate exponentiallyWeightedMovingRate;
+        final ExponentiallyWeightedMovingRate recentSearchLoad;
 
         StatsHolder(SearchStatsSettings searchStatsSettings) {
             double lambdaInInverseNanos = Math.log(2.0) / searchStatsSettings.getRecentReadLoadHalfLifeForNewShards().nanos();
-            this.exponentiallyWeightedMovingRate = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.nanoTime());
+            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.nanoTime());
         }
 
         SearchStats.Stats stats() {
@@ -206,7 +206,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count(),
-                exponentiallyWeightedMovingRate.getRate(System.nanoTime())
+                recentSearchLoad.getRate(System.nanoTime())
             );
         }
     }

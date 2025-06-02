@@ -38,7 +38,7 @@ public class SearchStatsSettings {
         Setting.Property.NodeScope
     );
 
-    private TimeValue recentReadLoadHalfLifeForNewShards = RECENT_READ_LOAD_HALF_LIFE_SETTING.getDefault(Settings.EMPTY);
+    private volatile TimeValue recentReadLoadHalfLifeForNewShards = RECENT_READ_LOAD_HALF_LIFE_SETTING.getDefault(Settings.EMPTY);
 
     public SearchStatsSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(RECENT_READ_LOAD_HALF_LIFE_SETTING, value -> recentReadLoadHalfLifeForNewShards = value);

@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * ShardStats class represents the statistics of a shard in an index.
+ * ShardSearchLoadStats class represents the statistics of a shard in an index.
  * It contains information such as the index name, shard ID, allocation ID, and EWMA rate.
  */
 public class ShardSearchLoadStats implements Writeable {
@@ -29,7 +29,7 @@ public class ShardSearchLoadStats implements Writeable {
 
     private final String allocationId;
 
-    private final Double emwRate;
+    private final Double searchLoad;
 
     /**
      * Constructor to create a ShardStats object from a StreamInput.
@@ -42,7 +42,7 @@ public class ShardSearchLoadStats implements Writeable {
         this.indexName = in.readString();
         this.shardId = in.readVInt();
         this.allocationId = in.readString();
-        this.emwRate = in.readDouble();
+        this.searchLoad = in.readDouble();
     }
 
     /**
@@ -51,13 +51,13 @@ public class ShardSearchLoadStats implements Writeable {
      * @param indexName   the name of the index
      * @param shardId     the ID of the shard
      * @param allocationId the allocation ID of the shard
-     * @param ewma        the EWMA rate of the shard
+     * @param searchLoad the search load of the shard
      */
-    public ShardSearchLoadStats(String indexName, Integer shardId, String allocationId, Double ewma) {
+    public ShardSearchLoadStats(String indexName, Integer shardId, String allocationId, Double searchLoad) {
         this.indexName = indexName;
         this.shardId = shardId;
         this.allocationId = allocationId;
-        this.emwRate = ewma;
+        this.searchLoad = searchLoad;
     }
 
     @Override
@@ -68,12 +68,12 @@ public class ShardSearchLoadStats implements Writeable {
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocationId, that.allocationId)
-            && Objects.equals(emwRate, that.emwRate);
+            && Objects.equals(searchLoad, that.searchLoad);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, shardId, allocationId, emwRate);
+        return Objects.hash(indexName, shardId, allocationId, searchLoad);
     }
 
     /**
@@ -104,12 +104,12 @@ public class ShardSearchLoadStats implements Writeable {
     }
 
     /**
-     * Returns the EWMA rate of the shard.
+     * Returns the search load of the shard.
      *
-     * @return the EWMA rate
+     * @return the search load as a Double
      */
-    public Double getEwmRate() {
-        return this.emwRate;
+    public Double getSearchLoad() {
+        return this.searchLoad;
     }
 
     @Override
@@ -117,6 +117,6 @@ public class ShardSearchLoadStats implements Writeable {
         out.writeString(indexName);
         out.writeVInt(shardId);
         out.writeString(allocationId);
-        out.writeDouble(emwRate);
+        out.writeDouble(searchLoad);
     }
 }

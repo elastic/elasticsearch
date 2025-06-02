@@ -16,15 +16,13 @@ import org.elasticsearch.action.RemoteClusterActionType;
  * Action definition for retrieving shard-level search load statistics.
  * <p>
  * This action serves as a marker for executing {@link TransportShardSearchLoadStatsAction}
+ *
  * </p>
  */
 public class ShardSearchLoadStatsAction extends ActionType<ShardSearchLoadStatsResponse> {
 
-    /**
-     * Singleton instance of the action type.
-     */
     public static final ShardSearchLoadStatsAction INSTANCE = new ShardSearchLoadStatsAction();
-    public static final String NAME = "internal:search/stats";
+    public static final String NAME = "internal:search/load";
     public static final RemoteClusterActionType<ShardSearchLoadStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         ShardSearchLoadStatsResponse::new

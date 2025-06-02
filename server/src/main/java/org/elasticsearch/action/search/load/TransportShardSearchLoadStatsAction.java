@@ -105,15 +105,10 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
-        // Create a modifiable list of shard routings for the given indices
         List<ShardRouting> shardRoutingList = new ArrayList<>(
             clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices).getShardRoutings()
         );
-
-        // Remove all primary shard routings from the list
         shardRoutingList.removeIf(ShardRouting::primary);
-
-        // Return an iterator over the remaining (replica) shards
         return new PlainShardsIterator(shardRoutingList);
     }
 

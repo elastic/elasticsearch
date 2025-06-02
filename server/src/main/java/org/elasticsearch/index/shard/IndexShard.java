@@ -1429,7 +1429,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the search load rate stats for this shard.
      */
     public double getSearchLoadRate() {
-        return searchStats.stats().getTotal().getExponentiallyWeightedMovingRate();
+        return searchStats.stats().getTotal().getSearchLoadRate();
     }
 
     public StoreStats storeStats() {

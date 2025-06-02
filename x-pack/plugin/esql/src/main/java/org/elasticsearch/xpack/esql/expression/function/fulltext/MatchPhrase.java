@@ -118,11 +118,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public MatchPhrase(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
-        @Param(
-            name = "query",
-            type = { "keyword", "text" },
-            description = "Value to find in the provided field."
-        ) Expression matchPhraseQuery,
+        @Param(name = "query", type = { "keyword" }, description = "Value to find in the provided field.") Expression matchPhraseQuery,
         @MapParam(
             name = "options",
             params = {
@@ -200,7 +196,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
+        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD));
     }
 
     private TypeResolution resolveField() {
@@ -208,21 +204,9 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword, text").and(
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
             isNotNullAndFoldable(query(), sourceText(), SECOND)
         );
-    }
-
-    private TypeResolution checkParamCompatibility() {
-        DataType fieldType = field().dataType();
-        DataType queryType = query().dataType();
-
-        // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD) || (queryType == TEXT)) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
-        return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
     }
 
     @Override

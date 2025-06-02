@@ -69,16 +69,6 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                         (o1, o2) -> true
                     )
                 );
-
-                suppliers.add(
-                    TestCaseSupplier.testCaseSupplier(
-                        queryDataSupplier,
-                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.TEXT),
-                        (d1, d2) -> equalTo("string"),
-                        DataType.BOOLEAN,
-                        (o1, o2) -> true
-                    )
-                );
             }
         }
     }

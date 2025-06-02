@@ -110,5 +110,5 @@
     null
   ],
   "preview" : true,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

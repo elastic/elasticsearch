@@ -158,6 +158,11 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -485,6 +490,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
+
+    /**
+     * Marks a test suite or a test method that should run without checking for entitlements.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.TYPE, ElementType.METHOD })
+    public @interface WithoutEntitlements {
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

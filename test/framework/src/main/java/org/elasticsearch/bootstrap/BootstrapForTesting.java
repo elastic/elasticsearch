@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.jdk.JarHell;
 
 import java.io.IOException;
@@ -71,6 +72,9 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+
+        // Fire up entitlements
+        TestEntitlementBootstrap.bootstrap();
     }
 
     // does nothing, just easy way to make sure the class is loaded.

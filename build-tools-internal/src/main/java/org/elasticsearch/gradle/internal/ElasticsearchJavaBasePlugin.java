@@ -72,6 +72,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureCompile(project);
         configureInputNormalization(project);
         configureNativeLibraryPath(project);
+        configureEntitlementAgent(project);
 
         // convenience access to common versions used in dependencies
         project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
@@ -193,6 +194,26 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
             test.dependsOn(nativeConfigFiles);
             systemProperties.systemProperty("es.nativelibs.path", libraryPath);
+        });
+    }
+
+    private static void configureEntitlementAgent(Project project) {
+        String agentProject = ":libs:entitlement:agent";
+        Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
+        agentJarConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", agentProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection agentFiles = agentJarConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+            // We don't need the module-related options from there because tests don't run with modules
+            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
+            test.dependsOn(agentFiles);
+            systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+            systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
+//            "-XX:+EnableDynamicAgentLoading"
         });
     }
 

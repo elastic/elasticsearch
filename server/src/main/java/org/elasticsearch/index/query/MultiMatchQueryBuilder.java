@@ -53,21 +53,23 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
-    private static final ParseField SLOP_FIELD = new ParseField("slop");
-    private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
-    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
-    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
-    private static final ParseField OPERATOR_FIELD = new ParseField("operator");
-    private static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
-    private static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
-    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
-    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
+    public static final ParseField SLOP_FIELD = new ParseField("slop");
+    public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzziness");
+    public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField OPERATOR_FIELD = new ParseField("operator");
+    public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     private final Object value;
     private final Map<String, Float> fieldsBoosts;

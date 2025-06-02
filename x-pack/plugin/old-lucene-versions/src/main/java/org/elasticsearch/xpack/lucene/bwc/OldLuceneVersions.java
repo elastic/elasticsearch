@@ -12,8 +12,6 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -93,10 +91,10 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     }
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.ARCHIVE, ArchiveUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.ARCHIVE, ArchiveInfoTransportAction.class)
+            new ActionPlugin.ActionHandler(XPackUsageFeatureAction.ARCHIVE, ArchiveUsageTransportAction.class),
+            new ActionPlugin.ActionHandler(XPackInfoFeatureAction.ARCHIVE, ArchiveInfoTransportAction.class)
         );
     }
 

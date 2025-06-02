@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -20,21 +21,22 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
- * Rate aggregation is special because it must be computed per time series, regardless of the grouping keys.
+ * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
  * The keys must be `_tsid` or a pair of `_tsid` and `time_bucket`. To support user-defined grouping keys,
  * we first execute the rate aggregation using the time-series keys, then perform another aggregation with
  * the resulting rate using the user-specific keys.
@@ -113,6 +115,26 @@ import java.util.stream.Stream;
  * | STATS rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
  * | STATS sum(`rate(request)`), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
  * | KEEP `min(memory_used)`, `sum(rate(request))`, pod, `bucket(@timestamp, 5m)`
+ *
+ * {agg}_over_time time-series aggregation will be rewritten in the similar way
+ *
+ * TS k8s | STATS sum(max_over_time(memory_usage)) BY host, bucket(@timestamp, 1minute)
+ *
+ * becomes
+ *
+ * FROM k8s
+ * | STATS max_memory_usage = max(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
+ * | STATS sum(max_memory_usage) BY host_values, time_bucket
+ *
+ *
+ * TS k8s | STATS sum(avg_over_time(memory_usage)) BY host, bucket(@timestamp, 1minute)
+ *
+ * becomes
+ *
+ * FROM k8s
+ * | STATS avg_memory_usage = avg(memory_usage), host_values=VALUES(host) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
+ * | STATS sum(avg_memory_usage) BY host_values, time_bucket
+ *
  * </pre>
  */
 public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
@@ -123,24 +145,33 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        return translate(aggregate);
+        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
+            return translate(ts);
+        } else {
+            return aggregate;
+        }
     }
 
-    LogicalPlan translate(Aggregate aggregate) {
-        Map<Rate, Alias> rateAggs = new HashMap<>();
+    LogicalPlan translate(TimeSeriesAggregate aggregate) {
+        Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
+        Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
-                Expression outerAgg = af.transformDown(Rate.class, rate -> {
+                Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     changed.set(Boolean.TRUE);
-                    Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> {
-                        Alias newRateAgg = new Alias(rate.source(), agg.name(), rate);
-                        firstPassAggs.add(newRateAgg);
-                        return newRateAgg;
+                    if (tsAgg instanceof Rate) {
+                        hasRateAggregates.set(Boolean.TRUE);
+                    }
+                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                        Alias firstStageAlias = new Alias(tsAgg.source(), agg.name(), firstStageFn);
+                        firstPassAggs.add(firstStageAlias);
+                        return firstStageAlias;
                     });
-                    return rateAgg.toAttribute();
+                    return newAgg.toAttribute();
                 });
                 if (changed.get()) {
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
@@ -152,8 +183,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 }
             }
         }
-        if (rateAggs.isEmpty()) {
-            return aggregate;
+        if (timeSeriesAggs.isEmpty()) {
+            // no time-series aggregations, run a regular aggregation instead.
+            return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
         }
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
@@ -204,39 +236,37 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
-        LogicalPlan relation = aggregate.child().transformUp(EsRelation.class, r -> {
+        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+            IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
                 return new EsRelation(
                     r.source(),
                     r.indexPattern(),
-                    r.indexMode(),
+                    indexMode,
                     r.indexNameWithModes(),
                     CollectionUtils.combine(r.output(), tsid.get())
                 );
             } else {
-                return r;
+                return new EsRelation(r.source(), r.indexPattern(), indexMode, r.indexNameWithModes(), r.output());
             }
         });
-        return newAggregate(
-            newAggregate(relation, Aggregate.AggregateType.TIME_SERIES, firstPassAggs, firstPassGroupings),
-            Aggregate.AggregateType.STANDARD,
-            secondPassAggs,
-            secondPassGroupings
+        final var firstPhase = new TimeSeriesAggregate(
+            newChild.source(),
+            newChild,
+            firstPassGroupings,
+            mergeExpressions(firstPassAggs, firstPassGroupings),
+            (Bucket) Alias.unwrap(timeBucket)
         );
+        return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }
 
-    private static Aggregate newAggregate(
-        LogicalPlan child,
-        Aggregate.AggregateType type,
+    private static List<? extends NamedExpression> mergeExpressions(
         List<? extends NamedExpression> aggregates,
         List<Expression> groupings
     ) {
-        return new Aggregate(
-            child.source(),
-            child,
-            type,
-            groupings,
-            Stream.concat(aggregates.stream(), groupings.stream().map(Expressions::attribute)).toList()
-        );
+        List<NamedExpression> merged = new ArrayList<>(aggregates.size() + groupings.size());
+        merged.addAll(aggregates);
+        groupings.forEach(g -> merged.add(Expressions.attribute(g)));
+        return merged;
     }
 }

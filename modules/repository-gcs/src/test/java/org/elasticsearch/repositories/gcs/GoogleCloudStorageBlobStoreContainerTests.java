@@ -21,7 +21,6 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -78,16 +77,13 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         final Storage storage = mock(Storage.class);
         when(storage.get("bucket")).thenReturn(mock(Bucket.class));
         when(storage.batch()).thenReturn(batch);
+        final com.google.api.services.storage.Storage storageRpc = mock(com.google.api.services.storage.Storage.class);
+        final MeteredStorage meteredStorage = new MeteredStorage(storage, storageRpc, new GcsRepositoryStatsCollector());
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        when(
-            storageService.client(
-                any(String.class),
-                any(String.class),
-                any(OperationPurpose.class),
-                any(GoogleCloudStorageOperationsStats.class)
-            )
-        ).thenReturn(storage);
+        when(storageService.client(any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class))).thenReturn(
+            meteredStorage
+        );
 
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(
@@ -97,7 +93,8 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
-                BackoffPolicy.noBackoff()
+                BackoffPolicy.noBackoff(),
+                new GcsRepositoryStatsCollector()
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

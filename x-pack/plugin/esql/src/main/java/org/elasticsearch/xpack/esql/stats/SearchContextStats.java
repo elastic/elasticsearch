@@ -292,6 +292,59 @@ public class SearchContextStats implements SearchStats {
         return false;
     }
 
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name);
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public String constantValue(String name) {
+        String val = null;
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType f = ctx.getFieldType(name);
+            if (f == null) {
+                return null;
+            }
+            if (f instanceof ConstantFieldType cf) {
+                var fetcher = cf.valueFetcher(ctx, null);
+                String thisVal = null;
+                try {
+                    // since the value is a constant, the doc _should_ be irrelevant
+                    List<Object> vals = fetcher.fetchValues(null, -1, null);
+                    Object objVal = vals.size() == 1 ? vals.get(0) : null;
+                    // we are considering only string values for now, since this can return "strange" things,
+                    // see IndexModeFieldType
+                    thisVal = objVal instanceof String ? (String) objVal : null;
+                } catch (IOException iox) {}
+
+                if (thisVal == null) {
+                    // Value not yet set
+                    return null;
+                }
+                if (val == null) {
+                    val = thisVal;
+                } else if (thisVal.equals(val) == false) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return val;
+    }
+
     private interface DocCountTester {
         Boolean test(LeafReader leafReader) throws IOException;
     }

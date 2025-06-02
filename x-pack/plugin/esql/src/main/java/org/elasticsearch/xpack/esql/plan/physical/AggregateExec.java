@@ -68,7 +68,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private AggregateExec(StreamInput in) throws IOException {
+    protected AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
@@ -137,9 +137,11 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size)
-            ? this
-            : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedSize(size);
+    }
+
+    protected AggregateExec withEstimatedSize(int estimatedRowSize) {
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public AggregatorMode getMode() {

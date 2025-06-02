@@ -70,7 +70,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ChangePointOperator.Factory(0, null, 0, 0);
     }
 

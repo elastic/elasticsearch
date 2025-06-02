@@ -70,6 +70,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
+        internalCluster().startNode();
         TransportAddress transportAddress = randomFrom(
             internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses()
         );
@@ -80,6 +81,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
+        internalCluster().startNode();
         try (Socket socket = new Socket()) {
             trySocketConnection(socket, getProfileAddress("client"));
             assertThat(socket.isClosed(), is(true));

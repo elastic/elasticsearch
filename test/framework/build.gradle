@@ -16,6 +16,7 @@ dependencies {
   api project(':libs:ssl-config')
   api project(":server")
   api project(":libs:cli")
+  api project(":libs:entitlement:bridge")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -32,9 +33,12 @@ dependencies {
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
+  testImplementation project(":modules:mapper-extras")
+  testImplementation project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:mapper-unsigned-long')
   testImplementation project(':x-pack:plugin:mapper-counted-keyword')
-  testImplementation project(":modules:mapper-extras")
+  testImplementation project(':x-pack:plugin:mapper-constant-keyword')
+  testImplementation project(':x-pack:plugin:wildcard')
 }
 
 sourceSets {

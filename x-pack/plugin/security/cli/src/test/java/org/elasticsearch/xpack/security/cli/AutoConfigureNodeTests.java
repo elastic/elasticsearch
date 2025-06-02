@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_TRANSPORT_ALT_DN;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
+import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -149,7 +150,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
         }
     }
 
-    public void testGeneratedHTTPCertificateSANs() throws Exception {
+    public void testGeneratedHTTPCertificateSANsAndKeyUsage() throws Exception {
         // test no publish settings
         Path tempDir = createTempDir();
         try {
@@ -180,7 +181,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
-            verifyExtendedKeyUsage(httpCertificate);
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -202,7 +203,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(true));
-            verifyExtendedKeyUsage(httpCertificate);
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -228,7 +229,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "balkan.beast", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
-            verifyExtendedKeyUsage(httpCertificate);
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -288,11 +289,12 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return false;
     }
 
-    private void verifyExtendedKeyUsage(X509Certificate httpCertificate) throws Exception {
+    private void verifyKeyUsageAndExtendedKeyUsage(X509Certificate httpCertificate) throws Exception {
         List<String> extendedKeyUsage = httpCertificate.getExtendedKeyUsage();
         assertEquals("Only one extended key usage expected for HTTP certificate.", 1, extendedKeyUsage.size());
         String expectedServerAuthUsage = KeyPurposeId.id_kp_serverAuth.toASN1Primitive().toString();
         assertEquals("Expected serverAuth extended key usage.", expectedServerAuthUsage, extendedKeyUsage.get(0));
+        assertExpectedKeyUsage(httpCertificate, HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE);
     }
 
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {

@@ -13,19 +13,25 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -79,6 +85,16 @@ public class InTests extends AbstractFunctionTestCase {
 
     private static Literal L(Object value) {
         return of(EMPTY, value);
+    }
+
+    public void testConvertedNull() {
+        In in = new In(
+            EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
+        );
+        var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertEquals(new TermsQuery(EMPTY, "field", Set.of(1, 3)), query);
     }
 
     @ParametersFactory
@@ -302,7 +318,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotIn() throws IOException {
+    public static void renderNotIn() throws Exception {
         renderNegatedOperator(
             constructorWithFunctionInfo(In.class),
             "IN",

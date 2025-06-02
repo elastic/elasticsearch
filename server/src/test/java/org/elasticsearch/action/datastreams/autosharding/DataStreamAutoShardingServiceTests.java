@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.Decision;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.WriteLoadMetric;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,6 +52,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingResult.NOT_APPLICABLE_RESULT;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.COOLDOWN_PREVENTED_DECREASE;
@@ -61,7 +65,12 @@ import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType
 import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC;
 import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamAutoShardingServiceTests extends ESTestCase {
@@ -72,6 +81,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     private ClusterSettings clusterSettings;
     private ClusterService clusterService;
     private ThreadPool threadPool;
+    private List<Decision> decisionsLogged;
     private DataStreamAutoShardingService service;
     private long now;
     private String dataStreamName;
@@ -91,10 +101,12 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = createClusterService(threadPool, clusterSettings);
         now = System.currentTimeMillis();
+        decisionsLogged = new ArrayList<>();
         service = new DataStreamAutoShardingService(
             Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build(),
             clusterService,
-            () -> now
+            () -> now,
+            decisionsLogged::add
         );
         service.init();
         dataStreamName = randomAlphaOfLengthBetween(10, 100);
@@ -136,7 +148,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             AutoShardingResult autoShardingResult = disabledAutoshardingService.calculate(
                 state.projectState(projectId),
                 dataStream,
-                createIndexStats(1, 2.0, 9999.0, 9999.0)
+                createIndexStats(1, 9999.0, 9999.0, 2.0)
             );
             assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
@@ -170,7 +182,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(1, 2.5, 9999.0, 9999.0)
+            createIndexStats(1, 9999.0, 9999.0, 2.5)
         );
         assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
         // no pre-existing scaling event so the cool down must be zero
@@ -209,7 +221,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(1, 2.5, 9999.0, 9999.0)
+            createIndexStats(1, 9999.0, 9999.0, 2.5)
         );
         assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_INCREASE));
         // no pre-existing scaling event so the cool down must be zero
@@ -247,7 +259,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(1, 2.5, 9999.0, 9999.0)
+            createIndexStats(1, 9999.0, 9999.0, 2.5)
         );
         assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
         // no pre-existing scaling event so the cool down must be zero
@@ -256,7 +268,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     }
 
     public void testCalculateIncreaseShardingRecommendations_usingRecentWriteLoad() {
-        // Repeated testCalculateIncreaseShardingRecommendations_noPreviousShardingEvent but with RECENT rather than ALL_TIME write load
+        // Repeated testCalculateIncreaseShardingRecommendations_noPreviousShardingEvent but with RECENT rather than PEAK write load
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
@@ -287,8 +299,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         });
     }
 
-    public void testCalculateIncreaseShardingRecommendations_usingPeakWriteLoad() {
-        // Repeated testCalculateIncreaseShardingRecommendations_noPreviousShardingEvent but with PEAK rather than ALL_TIME write load
+    public void testCalculateIncreaseShardingRecommendations_usingAllTimeWriteLoad() {
+        // Repeated testCalculateIncreaseShardingRecommendations_noPreviousShardingEvent but with ALL_TIME rather than PEAK write load
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
@@ -306,11 +318,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             .putProjectMetadata(builder.build())
             .build();
 
-        doWithMetricSelection(DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC, WriteLoadMetric.PEAK, () -> {
+        doWithMetricSelection(DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC, WriteLoadMetric.ALL_TIME, () -> {
             AutoShardingResult autoShardingResult = service.calculate(
                 state.projectState(projectId),
                 dataStream,
-                createIndexStats(1, 9999.0, 9999.0, 2.5)
+                createIndexStats(1, 2.5, 9999.0, 9999.0)
             );
             assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
@@ -331,7 +343,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             3,
             now,
             List.of(now - 10_000, now - 7000, now - 5000, now - 2000, now - 1000),
-            getWriteLoad(3, 0.25, 9999.0, 9999.0),
+            getWriteLoad(3, 9999.0, 9999.0, 0.25),
             null
         );
         builder.put(dataStream);
@@ -343,7 +355,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(3, 1.0 / 3, 9999.0, 9999.0)
+            createIndexStats(3, 9999.0, 9999.0, 1.0 / 3)
         );
         // the cooldown period for the decrease shards event hasn't lapsed since the data stream was created
         assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
@@ -368,7 +380,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 now - TimeValue.timeValueDays(2).getMillis(),
                 now - 1000
             ),
-            getWriteLoad(3, 0.333, 9999.0, 9999.0),
+            getWriteLoad(3, 9999.0, 9999.0, 0.333),
             null
         );
         builder.put(dataStream);
@@ -380,7 +392,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(3, 1.0 / 3, 9999.0, 9999.0)
+            createIndexStats(3, 9999.0, 9999.0, 1.0 / 3)
         );
         assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
         assertThat(autoShardingResult.targetNumberOfShards(), is(1));
@@ -412,7 +424,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 now - TimeValue.timeValueDays(2).getMillis(),
                 now - 1000
             ),
-            getWriteLoad(3, 0.333, 9999.0, 9999.0),
+            getWriteLoad(3, 9999.0, 9999.0, 0.333),
             autoShardingEvent
         );
         builder.put(dataStream);
@@ -424,7 +436,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(3, 1.0 / 3, 9999.0, 9999.0)
+            createIndexStats(3, 9999.0, 9999.0, 1.0 / 3)
         );
         assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
         assertThat(autoShardingResult.targetNumberOfShards(), is(1));
@@ -454,7 +466,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 now - TimeValue.timeValueDays(1).getMillis(),
                 now - 1000
             ),
-            getWriteLoad(3, 0.25, 9999.0, 9999.0),
+            getWriteLoad(3, 9999.0, 9999.0, 0.25),
             autoShardingEvent
         );
         builder.put(dataStream);
@@ -466,7 +478,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(3, 1.0 / 3, 9999.0, 9999.0)
+            createIndexStats(3, 9999.0, 9999.0, 1.0 / 3)
         );
         assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
         assertThat(autoShardingResult.targetNumberOfShards(), is(1));
@@ -503,7 +515,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
             dataStream,
-            createIndexStats(3, 4.0 / 3, 9999.0, 9999.0)
+            createIndexStats(3, 9999.0, 9999.0, 4.0 / 3)
         );
         assertThat(autoShardingResult.type(), is(NO_CHANGE_REQUIRED));
         assertThat(autoShardingResult.targetNumberOfShards(), is(3));
@@ -511,7 +523,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     }
 
     public void testCalculateDecreaseShardingRecommendations_usingRecentWriteLoad() {
-        // Repeated testCalculateDecreaseShardingRecommendations_noPreviousShardingEvent but with RECENT rather than ALL_TIME write load
+        // Repeated testCalculateDecreaseShardingRecommendations_noPreviousShardingEvent but with RECENT rather than PEAK write load
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
@@ -539,7 +551,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             AutoShardingResult autoShardingResult = service.calculate(
                 state.projectState(projectId),
                 dataStream,
-                createIndexStats(3, 0.5 / 3, 1.0 / 3, 9999.0)
+                createIndexStats(3, 9999.0, 1.0 / 3, 0.5 / 3)
             );
             assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
@@ -547,8 +559,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         });
     }
 
-    public void testCalculateDecreaseShardingRecommendations_usingPeakWriteLoad() {
-        // Repeated testCalculateDecreaseShardingRecommendations_noPreviousShardingEvent but with PEAK rather than ALL_TIME write load
+    public void testCalculateDecreaseShardingRecommendations_usingAllTimeWriteLoad() {
+        // Repeated testCalculateDecreaseShardingRecommendations_noPreviousShardingEvent but with ALL_TIME rather than PEAK write load
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
@@ -576,7 +588,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             AutoShardingResult autoShardingResult = service.calculate(
                 state.projectState(projectId),
                 dataStream,
-                createIndexStats(3, 0.5 / 3, 9999.0, 1.0 / 3)
+                createIndexStats(3, 1.0 / 3, 9999.0, 0.5 / 3)
             );
             assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
@@ -584,41 +596,121 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         });
     }
 
+    public void testCalculateDecreaseShardingRecommendations_correctDecisionData() {
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            now,
+            List.of(
+                now - TimeValue.timeValueDays(21).getMillis(), // outside cooling period
+                now - TimeValue.timeValueDays(4).getMillis(), // within cooling period
+                now - TimeValue.timeValueDays(2).getMillis(), // within cooling period
+                now - TimeValue.timeValueDays(1).getMillis(), // within cooling period
+                now - 1000
+            ),
+            List.of(
+                getWriteLoad(3, 9999.0, 0.444 / 3, 9999.0),
+                getWriteLoad(3, 9999.0, 0.222 / 3, 9999.0),
+                getWriteLoad(3, 9999.0, 0.333 / 3, 9999.0),
+                getWriteLoad(3, 9999.0, 0.111 / 3, 9999.0)
+            ),
+            null
+        );
+        builder.put(dataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
+            .putProjectMetadata(builder.build())
+            .build();
+
+        doWithMetricSelection(DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC, WriteLoadMetric.RECENT, () -> {
+            AutoShardingResult autoShardingResult = service.calculate(
+                state.projectState(projectId),
+                dataStream,
+                createIndexStats(3, 0.9 / 3, 0.3 / 3, 1.9 / 3)
+            );
+            assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
+            assertThat(autoShardingResult.currentNumberOfShards(), is(3));
+            assertThat(autoShardingResult.targetNumberOfShards(), is(1));
+            assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
+            assertThat(decisionsLogged, hasSize(1));
+            Decision decision = decisionsLogged.get(0);
+            assertThat(
+                decision.inputs().increaseShardsCooldown(),
+                equalTo(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getDefault(Settings.EMPTY))
+            );
+            assertThat(
+                decision.inputs().decreaseShardsCooldown(),
+                equalTo(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN.getDefault(Settings.EMPTY))
+            );
+            assertThat(
+                decision.inputs().minWriteThreads(),
+                equalTo(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS.getDefault(Settings.EMPTY))
+            );
+            assertThat(
+                decision.inputs().maxWriteThreads(),
+                equalTo(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS.getDefault(Settings.EMPTY))
+            );
+            assertThat(decision.inputs().increaseShardsMetric(), equalTo(WriteLoadMetric.PEAK));
+            assertThat(decision.inputs().decreaseShardsMetric(), equalTo(WriteLoadMetric.RECENT));
+            assertThat(decision.inputs().dataStream(), equalTo(dataStreamName));
+            assertThat(decision.inputs().writeIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 5, now - 1000)));
+            assertThat(decision.inputs().writeIndexAllTimeLoad(), closeTo(0.9, 1.0e-8));
+            assertThat(decision.inputs().writeIndexRecentLoad(), closeTo(0.3, 1.0e-8));
+            assertThat(decision.inputs().writeIndexPeakLoad(), closeTo(1.9, 1.0e-8));
+            assertThat(decision.inputs().currentNumberOfWriteIndexShards(), equalTo(3));
+            assertThat(decision.increaseCalculation().writeIndexLoadForIncrease(), closeTo(1.9, 1.0e-8)); // all-time
+            // Increase shard count based on all-time load of 1.9 for write index:
+            assertThat(decision.increaseCalculation().optimalShardCountForIncrease(), equalTo(2));
+            // The highest load for decrease (i.e. recent load) within the cooling period is the 0.333 from generation 3
+            assertThat(decision.decreaseCalculation().maxLoadWithinCooldown().load(), closeTo(0.333, 1.0e-8));
+            assertThat(
+                decision.decreaseCalculation().maxLoadWithinCooldown().previousIndexWithMaxLoad(),
+                equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 3, now - TimeValue.timeValueDays(2).getMillis()))
+            );
+            // Decrease shard count based on recent load of 0.333 for gen 3 index
+            assertThat(decision.decreaseCalculation().optimalShardCountForDecrease(), equalTo(1));
+            assertThat(decision.result(), equalTo(autoShardingResult));
+        });
+    }
+
     public void testComputeOptimalNumberOfShards_zeroLoad() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 0.0), is(1L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 0.0), is(1));
     }
 
     public void testComputeOptimalNumberOfShards_smallLoad() {
         // the small values will be very common so let's randomise to make sure we never go below 1L
         double indexingLoad = randomDoubleBetween(0.0001, 1.0, true);
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, indexingLoad), is(1L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, indexingLoad), is(1));
     }
 
     public void testComputeOptimalNumberOfShards_load2() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 2.0), is(2L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 2.0), is(2));
     }
 
     public void testComputeOptimalNumberOfShards_loadUpTo32() {
         // there's a broad range of popular values (a write index starting to be very busy, using between 3 and all of the 32 write
         // threads, so let's randomise this too to make sure we stay at 3 recommended shards)
         double indexingLoad = randomDoubleBetween(3.0002, 32.0, true);
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, indexingLoad), is(3L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, indexingLoad), is(3));
     }
 
     public void testComputeOptimalNumberOfShards_load49() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 49.0), is(4L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 49.0), is(4));
     }
 
     public void testComputeOptimalNumberOfShards_load70() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 70.0), is(5L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 70.0), is(5));
     }
 
     public void testComputeOptimalNumberOfShards_load100() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 100.0), is(7L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 100.0), is(7));
     }
 
     public void testComputeOptimalNumberOfShards_load180() {
-        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 180.0), is(12L));
+        assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(MIN_WRITE_THREADS, MAX_WRITE_THREADS, 180.0), is(12));
     }
 
     public void testGetMaxIndexLoadWithinCoolingPeriod_withLongHistory() {
@@ -690,16 +782,15 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         metadataBuilder.put(dataStream);
 
-        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build().getProject(),
-            dataStream,
-            3.0,
-            coolingPeriod,
-            () -> now,
-            WriteLoadMetric.ALL_TIME
-        );
+        Decision.DecreaseCalculation.MaxLoadWithinCooldown maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService
+            .getMaxIndexLoadWithinCoolingPeriod(
+                metadataBuilder.build().getProject(),
+                dataStream,
+                createDecisionInputsForMaxLoadInCooldownTests(3.0, 9999.0, 9999.0, WriteLoadMetric.RECENT, WriteLoadMetric.ALL_TIME),
+                () -> now
+            );
         // to cover the entire cooldown period, the last index before the cooling period is taken into account
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
+        assertThat(maxIndexLoadWithinCoolingPeriod.load(), is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
     }
 
     public void testGetMaxIndexLoadWithinCoolingPeriod_sumsShardLoads() {
@@ -747,15 +838,14 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         metadataBuilder.put(dataStream);
 
-        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build().getProject(),
-            dataStream,
-            0.1,
-            coolingPeriod,
-            () -> now,
-            WriteLoadMetric.ALL_TIME
-        );
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(expectedIsSumOfShardLoads));
+        Decision.DecreaseCalculation.MaxLoadWithinCooldown maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService
+            .getMaxIndexLoadWithinCoolingPeriod(
+                metadataBuilder.build().getProject(),
+                dataStream,
+                createDecisionInputsForMaxLoadInCooldownTests(0.1, 9999.0, 9999.0, WriteLoadMetric.RECENT, WriteLoadMetric.ALL_TIME),
+                () -> now
+            );
+        assertThat(maxIndexLoadWithinCoolingPeriod.load(), is(expectedIsSumOfShardLoads));
     }
 
     public void testGetMaxIndexLoadWithinCoolingPeriod_usingAllTimeWriteLoad() {
@@ -789,15 +879,14 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         metadataBuilder.put(dataStream);
 
-        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build().getProject(),
-            dataStream,
-            3.0,
-            coolingPeriod,
-            () -> now,
-            WriteLoadMetric.ALL_TIME
-        );
-        assertThat(maxIndexLoadWithinCoolingPeriod, equalTo(3 * 5.0));
+        Decision.DecreaseCalculation.MaxLoadWithinCooldown maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService
+            .getMaxIndexLoadWithinCoolingPeriod(
+                metadataBuilder.build().getProject(),
+                dataStream,
+                createDecisionInputsForMaxLoadInCooldownTests(3.0, 9999.0, 9999.0, WriteLoadMetric.RECENT, WriteLoadMetric.ALL_TIME),
+                () -> now
+            );
+        assertThat(maxIndexLoadWithinCoolingPeriod.load(), equalTo(3 * 5.0));
     }
 
     public void testGetMaxIndexLoadWithinCoolingPeriod_usingRecentWriteLoad() {
@@ -831,15 +920,14 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         metadataBuilder.put(dataStream);
 
-        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build().getProject(),
-            dataStream,
-            3.0,
-            coolingPeriod,
-            () -> now,
-            WriteLoadMetric.RECENT
-        );
-        assertThat(maxIndexLoadWithinCoolingPeriod, equalTo(3 * 5.0));
+        Decision.DecreaseCalculation.MaxLoadWithinCooldown maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService
+            .getMaxIndexLoadWithinCoolingPeriod(
+                metadataBuilder.build().getProject(),
+                dataStream,
+                createDecisionInputsForMaxLoadInCooldownTests(9999.0, 3.0, 9999.0, WriteLoadMetric.ALL_TIME, WriteLoadMetric.RECENT),
+                () -> now
+            );
+        assertThat(maxIndexLoadWithinCoolingPeriod.load(), equalTo(3 * 5.0));
     }
 
     public void testGetMaxIndexLoadWithinCoolingPeriod_usingPeakWriteLoad() {
@@ -873,29 +961,45 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         metadataBuilder.put(dataStream);
 
-        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build().getProject(),
-            dataStream,
-            3.0,
-            coolingPeriod,
-            () -> now,
-            WriteLoadMetric.PEAK
+        Decision.DecreaseCalculation.MaxLoadWithinCooldown maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService
+            .getMaxIndexLoadWithinCoolingPeriod(
+                metadataBuilder.build().getProject(),
+                dataStream,
+                createDecisionInputsForMaxLoadInCooldownTests(9999.0, 9999.0, 3.0, WriteLoadMetric.RECENT, WriteLoadMetric.PEAK),
+                () -> now
+            );
+        assertThat(maxIndexLoadWithinCoolingPeriod.load(), equalTo(3 * 5.0));
+    }
+
+    private Decision.Inputs createDecisionInputsForMaxLoadInCooldownTests(
+        double writeIndexAllTimeLoad,
+        double writeIndexRecentLoad,
+        double writeIndexPeakLoad,
+        WriteLoadMetric increaseShardsMetric,
+        WriteLoadMetric decreaseShardsMetric
+    ) {
+        return new Decision.Inputs(
+            TimeValue.timeValueSeconds(270),
+            TimeValue.timeValueDays(3),
+            2,
+            32,
+            increaseShardsMetric,
+            decreaseShardsMetric,
+            dataStreamName,
+            "the-write-index",
+            writeIndexAllTimeLoad,
+            writeIndexRecentLoad,
+            writeIndexPeakLoad,
+            3
         );
-        assertThat(maxIndexLoadWithinCoolingPeriod, equalTo(3 * 5.0));
     }
 
     public void testAutoShardingResultValidation_increaseShardsShouldNotReportCooldown() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new AutoShardingResult(INCREASE_SHARDS, 1, 3, TimeValue.timeValueSeconds(3), 3.0)
-        );
+        expectThrows(IllegalArgumentException.class, () -> new AutoShardingResult(INCREASE_SHARDS, 1, 3, TimeValue.timeValueSeconds(3)));
     }
 
     public void testAutoShardingResultValidation_decreaseShardsShouldNotReportCooldown() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.timeValueSeconds(3), 1.0)
-        );
+        expectThrows(IllegalArgumentException.class, () -> new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.timeValueSeconds(3)));
     }
 
     public void testAutoShardingResultValidation_validCooldownPreventedIncrease() {
@@ -903,8 +1007,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             COOLDOWN_PREVENTED_INCREASE,
             1,
             3,
-            TimeValue.timeValueSeconds(3),
-            3.0
+            TimeValue.timeValueSeconds(3)
         );
         assertThat(cooldownPreventedIncrease.coolDownRemaining(), is(TimeValue.timeValueSeconds(3)));
     }
@@ -914,13 +1017,12 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             COOLDOWN_PREVENTED_DECREASE,
             3,
             1,
-            TimeValue.timeValueSeconds(7),
-            1.0
+            TimeValue.timeValueSeconds(7)
         );
         assertThat(cooldownPreventedDecrease.coolDownRemaining(), is(TimeValue.timeValueSeconds(7)));
     }
 
-    IndexStats createIndexStats(int numberOfShards, double shardWriteLoad, double shardRecentWriteLoad, double shardPeakWriteLoad) {
+    private IndexStats createIndexStats(int numberOfShards, double shardWriteLoad, double shardRecentWriteLoad, double shardPeakWriteLoad) {
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 99); // the generation number here is not used
         Index index = new Index(indexName, randomUUID());
         IndexStats.IndexStatsBuilder builder = new IndexStats.IndexStatsBuilder(indexName, randomUUID(), null, null);
@@ -964,6 +1066,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 false,
                 0,
                 totalIndexingTimeSinceShardStartedInNanos,
+                totalIndexingTimeSinceShardStartedInNanos,
                 totalActiveTimeInNanos,
                 recentIndexingLoad,
                 peakIndexingLoad
@@ -980,17 +1083,39 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         IndexWriteLoad backingIndicesWriteLoad,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
+        return createDataStream(
+            builder,
+            dataStreamName,
+            numberOfShards,
+            now,
+            indicesCreationDate,
+            Stream.generate(() -> backingIndicesWriteLoad).limit(indicesCreationDate.size() - 1).toList(),
+            autoShardingEvent
+        );
+    }
+
+    private DataStream createDataStream(
+        ProjectMetadata.Builder builder,
+        String dataStreamName,
+        int numberOfShards,
+        Long now,
+        List<Long> indicesCreationDate,
+        List<IndexWriteLoad> backingIndicesWriteLoads,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        assert backingIndicesWriteLoads.size() == indicesCreationDate.size() - 1 : "Expected index load for all except write index";
         final List<Index> backingIndices = new ArrayList<>();
         int backingIndicesCount = indicesCreationDate.size();
         for (int k = 0; k < indicesCreationDate.size(); k++) {
             long createdAt = indicesCreationDate.get(k);
             IndexMetadata.Builder indexMetaBuilder;
             if (k < backingIndicesCount - 1) {
+                IndexWriteLoad backingIndexWriteLoad = backingIndicesWriteLoads.get(k);
                 indexMetaBuilder = IndexMetadata.builder(
                     createIndexMetadata(
-                        DataStream.getDefaultBackingIndexName(dataStreamName, k + 1),
+                        DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, createdAt),
                         numberOfShards,
-                        backingIndicesWriteLoad,
+                        backingIndexWriteLoad,
                         createdAt
                     )
                 );
@@ -1049,4 +1174,173 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
     }
 
+    // Tests for PeriodicDecisionLogger
+
+    private static class FlushedDecisionsRecorder {
+
+        List<Decision> highestLoadIncreaseDecisions = new ArrayList<>();
+        List<Decision> highestLoadNonIncreaseDecisions = new ArrayList<>();
+
+        public void record(DataStreamAutoShardingService.PeriodicDecisionLogger.FlushedDecisions flushedDecisions) {
+            highestLoadIncreaseDecisions.addAll(flushedDecisions.highestLoadIncreaseDecisions());
+            highestLoadNonIncreaseDecisions.addAll(flushedDecisions.highestLoadNonIncreaseDecisions());
+        }
+
+        public void clear() {
+            highestLoadIncreaseDecisions.clear();
+            highestLoadNonIncreaseDecisions.clear();
+        }
+    }
+
+    public void testPeriodResultLogger_logsPeriodically() {
+        long start = System.currentTimeMillis();
+        AtomicLong clock = new AtomicLong(start);
+        FlushedDecisionsRecorder recorder = new FlushedDecisionsRecorder();
+        DataStreamAutoShardingService.PeriodicDecisionLogger periodicDecisionLogger =
+            new DataStreamAutoShardingService.PeriodicDecisionLogger(clock::get, recorder::record);
+
+        // Should not flush when logging at the start time:
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should not flush when logging in the past:
+        clock.set(start - 1);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should not flush when logging just before the interval since the start has elapsed:
+        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(3));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should flush when logging at exactly the interval since the start has elapsed:
+        long firstFlushTime = start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS;
+        clock.set(firstFlushTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(4));
+        assertThat(
+            recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            containsInAnyOrder("data-stream-1", "data-stream-2", "data-stream-3", "data-stream-4")
+        );
+        recorder.clear();
+
+        // Should not flush a second time when logging again at the same time:
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(5));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should not flush a second time when logging just before the interval since the first flush has elapsed:
+        clock.set(firstFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(6));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should flush a second time when logging some extra time after the interval since the first flush has elapsed:
+        long secondFlushTime = firstFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS + 123456L;
+        clock.set(secondFlushTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(7));
+        assertThat(
+            recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            containsInAnyOrder("data-stream-5", "data-stream-6", "data-stream-7")
+        );
+        recorder.clear();
+
+        // Should not flush a third time when logging just before the interval since the second flush has elapsed:
+        // (N.B. This time is more than two intervals since the start, but we count time from the last flush.)
+        clock.set(secondFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(8));
+        assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
+
+        // Should flush a third time when logging at exactly the interval since the second flush has elapsed:
+        clock.set(secondFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9));
+        assertThat(
+            recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            containsInAnyOrder("data-stream-8", "data-stream-9")
+        );
+    }
+
+    public void testPeriodResultLogger_logsHighestLoadNonIncrementDecisions() {
+        long start = System.nanoTime();
+        AtomicLong clock = new AtomicLong(start);
+        FlushedDecisionsRecorder recorder = new FlushedDecisionsRecorder();
+        DataStreamAutoShardingService.PeriodicDecisionLogger periodicDecisionLogger =
+            new DataStreamAutoShardingService.PeriodicDecisionLogger(clock::get, recorder::record);
+
+        // Pass in 13 decisions, in the order 8, 7, 6, 5; 13, 12, 11, 10; 4, 3, 2, 1; 9. Updating the clock before the last decision.
+        for (int i = 8; i >= 5; i--) {
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+        }
+        for (int i = 13; i >= 10; i--) {
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+        }
+        for (int i = 4; i >= 1; i--) {
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+        }
+        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9));
+
+        // Should have logged the 10 decisions with the highest load, in decreasing order, i.e. number 13 down to number 4:
+        assertThat(
+            recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            contains(IntStream.rangeClosed(4, 13).mapToObj(i -> "data-stream-" + i).toList().reversed().toArray())
+        );
+    }
+
+    public void testPeriodResultLogger_separatesIncreaseAndNonIncreaseDecisions() {
+        long start = System.nanoTime();
+        AtomicLong clock = new AtomicLong(start);
+        FlushedDecisionsRecorder recorder = new FlushedDecisionsRecorder();
+        DataStreamAutoShardingService.PeriodicDecisionLogger periodicDecisionLogger =
+            new DataStreamAutoShardingService.PeriodicDecisionLogger(clock::get, recorder::record);
+
+        // Pass in 3 decisions. Update the clock before the last decision. The highest load decision has an increment result.
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1));
+        periodicDecisionLogger.maybeLogDecision(createIncreaseDecision(3));
+        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2));
+
+        // Assert that we correctly separated the increase and the non-increase decisions.
+        assertThat(
+            recorder.highestLoadIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            containsInAnyOrder("data-stream-3")
+        );
+        assertThat(
+            recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
+            containsInAnyOrder("data-stream-1", "data-stream-2")
+        );
+    }
+
+    private DataStreamAutoShardingService.Decision createNoChangeDecision(int writeIndexLoad) {
+        return new Decision(
+            createDecisionInputsForPeriodLoggerTests(writeIndexLoad),
+            new Decision.IncreaseCalculation(1.0 * writeIndexLoad, 2, null),
+            null,
+            new AutoShardingResult(AutoShardingType.NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO)
+        );
+    }
+
+    private DataStreamAutoShardingService.Decision createIncreaseDecision(int writeIndexLoad) {
+        AutoShardingResult result = new AutoShardingResult(INCREASE_SHARDS, 3, 4, TimeValue.ZERO);
+        return new Decision(
+            createDecisionInputsForPeriodLoggerTests(writeIndexLoad),
+            new Decision.IncreaseCalculation(1.0 * writeIndexLoad, 4, result),
+            null,
+            result
+        );
+    }
+
+    private static Decision.Inputs createDecisionInputsForPeriodLoggerTests(int writeIndexLoadForIncreaseAndDataStreamName) {
+        return new Decision.Inputs(
+            TimeValue.timeValueSeconds(270),
+            TimeValue.timeValueDays(3),
+            2,
+            32,
+            WriteLoadMetric.PEAK,
+            WriteLoadMetric.ALL_TIME,
+            "data-stream-" + writeIndexLoadForIncreaseAndDataStreamName,
+            "the-write-index",
+            0.1,
+            0.2,
+            1.0 * writeIndexLoadForIncreaseAndDataStreamName,
+            3
+        );
+    }
 }

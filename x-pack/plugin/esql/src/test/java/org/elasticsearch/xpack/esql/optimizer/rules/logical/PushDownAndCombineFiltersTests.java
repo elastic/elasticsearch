@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
@@ -45,9 +49,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.mockito.Mockito.mock;
 
 public class PushDownAndCombineFiltersTests extends ESTestCase {
 
@@ -221,13 +228,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule
-        Aggregate aggregate = new Aggregate(
-            EMPTY,
-            fa,
-            Aggregate.AggregateType.STANDARD,
-            singletonList(getFieldAttribute("b")),
-            emptyList()
-        );
+        Aggregate aggregate = new Aggregate(EMPTY, fa, singletonList(getFieldAttribute("b")), emptyList());
         Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
 
         // expected
@@ -236,13 +237,59 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             new Aggregate(
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
-                Aggregate.AggregateType.STANDARD,
                 singletonList(getFieldAttribute("b")),
                 emptyList()
             ),
             aggregateCondition
         );
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
+    }
+
+    // from ... | where a > 1 | COMPLETION "some prompt" WITH reranker AS completion | where b < 2 and match(completion, some text)
+    // => ... | where a > 1 AND b < 2| COMPLETION "some prompt" WITH reranker AS completion | match(completion, some text)
+    public void testPushDownFilterPastCompletion() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(a, b));
+
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        Filter filterA = new Filter(EMPTY, relation, conditionA);
+
+        Completion completion = completion(filterA);
+
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        Match conditionCompletion = new Match(
+            EMPTY,
+            completion.targetField(),
+            randomLiteral(DataType.TEXT),
+            mock(Expression.class),
+            mock(QueryBuilder.class)
+        );
+        Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
+
+        LogicalPlan expectedOptimizedPlan = new Filter(
+            EMPTY,
+            new Completion(
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField()
+            ),
+            conditionCompletion
+        );
+
+        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
+    }
+
+    private static Completion completion(LogicalPlan child) {
+        return new Completion(
+            EMPTY,
+            child,
+            randomLiteral(DataType.TEXT),
+            randomLiteral(DataType.TEXT),
+            referenceAttribute(randomIdentifier(), DataType.TEXT)
+        );
     }
 
     private static EsRelation relation() {

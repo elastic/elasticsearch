@@ -9,7 +9,7 @@ lexer grammar ChangePoint;
 //
 // | CHANGE_POINT command
 //
-DEV_CHANGE_POINT : {this.isDevVersion()}? 'change_point'  -> pushMode(CHANGE_POINT_MODE);
+CHANGE_POINT : 'change_point' -> pushMode(CHANGE_POINT_MODE);
 
 mode CHANGE_POINT_MODE;
 CHANGE_POINT_PIPE : PIPE -> type(PIPE), popMode;

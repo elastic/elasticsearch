@@ -42,7 +42,9 @@
     }
   ],
   "examples" : [
-    "ROW str1 = \"1.1.1.1\", str2 = \"foo\"\n| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)\n| WHERE CIDR_MATCH(ip1, \"1.0.0.0/8\")"
+    "ROW str1 = \"1.1.1.1\", str2 = \"foo\"\n| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)\n| WHERE CIDR_MATCH(ip1, \"1.0.0.0/8\")",
+    "ROW s = \"1.1.010.1\" | EVAL ip = TO_IP(s, {\"leading_zeros\":\"octal\"})",
+    "ROW s = \"1.1.010.1\" | EVAL ip = TO_IP(s, {\"leading_zeros\":\"decimal\"})"
   ],
   "preview" : false,
   "snapshot_only" : false

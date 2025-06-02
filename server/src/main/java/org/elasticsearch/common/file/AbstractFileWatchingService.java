@@ -27,11 +27,11 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -116,15 +116,13 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     private FileUpdateState readFileUpdateState(Path path) throws IOException {
-        BasicFileAttributes attr;
         try {
-            attr = filesReadAttributes(path, BasicFileAttributes.class);
+            BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
+            return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
         } catch (NoSuchFileException e) {
             // file doesn't exist anymore
             return null;
         }
-
-        return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
     }
 
     // platform independent way to tell if a file changed
@@ -239,14 +237,16 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 key.reset();
 
                 if (key == settingsDirWatchKey) {
-                    // there may be multiple events for the same file - we only want to re-read once
-                    Set<Path> processedFiles = new HashSet<>();
-                    for (WatchEvent<?> e : events) {
-                        Path fullFile = settingsDir.resolve(e.context().toString());
-                        if (processedFiles.add(fullFile)) {
-                            if (fileChanged(fullFile)) {
-                                process(fullFile);
-                            }
+                    Set<Path> changedPaths = events.stream()
+                        .map(event -> settingsDir.resolve(event.context().toString()))
+                        .collect(Collectors.toSet());
+                    for (var changedPath : changedPaths) {
+                        // If a symlinked dir changed in the settings dir, it could be linked to other symlinks, so reprocess all files
+                        if (filesIsDirectory(changedPath) && filesIsSymbolicLink(changedPath)) {
+                            reprocessAllChangedFilesInSettingsDir();
+                            break;
+                        } else if (fileChanged(changedPath)) {
+                            process(changedPath);
                         }
                     }
                 } else if (key == configDirWatchKey) {
@@ -259,14 +259,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
 
                         // re-read the settings directory, and ping for any changes
-                        try (Stream<Path> files = filesList(settingsDir)) {
-                            for (var f = files.iterator(); f.hasNext();) {
-                                Path file = f.next();
-                                if (fileChanged(file)) {
-                                    process(file);
-                                }
-                            }
-                        }
+                        reprocessAllChangedFilesInSettingsDir();
                     } else if (settingsDirWatchKey != null) {
                         settingsDirWatchKey.cancel();
                     }
@@ -278,6 +271,17 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             logger.info("shutting down watcher thread");
         } catch (Exception e) {
             logger.error("shutting down watcher thread with exception", e);
+        }
+    }
+
+    private void reprocessAllChangedFilesInSettingsDir() throws IOException, InterruptedException {
+        try (Stream<Path> files = filesList(settingsDir)) {
+            for (var f = files.iterator(); f.hasNext();) {
+                Path file = f.next();
+                if (fileChanged(file)) {
+                    process(file);
+                }
+            }
         }
     }
 
@@ -379,6 +383,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     protected abstract boolean filesExists(Path path);
 
     protected abstract boolean filesIsDirectory(Path path);
+
+    protected abstract boolean filesIsSymbolicLink(Path path);
 
     protected abstract <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException;
 

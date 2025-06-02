@@ -24,8 +24,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -303,9 +302,9 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(client().search(new SearchRequest("test").source(sourceBuilder)), response -> {
             assertThat(response.getHits().getTotalHits().value(), equalTo(100L));
 
-            Global global = response.getAggregations().get("global");
-            Filter all = global.getAggregations().get("all");
-            Filter test1 = response.getAggregations().get("test1");
+            SingleBucketAggregation global = response.getAggregations().get("global");
+            SingleBucketAggregation all = global.getAggregations().get("all");
+            SingleBucketAggregation test1 = response.getAggregations().get("test1");
             assertThat(test1.getDocCount(), equalTo(1L));
             assertThat(all.getDocCount(), equalTo(100L));
         });

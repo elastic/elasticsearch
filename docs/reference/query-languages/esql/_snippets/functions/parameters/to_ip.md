@@ -5,3 +5,6 @@
 `field`
 :   Input value. The input can be a single- or multi-valued column or an expression.
 
+`options`
+:   (Optional) Additional options.
+

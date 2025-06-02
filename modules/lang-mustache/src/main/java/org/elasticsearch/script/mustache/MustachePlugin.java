@@ -9,8 +9,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,10 +47,10 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
-            new ActionHandler<>(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
+            new ActionHandler(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
+            new ActionHandler(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
         );
     }
 

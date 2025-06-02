@@ -16,13 +16,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,7 +29,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -46,7 +43,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 
 @TestCaseOrdering(AbstractCCRRestTestCase.TargetClusterTestOrdering.class)
 public abstract class AbstractCCRRestTestCase extends ESRestTestCase {
@@ -354,33 +350,16 @@ public abstract class AbstractCCRRestTestCase extends ESRestTestCase {
 
     protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
 
-    protected static boolean indexExists(String index) throws IOException {
-        Response response = adminClient().performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
-    }
-
-    protected static List<String> verifyDataStream(final RestClient client, final String name, final String... expectedBackingIndices)
+    /**
+     * Verify that the specified data stream has the expected backing index generations.
+     */
+    protected static List<String> verifyDataStream(final RestClient client, final String name, final int... expectedBackingIndices)
         throws IOException {
-        Request request = new Request("GET", "/_data_stream/" + name);
-        Map<String, ?> response = toMap(client.performRequest(request));
-        List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
-        assertThat(retrievedDataStreams, hasSize(1));
-        List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
-        assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
-        final List<String> actualBackingIndices = new ArrayList<>();
+        final List<String> actualBackingIndices = getDataStreamBackingIndexNames(client, name);
         for (int i = 0; i < expectedBackingIndices.length; i++) {
-            Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
-            String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
-            String expectedBackingIndex = expectedBackingIndices[i];
-
-            String actualDataStreamName = actualBackingIndex.substring(5, actualBackingIndex.indexOf('-', 5));
-            String expectedDataStreamName = expectedBackingIndex.substring(5, expectedBackingIndex.indexOf('-', 5));
-            assertThat(actualDataStreamName, equalTo(expectedDataStreamName));
-
-            int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
-            int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
-            assertThat(actualGeneration, equalTo(expectedGeneration));
-            actualBackingIndices.add(actualBackingIndex);
+            String actualBackingIndex = actualBackingIndices.get(i);
+            int expectedBackingIndexGeneration = expectedBackingIndices[i];
+            assertThat(actualBackingIndex, DataStreamTestHelper.backingIndexEqualTo(name, expectedBackingIndexGeneration));
         }
         return List.copyOf(actualBackingIndices);
     }
@@ -406,17 +385,6 @@ public abstract class AbstractCCRRestTestCase extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(bodyBuilder));
         }
         assertOK(client.performRequest(request));
-    }
-
-    /**
-     * Fix point in time when data stream backing index is first time queried.
-     * This is required to avoid failures when running test at midnight.
-     * (index is created for day0, but assertions are executed for day1 assuming different time based index name that does not exist)
-     */
-    private final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
-
-    protected String backingIndexName(String dataStreamName, int generation) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
     }
 
     protected RestClient buildLeaderClient() throws IOException {

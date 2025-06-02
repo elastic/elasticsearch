@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -52,6 +53,18 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             sentenceOverlap = in.readVInt();
         }
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        return Map.of(
+            ChunkingSettingsOptions.STRATEGY.toString(),
+            STRATEGY.toString().toLowerCase(Locale.ROOT),
+            ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            maxChunkSize,
+            ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
+            sentenceOverlap
+        );
     }
 
     public static SentenceBoundaryChunkingSettings fromMap(Map<String, Object> map) {
@@ -134,11 +147,16 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SentenceBoundaryChunkingSettings that = (SentenceBoundaryChunkingSettings) o;
-        return Objects.equals(maxChunkSize, that.maxChunkSize);
+        return Objects.equals(maxChunkSize, that.maxChunkSize) && Objects.equals(sentenceOverlap, that.sentenceOverlap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxChunkSize);
+        return Objects.hash(maxChunkSize, sentenceOverlap);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

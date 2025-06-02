@@ -9,59 +9,79 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AbstractAmazonS3;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.services.s3.S3Client;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class S3RepositoryTests extends ESTestCase {
 
-    private static class DummyS3Client extends AbstractAmazonS3 {
+    private static class DummyS3Client implements S3Client {
 
         @Override
-        public void shutdown() {
+        public void close() {
             // TODO check is closed
+        }
+
+        @Override
+        public String serviceName() {
+            return "DummyS3Client";
         }
     }
 
     private static class DummyS3Service extends S3Service {
 
-        DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
-            super(environment, Settings.EMPTY, resourceWatcherService);
+        DummyS3Service(
+            Environment environment,
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            ResourceWatcherService resourceWatcherService
+        ) {
+            super(environment, clusterService, projectResolver, resourceWatcherService, () -> null);
         }
 
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-            return new AmazonS3Reference(new DummyS3Client());
+            return new AmazonS3Reference(new DummyS3Client(), mock(SdkHttpClient.class));
         }
 
         @Override
         public void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {}
 
         @Override
-        public void close() {}
+        public void doClose() {
+            // nothing to clean up
+        }
     }
 
     public void testInvalidChunkBufferSizeSettings() {
@@ -144,15 +164,24 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        return new S3Repository(
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final S3Repository s3Repository = new S3Repository(
+            projectId,
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(Mockito.mock(Environment.class), Mockito.mock(ResourceWatcherService.class)),
+            new DummyS3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class)
+            ),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
         );
+        assertThat(s3Repository.getProjectId(), equalTo(projectId));
+        return s3Repository;
     }
 
     public void testAnalysisFailureDetail() {

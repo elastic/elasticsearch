@@ -10,10 +10,11 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -43,6 +44,18 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntBlock groupIds) {
+                assert false : "Intermediate group id must not have nulls";
+                throw new IllegalStateException("Intermediate group id must not have nulls");
+            }
+
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                assert false : "Intermediate group id must not have nulls";
+                throw new IllegalStateException("Intermediate group id must not have nulls");
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
                 assert false : "Intermediate group id must not have nulls";
                 throw new IllegalStateException("Intermediate group id must not have nulls");
             }
@@ -92,8 +105,8 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-        delegate.evaluateFinal(blocks, offset, selected, driverContext);
+    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        delegate.evaluateFinal(blocks, offset, selected, evaluationContext);
     }
 
     @Override

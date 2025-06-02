@@ -96,24 +96,24 @@ public final class RemoveProcessor extends AbstractProcessor {
         @Override
         public RemoveProcessor create(
             Map<String, Processor.Factory> registry,
-            String processorTag,
+            String tag,
             String description,
             Map<String, Object> config,
             ProjectId projectId
         ) throws Exception {
-            final List<TemplateScript.Factory> compiledTemplatesToRemove = getTemplates(processorTag, config, "field");
-            final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(processorTag, config, "keep");
+            final List<TemplateScript.Factory> compiledTemplatesToRemove = getTemplates(tag, config, "field");
+            final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(tag, config, "keep");
 
             if (compiledTemplatesToRemove.isEmpty() && compiledTemplatesToKeep.isEmpty()) {
-                throw newConfigurationException(TYPE, processorTag, "keep", "or [field] must be specified");
+                throw newConfigurationException(TYPE, tag, "keep", "or [field] must be specified");
             }
 
             if (compiledTemplatesToRemove.isEmpty() == false && compiledTemplatesToKeep.isEmpty() == false) {
-                throw newConfigurationException(TYPE, processorTag, "keep", "and [field] cannot both be used in the same processor");
+                throw newConfigurationException(TYPE, tag, "keep", "and [field] cannot both be used in the same processor");
             }
 
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RemoveProcessor(processorTag, description, compiledTemplatesToRemove, compiledTemplatesToKeep, ignoreMissing);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
+            return new RemoveProcessor(tag, description, compiledTemplatesToRemove, compiledTemplatesToKeep, ignoreMissing);
         }
 
         private List<TemplateScript.Factory> getTemplates(String processorTag, Map<String, Object> config, String propertyName) {

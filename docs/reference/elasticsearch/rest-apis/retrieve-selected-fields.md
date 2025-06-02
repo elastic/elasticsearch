@@ -480,7 +480,7 @@ GET /_search
 
 ### Other methods of retrieving data [field-retrieval-methods]
 
-::::{admonition} Using `fields` is typically better
+::::{admonition} Using fields is typically better
 These options are usually not required. Using the `fields` option is typically the better choice, unless you absolutely need to force loading a stored or `docvalue_fields`.
 
 ::::
@@ -575,7 +575,7 @@ Stored field values fetched from the document itself are always returned as an a
 Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
 
 ::::{note}
-On its own, `stored_fields` cannot be used to load fields in nested objects — if a field contains a nested object in its path, then no data will be returned for that stored field. To access nested fields, `stored_fields` must be used within an [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) block.
+On its own, `stored_fields` cannot be used to load fields in nested objects — if a field contains a nested object in its path, then no data will be returned for that stored field. To access nested fields, `stored_fields` must be used within an [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) block.
 ::::
 
 

@@ -150,7 +150,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
             var context = request.getContext();
             if (Objects.nonNull(context)) {
-                threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+                var headerNotPresentInThreadContext = Objects.isNull(
+                    threadPool.getThreadContext().getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER)
+                );
+                if (headerNotPresentInThreadContext) {
+                    threadPool.getThreadContext()
+                        .putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+                }
             }
 
             var service = serviceRegistry.getService(serviceName).get();
@@ -417,7 +423,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {

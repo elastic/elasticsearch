@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.store.IndexOutput;
@@ -47,7 +48,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected long[] buildAndWritePostingsLists(
+    long[] buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -203,25 +204,24 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: this sorting operation tanks recall for some reason, works fine for small numbers of vectors like in single segment
-        // need to investigate this further
-        // float[] distances = new float[centroids.length];
-        // for (int i = 0; i < centroids.length; i++) {
-        // distances[i] = VectorUtil.squareDistance(centroids[i], globalCentroid);
-        // }
-        // // sort the centroids by distance to globalCentroid, nearest (smallest distance), to furthest
-        // // (largest)
-        // for (int i = 0; i < centroids.length; i++) {
-        // for (int j = i + 1; j < centroids.length; j++) {
-        // if (distances[i] > distances[j]) {
-        // float[] tmp = centroids[i];
-        // centroids[i] = centroids[j];
-        // centroids[j] = tmp;
-        // float tmpDistance = distances[i];
-        // distances[i] = distances[j];
-        // distances[j] = tmpDistance;
-        // }
-        // }
-        // }
+        //  need to investigate this further
+        float[] distances = new float[centroids.length];
+        for (int i = 0; i < centroids.length; i++) {
+            distances[i] = VectorUtil.squareDistance(centroids[i], globalCentroid);
+        }
+        // sort the centroids by distance to globalCentroid, nearest (smallest distance), to furthest (largest)
+        for (int i = 0; i < centroids.length; i++) {
+            for (int j = i + 1; j < centroids.length; j++) {
+                if (distances[i] > distances[j]) {
+                    float[] tmp = centroids[i];
+                    centroids[i] = centroids[j];
+                    centroids[j] = tmp;
+                    float tmpDistance = distances[i];
+                    distances[i] = distances[j];
+                    distances[j] = tmpDistance;
+                }
+            }
+        }
         for (float[] centroid : centroids) {
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
@@ -239,6 +239,41 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    CentroidAssignments calculateAndWriteCentroids(
+        FieldInfo fieldInfo,
+        FloatVectorValues floatVectorValues,
+        IndexOutput centroidOutput,
+        MergeState mergeState,
+        float[] globalCentroid
+    ) throws IOException {
+        // TODO: take advantage of prior generated clusters from mergeState in the future
+        return calculateAndWriteCentroids(
+            fieldInfo,
+            floatVectorValues,
+            centroidOutput,
+            mergeState.infoStream,
+            globalCentroid,
+            false
+        );
+    }
+
+    CentroidAssignments calculateAndWriteCentroids(
+        FieldInfo fieldInfo,
+        FloatVectorValues floatVectorValues,
+        IndexOutput centroidOutput,
+        InfoStream infoStream,
+        float[] globalCentroid
+    ) throws IOException {
+        return calculateAndWriteCentroids(
+            fieldInfo,
+            floatVectorValues,
+            centroidOutput,
+            infoStream,
+            globalCentroid,
+            true
+        );
+    }
+
     /**
      * Calculate the centroids for the given field and write them to the given centroid output.
      * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
@@ -252,8 +287,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
      * @throws IOException if an I/O error occurs
      */
-    @Override
-    protected CentroidAssignments calculateAndWriteCentroids(
+    CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
@@ -270,10 +304,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         short[] assignments = kMeansResult.assignments();
         short[] soarAssignments = kMeansResult.soarAssignments();
 
-        // TODO: previously for flush we were doing this over the vectors not the centroids,
-        // right off this produces good recall but need to do further evaluation
-        // VectorUtil.calculateCentroid(fieldWriter.delegate().getVectors(), globalCentroid);
-        // TODO: push this logic into vector util
+        // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
+        //   preliminary tests suggest recall is good using only centroids but need to do further evaluation
+        // TODO: push this logic into vector util?
         for (float[] centroid : centroids) {
             for (int j = 0; j < centroid.length; j++) {
                 globalCentroid[j] += centroid[j];

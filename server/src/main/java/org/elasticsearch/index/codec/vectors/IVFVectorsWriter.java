@@ -121,16 +121,23 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    protected abstract CentroidAssignments calculateAndWriteCentroids(
+    abstract CentroidAssignments calculateAndWriteCentroids(
+        FieldInfo fieldInfo,
+        FloatVectorValues floatVectorValues,
+        IndexOutput centroidOutput,
+        MergeState mergeState,
+        float[] globalCentroid
+    ) throws IOException;
+
+    abstract CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
         InfoStream infoStream,
-        float[] globalCentroid,
-        boolean cacheCentroids
+        float[] globalCentroid
     ) throws IOException;
 
-    protected abstract long[] buildAndWritePostingsLists(
+    abstract long[] buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -154,8 +161,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 floatVectorValues,
                 ivfCentroids,
                 segmentWriteState.infoStream,
-                globalCentroid,
-                true
+                globalCentroid
             );
 
             CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.cachedCentroids());
@@ -267,9 +273,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         fieldInfo,
                         floatVectorValues,
                         centroidTemp,
-                        mergeState.infoStream,
-                        calculatedGlobalCentroid,
-                        false
+                        mergeState,
+                        calculatedGlobalCentroid
                     );
                     numCentroids = centroidAssignments.numCentroids();
 

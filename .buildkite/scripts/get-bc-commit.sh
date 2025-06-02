@@ -23,7 +23,8 @@ select(.active_release == true) |
 last | .value.manifest_url")"
 
 if [[ -z "$MANIFEST_URL" ]]; then
-   echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]"
+   echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]."
+   echo "Skipping BC upgrade tests."
    exit 0
 fi
 
@@ -33,15 +34,23 @@ if [[ -z "$MANIFEST" ]]; then
    exit 1
 fi
 
-TARGET_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
-TARGET_VERSION=$(echo "$MANIFEST" | jq .version)
+CURRENT_VERSION = $(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
-echo "Running bc-bwc tests on [$TARGET_VERSION] commit [$TARGET_COMMIT_HASH]"
+BC_VERSION=$(echo "$MANIFEST" | jq .version)
+BC_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
+
+if [ "$CURRENT_VERSION" != "$BC_VERSION" ]; then
+    echo "Version [$BC_VERSION] of BC (or snapshot) does not match current version [$CURRENT_VERSION] of branch [$BUILDKITE_BRANCH]."
+    echo "Skipping BC upgrade tests."
+    exit 0
+fi
+
+echo "Running BC upgrade tests on version [$BC_VERSION] using BC (or snapshot) build of commit [$BC_COMMIT_HASH]."
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
     - label: $BUILDKITE_BRANCH / bc-bwc
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${TARGET_VERSION} -Dtests.bwc.refspec.main=${TARGET_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
       timeout_in_minutes: 300
       agents:
         provider: gcp

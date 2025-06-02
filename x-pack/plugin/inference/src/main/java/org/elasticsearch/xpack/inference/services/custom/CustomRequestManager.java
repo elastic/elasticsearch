@@ -41,8 +41,8 @@ public class CustomRequestManager extends BaseRequestManager {
         }
     }
 
-    private static ResponseHandler createCustomHandler(CustomModel model) {
-        return new CustomResponseHandler("custom model", CustomResponseEntity::fromResponse, model.getServiceSettings().getErrorParser());
+    private static ResponseHandler createCustomHandler() {
+        return new CustomResponseHandler("custom model", CustomResponseEntity::fromResponse);
     }
 
     public static CustomRequestManager of(CustomModel model, ThreadPool threadPool) {
@@ -55,7 +55,7 @@ public class CustomRequestManager extends BaseRequestManager {
     private CustomRequestManager(CustomModel model, ThreadPool threadPool) {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
         this.model = model;
-        this.handler = createCustomHandler(model);
+        this.handler = createCustomHandler();
     }
 
     @Override

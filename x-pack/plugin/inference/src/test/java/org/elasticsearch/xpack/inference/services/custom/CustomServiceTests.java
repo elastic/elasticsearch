@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
@@ -152,14 +151,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 CustomServiceSettings.REQUEST,
                 new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, "request body")),
                 CustomServiceSettings.RESPONSE,
-                new HashMap<>(
-                    Map.of(
-                        CustomServiceSettings.JSON_PARSER,
-                        createResponseParserMap(taskType),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
-                    )
-                )
+                new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(taskType)))
             )
         );
 
@@ -245,8 +237,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 QueryParameters.EMPTY,
                 "\"input\":\"${input}\"",
                 parser,
-                new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message", inferenceId)
+                new RateLimitSettings(10_000)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
@@ -254,8 +245,6 @@ public class CustomServiceTests extends AbstractServiceTests {
     }
 
     private static CustomModel createCustomModel(TaskType taskType, CustomResponseParser customResponseParser, String url) {
-        var inferenceId = "inference_id";
-
         return new CustomModel(
             "model_id",
             taskType,
@@ -267,8 +256,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 QueryParameters.EMPTY,
                 "\"input\":\"${input}\"",
                 customResponseParser,
-                new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message", inferenceId)
+                new RateLimitSettings(10_000)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))

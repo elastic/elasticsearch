@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
@@ -60,7 +59,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String REQUEST_CONTENT = "content";
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
-    public static final String ERROR_PARSER = "error_parser";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
@@ -108,15 +106,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var responseJsonParser = extractResponseParser(taskType, jsonParserMap, validationException);
 
-        Map<String, Object> errorParserMap = extractRequiredMap(
-            Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
-            ERROR_PARSER,
-            RESPONSE_SCOPE,
-            validationException
-        );
-
-        var errorParser = ErrorResponseParser.fromMap(errorParserMap, RESPONSE_SCOPE, inferenceId, validationException);
-
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -125,14 +114,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null || errorParserMap == null) {
+        if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null) {
             throw validationException;
         }
 
         throwIfNotEmptyMap(requestBodyMap, REQUEST, NAME);
         throwIfNotEmptyMap(jsonParserMap, JSON_PARSER, NAME);
         throwIfNotEmptyMap(responseParserMap, RESPONSE, NAME);
-        throwIfNotEmptyMap(errorParserMap, ERROR_PARSER, NAME);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -145,8 +133,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             queryParams,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings,
-            errorParser
+            rateLimitSettings
         );
     }
 
@@ -218,7 +205,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final String requestContentString;
     private final CustomResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
-    private final ErrorResponseParser errorParser;
 
     public CustomServiceSettings(
         TextEmbeddingSettings textEmbeddingSettings,
@@ -227,8 +213,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable QueryParameters queryParameters,
         String requestContentString,
         CustomResponseParser responseJsonParser,
-        @Nullable RateLimitSettings rateLimitSettings,
-        ErrorResponseParser errorParser
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
@@ -237,7 +222,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.requestContentString = Objects.requireNonNull(requestContentString);
         this.responseJsonParser = Objects.requireNonNull(responseJsonParser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.errorParser = Objects.requireNonNull(errorParser);
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
@@ -248,7 +232,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         requestContentString = in.readString();
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
-        errorParser = new ErrorResponseParser(in);
     }
 
     @Override
@@ -296,10 +279,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return responseJsonParser;
     }
 
-    public ErrorResponseParser getErrorParser() {
-        return errorParser;
-    }
-
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
@@ -344,7 +323,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         builder.startObject(RESPONSE);
         {
             responseJsonParser.toXContent(builder, params);
-            errorParser.toXContent(builder, params);
         }
         builder.endObject();
 
@@ -372,7 +350,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeString(requestContentString);
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
-        errorParser.writeTo(out);
     }
 
     @Override
@@ -386,8 +363,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(queryParameters, that.queryParameters)
             && Objects.equals(requestContentString, that.requestContentString)
             && Objects.equals(responseJsonParser, that.responseJsonParser)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(errorParser, that.errorParser);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
@@ -399,8 +375,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             queryParameters,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings,
-            errorParser
+            rateLimitSettings
         );
     }
 

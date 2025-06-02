@@ -116,7 +116,15 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
         } else {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }
-        return new LuceneMaxFactory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), FIELD_NAME, getNumberType(), limit);
+        return new LuceneMaxFactory(
+            List.of(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            FIELD_NAME,
+            getNumberType(),
+            limit
+        );
     }
 
     public void testSimple() {

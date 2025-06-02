@@ -24,17 +24,22 @@ import java.util.stream.Collectors;
 public class InferenceServiceRegistry implements Closeable {
 
     private final Map<String, InferenceService> services;
+    private final Map<String, String> aliases;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
     public InferenceServiceRegistry(
         List<InferenceServiceExtension> inferenceServicePlugins,
         InferenceServiceExtension.InferenceServiceFactoryContext factoryContext
     ) {
-        // TODO check names are unique
+        // toMap verifies that the names and aliases are unique
         services = inferenceServicePlugins.stream()
             .flatMap(r -> r.getInferenceServiceFactories().stream())
             .map(factory -> factory.create(factoryContext))
             .collect(Collectors.toMap(InferenceService::name, Function.identity()));
+        aliases = services.values()
+            .stream()
+            .flatMap(service -> service.aliases().stream().distinct().map(alias -> Map.entry(alias, service.name())))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public void init(Client client) {
@@ -56,13 +61,8 @@ public class InferenceServiceRegistry implements Closeable {
     }
 
     public Optional<InferenceService> getService(String serviceName) {
-
-        if ("elser".equals(serviceName)) { // ElserService.NAME before removal
-            // here we are aliasing the elser service to use the elasticsearch service instead
-            return Optional.ofNullable(services.get("elasticsearch")); // ElasticsearchInternalService.NAME
-        } else {
-            return Optional.ofNullable(services.get(serviceName));
-        }
+        var serviceKey = aliases.getOrDefault(serviceName, serviceName);
+        return Optional.ofNullable(services.get(serviceKey));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

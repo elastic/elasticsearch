@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.lang.Boolean;
 import java.util.List;
 import java.util.Map;
 
@@ -105,9 +104,11 @@ public record UnifiedCompletionRequest(
      */
     public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
         return new DelegatingMapParams(
-            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId),
+            Map.ofEntries(
+                Map.entry(MODEL_ID_PARAM, modelId),
                 Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
-                Map.entry(SKIP_STREAM_OPTIONS_PARAM, Boolean.TRUE.toString())),
+                Map.entry(SKIP_STREAM_OPTIONS_PARAM, Boolean.TRUE.toString())
+            ),
             params
         );
     }

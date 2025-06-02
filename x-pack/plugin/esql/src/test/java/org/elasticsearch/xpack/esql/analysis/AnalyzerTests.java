@@ -3650,7 +3650,10 @@ public class AnalyzerTests extends ESTestCase {
                     | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
                     """, "mapping-books.json");
             } catch (ParsingException ex) {
-                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+                assertThat(
+                    ex.getMessage(),
+                    containsString("line 3:36: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}")
+                );
             }
         }
 

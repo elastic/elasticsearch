@@ -276,7 +276,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [watsonxai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }

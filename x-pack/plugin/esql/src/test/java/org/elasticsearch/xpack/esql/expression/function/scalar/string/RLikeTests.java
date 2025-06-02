@@ -98,7 +98,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             // Example: a case-insensitive ES regexp query for the pattern `weiß` won't match the value `WEISS` (but will match `WEIß`).
             // Or `ŉ` (U+0149) vs. `ʼN` (U+02BC U+004E).
             String text, caseChanged;
-            for (text = textSupplier.get(), caseChanged = randomCasing(text); text.length() != caseChanged.length(); ) {
+            for (text = textSupplier.get(), caseChanged = randomCasing(text); text.length() != caseChanged.length();) {
                 text = textSupplier.get();
                 caseChanged = randomCasing(text);
             }

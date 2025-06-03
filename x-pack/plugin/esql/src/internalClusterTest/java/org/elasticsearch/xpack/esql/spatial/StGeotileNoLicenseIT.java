@@ -12,15 +12,13 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.List;
 
-public class SpatialExtentAggregationNoLicenseIT extends SpatialExtentAggregationTestCase {
-
+public class StGeotileNoLicenseIT extends StGeotileLicenseIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(SpatialNoLicenseTestCase.TestSpatialPlugin.class, SpatialNoLicenseTestCase.TestEsqlPlugin.class);
     }
 
-    @Override
-    public void testStExtentAggregationWithShapes() {
-        assertStExtentFailsWith("index_geo_shape");
+    public void testGeoGridWithShapes() {
+        assertGeoGridFailsWith("index_geo_shape");
     }
 }

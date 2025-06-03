@@ -42,6 +42,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
@@ -75,6 +78,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -105,6 +109,7 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
+import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -658,6 +663,87 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
             assertThat(objectStoreService.getProjectObjectStoreExceptions(), anEmptyMap());
             assertProjectObjectStoreNotFound(objectStoreService, projectId);
+        }
+    }
+
+    public void testCopyShard() throws IOException {
+        var primaryTerm = randomLongBetween(1, 42);
+
+        // We build two nodes that share physical location of object store
+        // to have a clean state when reading destination shard after a copy.
+        var tempDir = createTempDir().toAbsolutePath();
+        var node1 = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(PATH_REPO_SETTING.getKey(), tempDir)
+                    .put(BUCKET_SETTING.getKey(), "testCopyIndexingShardState")
+                    // the wait on commitCloseLatch below assumes every commit is released immediately, not true when delayed.
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
+            }
+        };
+
+        var node2 = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(PATH_REPO_SETTING.getKey(), tempDir)
+                    .put(BUCKET_SETTING.getKey(), "testCopyIndexingShardState")
+                    .build();
+            }
+        };
+
+        try (node1; node2) {
+            ShardId sourceShardId = node1.shardId;
+            ObjectStoreService objectStoreService = node1.objectStoreService;
+
+            var commitCount = between(1, 5);
+            var commitCloseLatch = new CountDownLatch(commitCount);
+
+            var commits = node1.generateIndexCommits(commitCount, randomBoolean(), false, ignored -> commitCloseLatch.countDown());
+            for (var indexCommit : commits) {
+                node1.commitService.onCommitCreation(indexCommit);
+            }
+            safeAwait(commitCloseLatch);
+
+            var destinationShardId = new ShardId(sourceShardId.getIndex(), node1.shardId.getId() + 1);
+
+            objectStoreService.copyShard(sourceShardId, destinationShardId, primaryTerm);
+
+            // Shards should now have the same data, let's read from destination shard.
+            var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
+            BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
+                node2.objectStoreService.getBlobContainer(destinationShardId),
+                primaryTerm
+            );
+            if (commit != null) {
+                dir.updateLatestUploadedBcc(commit.primaryTermAndGeneration());
+                dir.updateLatestCommitInfo(commit.primaryTermAndGeneration(), node2.clusterService.localNode().getId());
+                dir.updateCommit(commit.lastCompoundCommit());
+            }
+
+            try (var indexReader = DirectoryReader.open(node2.searchStore.directory())) {
+                assertEquals(commitCount, indexReader.numDocs());
+                // Make sure shard data is actually usable with a deeper check.
+                var indexSearcher = new IndexSearcher(indexReader);
+                // See implementation of generateIndexCommits().
+                assertEquals(commitCount, indexSearcher.search(new TermQuery(new Term("field0", "term")), 100).totalHits.value());
+            }
         }
     }
 

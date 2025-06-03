@@ -14,6 +14,8 @@ import groovy.util.Node;
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
+import nmcp.NmcpPlugin;
+
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -66,6 +68,7 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
+        project.getPluginManager().apply(NmcpPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);

@@ -48,6 +48,7 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
   id 'com.gradleup.nmcp.aggregation'
@@ -61,11 +62,10 @@ nmcpAggregation {
     // publish manually from the portal
     publishingType = "USER_MANAGED"
   }
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
 }
 
-dependencies {
-  nmcpAggregation(project(":libs:cli"))
-}
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability
@@ -309,7 +309,7 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    if(project.path == ':') {
+    if (project.path == ':') {
       resolveJavaToolChain = true
 
       // ensure we have best possible caching of bwc builds
@@ -334,7 +334,7 @@ allprojects {
   }
 
   ext.withReleaseBuild = { Closure config ->
-    if(buildParams.snapshotBuild == false) {
+    if (buildParams.snapshotBuild == false) {
       config.call()
     }
   }

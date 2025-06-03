@@ -18,6 +18,7 @@ disconnect-after-idle-timeout=600
 hooks-path=$AGENT_WORKSPACE/hooks
 disconnect-after-job=false
 cancel-grace-period=300
+tags="queue=elasticsearch-quick-agent"
 EOF
 
-buildkite-agent start --queue elasticsearch-quick-agent --spawn-per-cpu 1 --config "$CONFIG_FILE"
+buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"

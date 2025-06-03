@@ -36,6 +36,7 @@ junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.1"
 junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", version.ref="junit5" }
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
+nmcp = { group = "com.gradleup.nmcp", name = "nmcp", version = "0.1.4" }
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:8.3.5"

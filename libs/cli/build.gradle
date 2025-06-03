@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 plugins {
-  id("com.gradleup.nmcp")
+//  id("com.gradleup.nmcp")
 }
 
 

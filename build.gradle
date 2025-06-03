@@ -50,8 +50,9 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  alias(buildLibs.plugins.nmcp.aggregation)
+  id 'com.gradleup.nmcp.aggregation'
 }
+
 version = VersionProperties.elasticsearch
 nmcpAggregation {
   centralPortal {

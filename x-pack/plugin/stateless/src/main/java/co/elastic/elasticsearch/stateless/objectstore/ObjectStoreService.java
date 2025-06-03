@@ -890,6 +890,38 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             .addListener(listener);
     }
 
+    public void copyShard(ShardId source, ShardId destination, long primaryTerm) throws IOException {
+        // TODO
+        // This implementation synchronously copies all files on a GENERIC thread pool for simplicity.
+        // This method is called early in the resharding sequence and indexing is not blocked at this point
+        // making execution speed less critical.
+        // It can be sped up by executing individual file copies concurrently.
+        // In that case we need to be careful to not impact other workflows if using shared thread pools
+        // by limiting the amount of concurrent file copies or using a dedicated thread pool.
+
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+        var sourceShardContainer = getBlobContainer(source);
+
+        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
+
+        for (var blobContainerWithTerm : blobContainersWithTerms) {
+            var sourceContainerForTerm = blobContainerWithTerm.v2();
+
+            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+            var destinationContainerForTerm = getBlobContainer(destination, blobContainerWithTerm.v1());
+            for (BlobMetadata blob : blobs.values()) {
+                destinationContainerForTerm.copyBlob(
+                    OperationPurpose.INDICES,
+                    sourceContainerForTerm,
+                    blob.name(),
+                    blob.name(),
+                    blob.length()
+                );
+            }
+        }
+    }
+
     private static Map<PrimaryTermAndGeneration, ReferencedBlobMaxBlobLengthAndFiles> computedReferencedBlobs(
         BatchedCompoundCommit latestBcc
     ) {

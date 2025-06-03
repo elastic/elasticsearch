@@ -145,7 +145,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     ) {
         SortField sortField = sortField(missingValue, sortMode, nested, reverse);
         if (indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
-                || getNumericType().sortFieldType != SortField.Type.INT) {
+            || getNumericType().sortFieldType != SortField.Type.INT) {
             return sortField;
         }
         if ((sortField instanceof SortedNumericSortField) == false) {

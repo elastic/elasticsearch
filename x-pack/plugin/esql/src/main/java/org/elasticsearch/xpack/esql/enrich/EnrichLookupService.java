@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,16 +69,20 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
+            indicesService,
             lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
             true,
@@ -102,14 +109,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     protected QueryList queryList(
         TransportRequest request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
         @Nullable DataType inputDataType
     ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
@@ -168,7 +176,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -189,7 +197,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }

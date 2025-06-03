@@ -42,6 +42,8 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
     @ClassRule
@@ -58,10 +60,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
+        .user("fls_user2_alias", "x-pack-test-password", "fls_user2_alias", false)
         .user("fls_user3", "x-pack-test-password", "fls_user3", false)
+        .user("fls_user3_alias", "x-pack-test-password", "fls_user3_alias", false)
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
+        .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
+        .user("metadata1_alias_read2", "x-pack-test-password", "metadata1_alias_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
         .user("alias_user2", "x-pack-test-password", "alias_user2", false)
         .user("logs_foo_all", "x-pack-test-password", "logs_foo_all", false)
@@ -158,6 +164,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
                         },
                         {
                           "add": {
+                            "alias": "lookup-second-alias",
+                            "index": "lookup-user2"
+                          }
+                        },
+                        {
+                          "add": {
                             "alias": "second-alias",
                             "index": "index-user2"
                           }
@@ -188,6 +200,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
             {
               "password" : "x-pack-test-password",
               "roles" : [ "fls_user4_1", "fls_user4_2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_security/user/fls_user4_alias");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "fls_user4_1_alias", "fls_user4_2_alias" ],
               "full_name" : "Test Role",
               "email" : "test.role@example.com"
             }
@@ -583,22 +606,76 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        // Aliases are not allowed in LOOKUP JOIN
-        var resp2 = expectThrows(
+        // user is not allowed to use the alias (but is allowed to use the index)
+        expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org")
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
+            )
         );
 
-        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
-        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-
-        // Aliases are not allowed in LOOKUP JOIN, regardless of alias filters
-        resp2 = expectThrows(
+        // user is not allowed to use the index (but is allowed to use the alias)
+        expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org")
+            () -> runESQLCommand("metadata1_alias_read2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org")
         );
-        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
-        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        // user has permission on the alias, and can read the key
+        resp = runESQLCommand(
+            "metadata1_alias_read2",
+            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
+        );
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
+
+        // user has permission on the alias, but can't read the key (doc level security at role level)
+        resp = runESQLCommand(
+            "metadata1_alias_read2",
+            "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
+        );
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        List<?> values = (List<?>) respMap.get("values");
+        assertThat(values.size(), is(1));
+        List<?> row = (List<?>) values.get(0);
+        assertThat(row.size(), is(2));
+        assertThat(row.get(0), is(32.0));
+        assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that doesn't allow to see the value
+        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        values = (List<?>) respMap.get("values");
+        assertThat(values.size(), is(1));
+        row = (List<?>) values.get(0);
+        assertThat(row.size(), is(2));
+        assertThat(row.get(0), is(12.0));
+        assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that allows to see the value
+        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
     }
 
     @SuppressWarnings("unchecked")
@@ -704,6 +781,64 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException error = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("fls_user4_1", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value")
+        );
+        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        Response resp = runESQLCommand("fls_user2_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        resp = runESQLCommand("fls_user3_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "other", "type", "keyword")
+                )
+            )
+
+        );
+
+        resp = runESQLCommand("fls_user4_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user4_1_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value")
         );
         assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));

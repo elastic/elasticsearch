@@ -415,7 +415,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         try {
             client.admin().indices().create(createIndexRequest).actionGet();
         } catch (ResourceAlreadyExistsException e) {
-            logger.info("Security index already exists, waiting for it to become available", e);
+            logger.info("Security index already exists, skipping creation and waiting for it to become available", e);
             ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, SECURITY_MAIN_ALIAS).waitForActiveShards(
                 ActiveShardCount.ALL
             );

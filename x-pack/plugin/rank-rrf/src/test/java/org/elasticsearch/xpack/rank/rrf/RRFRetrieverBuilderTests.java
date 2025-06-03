@@ -171,21 +171,12 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            convertToRetrieverSource(
-                new RRFRetrieverBuilder(
-                    expectedInferenceFields.entrySet()
-                        .stream()
-                        .map(e -> {
-                            if (e.getValue() != 1.0f) {
-                                throw new IllegalArgumentException("Cannot apply per-field weights in RRF");
-                            }
-                            return convertToRetrieverSource(new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)));
-                        })
-                        .toList(),
-                    retriever.rankWindowSize(),
-                    retriever.rankConstant()
-                )
-            )
+            convertToRetrieverSource(new RRFRetrieverBuilder(expectedInferenceFields.entrySet().stream().map(e -> {
+                if (e.getValue() != 1.0f) {
+                    throw new IllegalArgumentException("Cannot apply per-field weights in RRF");
+                }
+                return convertToRetrieverSource(new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)));
+            }).toList(), retriever.rankWindowSize(), retriever.rankConstant()))
         );
         RRFRetrieverBuilder expectedRewritten = new RRFRetrieverBuilder(
             expectedInnerRetrievers,

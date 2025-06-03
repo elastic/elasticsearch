@@ -899,7 +899,12 @@ public class EsqlCapabilities {
         /**
          * Support parameters for LiMIT command.
          */
-        PARAMETER_FOR_LIMIT;
+        PARAMETER_FOR_LIMIT,
+
+        /**
+         * Enable support for index aliases in lookup joins
+         */
+        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled());
 
         private final boolean enabled;
 

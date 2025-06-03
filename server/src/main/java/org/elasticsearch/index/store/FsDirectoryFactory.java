@@ -22,6 +22,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SimpleFSLockFactory;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.IOUtils;
@@ -35,6 +36,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -154,22 +156,38 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
+            Throwable directIOException = null;
             if (directIODelegate != null && context.hints().contains(DirectIOHint.INSTANCE)) {
                 ensureOpen();
                 ensureCanRead(name);
-                Log.debug("Opening {} with direct IO", name);
-                return directIODelegate.openInput(name, context);
-            } else if (useDelegate(name, context)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                ensureOpen();
-                ensureCanRead(name);
-                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                // we might run into trouble with files that are pendingDelete in one directory but still
-                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                // and intersect for perf reasons.
-                return delegate.openInput(name, context);
-            } else {
-                return super.openInput(name, context);
+                try {
+                    Log.debug("Opening {} with direct IO", name);
+                    return directIODelegate.openInput(name, context);
+                } catch (FileSystemException e) {
+                    Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
+                    directIOException = e;
+                    // and fallthrough to normal opening below
+                }
+            }
+
+            try {
+                if (useDelegate(name, context)) {
+                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                    ensureOpen();
+                    ensureCanRead(name);
+                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                    // we might run into trouble with files that are pendingDelete in one directory but still
+                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                    // and intersect for perf reasons.
+                    return delegate.openInput(name, context);
+                } else {
+                    return super.openInput(name, context);
+                }
+            } catch (Throwable t) {
+                if (directIOException != null) {
+                    t.addSuppressed(directIOException);
+                }
+                throw t;
             }
         }
 

@@ -33,7 +33,6 @@ import java.util.Objects;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
@@ -280,16 +279,7 @@ final class CefParser {
      * List of allowed timestamp formats for CEF spec v27, see: Appendix A: Date Formats
      * <a href="https://web.archive.org/web/20240925170528/http://www.microfocus.com/documentation/arcsight/arcsight-smartconnectors-24.2/pdfdoc/cef-implementation-standard/cef-implementation-standard.pdf">documentation</a>
      */
-    private static final List<DateTimeFormatter> TIME_FORMATS = Stream.of(
-        "MMM dd HH:mm:ss.SSS zzz",
-        "MMM dd HH:mm:ss.SSS",
-        "MMM dd HH:mm:ss zzz",
-        "MMM dd HH:mm:ss",
-        "MMM dd yyyy HH:mm:ss.SSS zzz",
-        "MMM dd yyyy HH:mm:ss.SSS",
-        "MMM dd yyyy HH:mm:ss zzz",
-        "MMM dd yyyy HH:mm:ss"
-    ).map(p -> DateTimeFormatter.ofPattern(p, Locale.ROOT)).toList();
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("MMM dd[ yyyy] HH:mm:ss[.SSS][ zzz]", Locale.ROOT);
 
     private static final List<ChronoField> CHRONO_FIELDS = List.of(
         NANO_OF_SECOND,
@@ -484,33 +474,30 @@ final class CefParser {
         } catch (NumberFormatException ignored) {
             // Not a millisecond timestamp, continue to format parsing
         }
+
         // Try parsing with different layouts
-        for (DateTimeFormatter formatter : TIME_FORMATS) {
-            try {
-                TemporalAccessor accessor = formatter.parse(value);
-                // if there is no year nor year-of-era, we fall back to the current one and
-                // fill the rest of the date up with the parsed date
-                if (accessor.isSupported(ChronoField.YEAR) == false
-                    && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.ISO.weekBasedYear()) == false
-                    && accessor.isSupported(WeekFields.of(Locale.ROOT).weekBasedYear()) == false
-                    && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
-                    int year = LocalDate.now(ZoneOffset.UTC).getYear();
-                    ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
-                    for (ChronoField field : CHRONO_FIELDS) {
-                        if (accessor.isSupported(field)) {
-                            newTime = newTime.with(field, accessor.get(field));
-                        }
+        try {
+            TemporalAccessor accessor = TIME_FORMAT.parse(value);
+            // if there is no year nor year-of-era, we fall back to the current one and
+            // fill the rest of the date up with the parsed date
+            if (accessor.isSupported(ChronoField.YEAR) == false
+                && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
+                && accessor.isSupported(WeekFields.ISO.weekBasedYear()) == false
+                && accessor.isSupported(WeekFields.of(Locale.ROOT).weekBasedYear()) == false
+                && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
+                int year = LocalDate.now(ZoneOffset.UTC).getYear();
+                ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                for (ChronoField field : CHRONO_FIELDS) {
+                    if (accessor.isSupported(field)) {
+                        newTime = newTime.with(field, accessor.get(field));
                     }
-                    accessor = newTime.withZoneSameLocal(timezone);
                 }
-                return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
-            } catch (DateTimeParseException ignored) {
-                // Try next layout
+                accessor = newTime.withZoneSameLocal(timezone);
             }
+            return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
+        } catch (DateTimeParseException ignored) {
+            throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
         }
-        // If no layout matches, throw an exception
-        throw new IllegalArgumentException("Value is not a valid timestamp: " + value);
     }
 
     // visible for testing

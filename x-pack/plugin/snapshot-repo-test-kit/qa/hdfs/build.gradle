@@ -19,7 +19,7 @@ configurations {
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
   javaRestTestCompileOnly project(path: ':test:fixtures:hdfs-fixture')
-  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture', configuration: "shadow")
+  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture')
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestImplementation "org.slf4j:slf4j-simple:${versions.slf4j}"

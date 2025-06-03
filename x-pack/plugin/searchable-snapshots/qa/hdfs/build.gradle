@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-available-ports'
 configurations {
   javaRestTestRuntimeClasspath {
     attributes {
-      attribute(Attribute.of('hdfs.major.version', Integer), 3)
+      attribute(Attribute.of('hdfs.major.version', Integer), 2)
     }
   }
 }
@@ -21,7 +21,7 @@ dependencies {
   clusterPlugins project(':plugins:repository-hdfs')
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestCompileOnly project(path: ':test:fixtures:hdfs-fixture')
-  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture', configuration:"shadowedHdfs2")
+  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture')
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
   javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"

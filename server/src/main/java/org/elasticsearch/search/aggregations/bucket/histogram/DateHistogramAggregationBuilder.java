@@ -70,7 +70,9 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         entry("minute", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
         entry("1m", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
         entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
-        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
+        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+        entry("years", Rounding.DateTimeUnit.YEARS_OF_CENTURY),
+        entry("months", Rounding.DateTimeUnit.MONTHS_OF_YEAR)
     );
 
     public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(

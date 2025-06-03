@@ -172,7 +172,7 @@ public abstract class Rounding implements Writeable {
                 return ratio;
             }
         },
-        YEARS_OF_CENTURY((byte) 9, "year", ChronoField.YEAR_OF_ERA, false, 12) {
+        YEARS_OF_CENTURY((byte) 9, "years", ChronoField.YEAR_OF_ERA, false, 12) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(366);
 
             @Override
@@ -185,7 +185,7 @@ public abstract class Rounding implements Writeable {
                 return extraLocalOffsetLookup;
             }
         },
-        MONTHS_OF_YEAR((byte) 10, "month", ChronoField.MONTH_OF_YEAR, false, 1) {
+        MONTHS_OF_YEAR((byte) 10, "months", ChronoField.MONTH_OF_YEAR, false, 1) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(31);
 
             @Override
@@ -551,6 +551,12 @@ public abstract class Rounding implements Writeable {
                 case YEAR_OF_CENTURY:
                     return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
 
+                case YEARS_OF_CENTURY:
+                    return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
+
+                case MONTHS_OF_YEAR:
+                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
+
                 default:
                     throw new IllegalArgumentException("NOT YET IMPLEMENTED for unit " + unit);
             }
@@ -913,6 +919,8 @@ public abstract class Rounding implements Writeable {
                     case MONTH_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
                     case QUARTER_OF_YEAR -> localMidnight.plus(3, ChronoUnit.MONTHS);
                     case YEAR_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
+                    case YEARS_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
+                    case MONTHS_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
                     default -> throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
                 };
             }

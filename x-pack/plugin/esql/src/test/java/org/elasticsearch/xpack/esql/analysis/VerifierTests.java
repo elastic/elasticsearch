@@ -1344,7 +1344,10 @@ public class VerifierTests extends ESTestCase {
             containsString("[" + functionName + "] function cannot be used after KEEP")
         );
         assertThat(
-            error("from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation, fullTextAnalyzer),
+            error(
+                "from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation,
+                fullTextAnalyzer
+            ),
             containsString("[" + functionName + "] function cannot be used after RENAME")
         );
         assertThat(
@@ -1413,36 +1416,45 @@ public class VerifierTests extends ESTestCase {
         query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
         query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
         query(
-            "from test | where ("
-                + functionInvocation
-                + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)", fullTextAnalyzer
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
         );
 
         // Disjunctions with non-pushable functions - no scoring
         query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
         query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
         query(
-            "from test | where ("
-                + functionInvocation
-                + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)", fullTextAnalyzer
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
         );
 
         // Disjunctions with full text functions - no scoring
         query("from test | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
         query("from test | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
         query("from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10", fullTextAnalyzer);
-        query("from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")", fullTextAnalyzer);
-        query("from test | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))", fullTextAnalyzer);
+        query(
+            "from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
+        );
+        query(
+            "from test | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
+        );
 
         // Disjunctions with full text functions - scoring
         query("from test metadata _score | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
         query("from test metadata _score | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
-        query("from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10", fullTextAnalyzer);
         query(
-            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")", fullTextAnalyzer
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10",
+            fullTextAnalyzer
         );
         query(
-            "from test metadata _score | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))", fullTextAnalyzer
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
+        );
+        query(
+            "from test metadata _score | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
         );
     }
 
@@ -1533,10 +1545,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
-        assertThat(
-            error("from test | keep emp_no | where " + functionInvocation),
-            containsString("Unknown column")
-        );
+        assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2207,7 +2216,10 @@ public class VerifierTests extends ESTestCase {
         query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
         query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
         query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)", fullTextAnalyzer);
-        query("from test metadata _score |  where " + functionInvocation + " or length(title) > 10 | stats c = max(_score)", fullTextAnalyzer);
+        query(
+            "from test metadata _score |  where " + functionInvocation + " or length(title) > 10 | stats c = max(_score)",
+            fullTextAnalyzer
+        );
 
         assertThat(
             error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),

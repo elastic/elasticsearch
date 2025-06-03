@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -47,6 +46,8 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.document.NumericField;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -1146,7 +1147,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int v = parse(value, true);
 
                 if (isIndexed && hasDocValues) {
-                    return IntField.newExactQuery(field, v);
+                    return NumericField.newExactIntQuery(field, v);
                 } else if (isIndexed) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
@@ -1223,7 +1224,7 @@ public class NumberFieldMapper extends FieldMapper {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
                 if (hasDocValues && context.indexSortedOnField(field)) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                    query = new XIndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                 }
                 return query;
             }
@@ -1330,7 +1331,7 @@ public class NumberFieldMapper extends FieldMapper {
 
                 long v = parse(value, true);
                 if (isIndexed && hasDocValues) {
-                    return LongField.newExactQuery(field, v);
+                    return NumericField.newExactLongQuery(field, v);
                 } else if (isIndexed) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
@@ -1381,7 +1382,7 @@ public class NumberFieldMapper extends FieldMapper {
                         query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
                     if (hasDocValues && context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                        query = new XIndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                     }
                     return query;
                 });

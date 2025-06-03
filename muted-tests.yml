@@ -555,6 +555,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/191_lookup_join_on_datastreams/data streams supported in LOOKUP JOIN}
   issue: https://github.com/elastic/elasticsearch/issues/128856
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/128861
 
 # Examples:
 #

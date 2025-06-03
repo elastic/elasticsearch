@@ -98,7 +98,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
 
-    private HeapUsageSupplier heapUsageSupplier;
+    private HeapUsageSupplier heapUsageSupplier = HeapUsageSupplier.EMPTY;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
@@ -140,7 +140,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
      * @param heapUsageSupplier The HeapUsageSupplier to use
      */
     public void setHeapUsageSupplier(HeapUsageSupplier heapUsageSupplier) {
-        assert this.heapUsageSupplier == null;
+        assert this.heapUsageSupplier == HeapUsageSupplier.EMPTY;
         this.heapUsageSupplier = heapUsageSupplier;
     }
 

@@ -676,11 +676,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
         }, task, request, listener);
 
-        final int genericThreads = threadPool.info(ThreadPool.Names.GENERIC).getMax();
-        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.GENERIC);
-        final CyclicBarrier barrier = new CyclicBarrier(genericThreads + 1);
-        final CountDownLatch latch = new CountDownLatch(1);
-
         if (cancelBeforeStart == false) {
             assertThat(listener.isDone(), equalTo(false));
 
@@ -699,6 +694,39 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
+        expectThrows(TaskCancelledException.class, listener);
+    }
+
+    /**
+     * Verify that the listener is invoked immediately when the task is cancelled, instead of waiting for the next ClusterStateObserver run.
+     */
+    public void testTaskCancellationDirectly() {
+        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
+
+        // Update the cluster state with a block so the request waits until it's unblocked
+        setState(clusterService, stateWithBlock);
+
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+
+        Request request = new Request();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+                Set<ClusterBlock> blocks = state.blocks().global();
+                return blocks.isEmpty() ? null : new ClusterBlockException(blocks);
+            }
+        }, task, request, listener);
+
+        assertThat(listener.isDone(), equalTo(false));
+
+        taskManager.cancel(task, "", () -> {});
+        assertThat(task.isCancelled(), equalTo(true));
         expectThrows(TaskCancelledException.class, listener);
     }
 

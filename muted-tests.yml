@@ -546,6 +546,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/190_lookup_join/alias-repeated-index}
   issue: https://github.com/elastic/elasticsearch/issues/128849
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/alias-repeated-alias}
+  issue: https://github.com/elastic/elasticsearch/issues/128850
 
 # Examples:
 #

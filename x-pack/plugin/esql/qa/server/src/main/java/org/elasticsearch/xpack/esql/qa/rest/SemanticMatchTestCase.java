@@ -16,6 +16,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,6 +48,25 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
         assertThat(re.getMessage(), containsString("Inference endpoint not found"));
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
+    }
+
+    public void testCopyToWithSemanticText() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
+
+        var request = new Request("POST", "/test-semantic4/_doc/id-1");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"text_field\": \"inference test\"}");
+        assertEquals(201, adminClient().performRequest(request).getStatusLine().getStatusCode());
+
+        ensureGreen("test-semantic4");
+
+        String query = """
+            from test-semantic4
+            """;
+        Map<String, Object> result = runEsqlQuery(query);
+
+        assertEquals(List.of("text_field", "semantic_text_field"), result.get("columns"));
+        assertEquals(List.of("inference test", "inference test"), result.get("values"));
     }
 
     @Before
@@ -82,6 +102,20 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                  }
             """;
         createIndex(adminClient(), "test-semantic3", settings, mapping3);
+
+        String mapping4 = """
+                "properties": {
+                  "semantic_text_field": {
+                   "type": "semantic_text",
+                   "inference_id": "test_sparse_inference"
+                  },
+                  "text_field": {
+                   "type": "text",
+                   "copy_to": "semantic_text_field"
+                  }
+                }
+            """;
+        createIndex(adminClient(), "test-semantic4", settings, mapping4);
     }
 
     @Before

@@ -486,9 +486,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test124CanRestartContainerWithStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128121
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128619
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
@@ -534,6 +531,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
+- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
+  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
+  issue: https://github.com/elastic/elasticsearch/issues/128774
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128799
+- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128800
 
 # Examples:
 #

@@ -533,8 +533,9 @@ public class AzureBlobStore implements BlobStore {
             return List.of(new MultiPart(0, makeMultipartBlockId(), 0L, totalSize, true));
         }
 
-        long lastPartSize = totalSize % partSize;
-        int parts = Math.toIntExact(totalSize / partSize) + (0L < lastPartSize ? 1 : 0);
+        long remaining = totalSize % partSize;
+        int parts = Math.toIntExact(totalSize / partSize) + (0L < remaining ? 1 : 0);
+        long lastPartSize = 0L < remaining ? remaining : partSize;
 
         long blockOffset = 0L;
         var list = new ArrayList<MultiPart>(parts);

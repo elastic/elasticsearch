@@ -32,13 +32,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -81,8 +79,6 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                 } else if ((isString(dataType1) && isString(dataType2))) {
                     if (dataType1 == dataType2) {
                         assertEqualsCommonType(dataType1, dataType2, dataType1);
-                    } else if (dataType1 == SEMANTIC_TEXT || dataType2 == SEMANTIC_TEXT) {
-                        assertEqualsCommonType(dataType1, dataType2, KEYWORD);
                     } else {
                         assertEqualsCommonType(dataType1, dataType2, TEXT);
                     }

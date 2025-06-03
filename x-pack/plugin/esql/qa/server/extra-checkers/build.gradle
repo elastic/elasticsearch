@@ -1,0 +1,28 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+
+esplugin {
+  name = 'extra-checkers'
+  description = 'An example plugin disallowing CATEGORIZE'
+  classname ='org.elasticsearch.xpack.esql.qa.extra.ExtraCheckersPlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:esql')
+  compileOnly project(':x-pack:plugin:esql-core')
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+

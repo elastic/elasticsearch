@@ -49,7 +49,6 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
-    private final List<Verifier.ExtraCheckers> extraCheckers;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -66,7 +65,6 @@ public class PlanExecutor {
         this.verifier = new Verifier(extraCheckers, metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
-        this.extraCheckers = extraCheckers;
     }
 
     public void esql(

@@ -94,29 +94,22 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final ThreadPool threadPool;
     private final Client client;
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
-    private final HeapUsageSupplier heapUsageSupplier;
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
 
+    private HeapUsageSupplier heapUsageSupplier;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
     @SuppressWarnings("this-escape")
-    public InternalClusterInfoService(
-        Settings settings,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        Client client,
-        HeapUsageSupplier heapUsageSupplier
-    ) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.nodesHeapUsage = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
-        this.heapUsageSupplier = heapUsageSupplier;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -139,6 +132,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     void setUpdateFrequency(TimeValue updateFrequency) {
         this.updateFrequency = updateFrequency;
+    }
+
+    /**
+     * This can be provided by plugins, which are initialised long after the ClusterInfoService is created
+     *
+     * @param heapUsageSupplier The HeapUsageSupplier to use
+     */
+    public void setHeapUsageSupplier(HeapUsageSupplier heapUsageSupplier) {
+        assert this.heapUsageSupplier == null;
+        this.heapUsageSupplier = heapUsageSupplier;
     }
 
     @Override

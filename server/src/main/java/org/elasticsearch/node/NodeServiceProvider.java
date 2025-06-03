@@ -77,14 +77,7 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final HeapUsageSupplier heapUsageSupplier = getHeapUsageSupplier(pluginsService);
-        final InternalClusterInfoService service = new InternalClusterInfoService(
-            settings,
-            clusterService,
-            threadPool,
-            client,
-            heapUsageSupplier
-        );
+        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
             clusterService.addListener(service);
@@ -157,7 +150,7 @@ class NodeServiceProvider {
         return new ReadinessService(clusterService, environment);
     }
 
-    private static HeapUsageSupplier getHeapUsageSupplier(PluginsService pluginsService) {
+    HeapUsageSupplier newHeapUsageSupplier(PluginsService pluginsService) {
         final var heapUsageSuppliers = pluginsService.filterPlugins(ClusterPlugin.class)
             .map(ClusterPlugin::getHeapUsageSupplier)
             .filter(Objects::nonNull)

@@ -33,10 +33,26 @@ import static org.hamcrest.Matchers.matchesPattern;
  */
 public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
+     * @param requiresDeterministicFactory
+     *          True if the returned {@link Operator.OperatorFactory} should always generate an identical deterministic operator.
+     *          That is, for two different calls, both operators should do "exactly" the same.
+     */
+    protected record SimpleOptions(boolean requiresDeterministicFactory) {
+        public static final SimpleOptions DEFAULT = new SimpleOptions(false);
+    }
+
+    /**
      * The operator configured a "simple" or basic way, used for smoke testing
      * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple();
+    protected abstract Operator.OperatorFactory simple(SimpleOptions options);
+
+    /**
+     * Calls {@link #simple(SimpleOptions)} with the default options.
+     */
+    protected final Operator.OperatorFactory simple() {
+        return simple(SimpleOptions.DEFAULT);
+    }
 
     /**
      * The description of the operator produced by {@link #simple}.

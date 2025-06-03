@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -121,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -423,7 +425,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(filter.child(), EsRelation.class);
 
         assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
-        assertThat(Expressions.names(agg.aggregates()), contains("emp_no"));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));
@@ -2780,8 +2782,91 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var localRelation = as(limitBefore.child(), LocalRelation.class);
     }
 
+    /*
+     * EsqlProject[[emp_no{f}#9, first_name{f}#10, languages{f}#12, language_code{r}#3, language_name{r}#22]]
+     * \_Eval[[null[INTEGER] AS language_code#3, null[KEYWORD] AS language_name#22]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testPruneJoinOnNullMatchingField() {
+        var plan = optimizedPlan("""
+            from test
+            | eval language_code = null::integer
+            | keep emp_no, first_name, languages, language_code
+            | lookup join languages_lookup on language_code
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "languages", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /*
+     * EsqlProject[[emp_no{f}#15, first_name{f}#16, my_null{r}#3 AS language_code#9, language_name{r}#27]]
+     * \_Eval[[null[INTEGER] AS my_null#3, null[KEYWORD] AS language_name#27]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testPruneJoinOnNullAssignedMatchingField() {
+        var plan = optimizedPlan("""
+            from test
+            | eval my_null = null::integer
+            | rename languages as language_code
+            | eval language_code = my_null
+            | lookup join languages_lookup on language_code
+            | keep emp_no, first_name, language_code, language_name
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     private static List<String> orderNames(TopN topN) {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
+    }
+
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[{e}#9],[ConstantNullBlock[positions=1]]]
+     */
+    public void testEvalAfterStats() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo)
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
+    }
+
+    /**
+     * Expects
+     * Eval[[2[INTEGER] AS x]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Aggregate[[foo{r}#3],[foo{r}#3 AS x]]
+     *     \_LocalRelation[[foo{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     */
+    public void testEvalAfterGroupBy() {
+        var plan = optimizedPlan("""
+            ROW foo = 1
+            | STATS x = max(foo) by foo
+            | KEEP x
+            | EVAL x = 2
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var localRelation = as(aggregate.child(), LocalRelation.class);
+        assertThat(Expressions.names(eval.output()), contains("x"));
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
@@ -6829,7 +6914,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Eval addEval = as(aggsByTsid.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
-        as(addEval.child(), EsRelation.class);
+        EsRelation relation = as(addEval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.1));
@@ -6859,7 +6945,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
-        as(aggsByTsid.child(), EsRelation.class);
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -6886,7 +6973,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
-        as(aggsByTsid.child(), EsRelation.class);
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
@@ -6925,7 +7013,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        as(eval.child(), EsRelation.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -6959,7 +7048,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
-        as(bucket.child(), EsRelation.class);
+        EsRelation relation = as(bucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
@@ -7000,7 +7090,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
-        as(bucket.child(), EsRelation.class);
+        EsRelation relation = as(bucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
 
@@ -7064,7 +7155,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
-        as(evalBucket.child(), EsRelation.class);
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
@@ -7102,7 +7194,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval eval = as(aggsByTsid.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        as(eval.child(), EsRelation.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
@@ -7131,7 +7224,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
-        as(evalBucket.child(), EsRelation.class);
+        EsRelation relation = as(evalBucket.child(), EsRelation.class);
+        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
         Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(evalAvg.fields().get(0).id()));
@@ -7755,5 +7849,154 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    /**
+     * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
+     *    \_Limit[1000[INTEGER],false]
+     *      \_Sample[0.015[DOUBLE],15[INTEGER]]
+     *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testSampleMerged() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var query = """
+            FROM TEST
+            | SAMPLE .3 5
+            | EVAL irrelevant1 = 1
+            | SAMPLE .5 10
+            | EVAL irrelevant2 = 2
+            | SAMPLE .1
+            """;
+        var optimized = optimizedPlan(query);
+
+        var eval = as(optimized, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.015));
+        assertThat(sample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
+    }
+
+    public void testSamplePushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        for (var command : List.of(
+            "ENRICH languages_idx on first_name",
+            "EVAL x = 1",
+            // "INSIST emp_no", // TODO
+            "KEEP emp_no",
+            "DROP emp_no",
+            "RENAME emp_no AS x",
+            "GROK first_name \"%{WORD:bar}\"",
+            "DISSECT first_name \"%{z}\""
+        )) {
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var unary = as(optimized, UnaryPlan.class);
+            var limit = as(unary.child(), Limit.class);
+            var sample = as(limit.child(), Sample.class);
+            var source = as(sample.child(), EsRelation.class);
+
+            assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+            assertNull(sample.seed());
+        }
+    }
+
+    public void testSamplePushDown_sort() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var sample = as(filter.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(sample.seed());
+    }
+
+    public void testSamplePushDown_where() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var topN = as(optimized, TopN.class);
+        var sample = as(topN.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        assertNull(sample.seed());
+    }
+
+    public void testSampleNoPushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var limit = as(optimized, Limit.class);
+            var sample = as(limit.child(), Sample.class);
+            var unary = as(sample.child(), UnaryPlan.class);
+            var source = as(unary.child(), EsRelation.class);
+        }
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_Sample[0.5[DOUBLE],null]
+     *      \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
+     *        |_Eval[[emp_no{f}#6 AS language_code]]
+     *        | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testSampleNoPushDownLookupJoin() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var query = """
+            FROM TEST
+            | EVAL language_code = emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SAMPLE .5
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        var join = as(sample.child(), Join.class);
+        var eval = as(join.left(), Eval.class);
+        var source = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_Sample[0.5[DOUBLE],null]
+     *      \_Limit[1000[INTEGER],false]
+     *        \_ChangePoint[emp_no{f}#6,hire_date{f}#13,type{r}#4,pvalue{r}#5]
+     *          \_TopN[[Order[hire_date{f}#13,ASC,ANY]],1001[INTEGER]]
+     *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testSampleNoPushDownChangePoint() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var query = """
+            FROM TEST
+            | CHANGE_POINT emp_no ON hire_date
+            | SAMPLE .5 -55
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        limit = as(sample.child(), Limit.class);
+        var changePoint = as(limit.child(), ChangePoint.class);
+        var topN = as(changePoint.child(), TopN.class);
+        var source = as(topN.child(), EsRelation.class);
     }
 }

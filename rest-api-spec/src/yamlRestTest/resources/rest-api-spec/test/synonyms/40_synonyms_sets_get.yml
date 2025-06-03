@@ -10,12 +10,6 @@ setup:
             - synonyms: "hello, hi"
             - synonyms: "goodbye, bye"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
   - do:
       synonyms.put_synonym:
         id: test-synonyms-1

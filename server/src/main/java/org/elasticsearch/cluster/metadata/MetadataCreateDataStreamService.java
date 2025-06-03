@@ -331,6 +331,7 @@ public class MetadataCreateDataStreamService {
             dataStreamName,
             initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            Settings.EMPTY,
             hidden,
             false,
             isSystem,

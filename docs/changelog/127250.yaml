@@ -1,0 +1,6 @@
+pr: 127250
+summary: Do not apply further shard snapshot status updates after shard snapshot is
+  complete
+area: Snapshot/Restore
+type: bug
+issues: []

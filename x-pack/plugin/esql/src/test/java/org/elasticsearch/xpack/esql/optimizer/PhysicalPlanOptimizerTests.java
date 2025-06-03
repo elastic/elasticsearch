@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -134,6 +137,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -184,6 +188,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
+import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -201,7 +206,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -216,6 +221,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private PhysicalPlanOptimizer physicalPlanOptimizer;
     private Mapper mapper;
     private TestDataSource testData;
+    private TestDataSource testDataLimitedRaw;
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
     private TestDataSource airportsNoDocValues; // Test when spatial field is indexed but has no doc values
@@ -236,7 +242,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
-    public static List<Object[]> readScriptSpec() {
+    public static List<Object[]> params() {
         return settings().stream().map(t -> {
             var settings = Settings.builder().loadFromMap(t.v2()).build();
             return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
@@ -261,6 +267,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
+        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", functionRegistry, enrichResolution);
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
@@ -2195,6 +2202,163 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.query(), nullValue());
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *      ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *          ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"esql_single_value":{"field":"first_name","next":{"regexp":{"first_name":
+     *       {"value":"foo*","flags_value":65791,"case_insensitive":true,"max_determinized_states":10000,"boost":0.0}}},
+     *       "source":"TO_LOWER(first_name) RLIKE \"foo*\"@2:9"}}][_doc{f}#25], limit[1000], sort[] estimatedRowSize[332]
+     */
+    private void doTestPushDownCaseChangeRegexMatch(String query, String expected) {
+        var plan = physicalPlan(query);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(stripThrough(singleValue.toString()), is(stripThrough(expected)));
+    }
+
+    public void testPushDownLowerCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) RLIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "foo*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) RLIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeRLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) RLIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "regexp": {
+                            "first_name": {
+                                "value": "FOO*",
+                                "flags_value": 65791,
+                                "case_insensitive": true,
+                                "max_determinized_states": 10000,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) RLIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownLowerCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_LOWER(first_name) LIKE "foo*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "foo*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_LOWER(first_name) LIKE \\"foo*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    public void testPushDownUpperCaseChangeLike() {
+        doTestPushDownCaseChangeRegexMatch("""
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*"
+            """, """
+            {
+                "esql_single_value": {
+                    "field": "first_name",
+                    "next": {
+                        "wildcard": {
+                            "first_name": {
+                                "wildcard": "FOO*",
+                                "case_insensitive": true,
+                                "boost": 0.0
+                            }
+                        }
+                    },
+                    "source": "TO_UPPER(first_name) LIKE \\"FOO*\\"@2:9"
+                }
+            }
+            """);
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
+     *     \_FieldExtractExec[_meta_field{f}#10, gender{f}#6, hire_date{f}#11, jo..]<[],[]>
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[LIKE(first_name{f}#5, "FOO*", true) OR IN(1[INTEGER],2[INTEGER],3[INTEGER],emp_no{f}#4 + 1[INTEGER])]
+     *           \_FieldExtractExec[first_name{f}#5, emp_no{f}#4]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[332]
+     */
+    public void testChangeCaseAsInsensitiveWildcardLikeNotPushedDown() {
+        var esql = """
+            FROM test
+            | WHERE TO_UPPER(first_name) LIKE "FOO*" OR emp_no + 1 IN (1, 2, 3)
+            """;
+        var plan = physicalPlan(esql);
+        var optimized = optimizedPlan(plan);
+
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        var or = as(filter.condition(), Or.class);
+        var wildcard = as(or.left(), WildcardLike.class);
+        assertThat(Expressions.name(wildcard.field()), is("first_name"));
+        assertThat(wildcard.pattern().pattern(), is("FOO*"));
+        assertThat(wildcard.caseInsensitive(), is(true));
+    }
+
     public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test
@@ -2426,6 +2590,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + KEYWORD_EST));
     }
 
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2],false]
+     *   \_ProjectExec[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, _index{m}#2]]
+     *     \_FieldExtractExec[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{"wildcard":{"_index":{"wildcard":"test*","boost":0.0}}}][_doc{f}#27],
+     *          limit[1000], sort[] estimatedRowSize[382]
+     *
+     */
     public void testPushDownMetadataIndexInWildcard() {
         var plan = physicalPlan("""
             from test metadata _index
@@ -2782,7 +2957,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+            containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 
@@ -2815,7 +2990,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Attribute some_field2 = relation.output().get(1);
         FragmentExec fragment = new FragmentExec(relation);
         ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragment);
-        LimitExec limitThenFragment = new LimitExec(Source.EMPTY, exchange, new Literal(Source.EMPTY, 10000, DataType.INTEGER));
+        LimitExec limitThenFragment = new LimitExec(
+            Source.EMPTY,
+            exchange,
+            new Literal(Source.EMPTY, 10000, DataType.INTEGER),
+            randomIntBetween(0, 1024)
+        );
 
         // All the relation's fields are required.
         PhysicalPlan plan = rule.apply(limitThenFragment);
@@ -7661,7 +7841,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7729,7 +7909,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
-        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+        assertTrue(hasScoreAttribute(esRelation.output()));
     }
 
     public void testScoreTopN() {
@@ -7751,7 +7931,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Order scoreOrer = order.getFirst();
         assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
         Expression child = scoreOrer.child();
-        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+        assertTrue(MetadataAttribute.isScoreAttribute(child));
         Filter filter = as(topN.child(), Filter.class);
 
         Match match = as(filter.condition(), Match.class);
@@ -7761,7 +7941,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
-        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+        assertTrue(hasScoreAttribute(esRelation.output()));
     }
 
     public void testReductionPlanForTopN() {
@@ -7787,6 +7967,118 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
+    }
+
+    public void testReductionPlanForLimit() {
+        var plan = physicalPlan("FROM test | LIMIT 10");
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        LimitExec limitExec = as(reduction, LimitExec.class);
+        assertThat(limitExec.estimatedRowSize(), equalTo(328));
+    }
+
+    public void testEqualsPushdownToDelegate() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job == "v"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var query = as(extract.child(), EsQueryExec.class);
+        assertThat(
+            query.query(),
+            equalTo(new SingleValueQuery(new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v"), "job", true).toQueryBuilder())
+        );
+    }
+
+    public void testEqualsPushdownToDelegateTooBig() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job == "too_long"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        as(limit2.child(), FilterExec.class);
+    }
+
+    public void testNotEqualsPushdownToDelegate() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job != "v"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var extract2 = as(filter.child(), FieldExtractExec.class);
+        var query = as(extract2.child(), EsQueryExec.class);
+        assertThat(
+            query.query(),
+            equalTo(
+                new BoolQueryBuilder().filter(
+                    new SingleValueQuery(
+                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                        "job",
+                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                    ).toQueryBuilder()
+                )
+            )
+        );
+    }
+
+    /*
+     *    LimitExec[1000[INTEGER]]
+     *    \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
+     *      \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7]]
+     *        \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]<[],[]>
+     *          \_EsQueryExec[test], indexMode[standard],
+     *                  query[{"bool":{"filter":[{"sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
+     *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
+     */
+    public void testSamplePushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | SAMPLE +0.1 -234
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+
+        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
+        var filter = boolQuery.filter();
+        var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
+        assertThat(randomSampling.probability(), equalTo(0.1));
+        assertThat(randomSampling.seed(), equalTo(-234));
+        assertThat(randomSampling.hash(), equalTo(0));
+    }
+
+    public void testSample_seedNotSupportedInOperator() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
+        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1"));
+        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1 42"));
+        optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1"));
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1 42"))
+        );
+        assertThat(e.getMessage(), equalTo("Found 1 problem\nline 1:47: Seed not supported when sampling can't be pushed down to Lucene"));
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -7972,9 +8264,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
-        // System.out.println(physical);
+        // System.out.println("Physical\n" + physical);
         if (assertSerialization) {
-            assertSerialization(physical);
+            assertSerialization(physical, config);
         }
         return physical;
     }
@@ -8002,4 +8294,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
+
+    private static final SearchStats SEARCH_STATS_SHORT_DELEGATES = new EsqlTestUtils.TestSearchStats() {
+        @Override
+        public boolean hasExactSubfield(String field) {
+            return false;
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+            return value.length() < 4;
+        }
+    };
 }

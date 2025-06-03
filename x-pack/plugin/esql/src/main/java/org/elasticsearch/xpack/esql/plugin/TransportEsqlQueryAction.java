@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
@@ -94,6 +96,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
@@ -115,15 +118,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
@@ -149,6 +156,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchService,
             exchangeService,
             clusterService,
+            projectResolver,
             indexNameExpressionResolver,
             usageService,
             new InferenceRunner(client)
@@ -321,12 +329,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
-            if (c.originalTypes() == null) {
-                originalTypes = null;
-            } else {
+            if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(c.originalTypes());
+                originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
             }
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();

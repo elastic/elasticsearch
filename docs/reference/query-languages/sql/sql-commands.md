@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-commands.html
 ---
 
-# SQL Commands [sql-commands]
+# SQL commands [sql-commands]
 
 This section contains the list of SQL commands supported by Elasticsearch SQL along with their syntax:
 

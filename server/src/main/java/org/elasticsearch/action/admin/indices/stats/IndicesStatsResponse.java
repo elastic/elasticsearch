@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -185,13 +186,17 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     }
 
     @Override
-    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params outerParams) {
+        if (outerParams.param(DenseVectorStats.INCLUDE_OFF_HEAP) == null) {
+            outerParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
+        }
+        var params = outerParams;
         final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(
 
                 ChunkedToXContentHelper.chunk((builder, p) -> {
-                    commonStats(builder, p);
+                    commonStats(builder, params);
                     return builder.startObject(Fields.INDICES);
                 }),
                 Iterators.flatMap(
@@ -208,11 +213,13 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                                 builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
                             }
                             builder.startObject("primaries");
-                            indexStats.getPrimaries().toXContent(builder, p);
+
+                            var pp = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_PER_FIELD_STATS, "true"), params);
+                            indexStats.getPrimaries().toXContent(builder, pp);
                             builder.endObject();
 
                             builder.startObject("total");
-                            indexStats.getTotal().toXContent(builder, p);
+                            indexStats.getTotal().toXContent(builder, pp);
                             builder.endObject();
                             return builder;
                         }),

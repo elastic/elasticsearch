@@ -17,7 +17,9 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -73,6 +75,8 @@ public class ThreadPoolMergeExecutorService {
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
 
+    private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
+
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
         Settings settings
@@ -127,13 +131,21 @@ public class ThreadPoolMergeExecutorService {
                 );
             }
             // then enqueue the merge task proper
-            queuedMergeTasks.add(mergeTask);
+            enqueueMergeTask(mergeTask);
             return true;
         }
     }
 
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
-        queuedMergeTasks.add(mergeTask);
+        enqueueMergeTask(mergeTask);
+    }
+
+    private void enqueueMergeTask(MergeTask mergeTask) {
+        // To ensure that for a given merge onMergeQueued is called before onMergeAborted or onMergeCompleted, we call onMergeQueued
+        // before adding the merge task to the queue. Adding to the queue should not fail.
+        mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes()));
+        boolean added = queuedMergeTasks.add(mergeTask);
+        assert added;
     }
 
     public boolean allDone() {
@@ -201,6 +213,7 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeCompleted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -213,6 +226,7 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -276,6 +290,10 @@ public class ThreadPoolMergeExecutorService {
 
     public boolean usingMaxTargetIORateBytesPerSec() {
         return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
+    public void registerMergeEventListener(MergeEventListener consumer) {
+        mergeEventListeners.add(consumer);
     }
 
     // exposed for tests

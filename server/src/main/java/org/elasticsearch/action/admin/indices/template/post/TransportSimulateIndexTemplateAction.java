@@ -267,7 +267,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedProject,
-            matchingTemplate,
+            template,
             xContentRegistry,
             simulatedIndexName
         );

@@ -42,6 +42,7 @@ dependencies {
   api(project(':libs:h3'))
   api(project(':modules:aggregations'))
   api(project(':x-pack:plugin:esql-core'))
+  api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   implementation project(path: ':libs:simdvec')

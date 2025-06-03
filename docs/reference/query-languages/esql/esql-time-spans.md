@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} time spans [esql-time-spans]
 
-
 Time spans represent intervals between two datetime values. There are currently two supported types of time spans:
 
 * `DATE_PERIOD` specifies intervals in years, quarters, months, weeks and days

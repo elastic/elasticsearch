@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.common;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -78,6 +80,8 @@ import java.util.regex.Pattern;
  *   [1, 2]
  * ]
  * }
+ *
+ * The array field names would be {@code ["embeddings", "embedding"}
  * </pre>
  *
  * This implementation differs from JSONPath when handling a list of maps. JSONPath will flatten the result and return a single array.
@@ -123,10 +127,28 @@ public class MapPathExtractor {
     private static final String DOLLAR = "$";
 
     // default for testing
-    static final Pattern dotFieldPattern = Pattern.compile("^\\.([^.\\[]+)(.*)");
-    static final Pattern arrayWildcardPattern = Pattern.compile("^\\[\\*\\](.*)");
+    static final Pattern DOT_FIELD_PATTERN = Pattern.compile("^\\.([^.\\[]+)(.*)");
+    static final Pattern ARRAY_WILDCARD_PATTERN = Pattern.compile("^\\[\\*\\](.*)");
+    public static final String UNKNOWN_FIELD_NAME = "unknown";
 
-    public static Object extract(Map<String, Object> data, String path) {
+    /**
+     * A result object that tries to match up the field names parsed from the passed in path and the result
+     * extracted from the passed in map.
+     * @param extractedObject represents the extracted result from the map
+     * @param traversedFields a list of field names in order as they're encountered while navigating through the nested objects
+     */
+    public record Result(Object extractedObject, List<String> traversedFields) {
+        public String getArrayFieldName(int index) {
+            // if the index is out of bounds we'll return a default value
+            if (traversedFields.size() <= index || index < 0) {
+                return UNKNOWN_FIELD_NAME;
+            }
+
+            return traversedFields.get(index);
+        }
+    }
+
+    public static Result extract(Map<String, Object> data, String path) {
         if (data == null || data.isEmpty() || path == null || path.trim().isEmpty()) {
             return null;
         }
@@ -139,16 +161,41 @@ public class MapPathExtractor {
             throw new IllegalArgumentException(Strings.format("Path [%s] must start with a dollar sign ($)", cleanedPath));
         }
 
-        return navigate(data, cleanedPath);
+        var fieldNames = new LinkedHashSet<String>();
+
+        return new Result(navigate(data, cleanedPath, new FieldNameInfo("", "", fieldNames)), fieldNames.stream().toList());
     }
 
-    private static Object navigate(Object current, String remainingPath) {
-        if (current == null || remainingPath == null || remainingPath.isEmpty()) {
+    private record FieldNameInfo(String currentPath, String fieldName, Set<String> traversedFields) {
+        void addTraversedField(String fieldName) {
+            traversedFields.add(createPath(fieldName));
+        }
+
+        void addCurrentField() {
+            traversedFields.add(currentPath);
+        }
+
+        FieldNameInfo descend(String newFieldName) {
+            var newLocation = createPath(newFieldName);
+            return new FieldNameInfo(newLocation, newFieldName, traversedFields);
+        }
+
+        private String createPath(String newFieldName) {
+            if (Strings.isNullOrEmpty(currentPath)) {
+                return newFieldName;
+            } else {
+                return currentPath + "." + newFieldName;
+            }
+        }
+    }
+
+    private static Object navigate(Object current, String remainingPath, FieldNameInfo fieldNameInfo) {
+        if (current == null || Strings.isNullOrEmpty(remainingPath)) {
             return current;
         }
 
-        var dotFieldMatcher = dotFieldPattern.matcher(remainingPath);
-        var arrayWildcardMatcher = arrayWildcardPattern.matcher(remainingPath);
+        var dotFieldMatcher = DOT_FIELD_PATTERN.matcher(remainingPath);
+        var arrayWildcardMatcher = ARRAY_WILDCARD_PATTERN.matcher(remainingPath);
 
         if (dotFieldMatcher.matches()) {
             String field = dotFieldMatcher.group(1);
@@ -168,7 +215,12 @@ public class MapPathExtractor {
                     throw new IllegalArgumentException(Strings.format("Unable to find field [%s] in map", field));
                 }
 
-                return navigate(currentMap.get(field), nextPath);
+                // Handle the case where the path was $.result.text or $.result[*].key
+                if (Strings.isNullOrEmpty(nextPath)) {
+                    fieldNameInfo.addTraversedField(field);
+                }
+
+                return navigate(currentMap.get(field), nextPath, fieldNameInfo.descend(field));
             } else {
                 throw new IllegalArgumentException(
                     Strings.format(
@@ -182,10 +234,12 @@ public class MapPathExtractor {
         } else if (arrayWildcardMatcher.matches()) {
             String nextPath = arrayWildcardMatcher.group(1);
             if (current instanceof List<?> list) {
+                fieldNameInfo.addCurrentField();
+
                 List<Object> results = new ArrayList<>();
 
                 for (Object item : list) {
-                    Object result = navigate(item, nextPath);
+                    Object result = navigate(item, nextPath, fieldNameInfo);
                     if (result != null) {
                         results.add(result);
                     }

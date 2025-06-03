@@ -23,6 +23,8 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -48,7 +50,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -187,10 +188,12 @@ import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
@@ -992,7 +995,7 @@ class NodeConstruction {
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
-        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class);
+        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -1109,11 +1112,12 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService(settings);
+        var fileSettingsHealthIndicatorPublisher = new FileSettingsService.FileSettingsHealthIndicatorPublisherImpl(clusterService, client);
+        var fileSettingsHealthTracker = new FileSettingsHealthTracker(settings, fileSettingsHealthIndicatorPublisher);
         FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
             FileSettingsServiceProvider.class,
             () -> FileSettingsService::new
-        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthIndicatorService);
+        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthTracker);
 
         RestoreService restoreService = new RestoreService(
             clusterService,
@@ -1166,6 +1170,10 @@ class NodeConstruction {
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
 
+        OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
+            OnlinePrewarmingServiceProvider.class,
+            () -> OnlinePrewarmingServiceProvider.DEFAULT
+        ).create(clusterService.getSettings(), threadPool, clusterService);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1176,7 +1184,8 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.getTracer(),
+            onlinePrewarmingService
         );
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
@@ -1192,8 +1201,7 @@ class NodeConstruction {
                 transportService,
                 threadPool,
                 telemetryProvider,
-                repositoriesService,
-                fileSettingsHealthIndicatorService
+                repositoriesService
             )
         );
 
@@ -1270,6 +1278,7 @@ class NodeConstruction {
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
+            b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1306,6 +1315,7 @@ class NodeConstruction {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
+            settingsModule.getProjectScopedSettings(),
             threadPool,
             taskManager
         );
@@ -1363,8 +1373,7 @@ class NodeConstruction {
         TransportService transportService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        RepositoriesService repositoriesService,
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1380,7 +1389,7 @@ class NodeConstruction {
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
-            fileSettingsHealthIndicatorService
+            new FileSettingsHealthIndicatorService()
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());
@@ -1590,11 +1599,11 @@ class NodeConstruction {
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);
     }
 
-    private List<ReservedClusterStateHandler<ClusterState, ?>> buildReservedClusterStateHandlers(
-        List<? extends ReservedClusterStateHandlerProvider> handlers,
+    private List<ReservedClusterStateHandler<?>> buildReservedClusterStateHandlers(
+        List<? extends ReservedStateHandlerProvider> handlers,
         SettingsModule settingsModule
     ) {
-        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
         // add all reserved state handlers from server
         reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
@@ -1605,8 +1614,8 @@ class NodeConstruction {
         return reservedStateHandlers;
     }
 
-    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
-        List<? extends ReservedClusterStateHandlerProvider> handlers,
+    private List<ReservedProjectStateHandler<?>> buildReservedProjectStateHandlers(
+        List<? extends ReservedStateHandlerProvider> handlers,
         SettingsModule settingsModule,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -1615,7 +1624,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
+        List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
         var templateService = new MetadataIndexTemplateService(
             clusterService,

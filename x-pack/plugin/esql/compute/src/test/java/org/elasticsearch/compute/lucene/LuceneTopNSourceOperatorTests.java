@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -63,7 +62,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.Factory simple() {
+    protected LuceneTopNSourceOperator.Factory simple(SimpleOptions options) {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
@@ -96,7 +95,9 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
                 return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { null }));
             }
         };
-        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
+        );
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));

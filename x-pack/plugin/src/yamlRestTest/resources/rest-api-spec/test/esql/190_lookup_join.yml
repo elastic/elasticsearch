@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [join_lookup_v12, join_lookup_skip_mv_warnings]
+          capabilities: [join_lookup_v12, enable_lookup_join_on_aliases]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -68,6 +68,19 @@ setup:
               color:
                 type: keyword
   - do:
+      indices.create:
+        index: test-lookup-no-key
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              no-key:
+                type: long
+              color:
+                type: keyword
+  - do:
       indices.update_aliases:
         body:
           actions:
@@ -120,6 +133,15 @@ setup:
           - { "key": 2, "color": "yellow" }
           - { "index": { } }
           - { "key": [0, 1, 2], "color": "green" }
+  - do:
+      bulk:
+        index: "test-lookup-no-key"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "no-key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "no-key": 2, "color": "yellow" }
 
 ---
 basic:
@@ -165,8 +187,6 @@ non-lookup index:
 
 ---
 alias-repeated-alias:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -181,8 +201,6 @@ alias-repeated-alias:
 
 ---
 alias-repeated-index:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -197,8 +215,6 @@ alias-repeated-index:
 
 ---
 alias-pattern-multiple:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -206,12 +222,10 @@ alias-pattern-multiple:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [2] indices" }
+  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [4] indices" }
 
 ---
 alias-pattern-single:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -281,3 +295,14 @@ mv-on-query:
   - match: {values.0: [[0, 1, 2], null]}
   - match: {values.1: [1, "cyan"]}
   - match: {values.2: [2, "yellow"]}
+
+---
+lookup-no-key:
+  - do:
+      esql.query:
+          body:
+            query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Unknown column [key] in right side of join" }

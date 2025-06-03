@@ -237,7 +237,7 @@ public class FsBlobContainerTests extends ESTestCase {
             expectedValue.set(newValue);
         }
 
-        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[17]), false);
+        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[33]), false);
         assertThat(
             safeAwaitFailure(
                 OptionalBytesReference.class,

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -68,6 +69,15 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
         assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
             : "DocumentField can't have both lookup fields and values";
+    }
+
+    /**
+     * Read map of document fields written via {@link StreamOutput#writeMapValues(Map)}.
+     * @param in stream input
+     * @return map of {@link DocumentField} keyed by {@link DocumentField#getName()}
+     */
+    public static Map<String, DocumentField> readFieldsFromMapValues(StreamInput in) throws IOException {
+        return in.readMapValues(DocumentField::new, DocumentField::getName);
     }
 
     /**

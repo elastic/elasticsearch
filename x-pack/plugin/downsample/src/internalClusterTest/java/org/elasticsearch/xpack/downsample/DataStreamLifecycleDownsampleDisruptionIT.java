@@ -17,32 +17,20 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
-import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
-import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
-public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
+public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleDisruptionIT.class);
     public static final int DOC_COUNT = 25_000;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -59,7 +47,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         ensureGreen();
 
         final String dataStreamName = "metrics-foo";
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -69,8 +57,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                 )
             )
             .buildTemplate();
-        DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
-            client(),
+        setupTSDBDataStreamAndIngestDocs(
             dataStreamName,
             "1986-01-08T23:40:53.384Z",
             "2022-01-08T23:40:53.384Z",
@@ -81,9 +68,9 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
 
         // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
         // testing so DSL doesn't have to wait for the end_time to lapse)
-        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
-        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
-        String sourceIndex = getBackingIndices(client(), dataStreamName).get(0);
+        putTSDBIndexTemplate(dataStreamName, null, null, lifecycle);
+        safeGet(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
+        String sourceIndex = getDataStreamBackingIndexNames(dataStreamName).get(0);
         final String targetIndex = "downsample-5m-" + sourceIndex;
 
         /**

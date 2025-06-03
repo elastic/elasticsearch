@@ -10,6 +10,7 @@ dependencies {
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
   restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -164,4 +165,5 @@ tasks.named("yamlRestTest").configure {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "tests.multi_project.enabled", true
 }

@@ -316,7 +316,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     /**
      * Parser that pretends to be the main document parser, but exposes the provided geohash regardless of how the geopoint was provided
-     * in the incoming document. We rely on the fact that consumers are only ever call {@link XContentParser#textOrNull()} and never
+     * in the incoming document. We rely on the fact that consumers only ever read text from the parser and never
      * advance tokens, which is explicitly disallowed by this parser.
      */
     static class GeoHashMultiFieldParser extends FilterXContentParserWrapper {
@@ -329,6 +329,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public String textOrNull() throws IOException {
+            return value;
+        }
+
+        @Override
+        public String text() throws IOException {
             return value;
         }
 
@@ -545,8 +550,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             // So we have two subcases:
             // - doc_values are enabled - _ignored_source field does not exist since we have doc_values. We will use
             // blockLoaderFromSource which reads "native" synthetic source.
-            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader.
-            if (isSyntheticSource && hasDocValues() == false) {
+            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader unless it's a multi
+            // field.
+            if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

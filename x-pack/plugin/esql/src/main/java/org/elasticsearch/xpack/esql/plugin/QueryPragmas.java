@@ -66,6 +66,9 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
         Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
+    public static final Setting<Integer> UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS = //
+        Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
+
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
@@ -154,6 +157,14 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxConcurrentShardsPerNode() {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
+    }
+
+    /**
+     * Amount of attempts moved shards could be retried.
+     * This setting is protecting query from endlessly chasing moving shards.
+     */
+    public int unavailableShardResolutionAttempts() {
+        return UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS.get(settings);
     }
 
     /**

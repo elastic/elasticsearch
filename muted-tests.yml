@@ -537,6 +537,27 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIOUsed
   issue: https://github.com/elastic/elasticsearch/issues/128829
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/alias-repeated-index}
+  issue: https://github.com/elastic/elasticsearch/issues/128849
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/alias-repeated-alias}
+  issue: https://github.com/elastic/elasticsearch/issues/128850
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/alias-pattern-single}
+  issue: https://github.com/elastic/elasticsearch/issues/128855
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/191_lookup_join_on_datastreams/data streams supported in LOOKUP JOIN}
+  issue: https://github.com/elastic/elasticsearch/issues/128856
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/128861
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/128862
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/128863
 
 # Examples:
 #

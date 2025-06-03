@@ -13,9 +13,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 
 /**
@@ -31,59 +28,26 @@ class KMeans {
         this.maxIterations = maxIterations;
     }
 
-    // FIXME: use me or remove me
-    private static void shuffle(int[] items, Random random) {
-        if (items == null || items.length < 2) {
-            return;
-        }
-
-        for (int i = items.length - 1; i > 0; i--) {
-            int index = random.nextInt(i + 1);
-            int temp = items[i];
-            items[i] = items[index];
-            items[index] = temp;
-        }
-    }
-
     /**
-     * uses a FORGY approach to picking the initial centroids which are subsequently expected to be used by a clustering algorithm
+     * uses a Reservoir Sampling approach to picking the initial centroids which are subsequently expected
+     * to be used by a clustering algorithm
      *
      * @param vectors used to pick an initial set of random centroids
-     * @param sampleSize the total number of vectors to be used as part of the sample for centroids
      * @param centroidCount the total number of centroids to pick
      * @return randomly selected centroids that are the min of centroidCount and sampleSize
      * @throws IOException is thrown if vectors is inaccessible
      */
-    static float[][] pickInitialCentroids(FloatVectorValues vectors, int sampleSize, int centroidCount) throws IOException {
-        // Choose data points as random ensuring we have distinct points where possible
-
-        // FIXME: use me or remove me
-        // int[] candidates = IntStream.range(0, sampleSize).toArray();
-        // shuffle(candidates, new Random(42L));
-
-        List<Integer> candidates = new ArrayList<>(sampleSize);
-        for (int i = 0; i < sampleSize; i++) {
-            candidates.add(i);
-        }
-        Collections.shuffle(candidates, new Random(42L));
-
-        float[][] centroids = new float[centroidCount][vectors.dimension()];
-        int centroidIdx = 0;
-        for (int i = 0; i < candidates.size() && centroidIdx < centroidCount; i++) {
-            int cand = candidates.get(i);
-            float[] vector = vectors.vectorValue(cand);
-            boolean goodCandidate = true;
-            if (((candidates.size() - i) - (centroidCount - centroidIdx)) > 0) {
-                for (int j = 0; j < centroidIdx; j++) {
-                    if ((VectorUtil.squareDistance(vector, centroids[j]) > 0.0f) == false) {
-                        goodCandidate = false;
-                        break;
-                    }
-                }
-            }
-            if (goodCandidate) {
-                System.arraycopy(vector, 0, centroids[centroidIdx], 0, vector.length);
-                centroidIdx++;
+    static float[][] pickInitialCentroids(FloatVectorValues vectors, int m, int centroidCount) throws IOException {
+        Random random = new Random(42L);
+        int centroidsSize = Math.min(vectors.size(), centroidCount);
+        float[][] centroids = new float[centroidsSize][vectors.dimension()];
+        for (int i = 0; i < vectors.size(); i++) {
+            float[] vector = vectors.vectorValue(i);
+            if (i < centroidCount) {
+                System.arraycopy(vector, 0, centroids[i], 0, vector.length);
+            } else if (random.nextDouble() < centroidCount * (1.0 / i)) {
+                int c = random.nextInt(centroidCount);
+                System.arraycopy(vector, 0, centroids[c], 0, vector.length);
             }
         }
         return centroids;

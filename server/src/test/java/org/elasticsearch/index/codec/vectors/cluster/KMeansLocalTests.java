@@ -28,7 +28,7 @@ public class KMeansLocalTests extends ESTestCase {
         short clustersPerNeighborhood = (short) random().nextInt(0, 512);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
-        float[][] centroids = KMeans.pickInitialCentroids(vectors, sampleSize, nClusters);
+        float[][] centroids = KMeans.pickInitialCentroids(vectors, nClusters);
         KMeans.cluster(vectors, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
@@ -68,7 +68,7 @@ public class KMeansLocalTests extends ESTestCase {
         int sampleSize = vectors.size();
         FloatVectorValues fvv = FloatVectorValues.fromFloats(vectors, 5);
 
-        float[][] centroids = KMeans.pickInitialCentroids(fvv, sampleSize, nClusters);
+        float[][] centroids = KMeans.pickInitialCentroids(fvv, nClusters);
         KMeans.cluster(fvv, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];

@@ -26,7 +26,7 @@ public class KMeansTests extends ESTestCase {
         int maxIterations = random().nextInt(0, 100);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
-        float[][] centroids = KMeans.pickInitialCentroids(vectors, sampleSize, nClusters);
+        float[][] centroids = KMeans.pickInitialCentroids(vectors, nClusters);
         KMeans.cluster(vectors, centroids, sampleSize, maxIterations);
 
         assertEquals(nClusters, centroids.length);
@@ -43,7 +43,7 @@ public class KMeansTests extends ESTestCase {
         }
         int sampleSize = vectors.size();
         FloatVectorValues fvv = FloatVectorValues.fromFloats(vectors, 5);
-        float[][] centroids = KMeans.pickInitialCentroids(fvv, sampleSize, nClusters);
+        float[][] centroids = KMeans.pickInitialCentroids(fvv, nClusters);
         KMeans.cluster(fvv, centroids, sampleSize, maxIterations);
 
         assertEquals(nClusters, centroids.length);

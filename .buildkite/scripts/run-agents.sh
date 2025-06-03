@@ -14,11 +14,14 @@ CONFIG_FILE="$(basename "$BUILDKITE_CONFIG_PATH")"
 
 cat <<EOF >> "$CONFIG_FILE"
 build-path=$AGENT_WORKSPACE/builds
-disconnect-after-idle-timeout=600
 hooks-path=$AGENT_WORKSPACE/hooks
+plugins-path=$AGENT_WORKSPACE/plugins
+disconnect-after-idle-timeout=600
 disconnect-after-job=false
 cancel-grace-period=300
 tags="queue=elasticsearch-quick-agent"
+acquire-job=""
+tags-from-gcp="false"
 EOF
 
 buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"

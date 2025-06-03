@@ -1,0 +1,5 @@
+pr: 119967
+summary: Add `index_options` to `semantic_text` field mappings
+area: Mapping
+type: enhancement
+issues: [ ]

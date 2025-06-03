@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -108,7 +109,8 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
                 INFERENCE_ID,
                 SEARCH_INFERENCE_ID,
                 sourcePaths.toArray(new String[0]),
-                InferenceFieldMetadataTests.generateRandomChunkingSettings()
+                InferenceFieldMetadataTests.generateRandomChunkingSettings(),
+                InferenceFieldMetadataTests.randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING)
             );
         }
 

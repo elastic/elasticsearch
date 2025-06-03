@@ -37,6 +37,7 @@ fi
 CURRENT_VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
 BC_VERSION=$(echo "$MANIFEST" | jq -r .version)
+BC_BUILD_ID=$(echo "$MANIFEST" | jq -r .build_id)
 BC_COMMIT_HASH=$(echo "$MANIFEST" | jq -r .projects.elasticsearch.commit_hash)
 
 if [ "$CURRENT_VERSION-SNAPSHOT" != "$BC_VERSION" ]; then
@@ -45,12 +46,12 @@ if [ "$CURRENT_VERSION-SNAPSHOT" != "$BC_VERSION" ]; then
     exit 0
 fi
 
-echo "Running BC upgrade tests on version [$BC_VERSION] using BC (or snapshot) build of commit [$BC_COMMIT_HASH]."
+echo "Running BC upgrade tests on $BUILDKITE_BRANCH [$BC_VERSION] using BC (or snapshot) build of commit [$BC_COMMIT_HASH] with build id [$BC_BUILD_ID]."
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
-    - label: $BUILDKITE_BRANCH / bc-bwc
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+    - label: bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
       timeout_in_minutes: 300
       agents:
         provider: gcp

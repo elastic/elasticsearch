@@ -35,7 +35,7 @@ import java.util.Map;
  * <p>
  * The output of this function is the MAGNITUDE with the SIGN from `sign` applied to it.
  * For that reason, we cast the SIGN to DOUBLE, which is the most general numeric type,
- * and allows us to write a single check (<0 or >=0) for all possible types of `sign`.
+ * and allows us to write a single check for all possible types of `sign`.
  * However, the output type of this function is determined by the `magnitude` type.
  */
 public class CopySign extends EsqlScalarFunction {

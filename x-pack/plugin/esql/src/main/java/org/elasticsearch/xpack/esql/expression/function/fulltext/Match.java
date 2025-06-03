@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -82,9 +86,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
- * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery} .
+ * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
 public class Match extends FullTextFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
 
@@ -310,8 +315,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return new Match(source, fields, query, null, queryBuilder);
     }
 
+    // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeNamedWriteableCollection(fields);
@@ -320,7 +326,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveFields().and(resolveQuery()).and(resolveOptions());
+        return resolveFields().and(resolveQuery()).and(resolveOptions()).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveFields() {
@@ -350,12 +356,26 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         ).and(isNotNullAndFoldable(query(), sourceText(), SECOND));
     }
 
-    public List<Expression> fields() {
-        return fields;
-    }
+    private TypeResolution checkParamCompatibility() {
+        DataType queryType = query().dataType();
 
-    public Expression options() {
-        return options;
+        return fields.stream().map((Expression field) -> {
+            DataType fieldType = field.dataType();
+
+            // Field and query types should match. If the query is a string, then it can match any field type.
+            if ((fieldType == queryType) || (queryType == KEYWORD)) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+
+            if (fieldType.isNumeric() && queryType.isNumeric()) {
+                // When doing an unsigned long query, field must be an unsigned long
+                if ((queryType == UNSIGNED_LONG && fieldType != UNSIGNED_LONG) == false) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+            }
+
+            return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
+        }).reduce(TypeResolution::and).orElse(null);
     }
 
     @Override
@@ -395,6 +415,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return options;
     }
 
+    public List<Expression> fields() {
+        return fields;
+    }
+
+    public Expression options() {
+        return options;
+    }
+
     @Override
     protected NodeInfo<? extends Expression> info() {
         // Specifically create new instance with original arguments.
@@ -427,8 +455,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
+            // TODO: fix this.
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(Match.class, mm -> {
+            plan.forEachExpression(Match.class, match -> {
                 for (Expression field : fields) {
                     if (fieldAsFieldAttribute(field) == null) {
                         failures.add(
@@ -447,11 +476,37 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     @Override
+    public Object queryAsObject() {
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
+
+        // Convert BytesRef to string for string-based values
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return switch (query().dataType()) {
+                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
+                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
+                default -> bytesRef.utf8ToString();
+            };
+        }
+
+        // Converts specific types to the correct type for the query
+        if (query().dataType() == DataType.UNSIGNED_LONG) {
+            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
+        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But Match query needs a date string
+            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
+        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
+        }
+
+        return queryAsObject;
+    }
+
+    @Override
     protected Query translate(TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
             var fieldAttribute = fieldAsFieldAttribute(field);
-            Check.notNull(fieldAttribute, "MultiMatch must have field attributes as arguments #1 to #N-1.");
+            Check.notNull(fieldAttribute, "Match must have field attributes as arguments #1 to #N-1.");
             String fieldName = getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
@@ -478,13 +533,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     public boolean equals(Object o) {
-        // MultiMatch does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two MultiMatch functions
+        // Match does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing two Match functions
         if (o == null || getClass() != o.getClass()) return false;
-        Match mm = (Match) o;
-        return Objects.equals(fields(), mm.fields())
-            && Objects.equals(query(), mm.query())
-            && Objects.equals(queryBuilder(), mm.queryBuilder());
+        Match match = (Match) o;
+        return Objects.equals(fields(), match.fields())
+            && Objects.equals(query(), match.query())
+            && Objects.equals(queryBuilder(), match.queryBuilder());
     }
 
     @Override

@@ -76,12 +76,16 @@ public class MachineDependentHeap {
             /*
              * Machine learning only node.
              *
-             * <p>Heap is computed as:
-             * <ul>
-             *     <li>40% of total system memory when total system memory 16 gigabytes or less.</li>
-             *     <li>40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.</li>
-             *     <li>The absolute maximum heap size is 31 gigabytes.</li>
-             * </ul>
+             * The memory reserved for Java is computed as:
+             *   - 40% of total system memory when total system memory 16 gigabytes or less.
+             *   - 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.
+             *   - The absolute maximum heap size is 31 gigabytes.
+             *
+             * This Java memory is divided as follows:
+             *     - 2/3 of the Java memory is reserved for the Java heap.
+             *     - 1/3 of the Java memory is reserved for the Java direct memory.
+             *
+             * The direct memory being half of the heap is set by the JvmErgonomics class.
              *
              * In all cases the result is rounded down to the next whole multiple of 4 megabytes.
              * The reason for doing this is that Java will round requested heap sizes to a multiple
@@ -98,15 +102,6 @@ public class MachineDependentHeap {
              * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
-                /*
-                 * An ML node used to have 40% of the total memory for the Java heap, and the remainder
-                 * for ML and overhead (the operating system). This did not account for the Java direct
-                 * memory, which equals half of the heap size (see JvmErgonomics).
-                 * Right now, a factor of 2/3 is applied to the heap size here, leaving the ML memory
-                 * formula the same. That means the formula now also correctly accounts for direct memory,
-                 * since the heap (2/3 * 40% of the memory) plus the direct memory (1/3 * 40% of the memory)
-                 * equals the original 40% of the total memory.
-                 */
                 if (availableMemory <= (GB * 16)) {
                     yield mb((long) (availableMemory * .4 * 2 / 3), 4);
                 } else {

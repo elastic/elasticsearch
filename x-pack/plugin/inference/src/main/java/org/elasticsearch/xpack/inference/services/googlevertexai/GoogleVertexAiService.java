@@ -222,11 +222,11 @@ public class GoogleVertexAiService extends SenderService {
             return;
         }
 
-        var completionModel = (GoogleVertexAiCompletionModel) model;
+        GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
 
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
-        var action = completionModel.accept(actionCreator, taskSettings);
+        var action = googleVertexAiModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 

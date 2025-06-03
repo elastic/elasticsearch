@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiU
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+
 public class GoogleVertexAiCompletionResponseEntity {
     /**
      * Parses the response from Google Vertex AI's generateContent endpoint
@@ -91,7 +93,7 @@ public class GoogleVertexAiCompletionResponseEntity {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, responseJson)
         ) {
-            parser.nextToken();
+            moveToFirstToken(parser);
             chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser);
         }
         var results = chunk.choices().stream().map(choice -> choice.delta().content()).map(ChatCompletionResults.Result::new).toList();

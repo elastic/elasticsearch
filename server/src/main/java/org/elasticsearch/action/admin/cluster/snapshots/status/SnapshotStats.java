@@ -87,7 +87,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns a stats instance with -1 for all non-time values, for use in situations where the snapshot stats are unavailable.
+     * Returns a stats instance with invalid field values for use in situations where the snapshot stats are unavailable.
      */
     public static SnapshotStats forMissingStats() {
         return new SnapshotStats(0L, 0L, -1, -1, -1, -1L, -1L, -1L);

@@ -66,7 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
@@ -202,7 +202,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
+                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
         }
         return blockLoader;
     }
@@ -542,9 +542,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final BlockLoader delegate;
         private final TypeConverter typeConverter;
 
-        protected TypeConvertingBlockLoader(BlockLoader delegate, AbstractConvertFunction convertFunction) {
+        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction) {
             this.delegate = delegate;
-            this.typeConverter = TypeConverter.fromConvertFunction(convertFunction);
+            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction);
         }
 
         @Override

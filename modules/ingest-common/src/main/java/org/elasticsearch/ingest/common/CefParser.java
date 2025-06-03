@@ -279,7 +279,7 @@ final class CefParser {
     CefEvent process(String cefString) {
         List<String> headers = parseHeaders(cefString);
         // the last 'header' is the not-yet-parsed extension string, remove and then parse it
-        Map<String, String> parsedExtensions = parseExtensions(headers.removeLast());
+        Map<String, String> parsedExtensions = parseExtensions(headers.removeLast(), ignoreEmptyValues);
         CefEvent event = new CefEvent();
         processHeaders(headers, event);
         processExtensions(parsedExtensions, event);
@@ -358,6 +358,11 @@ final class CefParser {
 
     // visible for testing
     static Map<String, String> parseExtensions(String extensionString) {
+        return parseExtensions(extensionString, false);
+    }
+
+    // visible for testing
+    static Map<String, String> parseExtensions(String extensionString, boolean ignoreEmptyValues) {
         // broadly speaking, start by splitting into chunks on un-escaped equals signs
         // given ' foo=bar\\bar \= bar baz=quux ', we want to end up with 'foo', 'bar\bar = bar baz ', 'quux '
         List<String> chunks = new ArrayList<>();
@@ -423,7 +428,10 @@ final class CefParser {
             } else {
                 value = chunk.substring(0, idx);
             }
-            extensions.put(key, value);
+            if (ignoreEmptyValues == false || Strings.isEmpty(value) == false) {
+                extensions.put(key, value);
+            }
+
             key = chunk.substring(idx + 1);
             if (key.isEmpty() || containsWhitespace(key)) {
                 throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN); // TODO I'm not sure this error message is actually fair anymore
@@ -431,7 +439,9 @@ final class CefParser {
         }
         // handle the last chunk
         value = stripTrailingWhitespace(chunks.getLast());
-        extensions.put(key, value);
+        if (ignoreEmptyValues == false || Strings.isEmpty(value) == false) {
+            extensions.put(key, value);
+        }
 
         return extensions;
     }
@@ -456,10 +466,6 @@ final class CefParser {
     }
 
     private void processExtensions(Map<String, String> parsedExtensions, CefEvent event) {
-        // Cleanup empty values in extensions
-        if (ignoreEmptyValues) {
-            removeEmptyValues(parsedExtensions);
-        }
         // Translate extensions to possible ECS fields
         for (Map.Entry<String, String> entry : parsedExtensions.entrySet()) {
             ExtensionMapping mapping = EXTENSION_MAPPINGS.get(entry.getKey());
@@ -588,10 +594,6 @@ final class CefParser {
             }
         }
         return sb.toString();
-    }
-
-    private static void removeEmptyValues(Map<String, String> map) {
-        map.values().removeIf(Strings::isEmpty);
     }
 
     static class CefEvent implements AutoCloseable {

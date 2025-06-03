@@ -1849,11 +1849,10 @@ required_capability: copy_sign
 ROW cs1=COPY_SIGN(10.0, -5.0), cs2=COPY_SIGN(10, 1), cs3=COPY_SIGN(1, -5.0);
 
 cs1:double | cs2:integer | cs3:integer
--10.0       | 10      | -1
+-10.0       | 10         | -1
 ;
 
 copySignWithMixedNumericValuesWithMV
-required_capability: mixed_numeric_types_in_case_greatest_least
 required_capability: copy_sign
 
 FROM employees

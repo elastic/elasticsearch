@@ -46,14 +46,10 @@ public class CopySign extends EsqlScalarFunction {
     }
 
     private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.of(
-        DataType.FLOAT,
-        CopySignFloatEvaluator.Factory::new,
-        DataType.DOUBLE,
-        CopySignDoubleEvaluator.Factory::new,
-        DataType.LONG,
-        CopySignLongEvaluator.Factory::new,
-        DataType.INTEGER,
-        CopySignIntegerEvaluator.Factory::new
+        Map.entry(DataType.FLOAT, CopySignFloatEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, CopySignDoubleEvaluator.Factory::new),
+        Map.entry(DataType.LONG, CopySignLongEvaluator.Factory::new),
+        Map.entry(DataType.INTEGER, CopySignIntegerEvaluator.Factory::new)
     );
 
     private DataType dataType;
@@ -147,13 +143,12 @@ public class CopySign extends EsqlScalarFunction {
         }
         var sign = children().get(1);
         var magnitude = children().get(0);
+        // The output of this function is the MAGNITUDE with the SIGN from `sign` applied to it.
+        // For that reason, we cast the SIGN to DOUBLE, which is the most general numeric type,
+        // and allows us to write a single check (<0 or >=0) for all possible types of `sign`.
+        // However, the output type of this function is determined by the `magnitude` type.
         return FACTORY_PROVIDERS.get(dataType)
-            .create(
-                source(),
-                toEvaluator.apply(magnitude),
-                // We always cast the sign to double for processing, as the sign can be any numeric type.
-                Cast.cast(source(), sign.dataType(), DataType.DOUBLE, toEvaluator.apply(sign))
-            );
+            .create(source(), toEvaluator.apply(magnitude), Cast.cast(source(), sign.dataType(), DataType.DOUBLE, toEvaluator.apply(sign)));
     }
 
     @Evaluator(extraName = "Float")

@@ -31,7 +31,7 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         spEntityId = in.readString();
         assertionConsumerService = in.readString();
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)) {
             attributes = in.readOptionalWriteable(SamlInitiateSingleSignOnAttributes::new);
         }
     }
@@ -99,7 +99,7 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         out.writeString(spEntityId);
         out.writeString(assertionConsumerService);
         out.writeOptionalWriteable(samlAuthenticationState);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)) {
             out.writeOptionalWriteable(attributes);
         }
     }

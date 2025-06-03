@@ -230,7 +230,7 @@ required_capability: knn_function
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0], {"k": 5}) or length(color) > 17 
-| sort _score desc
+| sort _score desc, color asc
 | eval round_score = round(_score, 4)
 | keep color, round_score 
 ;

@@ -75,10 +75,6 @@
                     "type" : "keyword"
                 }
             }
-        },
-        "vector": {
-            "type": "dense_vector",
-            "similarity": "l2_norm"
         }
     }
 }

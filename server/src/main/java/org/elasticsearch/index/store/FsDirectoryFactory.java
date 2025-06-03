@@ -163,8 +163,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
                 ensureCanRead(name);
-                // we switch the context here since mmap checks for the READONCE context by identity
-                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
                 // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
                 // we might run into trouble with files that are pendingDelete in one directory but still
                 // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
@@ -191,7 +189,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         static boolean useDelegate(String name, IOContext ioContext) {
-            if (ioContext == Store.READONCE_CHECKSUM) {
+            if (ioContext.hints().contains(Store.FileFooterOnly.INSTANCE)) {
                 // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
                 // if pre-loading is enabled on this file.
                 return false;

@@ -102,10 +102,10 @@ knnAfterKeep
 required_capability: knn_function
 
 from colors metadata _score
-| keep rgb_vector, _score 
+| keep rgb_vector, color, _score 
 | where knn(rgb_vector, [128,128,0]) 
 | eval round_score = round(_score, 4)
-| sort round_score desc
+| sort round_score desc, color asc
 | keep rgb_vector, round_score
 | limit 5
 ;
@@ -114,8 +114,8 @@ rgb_vector:dense_vector | round_score:double
 [128.0, 128.0, 0.0]     | 1.0               
 [107.0, 142.0, 35.0]    | 0.0014            
 [85.0, 107.0, 47.0]     | 4.0E-4            
-[139.0, 69.0, 19.0]     | 3.0E-4            
-[184.0, 134.0, 11.0]    | 3.0E-4  
+[184.0, 134.0, 11.0]    | 3.0E-4            
+[139.0, 69.0, 19.0]     | 3.0E-4   
 ;
 
 knnAfterDrop

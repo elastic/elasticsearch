@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
@@ -65,8 +67,12 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
             """;
         Map<String, Object> result = runEsqlQuery(query);
 
-        assertEquals(List.of("text_field", "semantic_text_field"), result.get("columns"));
-        assertEquals(List.of("inference test", "inference test"), result.get("values"));
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "semantic_text_field").entry("type", "text"))
+                .item(matchesMap().entry("name", "text_field").entry("type", "text")),
+            List.of(List.of("inference test", "inference test"))
+        );
     }
 
     @Before
@@ -107,7 +113,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                 "properties": {
                   "semantic_text_field": {
                    "type": "semantic_text",
-                   "inference_id": "test_sparse_inference"
+                   "inference_id": "test_dense_inference"
                   },
                   "text_field": {
                    "type": "text",

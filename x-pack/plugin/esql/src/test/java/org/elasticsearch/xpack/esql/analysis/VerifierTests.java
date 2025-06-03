@@ -1354,16 +1354,16 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("Match", "match(first_name, \"Anna\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("Match", "match(title, \"Anna\")", "function");
     }
 
     public void testTermFunctionOnlyAllowedInWhere() throws Exception {
         assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Anna\")", "function");
     }
 
     public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Anna\"", "operator");
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)

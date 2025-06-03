@@ -57,7 +57,7 @@ class KMeans {
         throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
-        long[] centroidCounts = new long[centroids.length];
+        int[] centroidCounts = new int[centroids.length];
         float[][] nextCentroids = new float[centroids.length][dim];
 
         for (int i = 0; i < sampleSize; i++) {
